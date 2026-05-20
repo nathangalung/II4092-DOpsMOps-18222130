@@ -1,0 +1,82 @@
+# =============================================================================
+# Repo membership rules — what lives in `platform/platform.git`
+# =============================================================================
+# This .gitignore enforces ADR-013 (single-source domain agnosticism):
+#   • The platform repo carries ONLY the `platform/` tree.
+#   • Per-use-case repos (`use-case-crypto`, `use-case-stock`, ...) live in
+#     their own Gitea repositories with independent ApplicationSets.
+#   • Audit artefacts, runtime cluster snapshots, reference materials, and
+#     local Claude Code session state never enter source control.
+#
+# Use this file at the *root* of the working tree when seeding Gitea via
+# `git init -b main && git add platform/ && git push`.
+# =============================================================================
+
+# ---- Use-case overlays — own repos --------------------------------------
+use-case-crypto/
+use-case-stock/
+
+# ---- Audit + analytics artefacts ----------------------------------------
+audit-archive/
+audit-snapshot/
+AUDIT_FINAL_*.md
+HANDOFF*.md
+*.audit.md
+session-snapshots/
+
+# ---- Reference materials (PDFs, slide decks, datasets, screenshots) -----
+materials/
+*.pdf
+*.pptx
+*.docx
+
+# ---- Tooling / IDE / Claude session state -------------------------------
+.claude/
+.mcp.json
+.idea/
+.vscode/
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# ---- Build / cache / language artefacts ---------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+node_modules/
+dist/
+build/
+target/
+.next/
+.cache/
+
+# ---- Secrets, credentials, key material ---------------------------------
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.kubeconfig
+kubeconfig
+id_rsa*
+id_ed25519*
+*.gpg
+*.asc
+secret.yaml
+secrets.yaml
+sealed-secret-*.yaml
+
+# ---- Logs / coredumps / tmp ---------------------------------------------
+*.log
+core
+core.*
+.terraform/
+.terraform.lock.hcl
+
+# ---- Local kustomize/helm scratch ---------------------------------------
+charts/
+*.tgz
+.helmignore.local
