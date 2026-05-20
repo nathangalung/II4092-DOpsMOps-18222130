@@ -1,0 +1,93 @@
+# =============================================================================
+# Altinity ClickHouse Operator 0.26.3 (latest as of 2026-05)
+# =============================================================================
+# ADR-011.  Provides CRDs:
+#   ClickHouseInstallation          (CHI)       — the cluster
+#   ClickHouseInstallationTemplate  (CHIT)      — reusable template
+#   ClickHouseOperatorConfiguration (CHOpConf)  — operator config
+#
+# Pinned 0.26.3 — 0.26.2 panicked with nil ptr in GetRootServiceTemplates
+# during CHK finalizer cleanup when the user CR omits .spec.templates.
+# serviceTemplates (our case; we only set podTemplates + volumeClaimTemplates).
+# Stuck CHI/CHK finalizers are force-cleared by post-apply.sh; new resources
+# created after the upgrade will not trip the same path because the steady-
+# state reconcile loop tolerates the omission — only the delete/finalizer
+# path was nil-unsafe in 0.26.2.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: clickhouse-system
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: clickhouse-operator
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: altinity-clickhouse-operator
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    # Altinity's official Helm registry (docs URL was wrong and rejects auth).
+    repoURL: https://helm.altinity.com
+    chart: altinity-clickhouse-operator
+    targetRevision: 0.26.3
+    helm:
+      releaseName: clickhouse-operator
+      values: |
+        operator:
+          # Single-pod bootstrap; bump to 2 (active/standby) post-stabilization.
+          replicaCount: 1
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+        # Operator config lives inside the chart's embedded YAML at
+        # `configs.files."config.yaml".*` — chart deep-merges these values
+        # into the rendered ConfigMap; everything else stays default.
+        configs:
+          files:
+            config.yaml:
+              # klog v-level. v=1 (default) emits NO per-CR traces in the
+              # custom workqueue reconcile path: a stuck CHI sits with
+              # empty `.status` and no STS materializes — operator looks
+              # healthy (2/2 Running) but is silent. v=3 surfaces every
+              # reconcile attempt + the informer cache snapshot; required
+              # to debug non-materialization. Field-validated 2026-05-04
+              # against operator 0.26.2 with CHI `platform` stuck.
+              logger:
+                v: "3"
+              # Cluster-wide watch via regex. Empty `[]` is NOT "all" — the
+              # Altinity operator falls back to OPERATOR_POD_NAMESPACE
+              # (clickhouse-system) when the list is empty, leaving CHIs
+              # in other namespaces orphaned. The chart values.yaml comment
+              # explicitly states "Regexp is applicable." so `.*` matches
+              # every namespace. Field-validated 2026-05-04: CHI `platform`
+              # in `storage` ns sat with empty `.status` for 40+ minutes
+              # until this regex was applied. There is no `watchAllNamespaces`
+              # chart value (silently ignored prior — chart README does
+              # not document such a key).
+              watch:
+                namespaces:
+                  - ".*"
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+            namespace: observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: clickhouse-system
+  syncPolicy:
+    # selfHeal/prune off platform-wide so manual scale-down/delete is not
+    # auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

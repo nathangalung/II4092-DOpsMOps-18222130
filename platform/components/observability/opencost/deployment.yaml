@@ -1,0 +1,237 @@
+# =============================================================================
+# OPENCOST — Kubernetes Cost Monitoring (CNCF Incubating)
+# =============================================================================
+# Real-time cost allocation by namespace, controller, pod, service.
+# Integrates natively with Prometheus (scrapes cost metrics) and
+# Grafana (pre-built dashboards available).
+#
+# Dependencies: Prometheus (required for metrics storage)
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencost
+  namespace: observability
+  labels:
+    app: opencost
+spec:
+  selector:
+    app: opencost
+  ports:
+    - name: http
+      port: 9003
+      targetPort: 9003
+    - name: ui
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opencost
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencost
+rules:
+  - apiGroups: [""]
+    resources:
+      [
+        "configmaps",
+        "deployments",
+        "nodes",
+        "pods",
+        "services",
+        "resourcequotas",
+        "replicationcontrollers",
+        "limitranges",
+        "persistentvolumeclaims",
+        "persistentvolumes",
+        "namespaces",
+        "endpoints",
+      ]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions", "apps"]
+    resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opencost
+subjects:
+  - kind: ServiceAccount
+    name: opencost
+    namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencost
+  namespace: observability
+  labels:
+    app: opencost
+    app.kubernetes.io/name: opencost
+    app.kubernetes.io/component: cost-metrics
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: opencost
+  template:
+    metadata:
+      labels:
+        app: opencost
+    spec:
+      serviceAccountName: opencost
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # opencost-ui entrypoint runs `envsubst < default.nginx.conf.template
+        # > default.nginx.conf` inside /etc/nginx/conf.d. The image bakes the
+        # template into that directory, but mounting an emptyDir there to
+        # satisfy the write step shadows the template — nginx then fails
+        # `default.nginx.conf.template: no such file`. This init seeds the
+        # emptyDir with the image's /etc/nginx/conf.d/* before the main
+        # container starts so the entrypoint sees both: the template (read)
+        # and a writable directory (output).
+        - name: seed-nginx-conf-d
+          image: ghcr.io/opencost/opencost-ui:1.120.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command: ["/bin/sh", "-c"]
+          args: ["cp -a /etc/nginx/conf.d/. /seed/"]
+          volumeMounts:
+            - name: etc-nginx-conf-d
+              mountPath: /seed
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      containers:
+        - name: opencost
+          image: ghcr.io/opencost/opencost:1.120.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9003
+              name: http
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090"
+            - name: CLOUD_PROVIDER_API_KEY
+              value: ""
+            - name: CLUSTER_ID
+              value: "platform-local"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi # Single-pod bootstrap; bump for production load.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9003
+            initialDelaySeconds: 30
+            periodSeconds: 30
+        - name: opencost-ui
+          image: ghcr.io/opencost/opencost-ui:1.120.1
+          # Image bakes /var/www owned by root; running as nonroot (fsGroup
+          # 1000) the entrypoint's `cp -r /opt/ui/dist/* /var/www` fails
+          # Permission denied. Mount emptyDir at /var/www so kubelet chowns
+          # to fsGroup and the cp + nginx serve succeed. /var/cache/nginx
+          # and /var/run also need writable mounts under nginx unprivileged.
+          # ROFS stays off — upstream chart pattern.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+              name: ui
+          volumeMounts:
+            - name: var-www
+              mountPath: /var/www
+            - name: var-cache-nginx
+              mountPath: /var/cache/nginx
+            - name: var-run
+              mountPath: /var/run
+            # Entrypoint reads default.nginx.conf.template here and writes
+            # default.nginx.conf next to it. Seeded by `seed-nginx-conf-d`
+            # init container so template survives the emptyDir mount.
+            - name: etc-nginx-conf-d
+              mountPath: /etc/nginx/conf.d
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9090
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: var-www
+          emptyDir: {}
+        - name: var-cache-nginx
+          emptyDir: {}
+        - name: var-run
+          emptyDir: {}
+        - name: etc-nginx-conf-d
+          emptyDir: {}

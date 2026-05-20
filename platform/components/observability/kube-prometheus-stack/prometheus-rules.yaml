@@ -1,0 +1,406 @@
+# =============================================================================
+# Platform SLO recording + alerting rules
+# =============================================================================
+# Every rule traces back to a requirement in the thesis (Proposal.tex /
+# chapters/, tables/kebutuhan_{fungsional,nonfungsional}.tex). Tags:
+#   KNF-01 latency p50<5ms p95<8ms p99<10ms
+#   KNF-02 feature-serving >=10k QPS/node; stream >=1M events/s/pipeline
+#   KNF-03 linear scale to 10x baseline
+#   KNF-04 availability 99.9%, RTO<5m, RPO<1m
+#   KNF-05 zero temporal leakage
+#   KNF-10 compression >5:1, CPU util >70%
+#   KNF-12 coverage >80% (handled in CI, not runtime)
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-slo-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Recording rules — aggregate SLIs at 5m resolution (cheap for dashboards).
+    # =========================================================================
+    - name: platform.slo.recording
+      interval: 30s
+      rules:
+        # Latency percentiles (Istio histograms; every pod gets a sidecar).
+        - record: slo:http_latency_ms:p50:5m
+          expr: |
+            histogram_quantile(0.50,
+              sum by (namespace, destination_service_name, le)
+              (rate(istio_request_duration_milliseconds_bucket[5m])))
+        - record: slo:http_latency_ms:p95:5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, destination_service_name, le)
+              (rate(istio_request_duration_milliseconds_bucket[5m])))
+        - record: slo:http_latency_ms:p99:5m
+          expr: |
+            histogram_quantile(0.99,
+              sum by (namespace, destination_service_name, le)
+              (rate(istio_request_duration_milliseconds_bucket[5m])))
+
+        # Availability: 1 - errors/requests over 5m windows.
+        - record: slo:http_availability:5m
+          expr: |
+            1 - (
+              sum by (namespace, destination_service_name) (rate(istio_requests_total{response_code=~"5.."}[5m]))
+              /
+              clamp_min(sum by (namespace, destination_service_name) (rate(istio_requests_total[5m])), 1)
+            )
+
+        # Feature-serving throughput (feast-server + feature-cache).
+        - record: slo:feature_serving:qps:5m
+          expr: |
+            sum by (namespace) (
+              rate(istio_requests_total{destination_service_name=~"feast|.*feature-cache"}[5m])
+            )
+
+        # Stream throughput: Kafka msg-in rate per broker.
+        - record: slo:kafka_stream:events_per_sec:5m
+          expr: |
+            sum by (namespace, topic) (rate(kafka_topic_partition_current_offset[5m]))
+
+        # ClickHouse compression ratio (uncompressed/compressed).
+        - record: slo:clickhouse_compression_ratio
+          expr: |
+            sum by (pod) (ClickHouseAsyncMetrics_UncompressedBytes)
+            /
+            clamp_min(sum by (pod) (ClickHouseAsyncMetrics_CompressedBytes), 1)
+
+        # RPO: Postgres replication lag seconds (from custom cnpg-queries).
+        - record: slo:postgres_replica_lag_seconds
+          expr: max by (cluster, slot_name) (cnpg_pg_replication_lag_seconds)
+
+        # CPU utilisation (cluster-wide mean of busy cores per core).
+        - record: slo:cluster_cpu_utilisation:5m
+          expr: |
+            1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))
+
+        # Temporal leakage violations (custom metric from Great Expectations).
+        # GE emits `great_expectations_expectation_suite_failed_count` with
+        # labels {suite=...}; we filter on temporal-safety suites.
+        - record: slo:temporal_leakage_violations
+          expr: |
+            sum(
+              increase(great_expectations_expectation_suite_failed_count{suite=~".*temporal.*"}[5m])
+            ) or vector(0)
+
+    # =========================================================================
+    # Alerts — thesis KNF SLOs.  Severity=critical pages PagerDuty; warning
+    # goes to platform-team-slack.
+    # =========================================================================
+    - name: platform.slo.alerts
+      rules:
+        - alert: FeatureServingLatencyP99High
+          # KNF-01: p99 < 10ms at feature-serving tier.
+          expr: slo:http_latency_ms:p99:5m{destination_service_name=~"feast|.*feature-cache"} > 10
+          for: 5m
+          labels: { severity: critical, team: platform, slo: feature_serving_p99 }
+          annotations:
+            summary: "Feature-serving p99 latency {{ $value | humanize }}ms exceeds 10ms (KNF-01)"
+            description: |
+              Service {{ $labels.destination_service_name }} in {{ $labels.namespace }}
+              breached the KNF-01 p99<10ms budget for 5 minutes.
+            runbook_url: "https://runbooks.platform.local/feature-serving-latency"
+
+        - alert: FeatureServingLatencyP95High
+          expr: slo:http_latency_ms:p95:5m{destination_service_name=~"feast|.*feature-cache"} > 8
+          for: 10m
+          labels: { severity: warning, team: platform, slo: feature_serving_p95 }
+          annotations:
+            summary: "Feature-serving p95 latency {{ $value | humanize }}ms exceeds 8ms (KNF-01)"
+
+        - alert: PlatformAvailabilityBudgetBurn
+          # KNF-04: 99.9% => 0.1% error budget => burn > 10x over 5m means <2h budget left.
+          expr: (1 - slo:http_availability:5m) > 0.01
+          for: 15m
+          labels: { severity: critical, team: platform, slo: availability }
+          annotations:
+            summary: "{{ $labels.destination_service_name }} error rate {{ $value | humanizePercentage }} (budget burn 10x)"
+            description: "Sustained error rate exceeds 99.9% budget (KNF-04)."
+
+        - alert: PostgresReplicationLagHigh
+          # KNF-04: RPO < 1 minute.
+          expr: slo:postgres_replica_lag_seconds > 60
+          for: 2m
+          labels: { severity: critical, team: platform, slo: rpo }
+          annotations:
+            summary: "Postgres replica {{ $labels.slot_name }} lag {{ $value }}s (> RPO 60s)"
+
+        - alert: VeleroBackupMissing
+          # KNF-04: RTO < 5 minutes requires a recent backup. Alert if no
+          # successful backup in 26h (daily schedule + 2h slack).
+          expr: (time() - velero_backup_last_successful_timestamp) > 26 * 3600
+          for: 10m
+          labels: { severity: critical, team: platform, slo: rto }
+          annotations:
+            summary: "Velero: no successful backup in {{ $value | humanizeDuration }}"
+
+        - alert: ClickHouseCompressionRatioLow
+          expr: slo:clickhouse_compression_ratio < 5
+          for: 30m
+          labels: { severity: warning, team: platform, slo: compression }
+          annotations:
+            summary: "ClickHouse compression {{ $value | humanize }}:1 below KNF-10 target 5:1"
+
+        - alert: TemporalLeakageDetected
+          # KNF-05: ZERO tolerance — page immediately.
+          expr: slo:temporal_leakage_violations > 0
+          for: 0m
+          labels: { severity: critical, team: ml, slo: temporal_leakage }
+          annotations:
+            summary: "{{ $value }} temporal-leakage GE suite failure(s) in the last 5m"
+            description: |
+              KNF-05 guarantees zero temporal leakage in backtests. Point-in-time
+              join validation failed. Block the pipeline until root cause is found.
+
+        - alert: KafkaStreamThroughputBelowFloor
+          # KNF-02: > 1M events/s/pipeline. Alert only in prod workloads.
+          expr: |
+            slo:kafka_stream:events_per_sec:5m < 100000
+            and ON() (time() - cluster_start_unix_seconds > 7200)
+          for: 30m
+          labels: { severity: warning, team: platform, slo: stream_throughput }
+          annotations:
+            summary: "Topic {{ $labels.topic }} throughput {{ $value | humanize }}/s; KNF-02 target 1M/s"
+
+        - alert: FeatureServingQPSBelowFloor
+          expr: slo:feature_serving:qps:5m < 1000
+          for: 30m
+          labels: { severity: info, team: platform, slo: feature_serving_qps }
+          annotations:
+            summary: "Feature-serving {{ $value | humanize }} QPS; KNF-02 target >= 10k/node"
+
+        - alert: ClusterCpuUtilisationLow
+          # KNF-10: target >70% utilisation means cluster is right-sized.
+          # Fires as informational if idle, not a paging alert.
+          expr: slo:cluster_cpu_utilisation:5m < 0.30
+          for: 2h
+          labels: { severity: info, team: platform, slo: cpu_utilisation }
+          annotations:
+            summary: "Cluster CPU utilisation {{ $value | humanizePercentage }}; consider right-sizing."
+
+    # =========================================================================
+    # Drift / model-lifecycle alerts
+    # =========================================================================
+    - name: platform.ml.alerts
+      rules:
+        - alert: ModelDriftDetected
+          expr: |
+            increase(mlops_drift_detector_alert_total[1h]) > 0
+          for: 5m
+          labels: { severity: warning, team: ml, slo: drift }
+          annotations:
+            summary: "Drift detector raised {{ $value }} alerts in the last hour"
+            description: "Feature drift exceeded 0.2 PSI threshold; review model inputs."
+
+        - alert: InferenceServiceUnavailable
+          expr: |
+            (sum by (namespace, isvc) (kserve_isvc_ready) == 0)
+          for: 5m
+          labels: { severity: critical, team: ml, slo: model_serving }
+          annotations:
+            summary: "KServe InferenceService {{ $labels.isvc }} in {{ $labels.namespace }} not ready"
+
+    # =========================================================================
+    # Backup / replication health  (ADR-014, KNF-04)
+    # =========================================================================
+    - name: platform.backup.alerts
+      rules:
+        - alert: CNPGWALArchiveFailing
+          # CNPG 1.26+ deprecates inline barmanObjectStore; requires plugin-barman-cloud.
+          # Symptom: cnpg_pg_stat_archiver_failed_count rising, Cluster events show
+          # `barman-cloud-check-wal-archive: executable file not found in $PATH`.
+          expr: |
+            increase(cnpg_pg_stat_archiver_failed_count[10m]) > 0
+          for: 10m
+          labels: { severity: critical, team: platform, slo: rpo, component: cnpg }
+          annotations:
+            summary: "CNPG WAL archiver failed {{ $value }} time(s) in last 10m"
+            description: |
+              PostgreSQL WAL archiving to MinIO is failing — RPO guarantee broken (KNF-04).
+              Likely causes: plugin-barman-cloud CNPG-I plugin not installed, MinIO
+              `cnpg-backups` bucket missing, or ObjectStore credentials invalid.
+            runbook_url: "https://runbooks.platform.local/cnpg-wal-archive"
+
+        - alert: VeleroBackupPartialFailure
+          expr: |
+            increase(velero_backup_partial_failure_total[1h]) > 0
+          for: 5m
+          labels: { severity: warning, team: platform, slo: backup }
+          annotations:
+            summary: "Velero backup completed with {{ $value }} partial failure(s) in last hour"
+
+        - alert: ClickHouseBackupStale
+          # clickhouse-backup sidecar (ADR-011) must succeed within 26h of last backup.
+          expr: |
+            (time() - clickhouse_backup_last_successful_timestamp_seconds) > 26 * 3600
+          for: 10m
+          labels: { severity: critical, team: platform, slo: rpo, component: clickhouse }
+          annotations:
+            summary: "ClickHouse backup is {{ $value | humanizeDuration }} old (> 26h)"
+
+    # =========================================================================
+    # Security posture (ADR-008, ADR-012)
+    # =========================================================================
+    - name: platform.security.alerts
+      rules:
+        - alert: OpenBaoSealed
+          # ExternalSecret reconciliation blocked until OpenBao is unsealed — all
+          # rotations stall, which eventually breaks apps with short TTL creds.
+          # Metric prefix `vault_*` is OpenBao's upstream-compat metric naming.
+          expr: vault_core_unsealed == 0
+          for: 2m
+          labels: { severity: critical, team: platform, component: openbao }
+          annotations:
+            summary: "OpenBao is sealed — secret materialization blocked (ADR-008)"
+            runbook_url: "https://runbooks.platform.local/openbao-unseal"
+
+        - alert: OpenBaoHighErrorRate
+          expr: |
+            sum(rate(vault_audit_log_request_failure_total[5m]))
+              / clamp_min(sum(rate(vault_audit_log_request_total[5m])), 1)
+            > 0.05
+          for: 10m
+          labels: { severity: warning, team: platform, component: openbao }
+          annotations:
+            summary: "OpenBao API error rate {{ $value | humanizePercentage }} > 5%"
+
+        - alert: ExternalSecretSyncFailed
+          expr: |
+            external_secrets_sync_calls_error > 0
+          for: 15m
+          labels: { severity: warning, team: platform, component: eso }
+          annotations:
+            summary: "ExternalSecret {{ $labels.name }} in {{ $labels.namespace }} sync failing"
+
+        - alert: KyvernoPolicyViolationSpike
+          # Elevated enforce-mode violations suggest a policy-incompatible workload.
+          expr: |
+            sum(increase(kyverno_policy_results_total{policy_validation_mode="enforce",policy_result="fail"}[5m])) > 5
+          for: 5m
+          labels: { severity: warning, team: platform, component: kyverno }
+          annotations:
+            summary: "Kyverno enforce-mode violations: {{ $value }} in 5m"
+
+        - alert: CosignImageVerificationFailed
+          expr: |
+            increase(kyverno_policy_results_total{policy=~".*verify-image.*",policy_result="fail"}[10m]) > 0
+          for: 5m
+          labels: { severity: critical, team: platform, component: cosign }
+          annotations:
+            summary: "Unsigned / tampered image admission denied: {{ $labels.resource_name }}"
+
+    # =========================================================================
+    # Data ingestion (ADR-011, ADR-013)
+    # =========================================================================
+    - name: platform.data.ingestion.alerts
+      rules:
+        - alert: KafkaConsumerLagHigh
+          # KNF-02 stream freshness budget. Per consumer group, lag > 100k msgs.
+          expr: |
+            max by (consumergroup, topic) (kafka_consumergroup_lag) > 100000
+          for: 15m
+          labels: { severity: warning, team: platform, slo: stream_freshness }
+          annotations:
+            summary: "Consumer group {{ $labels.consumergroup }} on {{ $labels.topic }} lagging {{ $value | humanize }} msgs"
+
+        - alert: KafkaBrokerUnderReplicated
+          # RF=3, min.insync=2 (ADR-011) — any under-replicated partition threatens RPO.
+          expr: |
+            kafka_server_replicamanager_underreplicatedpartitions > 0
+          for: 5m
+          labels: { severity: critical, team: platform, slo: rpo, component: kafka }
+          annotations:
+            summary: "{{ $value }} under-replicated Kafka partition(s) on broker {{ $labels.pod }}"
+
+        - alert: DataHubIngestionJobFailed
+          # 8 ingestion CronJobs (ADR-013). A miss means stale catalog lineage.
+          expr: |
+            kube_job_status_failed{job_name=~"datahub-ingest-.*"} > 0
+          for: 10m
+          labels: { severity: warning, team: platform, component: datahub }
+          annotations:
+            summary: "DataHub ingestion job {{ $labels.job_name }} failed"
+
+    # =========================================================================
+    # Model lifecycle (ADR-003, ADR-005)
+    # =========================================================================
+    - name: platform.model.lifecycle.alerts
+      rules:
+        - alert: MLflowTrainingRunFailed
+          # KFP pipeline runs are the primary training trigger (ADR-003).
+          expr: |
+            sum(increase(kfp_run_status_failed_total[30m])) > 0
+          for: 10m
+          labels: { severity: warning, team: ml, slo: training }
+          annotations:
+            summary: "{{ $value }} KFP training run(s) failed in last 30m"
+
+        - alert: ModelStalenessHigh
+          # No new model version registered in MLflow for > 7 days.
+          expr: |
+            (time() - mlflow_registered_model_latest_version_timestamp_seconds) / 86400 > 7
+          for: 1h
+          labels: { severity: info, team: ml, slo: model_freshness }
+          annotations:
+            summary: "Model {{ $labels.name }} has no new version in {{ $value | humanize }} days"
+
+        - alert: KServeIsvcRestartsHigh
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="model-serving"}[15m]) > 3
+          for: 5m
+          labels: { severity: warning, team: ml, component: kserve }
+          annotations:
+            summary: "KServe pod {{ $labels.pod }} restarted {{ $value }} times in 15m"
+
+        - alert: EvidentlyDriftSevere
+          # Higher bar than platform.ml.alerts.ModelDriftDetected; fires on > 5 drift
+          # alerts per hour (repeat-after-alert escalation path).
+          expr: |
+            increase(mlops_drift_detector_alert_total[1h]) > 5
+          for: 0m
+          labels: { severity: critical, team: ml, slo: drift }
+          annotations:
+            summary: "Severe drift: {{ $value }} Evidently alerts in last hour"
+            description: "Trigger immediate retraining; consider serving rollback until new model is validated."
+
+    # =========================================================================
+    # Infra / cluster (ADR-007, ADR-010, ADR-014)
+    # =========================================================================
+    - name: platform.infra.alerts
+      rules:
+        # prometheus-adapter retired 2026-04-21 (ADR-026). The equivalent
+        # watchdog for custom-metric HPAs is now KEDA's own health — any
+        # `keda-operator-metrics-apiserver` outage is caught by the stock
+        # `KubeAPIServerErrors` alert (the APIService is registered via
+        # kubernetes.default.svc), so no custom alert is needed here.
+        # local-path-provisioner exports no per-volume health metric — the SC
+        # uses hostPath bind-mounts with no engine, so the only relevant signal
+        # is kubelet's stock VolumeMount / FilesystemAvailable alerts shipped
+        # by kube-prometheus-stack's default rules. No custom replacement for
+        # the removed LonghornVolumeDegraded alert (ADR-031).
+        - alert: OTelCollectorDown
+          # ADR-010: collector gateway receives all traces/metrics/logs; without
+          # it, Tempo/Loki ingest rate drops to 0.
+          expr: |
+            absent(up{job=~".*opentelemetry-collector.*"} == 1)
+          for: 5m
+          labels: { severity: warning, team: platform, component: otel }
+          annotations:
+            summary: "OTel Collector gateway is down; Tempo/Loki ingestion may stall"
+
+        - alert: ChaosMeshExperimentFailed
+          # Experiment scheduler crashing is distinct from deliberate injection.
+          expr: |
+            increase(chaos_mesh_experiment_status{status="Failed"}[30m]) > 0
+          for: 5m
+          labels: { severity: info, team: platform, component: chaos }
+          annotations:
+            summary: "Chaos experiment {{ $labels.name }} in Failed state"

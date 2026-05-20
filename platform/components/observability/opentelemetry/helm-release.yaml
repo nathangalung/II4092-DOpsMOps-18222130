@@ -1,0 +1,86 @@
+# =============================================================================
+# OpenTelemetry Operator + Collector (gateway + agent)
+# =============================================================================
+# ADR-010.  KNF-06 requires OpenTelemetry.  The Operator installs the CRD
+# `OpenTelemetryCollector`; see `collectors.yaml` for the two instances:
+#
+#   otel-collector-agent    DaemonSet on every node (scrapes local sources,
+#                           tags with k8s.node.name, forwards to gateway)
+#   otel-collector-gateway  Deployment (sampling, routing, fan-out to
+#                           Tempo (traces) / Prometheus (metrics) / Loki (logs))
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opentelemetry-operator
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-operator
+    targetRevision: 0.111.0    # 2026-04-29 — OTel Operator chart (appVersion 0.149.0). Patch on 0.110 line; controller-runtime metrics secure-by-default carries forward.
+    helm:
+      releaseName: otel-operator
+      values: |
+        # Collapse default chart naming `<release>-<chart>-*` to a single
+        # `otel-operator-*` prefix. Without this, every resource (svc, deploy,
+        # webhook config, cert secret, Certificate, RBAC) ends up with the
+        # redundant `otel-operator-opentelemetry-operator-*` stack because the
+        # chart concats releaseName + chartName when fullnameOverride is unset.
+        fullnameOverride: otel-operator
+
+        admissionWebhooks:
+          # autoGenerateCert default is enabled in chart 0.110.0 — when both
+          # autoGenerateCert AND certManager are on, the operator pod serves
+          # the in-memory self-signed cert (no SAN) while the kube-apiserver
+          # validates against the cert-manager Certificate referenced via
+          # caBundle injection. Result: x509 SAN mismatch on every webhook
+          # call. Disabling autoGenerateCert forces the operator to mount
+          # the cert-manager secret (`useGeneratedCert: false` is implied).
+          autoGenerateCert:
+            enabled: false
+          certManager:
+            enabled: true
+            issuerRef:
+              name: platform-ca
+              kind: ClusterIssuer
+        manager:
+          # The webhook port (9443) must bypass Istio sidecar interception:
+          # kube-apiserver speaks plain TLS to the webhook and validates the
+          # cert SAN against the DNS name; if the Istio sidecar terminates
+          # inbound first it presents its SPIFFE cert (URI SAN, not DNS),
+          # causing `x509: certificate is not valid for any names`. Excluding
+          # port 9443 from inbound capture lets kube-apiserver hit the
+          # operator's webhook server directly with the cert-manager cert.
+          podAnnotations:
+            traffic.sidecar.istio.io/excludeInboundPorts: "9443"
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          serviceMonitor:
+            enabled: true
+          env:
+            ENABLE_WEBHOOKS: "true"
+          # Enables auto-instrumentation injection webhook (Instrumentation CR).
+          # Collector container tag kept in sync with chart appVersion 0.148.0 so
+          # the operator-manager and collector binary stay in lockstep (operator
+          # translates CR → collector config and only knows schemas up to its
+          # own appVersion). This value is the DEFAULT; the OpenTelemetryCollector
+          # CRs in collectors.yaml override it explicitly and must be kept in sync.
+          collectorImage:
+            repository: otel/opentelemetry-collector-contrib
+            tag: 0.148.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

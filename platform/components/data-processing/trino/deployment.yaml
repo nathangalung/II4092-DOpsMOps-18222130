@@ -1,0 +1,199 @@
+# =============================================================================
+# Trino catalog credentials — OpenBao-sourced (ADR-008)
+# =============================================================================
+# Two ExternalSecrets render the full catalog .properties files from OpenBao:
+#
+#   platform/postgres/app       → postgresql.properties (CNPG `platform`
+#                                  app user; the `postgres` superuser is
+#                                  off-limits because CNPG defaults
+#                                  `enableSuperuserAccess: false`).
+#   platform/minio/root         → iceberg.properties
+#
+# The Secret `trino-catalog-secrets` keeps its name so the Deployment's
+# volumeMount subPaths (postgresql.properties, iceberg.properties) keep
+# working without change. The full .properties content is rendered server-side
+# by ESO using the template block — this means the eventual Secret payload
+# is byte-identical to the previous hard-coded stringData, just with the
+# credential substrings pulled from OpenBao each refresh interval.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trino-catalog-secrets
+  namespace: data-processing
+  labels:
+    app: trino
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: trino-catalog-secrets
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        clickhouse.properties: |
+          connector.name=clickhouse
+          connection-url=jdbc:clickhouse://clickhouse-platform.storage.svc.cluster.local:8123/
+          connection-user={{ .ch_user }}
+          connection-password={{ .ch_password }}
+        postgresql.properties: |
+          connector.name=postgresql
+          connection-url=jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/platform
+          connection-user={{ .pg_user }}
+          connection-password={{ .pg_password }}
+        iceberg.properties: |
+          connector.name=iceberg
+          iceberg.catalog.type=rest
+          iceberg.rest-catalog.uri=http://lakekeeper.storage.svc.cluster.local:8181/catalog
+          iceberg.rest-catalog.warehouse=warehouse
+          fs.native-s3.enabled=true
+          s3.endpoint=http://minio.storage.svc.cluster.local:9000
+          s3.region=us-east-1
+          s3.aws-access-key={{ .s3_access_key }}
+          s3.aws-secret-key={{ .s3_secret_key }}
+          s3.path-style-access=true
+  data:
+    - secretKey: ch_user
+      remoteRef: { key: platform/clickhouse/admin, property: username }
+    - secretKey: ch_password
+      remoteRef: { key: platform/clickhouse/admin, property: password }
+    - secretKey: pg_user
+      remoteRef: { key: platform/postgres/app, property: username }
+    - secretKey: pg_password
+      remoteRef: { key: platform/postgres/app, property: password }
+    - secretKey: s3_access_key
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: s3_secret_key
+      remoteRef: { key: platform/minio/root, property: password }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: data-processing
+  labels:
+    app: trino
+data:
+  config.properties: |
+    coordinator=true
+    node-scheduler.include-coordinator=true
+    http-server.http.port=8085
+    discovery.uri=http://localhost:8085
+    query.max-memory=2GB
+  jvm.config: |
+    -server
+    -Xmx1G
+    -XX:InitialRAMPercentage=80
+    -XX:MaxRAMPercentage=80
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:-OmitStackTraceInFastThrow
+    -Djdk.attach.allowAttachSelf=true
+  node.properties: |
+    node.environment=production
+    node.data-dir=/data/trino
+  # clickhouse.properties, postgresql.properties, and iceberg.properties
+  # are all in trino-catalog-secrets Secret (contain credentials).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino
+  namespace: data-processing
+  labels:
+    app: trino
+spec:
+  selector:
+    app: trino
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino
+  namespace: data-processing
+  labels:
+    app: trino
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: trino
+  template:
+    metadata:
+      labels:
+        app: trino
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: trino
+          image: trinodb/trino:480
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/config.properties
+              subPath: config.properties
+            - name: config
+              mountPath: /etc/trino/jvm.config
+              subPath: jvm.config
+            - name: config
+              mountPath: /etc/trino/node.properties
+              subPath: node.properties
+            - name: catalog-secrets
+              mountPath: /etc/trino/catalog/clickhouse.properties
+              subPath: clickhouse.properties
+            - name: catalog-secrets
+              mountPath: /etc/trino/catalog/postgresql.properties
+              subPath: postgresql.properties
+            - name: catalog-secrets
+              mountPath: /etc/trino/catalog/iceberg.properties
+              subPath: iceberg.properties
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: 200m
+              memory: 512Mi  # JVM; keep ≥512Mi for Trino's heap
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /v1/info
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/info
+              port: 8085
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+        - name: catalog-secrets
+          secret:
+            secretName: trino-catalog-secrets

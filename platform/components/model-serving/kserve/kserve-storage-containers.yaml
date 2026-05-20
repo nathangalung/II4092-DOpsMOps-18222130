@@ -1,0 +1,50 @@
+# =============================================================================
+# ClusterStorageContainer — KServe v0.17 storage-initializer URI dispatcher
+# =============================================================================
+# In KServe v0.13+ the InferenceService **controller** (not the pod-mutating
+# webhook) injects the storage-initializer initContainer. The controller
+# resolves `spec.predictor.model.storageUri` against the cluster-scoped
+# `ClusterStorageContainer` CRs: each CR declares which URI prefixes/regexes
+# it handles and the container spec to inject.
+#
+# Without ANY ClusterStorageContainer the controller silently skips injection
+# (no error, no event) and the predictor pod boots without /mnt/models →
+# the runtime fails with `InvalidModelURI: /mnt/models is not a valid URI`.
+# We hit this on platform-health-check-predictor (s3://… storageUri) on
+# 2026-05-08 — 0 ClusterStorageContainer in cluster.
+#
+# Source: kserve/kserve@v0.17.0 config/storagecontainers/default.yaml
+# (image patched from `default-storage-initilizer:replace` — upstream
+# kustomize placeholder — to the actual v0.17.0 image we already pulled).
+# Resources match the `storageInitializer` block in kserve-configmap.yaml.
+# =============================================================================
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterStorageContainer
+metadata:
+  name: default
+  labels:
+    app.kubernetes.io/name: kserve
+    app.kubernetes.io/component: kserve
+    kustomize.component: kserve
+spec:
+  container:
+    name: storage-initializer
+    image: kserve/storage-initializer:v0.17.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  supportedUriFormats:
+    - prefix: gs://
+    - prefix: s3://
+    - prefix: hdfs://
+    - prefix: hf://
+    - prefix: webhdfs://
+    - regex: "https://(.+?).blob.core.windows.net/(.+)"
+    - regex: "https://(.+?).file.core.windows.net/(.+)"
+    - regex: "https?://(.+)/(.+)"
+  workloadType: initContainer

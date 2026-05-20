@@ -1,0 +1,157 @@
+# =============================================================================
+# SPARK ON KUBERNETES — On-demand batch processing
+# =============================================================================
+# Uses spark-submit with --master k8s:// instead of a standalone cluster.
+# No always-running master/worker pods — zero idle resource cost.
+#
+# Spark jobs are submitted via:
+#   1. Airflow SparkKubernetesOperator (preferred for scheduled jobs)
+#   2. Direct spark-submit from a Job/CronJob
+#
+# Scale-out: increase executor instances. Spark distributes work across
+# available nodes automatically via the K8s scheduler.
+#
+# The ServiceAccount + RBAC allows Spark driver pods to create executor pods.
+# =============================================================================
+
+# --- RBAC for Spark driver to create executor pods ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: data-processing
+  labels:
+    app: spark
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-driver
+  namespace: data-processing
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-driver-binding
+  namespace: data-processing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark-driver
+subjects:
+  - kind: ServiceAccount
+    name: spark
+    namespace: data-processing
+---
+# --- S3/MinIO credentials via ExternalSecret (ADR-008) ---
+# Credentials are sourced from OpenBao; the resulting Secret keys `access-key`
+# and `secret-key` are the same names `spark-defaults.conf` references.
+# In cloud overlays this ESO is replaced by an IRSA/Workload Identity binding.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: spark-s3-secret
+  namespace: data-processing
+  labels:
+    app: spark
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: spark-s3-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: access-key
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: secret-key
+      remoteRef: { key: platform/minio/root, property: password }
+---
+# --- ConfigMap with Spark defaults for K8s mode ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-defaults
+  namespace: data-processing
+data:
+  spark-defaults.conf: |
+    # K8s cluster mode
+    spark.master                            k8s://https://kubernetes.default.svc
+    spark.kubernetes.namespace              data-processing
+    spark.kubernetes.authenticate.driver.serviceAccountName spark
+    spark.kubernetes.container.image        apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
+    spark.kubernetes.container.image.pullPolicy IfNotPresent
+
+    # Driver resources (minimum when idle, scales with data)
+    spark.driver.cores                      1
+    spark.driver.memory                     1g
+
+    # Executor resources (created on-demand per job)
+    spark.executor.instances                1
+    spark.executor.cores                    1
+    spark.executor.memory                   2g
+
+    # S3/MinIO for data access
+    # Credentials are injected via spark-s3-secret (mounted as env vars by the
+    # driver/executor pod templates or passed via --conf at submit time).
+    spark.hadoop.fs.s3a.endpoint            http://minio.storage.svc.cluster.local:9000
+    spark.hadoop.fs.s3a.path.style.access   true
+    spark.hadoop.fs.s3a.impl               org.apache.hadoop.fs.s3a.S3AFileSystem
+    # Map K8s secret keys → Hadoop S3A credential env vars
+    spark.kubernetes.driver.secretKeyRef.AWS_ACCESS_KEY_ID     spark-s3-secret:access-key
+    spark.kubernetes.driver.secretKeyRef.AWS_SECRET_ACCESS_KEY spark-s3-secret:secret-key
+    spark.kubernetes.executor.secretKeyRef.AWS_ACCESS_KEY_ID     spark-s3-secret:access-key
+    spark.kubernetes.executor.secretKeyRef.AWS_SECRET_ACCESS_KEY spark-s3-secret:secret-key
+
+    # Iceberg catalog (via Lakekeeper REST catalog)
+    spark.sql.catalog.iceberg               org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.iceberg.type          rest
+    spark.sql.catalog.iceberg.uri           http://lakekeeper.storage.svc.cluster.local:8181/catalog
+    spark.sql.catalog.iceberg.warehouse     warehouse
+
+    # OpenLineage listener — emits Spark job lineage to DataHub GMS (ADR-013).
+    spark.jars.packages                     io.openlineage:openlineage-spark_2.13:1.26.0
+    spark.extraListeners                    io.openlineage.spark.agent.OpenLineageSparkListener
+    spark.openlineage.transport.type        http
+    spark.openlineage.transport.url         http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage
+    spark.openlineage.namespace             spark-data-processing
+
+    # OpenTelemetry auto-instrumentation (picks up OTEL_* env from container).
+    spark.driverEnv.OTEL_EXPORTER_OTLP_ENDPOINT   http://otel-collector-gateway.observability.svc.cluster.local:4317
+    spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT http://otel-collector-gateway.observability.svc.cluster.local:4317
+    spark.driverEnv.OTEL_SERVICE_NAME             spark-driver
+    spark.executorEnv.OTEL_SERVICE_NAME           spark-executor
+
+    # Dynamic allocation (auto-scale executors based on workload)
+    spark.dynamicAllocation.enabled                    true
+    spark.dynamicAllocation.minExecutors                0
+    spark.dynamicAllocation.maxExecutors                4
+    spark.dynamicAllocation.executorIdleTimeout         60s
+    spark.dynamicAllocation.shuffleTracking.enabled     true
+
+    # Prometheus metrics
+    spark.metrics.conf.driver.source.jvm.class org.apache.spark.metrics.source.JvmSource
+    spark.ui.prometheus.enabled              true
+---
+# --- Service for accessing Spark driver UI (only active during job execution) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-driver-ui
+  namespace: data-processing
+  labels:
+    app: spark
+spec:
+  ports:
+    - port: 4040
+      name: web
+      targetPort: 4040
+  selector:
+    # Selects the Spark driver pod when a job is running
+    spark-role: driver

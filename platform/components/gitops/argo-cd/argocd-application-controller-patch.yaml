@@ -1,0 +1,53 @@
+# Strategic-merge patch over upstream argocd-application-controller StatefulSet.
+# See kustomization.yaml header for rationale per field.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: argocd-application-controller
+  labels:
+    app.kubernetes.io/name: argocd-application-controller
+    app.kubernetes.io/component: gitops-controller
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  serviceName: argocd-application-controller
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-application-controller
+    spec:
+      serviceAccountName: argocd-application-controller
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: argocd-application-controller
+          image: quay.io/argoproj/argocd:v3.3.8
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          args:
+            - /usr/local/bin/argocd-application-controller
+          env:
+            - name: ARGOCD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            # Reconciles ~28 Applications + sub-Apps in parallel + computes
+            # SSA diffs against ~600 live resources. 2Gi OOM-killed (exit 137,
+            # restartCount=17 in 75 min) under sustained reconcile load — the
+            # cache holding all unstructured.Unstructured objects + diff
+            # results blows past 1.5Gi during multi-app refresh waves. 4Gi
+            # gives 2x headroom for the steady-state working set; bumping
+            # request to 1Gi reflects observed RSS so the scheduler doesn't
+            # over-pack the node.
+            requests: { cpu: 250m, memory: 1Gi }
+            limits:   { cpu: 1500m, memory: 4Gi }

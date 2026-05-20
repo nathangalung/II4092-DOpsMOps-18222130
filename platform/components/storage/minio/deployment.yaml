@@ -1,0 +1,228 @@
+# =============================================================================
+# MinIO — S3-compatible object storage (data lake + artifact store)
+# =============================================================================
+# Community fork `pgsty/minio:RELEASE.2026-04-17T00-00-00Z` (minio/minio
+# archived Feb 2026).  Production deployments should switch to distributed
+# mode across 4+ PVCs for EC:4+2 erasure coding.
+#
+# Credentials are sourced exclusively from OpenBao via ExternalSecret
+# (ADR-008).  No hardcoded env values anywhere.  Server-side encryption at
+# rest (SSE-KMS) is enabled by pointing at OpenBao's transit engine — KNF-07
+# AES-256 at rest.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-root
+  namespace: storage
+  labels:
+    app: minio
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: minio-root
+    creationPolicy: Owner
+  # MINIO_KMS_SECRET_KEY was removed when SSE-KMS moved from the in-tree
+  # `MINIO_KMS_AUTO_ENCRYPTION` simple mode to full KES + OpenBao K/V
+  # integration (platform/components/security/kes/).  The MinIO master
+  # key `minio-master-key` is stored by KES in OpenBao KV at
+  # `kes-kv/kes/minio-master-key`, wrapped by the transit key `kes-wrap`
+  # before write (defense-in-depth).  MinIO authenticates to KES via
+  # mTLS client cert (Secret `minio-kes-client` mounted below); KES
+  # authenticates to OpenBao via approle (Secret `kes-openbao-auth` in
+  # `security` ns, provisioned by openbao-bootstrap.yaml).
+  # `secret/platform/minio/kms` in OpenBao is retained for audit/rollback
+  # of the legacy in-tree key and is no longer consumed.
+  data:
+    - secretKey: MINIO_ROOT_USER
+      remoteRef:
+        key: platform/minio/root
+        property: username
+    - secretKey: MINIO_ROOT_PASSWORD
+      remoteRef:
+        key: platform/minio/root
+        property: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: storage
+  labels:
+    app: minio
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+    prometheus.io/path: "/minio/v2/metrics/cluster"
+spec:
+  ports:
+    - { port: 9000, name: api,     targetPort: 9000 }
+    - { port: 9001, name: console, targetPort: 9001 }
+  selector:
+    app: minio
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: minio
+  namespace: storage
+  labels:
+    app: minio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: storage
+  labels:
+    app: minio
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: object-storage
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # MinIO MUST have >=1 replica during phase-base — bucket-bootstrap Job and
+  # downstream consumers (velero backup target, postgres barman backups,
+  # mlflow artifact store) all need a reachable S3 endpoint. Recreate
+  # strategy: MinIO single-node cannot tolerate parallel writes.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      serviceAccountName: minio
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: minio
+          image: pgsty/minio:RELEASE.2026-04-17T00-00-00Z
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          envFrom:
+            - secretRef:
+                name: minio-root
+          env:
+            # -------------------------------------------------------------
+            # SSE-KMS via KES + OpenBao K/V (ADR-008).  Data flow:
+            #
+            #   MinIO ──mTLS──▶ KES ──approle──▶ OpenBao (kes-kv + transit)
+            #
+            # MinIO mounts a cert-manager-issued client cert at /etc/kes/certs
+            # and uses it for mTLS to the KES Deployment in `security` ns.
+            # KES stores the `minio-master-key` master key in OpenBao KV v1
+            # at kes-kv/kes/minio-master-key; each K/V entry is encrypted
+            # with transit key `kes-wrap` before write.
+            #
+            # `MINIO_KMS_AUTO_ENCRYPTION=on` forces SSE-KMS on every PUT
+            # that doesn't already specify `x-amz-server-side-encryption`.
+            # Combined with `MINIO_KMS_KES_KEY_NAME=minio-master-key` this
+            # covers every bucket by default; per-bucket override is still
+            # possible via `mc encrypt set sse-kms ...`.
+            #
+            # NOTE: `minio-master-key` must be created ONCE post-deploy via
+            #   mc admin kms key create platform minio-master-key
+            # before auto-encryption will succeed.  See REMEDIATION_RUNBOOK.md
+            # §9 for the full bring-up procedure.
+            # -------------------------------------------------------------
+            - name: MINIO_KMS_AUTO_ENCRYPTION
+              value: "on"
+            - name: MINIO_KMS_KES_ENDPOINT
+              value: "https://kes.security.svc.cluster.local:7373"
+            - name: MINIO_KMS_KES_CERT_FILE
+              value: "/etc/kes/certs/tls.crt"
+            - name: MINIO_KMS_KES_KEY_FILE
+              value: "/etc/kes/certs/tls.key"
+            - name: MINIO_KMS_KES_CAPATH
+              value: "/etc/kes/certs/ca.crt"
+            - name: MINIO_KMS_KES_KEY_NAME
+              value: "minio-master-key"
+            - name: MINIO_PROMETHEUS_AUTH_TYPE
+              value: "public"
+            - name: MINIO_BROWSER_REDIRECT_URL
+              value: "https://minio.platform.local"
+          ports:
+            - { containerPort: 9000, name: api }
+            - { containerPort: 9001, name: console }
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 1000m, memory: 2Gi }
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: 9000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /minio/health/live, port: 9000 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          startupProbe:
+            httpGet: { path: /minio/health/live, port: 9000 }
+            failureThreshold: 30
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # MinIO writes to /tmp on boot
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: storage,    mountPath: /data }
+            # cert-manager-issued client cert for MinIO→KES mTLS.
+            # The Secret contains tls.crt + tls.key + ca.crt; MinIO reads
+            # all three via the MINIO_KMS_KES_* env vars above.
+            - { name: kes-client, mountPath: /etc/kes/certs, readOnly: true }
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: minio-pvc
+        - name: kes-client
+          secret:
+            secretName: minio-kes-client
+            # `optional: false` (the default) is intentional — MinIO will
+            # ContainerCreating-block until cert-manager issues the cert.
+            # This is the desired coupling: MinIO should NOT start SSE-KMS
+            # without its client certificate available.
+            defaultMode: 0400
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: storage
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    # Single-node bootstrap. Expand via `kubectl edit pvc minio-pvc`
+    # (local-path SC has allowVolumeExpansion: true since k3s 1.35).
+    requests:
+      storage: 20Gi
+---
+# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# eviction; 0 would deadlock drains. PVC retains data; MinIO restarts clean.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: minio
+  namespace: storage
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: minio

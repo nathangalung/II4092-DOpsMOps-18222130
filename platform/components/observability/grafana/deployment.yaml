@@ -1,0 +1,272 @@
+# =============================================================================
+# Grafana 12.4 — OIDC via Dex, persistent storage, ExternalSecret-backed
+# admin credential, dashboards + datasources provisioned via ConfigMap.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: observability
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+        isDefault: true
+        jsonData: { timeInterval: "15s" }
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+        jsonData:
+          derivedFields:
+            # Loki "TraceID" link jumps to Tempo (sole trace backend).
+            - datasourceUid: tempo
+              matcherRegex: "trace_id=(\\w+)"
+              name: TraceID
+              url: "$${__value.raw}"
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.observability.svc.cluster.local:3200
+        jsonData:
+          httpMethod: GET
+          tracesToMetrics:
+            datasourceUid: prometheus
+            tags:
+              - { key: service.name, value: service }
+              - { key: k8s.namespace.name, value: namespace }
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            filterByTraceID: true
+            tags:
+              - { key: service.name, value: service }
+              - { key: k8s.namespace.name, value: namespace }
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph: { enabled: true }
+          search: { hide: false }
+          lokiSearch:
+            datasourceUid: loki
+      - name: ClickHouse
+        type: grafana-clickhouse-datasource
+        access: proxy
+        jsonData:
+          host: clickhouse-platform.storage.svc.cluster.local
+          port: 9000
+          protocol: native
+          defaultDatabase: features
+          tlsSkipVerify: false
+        secureJsonData:
+          username: ${CH_READER_USER}
+          password: ${CH_READER_PASSWORD}
+      - name: OpenCost
+        type: prometheus
+        access: proxy
+        url: http://opencost.observability.svc.cluster.local:9003
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: observability
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'platform'
+        folder: 'Platform'
+        type: file
+        updateIntervalSeconds: 30
+        allowUiUpdates: false
+        options:
+          path: /var/lib/grafana/dashboards
+---
+# Admin credential sourced from OpenBao (ADR-008).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-admin
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: grafana-admin
+    creationPolicy: Owner
+  data:
+    - secretKey: GF_SECURITY_ADMIN_USER
+      remoteRef: { key: platform/grafana/admin, property: username }
+    - secretKey: GF_SECURITY_ADMIN_PASSWORD
+      remoteRef: { key: platform/grafana/admin, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-oidc
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: grafana-oidc
+    creationPolicy: Owner
+  data:
+    - secretKey: client_secret
+      remoteRef: { key: platform/grafana/oidc, property: client_secret }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: observability
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+spec:
+  ports:
+    - { port: 80, targetPort: 3000, name: http }
+  selector:
+    app: grafana
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: observability
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana
+  namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      serviceAccountName: grafana
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: grafana
+          image: grafana/grafana:12.4.3-ubuntu
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - secretRef: { name: grafana-admin }
+          env:
+            - name: GF_INSTALL_PLUGINS
+              value: "grafana-clickhouse-datasource,grafana-oncall-app"
+            # OIDC via Dex — SSO for Kubeflow/Grafana/Superset/ArgoCD.
+            - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+              value: "true"
+            - name: GF_AUTH_GENERIC_OAUTH_NAME
+              value: "Dex"
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              value: "grafana"
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: grafana-oidc, key: client_secret } }
+            - name: GF_AUTH_GENERIC_OAUTH_SCOPES
+              value: "openid email profile groups"
+            - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+              value: "http://dex.common.svc.cluster.local:5556/dex/auth"
+            - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+              value: "http://dex.common.svc.cluster.local:5556/dex/token"
+            - name: GF_AUTH_GENERIC_OAUTH_API_URL
+              value: "http://dex.common.svc.cluster.local:5556/dex/userinfo"
+            - name: GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH
+              value: "contains(groups[*], 'platform-admins') && 'Admin' || 'Editor'"
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.platform.local"
+            # Feature toggles: traceqlEditor, alertmanagerRuleFormv2, etc.
+            - name: GF_FEATURE_TOGGLES_ENABLE
+              value: "traceqlEditor,topnav,publicDashboards,alertingSimplifiedRouting"
+            - name: GF_UNIFIED_ALERTING_ENABLED
+              value: "true"
+            - name: GF_ALERTING_ENABLED
+              value: "false"  # use unified alerting only
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          startupProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: storage,             mountPath: /var/lib/grafana }
+            - { name: datasources,         mountPath: /etc/grafana/provisioning/datasources }
+            - { name: dashboard-provider,  mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboards,          mountPath: /var/lib/grafana/dashboards }
+            - { name: tmp,                 mountPath: /tmp }
+      volumes:
+        - name: storage
+          persistentVolumeClaim: { claimName: grafana-pvc }
+        - name: datasources
+          configMap: { name: grafana-datasources }
+        - name: dashboard-provider
+          configMap: { name: grafana-dashboard-provider }
+        - name: dashboards
+          configMap: { name: grafana-dashboards }
+        - name: tmp
+          emptyDir: {}
+---
+# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# eviction. minAvailable=1 with replicas=1 deadlocks drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: grafana

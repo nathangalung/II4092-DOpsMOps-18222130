@@ -1,0 +1,175 @@
+# =============================================================================
+# SERVICE CONFIGURATION — Enable/Disable Pipeline Services
+# =============================================================================
+# Controls which microservices are built, deployed, and tested.
+# Set enabled: false to disable a service entirely.
+#
+# Full pipeline: ingestion -> quality -> processing -> training -> serving -> dashboard
+# All services enabled by default. Disable what you don't need.
+#
+# DEPENDENCY KEY:
+#   depends_on     = required components (from components.yaml)
+#   optional_deps  = optional components (service works without them)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # INGESTION — Data collection from external sources
+  # ---------------------------------------------------------------------------
+  ingestion:
+    rest_collector:
+      enabled: true
+      language: go
+      description: "REST API polling for time-series data"
+      depends_on: [kafka, schema_registry]
+      source_types:
+        api: true # REST API endpoints (default)
+        database: false # Direct DB queries (PostgreSQL, MySQL, ClickHouse)
+        file: false # File-based (CSV, Parquet, JSON from S3/GCS/local)
+        # mqtt: false      # IoT/sensor data via MQTT broker
+    websocket_collector:
+      enabled: true
+      language: rust
+      description: "Real-time WebSocket stream ingestion"
+      depends_on: [kafka, schema_registry]
+      source_types:
+        websocket: true # WebSocket streams (default)
+        # grpc_stream: false  # gRPC streaming endpoints
+        # sse: false          # Server-Sent Events
+    backfill:
+      enabled: true
+      description: "Historical data backfill job"
+      depends_on: [kafka]
+    supplementary:
+      enabled: true
+      description: "Supplementary/alternative data collection"
+      depends_on: [kafka]
+
+  # ---------------------------------------------------------------------------
+  # QUALITY — Data validation and analysis
+  # ---------------------------------------------------------------------------
+  quality:
+    validator:
+      enabled: true
+      language: rust
+      description: "Schema validation + dedup (<50us/record)"
+      depends_on: [kafka, schema_registry]
+    analyzer:
+      enabled: true
+      language: python
+      description: "Data quality checks (Great Expectations)"
+      depends_on: [kafka, clickhouse]
+      # Alternatives: Soda Core, dbt tests
+
+  # ---------------------------------------------------------------------------
+  # PROCESSING — Feature engineering
+  # ---------------------------------------------------------------------------
+  processing:
+    batch:
+      enabled: true # Disable if only real-time features needed
+      language: python
+      description: "Batch feature computation (rolling statistics, lag, differences)"
+      depends_on: [clickhouse, kafka, feast]
+      optional_deps: [spark] # Runs without Spark for small datasets
+      # If disabled: no historical feature computation
+      # Alternatives: dbt, Apache Beam
+    feature_engine:
+      enabled: true
+      language: rust
+      description: "Real-time streaming feature computation"
+      depends_on: [kafka, valkey]
+    flink_job:
+      enabled: true
+      language: java
+      description: "Apache Flink stream processing"
+      depends_on: [kafka, flink]
+      # If disabled: can disable flink component
+      # Alternatives: Kafka Streams, Spark Structured Streaming
+    vector:
+      enabled: true # Disable if no embeddings/similarity search needed
+      language: python
+      description: "Vector embedding generation + Qdrant storage"
+      depends_on: [kafka, qdrant]
+      # If disabled: can disable qdrant component
+      embedding_models:
+        - "sentence-transformers/all-mpnet-base-v2" # Default: balanced
+        # - "sentence-transformers/all-MiniLM-L6-v2"  # Faster, lighter
+        # - "BAAI/bge-large-en-v1.5"                  # Higher quality
+
+  # ---------------------------------------------------------------------------
+  # TRAINING — Model training and drift detection
+  # ---------------------------------------------------------------------------
+  training:
+    trainer:
+      enabled: true
+      language: python
+      description: "Model training with ONNX export"
+      depends_on: [mlflow, clickhouse, feast]
+      frameworks:
+        sklearn: true # LightGBM, XGBoost, RandomForest, Linear, etc.
+        tensorflow: true # LSTM, GRU, Transformer, TabNet
+        # pytorch: false    # PyTorch models with ONNX export
+        # h2o: false        # H2O AutoML (requires h2o component)
+    drift:
+      enabled: true
+      language: python
+      description: "Multi-scale drift detection (PSI, K-S tests)"
+      depends_on: [kafka, clickhouse, prometheus]
+
+  # ---------------------------------------------------------------------------
+  # SERVING — Model inference API
+  # ---------------------------------------------------------------------------
+  serving:
+    gateway:
+      enabled: true
+      language: rust
+      description: "REST/gRPC API gateway"
+      depends_on: [apisix]
+    feature_cache:
+      enabled: true
+      language: rust
+      description: "Valkey-backed online feature serving"
+      depends_on: [valkey, feast]
+    inference_engine:
+      enabled: true
+      language: cpp
+      description: "ONNX Runtime inference (<5ms p99)"
+      depends_on: [minio]
+      runtimes:
+        onnx: true # ONNX Runtime (default, CPU/GPU)
+        # triton: false     # NVIDIA Triton (multi-framework, batching)
+        # torchserve: false # PyTorch-native serving
+
+  # ---------------------------------------------------------------------------
+  # AUTOMATION — Pipeline orchestration
+  # ---------------------------------------------------------------------------
+  automation:
+    materialization:
+      enabled: true
+      language: python
+      description: "Feast feature materialization"
+      depends_on: [feast, clickhouse, valkey, airflow]
+    retraining:
+      enabled: true
+      language: python
+      description: "Automatic model retraining orchestration"
+      depends_on: [airflow, mlflow]
+
+  # ---------------------------------------------------------------------------
+  # DASHBOARD — Web UI for monitoring
+  # ---------------------------------------------------------------------------
+  dashboard:
+    backend:
+      enabled: true
+      language: go
+      description: "Dashboard REST API"
+      depends_on: [clickhouse, mlflow]
+    frontend:
+      enabled: true
+      language: typescript
+      description: "React dashboard UI"
+    ml_bridge:
+      enabled: true
+      language: python
+      description: "FastAPI bridge to ML services"
+      depends_on: [mlflow, feast]

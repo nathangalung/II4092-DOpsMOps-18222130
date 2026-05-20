@@ -1,0 +1,241 @@
+# =============================================================================
+# Strimzi KafkaConnect — operator-managed Connect cluster (ADR-011)
+# =============================================================================
+# Replaces the previous vanilla Deployment that:
+#   - was never reconciled (no ApplicationSet for platform/components — §5.1)
+#   - shipped only the Debezium image (no Iceberg sink plugin), so even when
+#     applied it could not satisfy `io.tabular.iceberg.connect.IcebergSinkConnector`
+#     registrations from use-cases.
+#
+# Strimzi reconciles a first-class Connect cluster:
+#   - .spec.build declares plugins by URL/Maven artifact; Strimzi builds and
+#     pushes a custom image (no hand-maintained Dockerfile).
+#   - Rolling upgrade, scaling, metrics, status are handled by the operator.
+#   - Authentication uses the same SCRAM/KafkaUser machinery as the rest of
+#     the data-plane (consistency with KEDA / use-case workloads).
+#
+# Service alias `kafka-connect` is preserved so existing use-case registration
+# Jobs (use-case-*/manifests/base/connectors/*.yaml) keep working without
+# rewrites; they POST to http://kafka-connect.data-ingestion:8083.
+# =============================================================================
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnect
+metadata:
+  name: kafka-connect
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: data-ingestion
+  annotations:
+    # KafkaConnector CRs are still registered via the REST API by use-case
+    # Jobs; flip to `true` once we migrate to KafkaConnector CRs.
+    strimzi.io/use-connector-resources: "false"
+spec:
+  version: 4.2.0
+  replicas: 1
+  # Strimzi Kafka has `authorization.type: simple` and only `admin` as
+  # superuser, so the PLAIN listener (9092) returns
+  # TopicAuthorizationException for `_connect-offsets` to anonymous
+  # clients and the herder thread exits with status 1 → CrashLoopBackOff.
+  # Bind to the TLS+SCRAM listener (9093) and authenticate as the
+  # `kafka-connect` KafkaUser created in kafka-cluster.yaml.
+  bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
+  tls:
+    trustedCertificates:
+      # Strimzi auto-generates this Secret in the Kafka namespace from the
+      # cluster CA. Connect mounts ca.crt to verify broker TLS.
+      - secretName: platform-kafka-cluster-ca-cert
+        certificate: ca.crt
+  authentication:
+    type: scram-sha-512
+    username: kafka-connect
+    passwordSecret:
+      # Strimzi User Operator creates this Secret when the kafka-connect
+      # KafkaUser reconciles; the key `password` holds the SCRAM password.
+      secretName: kafka-connect
+      password: password
+  # Strimzi v0.51 (Kafka 4.x) promoted these from `config` map to top-level
+  # required fields. Setting them under `config` returns:
+  #   spec.groupId / configStorageTopic / statusStorageTopic / offsetStorageTopic: Required value
+  groupId: kafka-connect-cluster
+  offsetStorageTopic: _connect-offsets
+  configStorageTopic: _connect-configs
+  statusStorageTopic: _connect-status
+  config:
+    offset.storage.replication.factor: 1
+    config.storage.replication.factor: 1
+    status.storage.replication.factor: 1
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: "true"
+    value.converter.schemas.enable: "true"
+  # Single-pod bootstrap; bump for production load.
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: "1",  memory: 1Gi }
+  jvmOptions:
+    "-Xms": "256m"
+    "-Xmx": "512m"
+  # Kafka 4.x DistributedHerder takes ~90s to join the consumer group on a
+  # single-broker single-Connect cluster (verified field 2026-05-07: pod
+  # restartCount=32, kubelet killed at 86s with 'HTTP probe failed
+  # statuscode: 500' on /health because group-join still in progress).
+  # Strimzi defaults initialDelaySeconds=60 — bump to 120 so the herder is
+  # actually past `RUNNING` before kubelet starts probing /health.
+  livenessProbe:
+    initialDelaySeconds: 120
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 120
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+  template:
+    pod:
+      # Connect speaks Strimzi-issued mTLS to brokers on 9090 (replication) and
+      # SCRAM-SHA on 9092/9093/9094. Istio sidecar wraps every outbound in its
+      # own mTLS, which collides with Strimzi's TLS and produces "context
+      # deadline exceeded" + "RST_STREAM CANCEL" against bootstrap. Skip those
+      # ports from sidecar capture so Connect speaks Strimzi's TLS directly.
+      metadata:
+        annotations:
+          traffic.sidecar.istio.io/excludeOutboundPorts: "9090,9091,9092,9093,9094"
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    connectContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+    # Build pod skips Istio sidecar — Strimzi build is a one-shot Kaniko Job
+    # that pulls plugin tarballs and pushes a custom image. Istio CNI races
+    # with the build pod's iptables setup; cni.repair.deletePods doesn't
+    # respawn Strimzi build pods. Sidecar-skip avoids the race. Build pod
+    # also runs as root because Kaniko chowns /kaniko/Dockerfile during
+    # init (no rootless mode supports it). PSA enforce=baseline permits root;
+    # Kyverno `require-run-as-nonroot` is Audit-only here.
+    buildPod:
+      metadata:
+        annotations:
+          sidecar.istio.io/inject: "false"
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+  build:
+    # Kyverno `require-resource-limits` (cluster-wide) rejects the build pod
+    # unless every container declares CPU+memory requests AND limits.
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits:   { cpu: "1",  memory: 2Gi }
+    output:
+      type: docker
+      # In-cluster Distribution v3 registry (platform/components/common/
+      # registry). k3s containerd is configured via /etc/rancher/k3s/
+      # registries.yaml at bootstrap to trust this hostname (insecure HTTP,
+      # cluster-internal only). Overlays may override to push to an external
+      # registry that requires auth (set `pushSecret` to a dockerconfigjson
+      # Secret in this namespace).
+      image: registry.platform-registry.svc.cluster.local:5000/kafka-connect:debezium-3.0.7-iceberg-0.6.19
+    plugins:
+      - name: debezium-postgres-connector
+        artifacts:
+          - type: tgz
+            url: https://repo1.maven.org/maven2/io/debezium/debezium-connector-postgres/3.0.7.Final/debezium-connector-postgres-3.0.7.Final-plugin.tar.gz
+      # Iceberg sink: tabular-io was acquired by Databricks (June 2024); the
+      # repo and release assets are now under github.com/databricks. The
+      # connector class `io.tabular.iceberg.connect.IcebergSinkConnector` is
+      # preserved for backwards compatibility.
+      - name: iceberg-kafka-connect
+        artifacts:
+          - type: zip
+            url: https://github.com/databricks/iceberg-kafka-connect/releases/download/v0.6.19/iceberg-kafka-connect-runtime-0.6.19.zip
+  # Kafka 4.x ships log4j2 (Strimzi 0.51 bumped from log4j 1.x). The legacy
+  # `log4j.rootLogger: INFO` key is silently rejected by log4j2's properties
+  # parser with "No type attribute provided for component log4j", which
+  # CrashLoops the Connect worker. log4j2 inline schema uses `rootLogger.level`
+  # / `logger.<name>.level` keys (Strimzi maps directly to log4j2.properties).
+  logging:
+    type: inline
+    loggers:
+      rootLogger.level: INFO
+      logger.reflections.level: ERROR
+  metricsConfig:
+    type: jmxPrometheusExporter
+    valueFrom:
+      configMapKeyRef:
+        name: kafka-connect-metrics
+        key: metrics-config.yml
+---
+# =============================================================================
+# PeerAuthentication — allow plaintext from istio-exempt namespaces.
+# Mesh-wide default in istio-system enforces STRICT mTLS for all sidecar-
+# injected pods. KafkaConnect runs with istio sidecar (data-ingestion ns has
+# istio-injection=enabled). Use-case namespaces (e.g., use-case-crypto) are
+# istio-exempt by design (`mlops-platform.io/istio-exempt=true`) so their
+# registration Jobs and Kafka Connect REST callers speak plain HTTP. STRICT
+# would RST these connections at the inbound sidecar. PERMISSIVE accepts both
+# mTLS (from meshed callers) and plaintext (from exempt namespaces) — the
+# standard Istio pattern for hybrid-mesh service boundaries.
+# =============================================================================
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: kafka-connect
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: data-ingestion
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/cluster: kafka-connect
+      strimzi.io/kind: KafkaConnect
+  mtls:
+    mode: PERMISSIVE
+---
+# =============================================================================
+# Service alias `kafka-connect` — backwards-compat for registration Jobs that
+# target http://kafka-connect.data-ingestion.svc.cluster.local:8083.
+# Strimzi exposes its REST API as `<name>-connect-api`; this alias selects the
+# same pods via Strimzi's standard labels.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: data-ingestion
+spec:
+  ports:
+    - name: rest-api
+      port: 8083
+      targetPort: 8083
+  selector:
+    strimzi.io/cluster: kafka-connect
+    strimzi.io/kind: KafkaConnect
+---
+# =============================================================================
+# JMX → Prometheus metrics config (Strimzi-managed sidecar exposes :9404)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-connect-metrics
+  namespace: data-ingestion
+data:
+  metrics-config.yml: |
+    lowercaseOutputName: true
+    rules:
+      - pattern: 'kafka.connect<type=connect-worker-metrics><>([a-z0-9-]+):'
+        name: kafka_connect_worker_$1
+      - pattern: 'kafka.connect<type=connector-metrics, connector=(.+)><>([a-z0-9-]+):'
+        name: kafka_connect_connector_$2
+        labels:
+          connector: "$1"

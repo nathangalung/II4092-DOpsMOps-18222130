@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Data-ingestion (ADR-011):
+#   - kafka-operator:  Strimzi 0.51 operator (installs CRDs + reconciler)
+#   - kafka:           Kafka CR + KafkaNodePool + KafkaTopic + KafkaUser
+#   - karapace:        schema registry (Confluent-compatible)
+#   - kafka-connect:   CRD-managed Connect cluster
+#   - kafka-ui:        Kafbat dashboard
+#
+# The legacy single-broker `kafka/deployment.yaml` StatefulSet is replaced by
+# the Strimzi Kafka CR in `kafka/kafka-cluster.yaml`.
+# Strimzi-managed exporter is enabled inline via the Kafka CR `kafkaExporter:`
+# block (auto-deploys `platform-kafka-kafka-exporter` with broker-issued mTLS),
+# replacing the standalone `kafka-exporter` Deployment that needed the SASL
+# `admin` Secret + Istio-vs-Strimzi-mTLS workaround. Keeping a separate
+# danielqsj/kafka-exporter Deployment alongside the Strimzi one would create
+# two competing scrapers for the same lag metrics.
+resources:
+  - namespace.yaml
+  - kafka-operator
+  - kafka/kafka-cluster.yaml
+  - kafka-ui/deployment.yaml
+  - karapace
+  # - kafka-connect   # blocked: requires in-cluster OCI registry (TODO:
+  #                   # platform/components/common/registry component +
+  #                   # k3s containerd registries.yaml trust). Deferred —
+  #                   # use-cases that consume kafka-connect are also
+  #                   # undeployed at present.

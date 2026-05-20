@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# GitOps stack:
+#   - Argo CD: continuous deployment (pulls from Gitea, reconciles manifests)
+#   - Tekton:  CI pipelines (in-cluster Kaniko builds, triggered by Gitea webhooks)
+#   - Gitea:   self-hosted Git (source for Argo CD and Tekton)
+#
+# Argo Workflows is intentionally NOT included here.  Kubeflow Pipelines
+# (model-lifecycle namespace) already bundles an Argo Workflows controller
+# with cluster-wide scope.  Running two controllers against the same
+# `workflows.argoproj.io` CRD causes leader-lease contention (49+ restarts
+# observed on the gitops copy in the permissive-mtls cluster).  CI now runs
+# on Tekton; ML workflows run on KFP's Argo.
+#
+# Argo Rollouts (ADR-016) is additive here — it owns the *separate*
+# `rollouts.argoproj.io` CRD, so there is no lease contention with KFP's
+# Argo Workflows controller.
+#
+# `argo-cd/` is included here so `platform-gitops` reconciles the ArgoCD
+# install (install.yaml + patches). The `argo-cd/kustomization.yaml`
+# intentionally OMITS `app-of-apps.yaml` from its resources list — that
+# file is sourced by the `app-of-apps` Application directly (directory
+# plugin, `include: app-of-apps.yaml`), which owns AppProject/platform +
+# ApplicationSet/platform-components. Splitting ownership this way avoids
+# `SharedResourceWarning` (same resource claimed by two Applications) on
+# `platform-gitops` (verified 2026-05-11).
+resources:
+  - namespace.yaml
+  - argo-cd
+  - argo-rollouts
+  - gitea
+  - tekton

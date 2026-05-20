@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: mlflow
+  namespace: model-lifecycle
+
+resources:
+  - deployment.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - networkpolicy.yaml
+  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+
+labels:
+- pairs:
+    app: mlflow
+    component: model-lifecycle
+
+namespace: model-lifecycle

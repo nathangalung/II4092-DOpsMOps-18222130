@@ -1,0 +1,413 @@
+# --- Kubeflow Katib — Hyperparameter Tuning ---
+# Requires: CRDs (experiments, suggestions, trials), MySQL, cert-manager
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: katib-controller
+  namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: katib-controller
+rules:
+  - apiGroups: [""]
+    resources:
+      [
+        "configmaps",
+        "serviceaccounts",
+        "services",
+        "secrets",
+        "events",
+        "namespaces",
+        "persistentvolumes",
+        "persistentvolumeclaims",
+        "pods",
+        "pods/log",
+        "pods/status",
+      ]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["*"]
+  - apiGroups: ["kubeflow.org"]
+    resources:
+      [
+        "experiments",
+        "experiments/status",
+        "experiments/finalizers",
+        "trials",
+        "trials/status",
+        "trials/finalizers",
+        "suggestions",
+        "suggestions/status",
+        "suggestions/finalizers",
+      ]
+    verbs: ["*"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources:
+      ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    verbs: ["*"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["*"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: katib-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: katib-controller
+subjects:
+  - kind: ServiceAccount
+    name: katib-controller
+    namespace: model-lifecycle
+---
+# Self-signed cert for webhook (cert-manager generates this)
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: katib-selfsigned
+  namespace: model-lifecycle
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: katib-webhook-cert
+  namespace: model-lifecycle
+spec:
+  secretName: katib-webhook-cert
+  dnsNames:
+    - katib-controller.model-lifecycle.svc
+    - katib-controller.model-lifecycle.svc.cluster.local
+  issuerRef:
+    name: katib-selfsigned
+    kind: Issuer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-controller
+  namespace: model-lifecycle
+  labels:
+    app: katib-controller
+spec:
+  selector:
+    app: katib-controller
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: katib-config
+  namespace: model-lifecycle
+data:
+  suggestion: |-
+    {
+      "random": {
+        "image": "ghcr.io/kubeflow/katib/suggestion-hyperopt:v0.19.0"
+      },
+      "tpe": {
+        "image": "ghcr.io/kubeflow/katib/suggestion-hyperopt:v0.19.0"
+      },
+      "grid": {
+        "image": "ghcr.io/kubeflow/katib/suggestion-optuna:v0.19.0"
+      },
+      "bayesianoptimization": {
+        "image": "ghcr.io/kubeflow/katib/suggestion-skopt:v0.19.0"
+      }
+    }
+  metrics-collector-sidecar: |-
+    {
+      "StdOut": {
+        "image": "ghcr.io/kubeflow/katib/file-metrics-collector:v0.19.0"
+      },
+      "File": {
+        "image": "ghcr.io/kubeflow/katib/file-metrics-collector:v0.19.0"
+      },
+      "TensorFlowEvent": {
+        "image": "ghcr.io/kubeflow/katib/tfevent-metrics-collector:v0.19.0"
+      }
+    }
+  early-stopping: |-
+    {
+      "medianstop": {
+        "image": "ghcr.io/kubeflow/katib/earlystopping-medianstop:v0.19.0"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katib-controller
+  namespace: model-lifecycle
+  labels:
+    app: katib-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: katib-controller
+  template:
+    metadata:
+      labels:
+        app: katib-controller
+    spec:
+      serviceAccountName: katib-controller
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: katib-controller
+          image: ghcr.io/kubeflow/katib/katib-controller:v0.19.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+            - containerPort: 8080
+          env:
+            - name: KATIB_CORE_NAMESPACE
+              value: "model-lifecycle"
+            - name: KATIB_DB_MANAGER_SERVICE_NAMESPACE
+              value: "model-lifecycle"
+          volumeMounts:
+            - name: cert
+              mountPath: /tmp/cert
+              readOnly: true
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 18080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 18080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: cert
+          secret:
+            secretName: katib-webhook-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-db-manager
+  namespace: model-lifecycle
+  labels:
+    app: katib-db-manager
+spec:
+  selector:
+    app: katib-db-manager
+  ports:
+    - name: grpc
+      port: 6789
+      targetPort: 6789
+---
+# -----------------------------------------------------------------------------
+# Katib DB-Manager MySQL credentials — OpenBao-sourced (ADR-008).
+# Cross-namespace mirror of storage/mysql-root-secret; ESO writes it into
+# model-lifecycle so the db-manager pod can envFrom: secretRef.
+# -----------------------------------------------------------------------------
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: katib-mysql-secret
+  namespace: model-lifecycle
+  labels:
+    app: katib-db-manager
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: katib-mysql-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: DB_PASSWORD
+      remoteRef:
+        key: platform/mysql/root
+        property: password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katib-db-manager
+  namespace: model-lifecycle
+  labels:
+    app: katib-db-manager
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: katib-db-manager
+  template:
+    metadata:
+      labels:
+        app: katib-db-manager
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: katib-db-manager
+          image: ghcr.io/kubeflow/katib/katib-db-manager:v0.19.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6789
+          env:
+            - name: DB_NAME
+              value: "mysql"
+            - name: DB_USER
+              value: "root"
+            - name: KATIB_MYSQL_DB_HOST
+              value: "mysql.storage.svc.cluster.local"
+            - name: KATIB_MYSQL_DB_PORT
+              value: "3306"
+            - name: KATIB_MYSQL_DB_DATABASE
+              value: "katib"
+          envFrom:
+            - secretRef:
+                name: katib-mysql-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 6789
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6789
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-ui
+  namespace: model-lifecycle
+  labels:
+    app: katib-ui
+spec:
+  selector:
+    app: katib-ui
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katib-ui
+  namespace: model-lifecycle
+  labels:
+    app: katib-ui
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: katib-ui
+  template:
+    metadata:
+      labels:
+        app: katib-ui
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: katib-ui
+          image: ghcr.io/kubeflow/katib/katib-ui:v0.19.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: KATIB_CORE_NAMESPACE
+              value: "model-lifecycle"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          # katib-ui serves under /katib/ (base href). / returns 404.
+          readinessProbe:
+            httpGet:
+              path: /katib/
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /katib/
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30

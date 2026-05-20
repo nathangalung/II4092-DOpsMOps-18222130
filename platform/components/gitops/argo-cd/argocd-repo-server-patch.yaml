@@ -1,0 +1,47 @@
+# Strategic-merge patch over upstream argocd-repo-server Deployment.
+# See kustomization.yaml header for rationale per field.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  labels:
+    app.kubernetes.io/name: argocd-repo-server
+    app.kubernetes.io/component: gitops-repo-server
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argocd-repo-server
+    spec:
+      serviceAccountName: argocd-repo-server
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: argocd-repo-server
+          image: quay.io/argoproj/argocd:v3.3.8
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          args: ["/usr/local/bin/argocd-repo-server"]
+          ports:
+            - containerPort: 8081
+          # Bumped from 256Mi/1Gi → 1Gi/4Gi: repo-server runs concurrent
+          # kustomize+helm renders for ~30 ArgoCD apps over a 1292-file
+          # platform tree; 1Gi OOMs at scale (exit 137). Pairs with #174
+          # which bumped argocd-application-controller to 4Gi for the same
+          # full-tree-reconcile workload.
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits:   { cpu: 2,    memory: 4Gi }

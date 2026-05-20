@@ -1,0 +1,333 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+  name: kserve-controller-manager
+  namespace: model-serving
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+  name: kserve-models-web-app
+  namespace: model-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kserve-leader-election-role
+  namespace: model-serving
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-manager-role
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.knative.dev
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - virtualservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# KServe controller-runtime caches Pods to populate InferenceService status
+# (pod readiness, container restart counts) and watches ScaledObjects /
+# OpenTelemetryCollectors to wire autoscaling and metrics into managed
+# inference services.  The upstream controller manifest enumerates these
+# permissions; they must live on the manager role for the controller to
+# reach `Cache synced` instead of crashing with `forbidden: cannot list`.
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - keda.sh
+  resources:
+  - scaledobjects
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - opentelemetrycollectors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-models-web-app-role
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - servingruntimes
+  - clusterservingruntimes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kserve-leader-election-rolebinding
+  namespace: model-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kserve-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: kserve-controller-manager
+  namespace: model-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kserve-manager-rolebinding
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kserve-manager-role
+subjects:
+- kind: ServiceAccount
+  name: kserve-controller-manager
+  namespace: model-serving
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kserve-models-web-app-rolebinding
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kserve-models-web-app-role
+subjects:
+- kind: ServiceAccount
+  name: kserve-models-web-app
+  namespace: model-serving
+---
+# =============================================================================
+# kserve-minio-sa — ServiceAccount with MinIO S3 credentials for the
+# storage-initializer initContainer that pulls models from
+# `s3://platform-models/...` into the predictor pod.
+#
+# KServe storage-initializer reads:
+#   - AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY from the SA's Secret
+#   - serving.kserve.io/s3-* annotations from the same Secret to override
+#     the AWS endpoint to in-cluster MinIO (HTTP, no SSL verification).
+# This is the upstream pattern — see
+# https://kserve.github.io/website/master/modelserving/storage/s3/s3/
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kserve-minio-storage
+  namespace: model-serving
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: kserve
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: kserve-minio-storage
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      metadata:
+        annotations:
+          # Endpoint is the in-cluster Service — no TLS, no signing-region
+          # validation.  `s3-useanoncredential=false` is the default; we
+          # rely on AWS_ACCESS_KEY_ID/SECRET below.
+          serving.kserve.io/s3-endpoint: minio.storage.svc.cluster.local:9000
+          serving.kserve.io/s3-usehttps: "0"
+          serving.kserve.io/s3-region: us-east-1
+          serving.kserve.io/s3-verifyssl: "0"
+      data:
+        AWS_ACCESS_KEY_ID: "{{ .minio_user }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .minio_pass }}"
+  data:
+    - secretKey: minio_user
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: minio_pass
+      remoteRef: { key: platform/minio/root, property: password }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kserve-minio-sa
+  namespace: model-serving
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: kserve
+secrets:
+  - name: kserve-minio-storage

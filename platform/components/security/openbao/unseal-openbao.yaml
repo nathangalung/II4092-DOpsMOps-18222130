@@ -1,0 +1,207 @@
+# =============================================================================
+# OpenBao Unseal Instance — Transit seal anchor for the primary OpenBao
+# =============================================================================
+# **NOT** included in `platform/components/security/openbao/kustomization.yaml`
+# on purpose: this is an out-of-band seal-migration artefact.  Applying it
+# casually on a fresh cluster would create a second instance that nobody
+# needs.  MIGRATION.md §6 walks through when and how to bring this up as
+# part of the Shamir → Transit migration.  Apply with:
+#   kubectl apply -f platform/components/security/openbao/unseal-openbao.yaml
+#
+# Trust model: this instance holds ONLY the Transit key that encrypts the
+# primary OpenBao's master keys.  It does NOT hold application secrets,
+# KV data, or auth methods beyond the root token used once at bootstrap.
+# Compromising this instance alone does not reveal the primary's data —
+# an attacker needs BOTH the ciphertext (primary Raft PVCs) and the
+# Transit key (this PVC) to read anything.
+#
+# Hardening deltas vs. the primary OpenBao:
+#   - Single replica (no HA — a restart window of minutes is acceptable;
+#     real HA for this role belongs in a cloud KMS in production)
+#   - storageClassName: local-path (3-way replication at the
+#     block layer; loss of this PVC is catastrophic data loss)
+#   - Istio sidecar DISABLED (same rationale as primary: trust root sits
+#     outside the mesh so the mesh itself cannot block unseal)
+#   - No service-registration stanza — consumed only by the primary
+#     OpenBao via its `seal "transit"` block
+#   - Root token is destroyed after MIGRATION.md §6.2 completes; rotation
+#     is an operator action, not a scheduled job
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: unseal-openbao
+  namespace: security
+  labels:
+    app: unseal-openbao
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: openbao-seal-anchor
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unseal-openbao-config
+  namespace: security
+  labels:
+    app: unseal-openbao
+    app.kubernetes.io/part-of: mlops-platform
+data:
+  openbao.hcl: |
+    ui            = false
+    disable_mlock = true
+    log_level     = "info"
+    log_format    = "json"
+
+    listener "tcp" {
+      address         = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+      tls_disable     = 1
+    }
+
+    # Raft single-node. The Transit key lives here; it is NEVER backed up
+    # to the primary OpenBao's MinIO bucket (that would re-create the
+    # key-next-to-ciphertext problem we are eliminating). Operator
+    # snapshots the Raft state to cold storage on a separate schedule
+    # with different credentials (see MIGRATION.md §6.5 notes).
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "unseal-openbao-0"
+    }
+
+    api_addr     = "http://$(POD_IP):8200"
+    cluster_addr = "http://$(POD_IP):8201"
+
+    telemetry {
+      prometheus_retention_time = "24h"
+      disable_hostname          = true
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unseal-openbao
+  namespace: security
+  labels:
+    app: unseal-openbao
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8200"
+    prometheus.io/path: "/v1/sys/metrics"
+spec:
+  clusterIP: None
+  ports:
+    - { port: 8200, name: http,    targetPort: 8200 }
+    - { port: 8201, name: cluster, targetPort: 8201 }
+  publishNotReadyAddresses: true
+  selector:
+    app: unseal-openbao
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: unseal-openbao
+  namespace: security
+  labels:
+    app: unseal-openbao
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  serviceName: unseal-openbao
+  replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: unseal-openbao
+  template:
+    metadata:
+      labels:
+        app: unseal-openbao
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8200"
+        prometheus.io/path: "/v1/sys/metrics"
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: unseal-openbao
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: openbao
+          image: quay.io/openbao/openbao:2.5.3
+          imagePullPolicy: IfNotPresent
+          command: ["bao", "server", "-config=/openbao/config/openbao.hcl"]
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: BAO_ADDR
+              value: "http://127.0.0.1:8200"
+            - name: BAO_API_ADDR
+              value: "http://$(POD_IP):8200"
+            - name: BAO_CLUSTER_ADDR
+              value: "http://$(POD_IP):8201"
+          ports:
+            - { containerPort: 8200, name: http }
+            - { containerPort: 8201, name: cluster }
+          resources:
+            requests: { cpu: 50m,  memory: 128Mi }
+            limits:   { cpu: 250m, memory: 512Mi }
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true
+              port: 8200
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&uninitcode=204&sealedcode=204
+              port: 8200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: config, mountPath: /openbao/config }
+            - { name: data,   mountPath: /openbao/data }
+            - { name: home,   mountPath: /home/openbao }
+      volumes:
+        - name: config
+          configMap: { name: unseal-openbao-config }
+        - name: home
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app: unseal-openbao
+          app.kubernetes.io/part-of: mlops-platform
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: unseal-openbao
+  namespace: security
+spec:
+  # Single-node single-replica: maxUnavailable=1 permits voluntary eviction.
+  # On drain (k3s upgrade) the primary OpenBao reseals; auto-unsealer Deployment
+  # re-runs on node bring-back and unseals automatically.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: unseal-openbao

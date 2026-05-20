@@ -1,0 +1,18 @@
+# =============================================================================
+# Knative serving Namespace patch
+# =============================================================================
+# Upstream serving-core.yaml ships a vanilla `knative-serving` Namespace.  Two
+# labels must be added cluster-side without editing the pinned bundle:
+#   - istio-injection: enabled       → sidecar-inject every Knative pod so the
+#     Knative CA/DataPlane handshake lands on the mesh.
+#   - pod-security.kubernetes.io/enforce: restricted → PSA hardening.
+#
+# Kustomize merge-patches the labels onto the upstream object.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: knative-serving
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted

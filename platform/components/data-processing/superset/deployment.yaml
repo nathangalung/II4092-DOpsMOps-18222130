@@ -1,0 +1,295 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset
+  namespace: data-processing
+  labels:
+    app: superset
+spec:
+  selector:
+    app: superset
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+---
+# =============================================================================
+# Superset runtime secrets — OpenBao-sourced (ADR-008)
+# =============================================================================
+# Replaces the previously hard-coded `platform123` Postgres password and the
+# "change-me" Flask SECRET_KEY literal embedded in superset_config.py.
+#
+# `SQLALCHEMY_DATABASE_URI` is rendered at ESO sync time from
+# platform/postgres/app (CNPG-owned `platform` app user mirrored from the
+# `postgresql-app` Secret) + the CNPG bootstrap DB `superset`.  Hostname
+# uses the CNPG read/write service (-rw) so that Superset always reaches
+# the current primary, not a replica.  The `postgres` superuser is
+# intentionally off-limits — CNPG defaults `enableSuperuserAccess: false`
+# so only the `platform` owner role has usable password auth.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: superset-secrets
+  namespace: data-processing
+  labels:
+    app: superset
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: superset-secrets
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        SQLALCHEMY_DATABASE_URI: "postgresql://{{ .pg_username }}:{{ .pg_password }}@postgresql-rw.storage.svc.cluster.local:5432/superset"
+        SUPERSET_SECRET_KEY: "{{ .secret_key }}"
+        SUPERSET_ADMIN_USERNAME: "{{ .admin_username }}"
+        SUPERSET_ADMIN_PASSWORD: "{{ .admin_password }}"
+  data:
+    - secretKey: pg_username
+      remoteRef:
+        key: platform/postgres/app
+        property: username
+    - secretKey: pg_password
+      remoteRef:
+        key: platform/postgres/app
+        property: password
+    - secretKey: secret_key
+      remoteRef:
+        key: platform/superset/admin
+        property: secret_key
+    - secretKey: admin_username
+      remoteRef:
+        key: platform/superset/admin
+        property: username
+    - secretKey: admin_password
+      remoteRef:
+        key: platform/superset/admin
+        property: password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: superset-config
+  namespace: data-processing
+data:
+  superset_config.py: |
+    import os
+    SECRET_KEY = os.environ['SUPERSET_SECRET_KEY']
+    SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
+    PREVENT_UNSAFE_DB_CONNECTIONS = False
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset
+  namespace: data-processing
+  labels:
+    app: superset
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: superset
+  template:
+    metadata:
+      labels:
+        app: superset
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: install-db-driver
+          # UV mandate (project policy): no `uv pip`, no `pip`. We build the
+          # backend drivers into /extra-libs via `uv sync` against a tiny
+          # inline pyproject.toml, then cp the resulting site-packages onto
+          # the shared emptyDir. The main superset container picks the wheel
+          # up via PYTHONPATH=/extra-libs. apache/superset:6.0.0 ships `uv`
+          # in its base image (Superset adopted uv in v4+), so we reuse the
+          # same image here to guarantee CPython ABI compatibility between
+          # the wheels built and the runtime that loads them.
+          #
+          # Drivers installed (all platform-resident backends so Superset is
+          # usable for any use-case without further extension):
+          #   * psycopg2-binary       — Postgres (Superset metastore + CNPG
+          #                              app DB + MLflow tracking schema)
+          #   * clickhouse-connect    — direct ClickHouse access (OHLCV /
+          #                              feature tables; faster than going
+          #                              through Trino for narrow scans)
+          #   * trino                 — federated catalog (Iceberg / Postgres
+          #                              / ClickHouse joins on the data
+          #                              lakehouse via lakekeeper)
+          #   * pymysql               — MySQL (Kong/Kuma metastore, opencost
+          #                              postgres-mirror replicas); pure
+          #                              python so no -dev build deps.
+          image: apache/superset:6.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          imagePullPolicy: IfNotPresent
+          # UV_LINK_MODE=copy: emptyDir and rootfs sit on different mounts;
+          # uv's default reflink/hardlink would EXDEV. Forcing copy makes the
+          # cp -a downstream a no-op cost overall (~12MB site-packages).
+          env:
+            - name: UV_LINK_MODE
+              value: "copy"
+            - name: UV_NO_PROGRESS
+              value: "1"
+            - name: UV_COMPILE_BYTECODE
+              value: "1"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              mkdir -p /tmp/extra-build
+              cd /tmp/extra-build
+              cat > pyproject.toml <<'PYPROJECT'
+              [project]
+              name = "superset-extra"
+              version = "0.0.0"
+              description = "DB-driver overlay for apache/superset"
+              requires-python = ">=3.10,<3.13"
+              dependencies = [
+                  "psycopg2-binary>=2.9,<3",
+                  "clickhouse-connect>=0.8,<1",
+                  "trino[sqlalchemy]>=0.336.0,<1",
+                  "pymysql>=1.1,<2",
+              ]
+              [tool.uv]
+              package = false
+              PYPROJECT
+              uv sync --no-dev
+              # cp -r (not cp -a): preserving timestamps/ownership across an
+              # emptyDir owned by fsGroup=1000 fails with EPERM under the
+              # PSS-restricted profile (no CAP_FOWNER/CAP_CHOWN).  Mode bits
+              # carry through with plain -r, which is all we need for a venv.
+              # Field-observed 2026-05-14: -a aborted with
+              #   cp: preserving times for '/extra-libs/.': Operation not permitted
+              cp -r .venv/lib/python*/site-packages/. /extra-libs/
+          volumeMounts:
+            - name: extra-libs
+              mountPath: /extra-libs
+        - name: superset-init
+          image: apache/superset:6.0.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: 200m
+              memory: 512Mi  # Python init; keep ≥512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              superset db upgrade &&
+              superset fab create-admin
+              --username "${SUPERSET_ADMIN_USERNAME}"
+              --firstname Admin
+              --lastname User
+              --email admin@platform.local
+              --password "${SUPERSET_ADMIN_PASSWORD}" || true &&
+              superset init
+          env:
+            - name: PYTHONPATH
+              value: "/extra-libs"
+            - name: SUPERSET_CONFIG_PATH
+              value: "/app/pythonpath/superset_config.py"
+            - name: SUPERSET_LOAD_EXAMPLES
+              value: "no"
+          envFrom:
+            - secretRef:
+                name: superset-secrets
+          volumeMounts:
+            - name: superset-config
+              mountPath: /app/pythonpath
+            - name: extra-libs
+              mountPath: /extra-libs
+      containers:
+        - name: superset
+          image: apache/superset:6.0.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          command:
+            [
+              "/bin/sh",
+              "-c",
+              "gunicorn -w 2 -k gthread --timeout 120 -b 0.0.0.0:8088 'superset.app:create_app()'",
+            ]
+          ports:
+            - containerPort: 8088
+          env:
+            - name: PYTHONPATH
+              value: "/extra-libs"
+            - name: SUPERSET_CONFIG_PATH
+              value: "/app/pythonpath/superset_config.py"
+            - name: SUPERSET_LOAD_EXAMPLES
+              value: "no"
+          envFrom:
+            - secretRef:
+                name: superset-secrets
+          volumeMounts:
+            - name: superset-config
+              mountPath: /app/pythonpath
+            - name: extra-libs
+              mountPath: /extra-libs
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: 200m
+              memory: 512Mi  # Python/gunicorn; keep ≥512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 30
+      volumes:
+        - name: superset-config
+          configMap:
+            name: superset-config
+        - name: extra-libs
+          emptyDir: {}

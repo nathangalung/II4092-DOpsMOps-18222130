@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Sloth 0.12.0 (ADR-010 §SLO-as-code) — controller + baseline platform SLOs.
+# Use-case SLOs live in their own repos and target this same controller.
+resources:
+  - helm-release.yaml
+  - platform-slos.yaml

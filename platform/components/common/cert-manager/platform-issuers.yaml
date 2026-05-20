@@ -1,0 +1,79 @@
+# =============================================================================
+# Platform ClusterIssuers — private CA only (air-gapped single-node lab)
+# =============================================================================
+# cert-manager v1.20.0 (2026-03-09).  Creates:
+#
+#   1. platform-selfsigned-bootstrap: self-signed issuer used ONLY to create
+#      the root CA certificate below.
+#   2. platform-root-ca (Certificate): the issuer certificate that anchors
+#      every internal TLS cert on the platform.  Stored in a Secret read by
+#      the CA issuer.
+#   3. platform-ca: the ClusterIssuer that every internal TLS Certificate
+#      references (APISIX, Istio Gateways, KServe, internal mTLS beyond
+#      Istio's per-workload certs).
+#
+# letsencrypt-staging/-prod ClusterIssuers were removed from this baseline:
+# the lab is air-gapped (no public internet) and ACME registration was
+# failing with `400 invalidContact` against placeholder email
+# `platform-admin@example.com`. The failure marks both ClusterIssuers
+# Ready=False, which propagates as Health=Degraded on the platform-common
+# ArgoCD Application. Re-add them in a VPS overlay together with a real
+# admin email + Cloudflare/Route53 DNS-01 solver when the VPS deployment
+# target lands.
+#
+# KNF-07: TLS 1.3 end-to-end.  All Istio Gateways + APISIX routes must set
+# `minProtocolVersion: TLSV1_3`.
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: platform-selfsigned-bootstrap
+  labels:
+    app.kubernetes.io/component: cert-manager
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: platform-root-ca
+  namespace: cert-manager
+  labels:
+    app.kubernetes.io/component: cert-manager
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  isCA: true
+  commonName: platform-root-ca
+  subject:
+    organizations:
+      - mlops-platform
+    countries:
+      - ID
+  secretName: platform-root-ca-secret
+  duration: 87600h    # 10 years
+  renewBefore: 8760h  # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Never
+  usages:
+    - digital signature
+    - key encipherment
+    - cert sign
+    - crl sign
+  issuerRef:
+    name: platform-selfsigned-bootstrap
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: platform-ca
+  labels:
+    app.kubernetes.io/component: cert-manager
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  ca:
+    secretName: platform-root-ca-secret

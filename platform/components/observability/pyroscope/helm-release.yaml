@@ -1,0 +1,206 @@
+# =============================================================================
+# Grafana Pyroscope 2.0.1 — continuous profiling backend (2026-04-20)
+# =============================================================================
+# ADR-014.  Pyroscope is the 4th Golden Signals sibling in the LGTM++ stack:
+#   L  Loki        — logs
+#   G  Grafana     — UI
+#   T  Tempo       — traces
+#   M  Prometheus  — metrics
+#   P  Pyroscope   — profiles (eBPF + pprof + Parca-compatible)
+#
+# Why add it:
+#   1. Tail-based flame graphs for every platform pod without per-app
+#      instrumentation (eBPF profiler DaemonSet does it in-kernel).
+#   2. Native Grafana panel integration: click a Tempo trace span → jump
+#      straight to the corresponding pprof sample in Pyroscope.
+#   3. Airflow/Spark/Flink/KServe profilers already speak pprof — Pyroscope
+#      accepts them via HTTP push on port 4040.
+#   4. Shares Tempo's MinIO bucket scheme (object-store backed, no cluster
+#      sidecar PDB to manage).
+#
+# Topology: `single-binary` chart (monolithic) — sufficient for platform
+# scale.  Switch to `micro-services` via the same chart for >50k
+# profiles/s/tenant.
+#
+# Data retention: 14d (matches Tempo) — see `tenant.storage.retention_period`.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pyroscope
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: pyroscope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: pyroscope
+    # Chart 2.0.1 (2026-04-24) bundles Pyroscope appVersion 2.0.x — April 2026 latest.
+    targetRevision: 2.0.1
+    helm:
+      releaseName: pyroscope
+      values: |
+        # Image pin for reproducibility.
+        image:
+          repository: grafana/pyroscope
+          tag: 2.0.1
+        # Run as single-binary (all components in one pod). Replace with
+        # `microServices.enabled: true` in cloud overlay once >50k profiles/s.
+        pyroscope:
+          replicaCount: 1
+          persistence:
+            enabled: true
+            size: 10Gi # Single-pod bootstrap; bump for production load.
+            # local-path is the only storage class on this single-node platform
+            # (ADR-031). Pod is pinned to the node holding the hostPath dir —
+            # acceptable on a 1-node cluster; revisit if scaled out.
+            storageClassName: local-path
+          extraEnvFrom:
+            - secretRef:
+                name: pyroscope-s3-credentials
+          structuredConfig:
+            analytics:
+              reporting_enabled: false
+            server:
+              http_listen_port: 4040
+              grpc_listen_port: 9095
+            storage:
+              backend: s3
+              s3:
+                endpoint: minio.storage.svc.cluster.local:9000
+                bucket_name: pyroscope-profiles
+                # Credentials are resolved via the AWS SDK for Go credential
+                # provider chain: `native_aws_auth_enabled: true` disables the
+                # inline `access_key_id`/`secret_access_key` fields and makes
+                # the SDK read `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
+                # from the pod environment.  Those env vars are injected via
+                # `extraEnvFrom.secretRef` pointing at the ExternalSecret
+                # below, which sources creds from OpenBao `platform/minio/root`.
+                # This avoids Pyroscope's lack of YAML env-var expansion
+                # (see §18.3.a in AUDIT_FINAL_2026-04-21.md).
+                native_aws_auth_enabled: true
+                insecure: true
+                # `force_path_style` was deprecated in Pyroscope 2.0.0; use
+                # `bucket_lookup_type: path-style` for MinIO (S3-compatible
+                # services default to path-style addressing).
+                bucket_lookup_type: path-style
+                signature_version: v4
+            ingester:
+              lifecycler:
+                ring:
+                  kvstore: { store: memberlist }
+                  replication_factor: 1
+            distributor:
+              ring:
+                kvstore: { store: memberlist }
+            store_gateway:
+              sharding_ring:
+                kvstore: { store: memberlist }
+            limits:
+              max_global_series_per_tenant: 5000
+              ingestion_rate_mb: 8
+              retention_period: 336h   # 14 days, matches Tempo
+          resources:
+            requests: { cpu: 100m, memory: 256Mi } # Single-node lab; bump for production load.
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+        # eBPF DaemonSet profiler — node-level profiling without per-app changes.
+        # Privileged + hostPID is required to read /proc/<pid>/maps for pprof
+        # symbolisation. Namespace carve-out in Kyverno `disallow-privileged` +
+        # `disallow-host-path` policies is required (see observability
+        # exclusion already documented in those policies).
+        ebpf:
+          enabled: true
+          image:
+            repository: grafana/pyroscope-ebpf
+            tag: 2.0.1
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          hostNetwork: false
+          hostPID: true
+          tolerations:
+            - operator: Exists
+              effect: NoSchedule
+        # ServiceMonitor so kube-prometheus-stack scrapes /metrics for RED
+        # telemetry on the Pyroscope ingester itself.
+        serviceMonitor:
+          enabled: true
+          labels:
+            release: kube-prometheus-stack
+        # Grafana datasource is provisioned via ConfigMap reload in the
+        # grafana sub-chart (sidecar). See grafana/helm-release.yaml for the
+        # `grafana.sidecar.datasources.searchNamespace` list — observability
+        # is already in scope.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false, allowEmpty: false }
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+# =============================================================================
+# S3 credentials (MinIO) — sourced from OpenBao via ExternalSecret (ADR-008).
+# Reuses the platform `minio-root` credentials already provisioned by the
+# OpenBao bootstrap Job (`secret/platform/minio/root`) — same pattern that
+# Tempo, Loki, Velero, and MLflow consume.  Dedicated policy-scoped MinIO
+# users per service are a future hardening step (ADR-008 §Rotation).
+#
+# Env-var shape: emits `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — the
+# AWS SDK for Go defaults.  Pyroscope reads these at pod start via
+# `extraEnvFrom` (above) when `storage.s3.native_aws_auth_enabled: true`.
+# Do NOT rename back to the legacy `S3_ACCESS_KEY` / `S3_SECRET_KEY` — those
+# names require Pyroscope YAML env-var expansion, which is not available
+# (see §18.3.a root cause in AUDIT_FINAL_2026-04-21.md).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pyroscope-s3-credentials
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: pyroscope
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: pyroscope-s3-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef: { key: platform/minio/root, property: password }
+# PodDisruptionBudget — NOT defined here. The Pyroscope chart 2.0.0 emits a
+# PodDisruptionBudget/pyroscope itself (templates/deployments-statefulsets.yaml,
+# `$values.podDisruptionBudget.enabled` defaulting to true, maxUnavailable=1)
+# via the standalone `pyroscope` Application above. Adding an inline PDB here
+# causes the parent `platform-observability` app-of-apps Application to claim
+# the same PodDisruptionBudget/pyroscope resource that the child `pyroscope`
+# Application owns → ArgoCD `SharedResourceWarning`. The chart's PDB has the
+# identical maxUnavailable=1 shape so there is no loss of intent.

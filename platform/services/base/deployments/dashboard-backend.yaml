@@ -1,0 +1,91 @@
+# =============================================================================
+# DASHBOARD BACKEND — API Server (Go + Gin)
+# =============================================================================
+# REST API for the dashboard frontend. Queries ClickHouse and Valkey.
+#
+# Platform tool integration:
+#   - Grafana: Alternative/complementary dashboards for metrics
+#   - APISIX + SpiceDB: Auth for dashboard users
+#   - ClickHouse: OLAP queries for historical data
+#   - Valkey: Real-time feature cache (Redis-RESP wire protocol)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-backend
+  labels:
+    app: dashboard-backend
+    component: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-backend
+  template:
+    metadata:
+      labels:
+        app: dashboard-backend
+      annotations:
+        # dashboard-backend's /metrics endpoint is a business-data JSON API
+        # (RBAC-guarded), not a Prometheus exposition endpoint. Disable scraping
+        # so the Prometheus service discovery does not attempt to parse JSON
+        # responses as Prometheus text format (which would produce parse errors
+        # in every scrape loop).
+        prometheus.io/scrape: "false"
+        prometheus.io/port: "8080"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dashboard-backend
+          image: dashboard-backend:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-backend
+spec:
+  selector:
+    app: dashboard-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http

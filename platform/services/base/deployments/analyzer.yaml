@@ -1,0 +1,67 @@
+# =============================================================================
+# ANALYZER — Data Quality Analysis (Python + Great Expectations)
+# =============================================================================
+# Uses Great Expectations (OSS) for schema validation and data quality checks.
+# Custom outlier detection (Z-score) for domain-specific bounds.
+#
+# Platform tool integration:
+#   - Great Expectations: Declarative data quality expectations (YAML-based)
+#   - Grafana: Unified alerting on quality violations
+#   - Prometheus: Quality metrics exported via Pushgateway
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer
+  labels:
+    app: analyzer
+    component: quality
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analyzer
+  template:
+    metadata:
+      labels:
+        app: analyzer
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+        - name: analyzer
+          image: analyzer:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONTINUOUS
+              value: "true"
+            - name: INTERVAL_SECONDS
+              value: "300"
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          livenessProbe:
+            exec:
+              # Check the main process is alive AND has touched the health
+              # file within the last 10 minutes (2x INTERVAL_SECONDS) —
+              # catches hung loops that a bare kill -0 would miss.
+              command: ["/bin/sh", "-c", "kill -0 1 && find /tmp/healthy -mmin -10 | grep -q ."]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              # Ready once the first analysis cycle has completed and written the file.
+              command: ["/bin/sh", "-c", "test -f /tmp/healthy"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"

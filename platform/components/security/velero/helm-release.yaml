@@ -1,0 +1,184 @@
+# =============================================================================
+# Velero 1.18.0 (2026) — backup & restore for Kubernetes
+# =============================================================================
+# ADR-014.  Backs up PVCs + cluster state to MinIO bucket `velero-backups`.
+# File system backup (Kopia) for PVC data.  Daily cluster-wide full backup.
+# Namespace-scoped incremental schedules are owned by each use-case via
+# `Schedule` CRs (see <use-case>/manifests/base/velero-schedule.yaml)
+# so the platform stays domain-agnostic.
+#
+# CRDs are installed by a SEPARATE Argo Application (see velero-crds.yaml)
+# with sync-wave=-10 + `Replace=true` + `ServerSideApply=true`. This bypasses
+# the infamous Helm `velero-upgrade-crds` pre-upgrade Job that wedges on
+# activeDeadlineSeconds and leaves the release in a broken state (R8).
+# The helm values below turn off both install- and upgrade-time CRD hooks.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    app.kubernetes.io/part-of: mlops-platform
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: velero
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://vmware-tanzu.github.io/helm-charts
+    chart: velero
+    # Chart 12.0.0 (2026-03-16) is the matched pair for velero server 1.18.0.
+    # velero-plugin-for-aws is bumped to v1.14.0 (2026-03-06) — the previous
+    # pin v1.12.1 (2025-05-19) predates the repo-wide 2026-minimum-release
+    # rule. v1.13.x → v1.14.0 release notes are purely Golang toolchain bumps
+    # (go 1.25.7 in v1.14.0, no API surface change vs v1.12.x; plugin-framework
+    # protobuf contract is stable across the 1.12-1.14 range).
+    # Historical note: the earlier pin (chart 8.6.0) still injected the
+    # deprecated server flag `--keep-latest-maintenance-jobs=3` that the
+    # v1.17+ binary rejects with `unknown flag` (CrashLoop) — see velero
+    # CHANGELOG-1.17.md "Repository maintenance job configurations are removed
+    # from Velero server parameter" (flag moved to ConfigMap).  Chart 12.0.0
+    # uses `configuration.repositoryMaintenanceJob.repositoryConfigData` to
+    # render a ConfigMap instead of passing CLI args.  Root cause for
+    # AUDIT_FINAL §18.3.b.
+    targetRevision: 12.0.1     # 2026-04-27 — patch on 12.0 line, same Velero v1.17 appVersion.
+    helm:
+      releaseName: velero
+      skipCrds: true          # CRDs come from velero-crds.yaml, not Helm.
+      values: |
+        image:
+          repository: velero/velero
+          tag: v1.18.0
+        # ---- CRD hooks: off ----
+        # Chart 12.0.0 removed `installCRDs` / `crds.install` (superseded by
+        # Helm-level `skipCrds: true` above).  We keep `upgradeCRDs` and
+        # `cleanUpCRDs` disabled to prevent the two remaining CRD jobs from
+        # running — velero-crds.yaml owns CRDs with sync-wave=-10.
+        upgradeCRDs: false
+        cleanUpCRDs: false
+        resources:
+          requests: { cpu: 200m, memory: 256Mi }
+          limits:   { cpu: 1000m, memory: 512Mi }
+        initContainers:
+          - name: velero-plugin-for-aws
+            image: velero/velero-plugin-for-aws:v1.14.0
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - { mountPath: /target, name: plugins }
+        configuration:
+          backupStorageLocation:
+            - name: default
+              provider: aws
+              bucket: velero-backups
+              config:
+                region: us-east-1
+                s3ForcePathStyle: true
+                s3Url: http://minio.storage.svc.cluster.local:9000
+          # CSI snapshot support deliberately disabled (ADR-031). The platform
+          # uses local-path-provisioner which has no CSI snapshotter; backups
+          # rely on Kopia file-system mode below (`defaultVolumesToFsBackup`).
+          defaultVolumesToFsBackup: true
+          uploaderType: kopia
+          fsBackupTimeout: 240m
+          # Repository maintenance job tuning — chart 12.0.0 renders these as
+          # a ConfigMap `velero-repo-maintenance` consumed by the server via
+          # `--repo-maintenance-job-configmap=velero-repo-maintenance` (chart
+          # manages this flag automatically).
+          repositoryMaintenanceJob:
+            repositoryConfigData:
+              name: "velero-repo-maintenance"
+              global:
+                keepLatestMaintenanceJobs: 3
+                podResources:
+                  cpuRequest: "100m"
+                  cpuLimit: "500m"
+                  memoryRequest: "128Mi"
+                  memoryLimit: "512Mi"
+              repositories: {}
+        credentials:
+          existingSecret: velero-s3
+        # CSI VolumeSnapshot off — local-path-provisioner has no snapshotter.
+        # Kopia file-system backup runs via the node-agent DaemonSet instead.
+        snapshotsEnabled: false
+        deployNodeAgent: true
+        nodeAgent:
+          privileged: true
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+            namespace: observability
+        # Platform-level schedule: one daily full-cluster backup.
+        # Per-namespace / per-use-case incremental schedules belong to the
+        # consuming use-case, declared as Velero `Schedule` CRs there.
+        schedules:
+          daily-full:
+            schedule: "0 1 * * *"
+            template:
+              ttl: "720h"     # 30 days
+              includedNamespaces: ["*"]
+              excludedNamespaces: ["kube-system", "kube-public", "kube-node-lease"]
+              snapshotVolumes: false      # CSI snapshots disabled
+              defaultVolumesToFsBackup: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff: { duration: 15s, factor: 2, maxDuration: 10m }
+  ignoreDifferences:
+    # Velero controller annotates status.observedGeneration on its own CRs.
+    - group: velero.io
+      kind: BackupStorageLocation
+      jsonPointers:
+        - /status
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: velero-s3
+  namespace: velero
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: velero-s3
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        cloud: |
+          [default]
+          aws_access_key_id={{ .username }}
+          aws_secret_access_key={{ .password }}
+  data:
+    - secretKey: username
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: password
+      remoteRef: { key: platform/minio/root, property: password }

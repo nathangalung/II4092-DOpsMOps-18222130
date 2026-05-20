@@ -1,0 +1,74 @@
+# =============================================================================
+# VALIDATOR — Data Quality (Rust, <50us/record)
+# =============================================================================
+# Schema validation using Karapace (Confluent-compatible schema registry).
+# Business logic (dedup via Bloom filter, bounds checking) is domain-specific
+# and performance-critical.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validator
+  labels:
+    app: validator
+    component: quality
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: validator
+  template:
+    metadata:
+      labels:
+        app: validator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+    spec:
+      containers:
+        - name: validator
+          image: validator:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "info"
+          ports:
+            - containerPort: 8082
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8082
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: validator
+spec:
+  selector:
+    app: validator
+  ports:
+    - port: 8082
+      targetPort: 8082
+      name: metrics

@@ -1,0 +1,157 @@
+# =============================================================================
+# KServe Platform Smoke Test — domain-agnostic sklearn iris health check
+# =============================================================================
+# KF-05 (Model Serving) evidence: an always-on InferenceService plus a
+# CronJob probe that exercises the full KServe control-plane path
+# (webhook -> controller -> sklearn runtime -> predict endpoint) every 10
+# minutes.  Probe success/failure surfaces via the default KubeJobFailed
+# Prometheus alert -> Alertmanager -> Slack `#platform-alerts`.
+#
+# Runtime: RawDeployment — the platform kserve-controller runs with
+# ENABLE_KNATIVE_SERVING=false and DEPLOYMENT_MODE=RawDeployment (see
+# kserve-controller.yaml env), so InferenceServices become standard
+# Deployments + Services + HPA without Knative/Istio integration.
+#
+# Namespace: model-serving — set explicitly on every object below
+# (defense-in-depth).  Parent kustomization.yaml also sets
+# `namespace: model-serving` for all resources, but the explicit field
+# means a raw `kubectl apply -f demo-health-check.yaml` (bypass kustomize)
+# still lands in the right namespace instead of `default/`.  Rationale:
+# 2026-05-08 we found a stray InferenceService in `default/` from an
+# ad-hoc raw apply during a sweep — explicit namespace prevents repeats.
+#
+# Domain-agnosticism (ADR-013): iris is a 1936 Fisher dataset unrelated to
+# any use-case, so this file cannot leak domain semantics into
+# platform/. Use-case InferenceServices live in their own repositories at
+# use-case-<name>/manifests/serving/.
+#
+# Air-gapped + thesis-friendly: storageUri points at MinIO
+# `s3://platform-models/sklearn/iris/` populated by the
+# minio-bucket-bootstrap Job (initContainer trains a fresh sklearn iris
+# LogisticRegression and saves it as an MLflow bundle — MLmodel +
+# model.pkl + conda.yaml — to that prefix).  No outbound `gs://`
+# dependency on kfserving-examples.
+#
+# Runtime: kserve-mlflowserver (ADR-027 — single mlflow runtime for all
+# models, smoke test included).  MLServer's mlserver_mlflow.MLflowRuntime
+# loads the bundle directly using the image's bundled sklearn — no
+# conda env install at serve time, so the probe also verifies the
+# storage-initializer S3 path end-to-end without outbound pip.
+# Open Inference Protocol v2: probe hits `/v2/models/<name>/infer`.
+# =============================================================================
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: platform-health-check
+  namespace: model-serving
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/purpose: platform-smoke-test
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    # KServe storage-initializer reads the bucket creds + endpoint from
+    # the named ServiceAccount's `serviceAccountName` annotations or the
+    # `storageSecret` field on the spec.  We use the latter — the
+    # `kserve-minio-storage` Secret in model-serving carries
+    # AWS_ACCESS_KEY_ID/SECRET (mirrored from platform/minio/root via
+    # ESO) plus AWS_S3_ENDPOINT/USE_HTTPS/SSL_VERIFY/REGION for the
+    # in-cluster MinIO endpoint.
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    timeout: 60
+    # ServiceAccount carries the MinIO S3 credentials Secret + endpoint
+    # annotations (see kserve-rbac.yaml `kserve-minio-sa`).  KServe
+    # storage-initializer reads AWS_ACCESS_KEY_ID/SECRET from the
+    # attached Secret and the `serving.kserve.io/s3-*` annotations to
+    # override the AWS endpoint.
+    serviceAccountName: kserve-minio-sa
+    model:
+      modelFormat:
+        name: mlflow
+      runtime: kserve-mlflowserver
+      storageUri: "s3://platform-models/sklearn/iris/"
+      protocolVersion: v2
+      # Single-pod bootstrap; bump for production load.
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
+---
+# Periodic smoke probe. Hits `/v2/models/platform-health-check/infer` (Open
+# Inference Protocol) with a known iris payload; non-200 or missing
+# `outputs` array fails the Job.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: platform-health-check-probe
+  namespace: model-serving
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/purpose: platform-smoke-test
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: mlops-platform
+        spec:
+          # Namespace is labeled `istio-injection: disabled` (KServe
+          # RawDeployment expects plain Deployments + Services without
+          # mesh interference per the kserve-controller README), so the
+          # probe runs without a sidecar and reaches the predictor over
+          # plain HTTP via the in-namespace allow-within-namespace
+          # NetworkPolicy.
+          restartPolicy: Never
+          containers:
+            - name: probe
+              image: curlimages/curl:8.20.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  ENDPOINT="http://platform-health-check-predictor.model-serving.svc.cluster.local/v2/models/platform-health-check/infer"
+                  # v2 Open Inference Protocol — flat data array with
+                  # explicit shape [batch=2, features=4] and FP32 dtype.
+                  # `parameters.content_type: "np"` selects mlserver's
+                  # NumpyCodec; without it, mlserver_mlflow's default
+                  # PandasCodec interprets a single-input request as one
+                  # column and sklearn raises
+                  # `Expected 2D array, got scalar array instead`. Field-
+                  # validated 2026-05-07 against mlserver 1.7.1 +
+                  # mlserver-mlflow runtime.
+                  PAYLOAD='{"inputs":[{"name":"input-0","shape":[2,4],"datatype":"FP32","parameters":{"content_type":"np"},"data":[6.8,2.8,4.8,1.4,6.0,3.4,4.5,1.6]}]}'
+                  echo ">>> probing $ENDPOINT"
+                  # --retry-connrefused: k3s kube-proxy/flannel can RST the
+                  # first SYN from a freshly-scheduled pod before the new
+                  # source veth is fully programmed in conntrack/ARP tables;
+                  # a couple of retries on connection-refused recovers cleanly
+                  # without masking real predictor outages (we keep --max-time
+                  # tight and grep the body for the v2 `outputs` field).
+                  curl -sf -H "Content-Type: application/json" \
+                    --connect-timeout 5 --max-time 30 \
+                    --retry 5 --retry-delay 3 --retry-connrefused \
+                    -d "$PAYLOAD" "$ENDPOINT" | tee /tmp/resp.json
+                  grep -q '"outputs"' /tmp/resp.json
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65532
+                capabilities: { drop: [ALL] }
+                seccompProfile: { type: RuntimeDefault }
+              resources:
+                requests: { cpu: 10m,  memory: 16Mi }
+                limits:   { cpu: 100m, memory: 64Mi }
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: tmp
+              emptyDir: { medium: Memory, sizeLimit: 8Mi }

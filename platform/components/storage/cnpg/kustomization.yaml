@@ -1,0 +1,116 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# CloudNativePG 1.29.x (chart 0.28.0) — PostgreSQL operator (ADR-011).
+#
+# Rendered via `kustomize build --enable-helm` (apply-component.sh) and
+# applied with `kubectl apply --server-side --force-conflicts`. Server-side
+# apply is mandatory: CNPG ships several CRDs (clusters, backups, poolers,
+# scheduledbackups, databases, publications, subscriptions, clusterimage-
+# catalogs) whose schemas exceed the 256KB annotation limit.
+#
+# Plugin barman-cloud (separate manifest) installs the CNPG-I backup plugin
+# that replaces the deprecated in-tree `Cluster.spec.backup.barmanObjectStore`
+# (removed in CNPG 1.30).
+namespace: cnpg-system
+
+helmCharts:
+  - name: plugin-barman-cloud
+    repo: https://cloudnative-pg.github.io/charts
+    # Chart 0.6.0 (2026-04-14) bundles plugin app v0.12.0. Compatible with
+    # CNPG >= 1.29. cert-manager is a hard prereq — plugin talks to operator
+    # over mTLS using certs from the in-cluster issuer (atom-cert-istio runs
+    # before atom-storage-core in phase-base).
+    version: 0.6.0
+    releaseName: barman-cloud
+    namespace: cnpg-system
+    includeCRDs: true
+    valuesInline:
+      resources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits:   { cpu: 500m, memory: 256Mi }
+      monitoring:
+        podMonitorEnabled: false
+      certManager:
+        create: true
+  - name: cloudnative-pg
+    repo: https://cloudnative-pg.github.io/charts
+    version: 0.28.0
+    releaseName: cnpg
+    namespace: cnpg-system
+    includeCRDs: true
+    valuesInline:
+      # Operator >=1 — webhook MUST serve before any Cluster / Pooler /
+      # ScheduledBackup CR applies (admission calls fail "no endpoints
+      # available for service cnpg-webhook-service" otherwise). Bump to 2
+      # (active/standby with leader election) post-stabilization.
+      replicaCount: 1
+      leaderElection:
+        enabled: true
+      monitoring:
+        # PodMonitor (monitoring.coreos.com/v1) requires Prometheus Operator
+        # CRDs. atom-obs-stack runs AFTER phase-base; re-enabled by overlay
+        # patch once monitoring.coreos.com/v1 is Established.
+        podMonitorEnabled: false
+        grafanaDashboard:
+          create: false
+      resources:
+        requests: { cpu: 100m, memory: 128Mi }
+        limits:   { cpu: 500m, memory: 256Mi }
+      config:
+        data:
+          # Cluster-wide watch — any Cluster CR in any namespace reconciled.
+          WATCH_NAMESPACE: ""
+          INHERITED_LABELS: "app.kubernetes.io/part-of"
+          INHERITED_ANNOTATIONS: "linkerd.io/inject,sidecar.istio.io/inject"
+
+resources:
+  - namespace.yaml
+
+# CNPG ships ValidatingWebhookConfiguration + MutatingWebhookConfiguration
+# with failurePolicy=Fail on every Cluster / Pooler / ScheduledBackup /
+# Backup / Database CR. On a fresh install the webhook Service has no
+# endpoints for ~60-180s while the operator Deployment rolls out and
+# cert-manager issues the webhook serving cert. During that window every
+# postgresql component apply (storage/postgresql, which lands ObjectStore
+# + ExternalSecret + ConfigMap + Cluster + ScheduledBackup) fails with
+# `no endpoints available for service cnpg-webhook-service`. Same pattern
+# we softened for ESO + Kyverno. The CRD schema validation still runs
+# server-side; Ignore here only affects CNPG's semantic validation during
+# the bootstrap window. Field-validated 2026-05-02.
+patches:
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: cnpg-validating-webhook-configuration
+    patch: |-
+      - op: replace
+        path: /webhooks/0/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/1/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/2/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/3/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/4/failurePolicy
+        value: Ignore
+  - target:
+      kind: MutatingWebhookConfiguration
+      name: cnpg-mutating-webhook-configuration
+    patch: |-
+      - op: replace
+        path: /webhooks/0/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/1/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/2/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/3/failurePolicy
+        value: Ignore

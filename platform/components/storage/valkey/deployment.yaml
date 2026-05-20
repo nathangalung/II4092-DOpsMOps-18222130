@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  namespace: storage
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: valkey
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: storage
+  labels:
+    app: valkey
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          image: valkey/valkey:9.0.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Shell form required: K8s $(VAR) only resolves env[] entries, not
+          # envFrom values. `sh -c exec …` lets the shell expand at start.
+          command: ["sh", "-c"]
+          args:
+            - 'exec valkey-server --requirepass "$VALKEY_PASSWORD"'
+          envFrom:
+            - secretRef:
+                name: valkey-auth
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 15
+            periodSeconds: 15
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: valkey
+  namespace: storage
+  labels:
+    app: valkey
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: valkey

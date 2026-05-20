@@ -1,0 +1,98 @@
+# =============================================================================
+# argocd-cm patch — kustomize build flags + per-resource ignoreDifferences
+# =============================================================================
+# platform-common / platform-security / platform-storage all use kustomize
+# `helmCharts:` to inflate KEDA / external-secrets / Longhorn.  The repo-server
+# default `kustomize build` rejects this with `must specify --enable-helm`,
+# leaving the apps stuck in Unknown sync state.  ArgoCD reads
+# `kustomize.buildOptions` from this CM and appends to every kustomize build.
+#
+# --load-restrictor LoadRestrictionsNone:
+#   use-case overlays (use-case-crypto/manifests/base/kustomization.yaml) pull
+#   shared platform Deployments / RBAC via relative paths that escape the
+#   build root: `../../../platform/services/base/...`. seed-gitea mirrors that
+#   subtree alongside the use-case top-level dir so the files exist in the
+#   per-use-case gitea repo, but kustomize's default LoadRestrictionsRootOnly
+#   still blocks `..` escape (security guard against accidental fs walks).
+#   Relaxing the restrictor is the canonical fix when a repo legitimately
+#   spans multiple top-level dirs (platform-tree + use-case-tree sibling).
+#   See ADR-013 for the source-of-truth model and seed-gitea.sh for the
+#   mirror that backs this.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  kustomize.buildOptions: --enable-helm --load-restrictor LoadRestrictionsNone
+  # ---------------------------------------------------------------------------
+  # external-secrets.io/v1 ExternalSecret webhook injects defaults on apply:
+  #   spec.data[*].remoteRef.conversionStrategy:  Default
+  #   spec.data[*].remoteRef.decodingStrategy:    None
+  #   spec.data[*].remoteRef.metadataPolicy:      None
+  #   spec.data[*].remoteRef.nullBytePolicy:      Ignore
+  #   spec.target.deletionPolicy:                 Retain
+  # The platform repo authors ESes in their canonical short form (no defaults
+  # spelled out) — every parent Application then reports OutOfSync forever
+  # despite the resource being functionally correct (`status.conditions:
+  # Ready - SecretSynced`). This cluster-wide `resource.customizations.
+  # ignoreDifferences` entry hides the webhook-injected defaults so ArgoCD's
+  # diff engine only flags semantically meaningful drift.
+  resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
+    jsonPointers:
+      - /spec/target/deletionPolicy
+    jqPathExpressions:
+      - '.spec.data[]?.remoteRef.conversionStrategy'
+      - '.spec.data[]?.remoteRef.decodingStrategy'
+      - '.spec.data[]?.remoteRef.metadataPolicy'
+      - '.spec.data[]?.remoteRef.nullBytePolicy'
+  # ---------------------------------------------------------------------------
+  # Admission webhook caBundle is rotated by cert-manager's cainjector via the
+  # `cert-manager.io/inject-ca-from` annotation. Git ships an empty/placeholder
+  # caBundle; the live caBundle is the cluster-trust-anchored cert. Without
+  # this carve-out every MutatingWebhookConfiguration + ValidatingWebhookConfiguration
+  # in the platform (knative-serving, istio-validator, kserve, kueue, etc.)
+  # would report OutOfSync immediately after cainjector populates the bundle.
+  resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
+    jqPathExpressions:
+      - '.webhooks[]?.clientConfig.caBundle'
+  resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+    jqPathExpressions:
+      - '.webhooks[]?.clientConfig.caBundle'
+  # ---------------------------------------------------------------------------
+  # CRDs: apiextensions.k8s.io/v1 server defaults two fields whenever the
+  # manifest omits them:
+  #   spec.conversion.strategy: None     (server adds when absent)
+  #   spec.preserveUnknownFields: false  (server strips when explicitly false
+  #                                       because it is the v1 default)
+  # The opposite happens for cert-manager-injected conversion webhooks where
+  # the live bundle differs from the placeholder shipped in Git.
+  resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
+    jsonPointers:
+      - /spec/preserveUnknownFields
+    jqPathExpressions:
+      - '.spec.conversion | select(.strategy == "None")'
+      - '.spec.conversion.webhook.clientConfig.caBundle'
+  # ---------------------------------------------------------------------------
+  # Aggregated ClusterRole `.rules` is owned by kube-controller-manager — it
+  # walks `aggregationRule.clusterRoleSelectors` and unions matching child
+  # rule sets back into the parent. Git authors aggregated parents with
+  # `rules: []` (empty); the controller rewrites them at runtime. Only ignore
+  # `rules` on ClusterRoles that declare `aggregationRule`, otherwise we'd
+  # mask real drift on plain ClusterRoles.
+  resource.customizations.ignoreDifferences.rbac.authorization.k8s.io_ClusterRole: |
+    jqPathExpressions:
+      - 'select(.aggregationRule != null) | .rules'
+  # ---------------------------------------------------------------------------
+  # HPA-managed Deployment.spec.replicas: ArgoCD's `managedFieldsManagers`
+  # carve-out tells the diff engine to drop fields whose SSA fieldOwner is
+  # `kube-controller-manager` (the HPA reconciler). Without this every
+  # auto-scaled Deployment (istio-ingressgateway, cluster-local-gateway,
+  # kube-prometheus-stack-operator HA replicas, etc.) flaps OutOfSync each
+  # time the HPA decision changes replica count.
+  resource.customizations.ignoreDifferences.apps_Deployment: |
+    managedFieldsManagers:
+      - kube-controller-manager

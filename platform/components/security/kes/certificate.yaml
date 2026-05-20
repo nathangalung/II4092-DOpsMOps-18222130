@@ -1,0 +1,82 @@
+# =============================================================================
+# cert-manager Certificates for KES ↔ MinIO mTLS
+# =============================================================================
+# - `kes-server-tls`   : KES server cert + ca.crt, mounted by KES pod
+# - `minio-kes-client` : MinIO's client cert identifying it to KES; lives in
+#                        `storage` ns so the MinIO Deployment can mount it
+#                        without a cross-namespace secret reflector.
+#
+# Both are issued by the `platform-ca` ClusterIssuer (platform root CA is
+# 10-year, ECDSA-384 — see platform/components/common/cert-manager/
+# platform-issuers.yaml).  The KES server cert rotates every 60 days (normal
+# cert-manager rotation); the MinIO client cert keypair is STABLE for its
+# full 2-year life (rotationPolicy: Never) so that its identity hash — the
+# value KES authorises against — does not change on renewal.
+#
+# If the MinIO client cert is ever re-issued with a new keypair, the KES
+# initContainer re-computes the identity and re-renders kes.yaml on the
+# next pod start; no manual config patching is required.
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kes-server-tls
+  namespace: security
+  labels:
+    app: kes
+spec:
+  secretName: kes-server-tls
+  duration: 2160h           # 90d
+  renewBefore: 720h         # renew 30d before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  subject:
+    organizations: [platform]
+  commonName: kes.security.svc.cluster.local
+  dnsNames:
+    - kes
+    - kes.security
+    - kes.security.svc
+    - kes.security.svc.cluster.local
+  usages:
+    - server auth
+    - client auth
+  issuerRef:
+    name: platform-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: minio-kes-client
+  namespace: storage
+  labels:
+    app: minio
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  secretName: minio-kes-client
+  # 2-year lifetime with rotationPolicy: Never keeps the keypair (and
+  # therefore the KES identity hash) stable across all renewals.
+  duration: 17520h          # 2y
+  renewBefore: 2160h        # renew 90d before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Never
+  subject:
+    organizations: [platform]
+  commonName: minio.storage.svc.cluster.local
+  dnsNames:
+    - minio
+    - minio.storage
+    - minio.storage.svc
+    - minio.storage.svc.cluster.local
+  usages:
+    - client auth
+  issuerRef:
+    name: platform-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

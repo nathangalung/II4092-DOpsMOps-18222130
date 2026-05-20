@@ -1,0 +1,189 @@
+# Karapace Schema Registry (Apache 2.0 - replaces Confluent Schema Registry)
+# Drop-in Confluent API compatible, used by DataHub and Kafka Connect
+# Karapace 5.x uses Pydantic BaseSettings — config via env vars (prefix: KARAPACE_)
+apiVersion: v1
+kind: Service
+metadata:
+  name: karapace
+  namespace: data-ingestion
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+  selector:
+    app: karapace
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karapace
+  namespace: data-ingestion
+  labels:
+    app: karapace
+    app.kubernetes.io/name: karapace
+    app.kubernetes.io/component: schema-registry
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: karapace
+  template:
+    metadata:
+      labels:
+        app: karapace
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.37
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Kafka to be ready..."
+              # Bounded retry: 60 attempts × 5s = 5 min ceiling
+              for i in $(seq 1 60); do
+                if nc -w 2 platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local 9092; then
+                  echo "Kafka is ready (attempt $i)!"
+                  exit 0
+                fi
+                echo "Kafka not ready (attempt $i/60) - sleeping 5s"
+                sleep 5
+              done
+              echo "Kafka still unreachable after 5 min"
+              exit 1
+      containers:
+        - name: karapace
+          image: ghcr.io/aiven-open/karapace:6.1.4
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # Third-party image entry point — uv not available in karapace image
+          command: ["python3", "-m", "karapace"]
+          env:
+            # Strimzi Kafka has authorization=simple. Anonymous clients on the
+            # plain 9092 listener get TopicAuthorizationFailedError (Error 29)
+            # when they try to create _schemas. Use the SASL_PLAINTEXT 9093
+            # listener with the auto-generated `admin` SCRAM-SHA-512 user
+            # (Strimzi creates the `admin` Secret from the KafkaUser CR).
+            - name: KARAPACE_BOOTSTRAP_URI
+              value: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+            - name: KARAPACE_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: KARAPACE_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: KARAPACE_SASL_PLAIN_USERNAME
+              value: "admin"
+            - name: KARAPACE_SASL_PLAIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: admin
+                  key: password
+            - name: KARAPACE_SSL_CAFILE
+              value: "/etc/kafka-ca/ca.crt"
+            - name: KARAPACE_HOST
+              value: "0.0.0.0"
+            - name: KARAPACE_PORT
+              value: "8081"
+            - name: KARAPACE_CLIENT_ID
+              value: "karapace"
+            - name: KARAPACE_GROUP_ID
+              value: "karapace-schema-registry"
+            - name: KARAPACE_MASTER_ELIGIBILITY
+              value: "true"
+            - name: KARAPACE_TOPIC_NAME
+              value: "_schemas"
+            - name: KARAPACE_REPLICATION_FACTOR
+              value: "1"
+            - name: KARAPACE_COMPATIBILITY
+              value: "BACKWARD"
+            - name: KARAPACE_LOG_LEVEL
+              value: "INFO"
+            - name: KARAPACE_KARAPACE_REGISTRY
+              value: "true"
+          ports:
+            - containerPort: 8081
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka-ca
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /subjects
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /subjects
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+      volumes:
+        # Strimzi auto-generates `platform-kafka-cluster-ca-cert` Secret
+        # containing `ca.crt` — the cluster CA that signs broker server certs.
+        # Karapace needs it to verify the SASL_SSL handshake on 9093.
+        - name: kafka-ca
+          secret:
+            secretName: platform-kafka-cluster-ca-cert
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+# Allow cross-namespace HTTP access to Schema Registry. Without this,
+# global-deny-all in istio-system rejects DataHub init probes and any
+# producer/consumer that needs to fetch a subject schema.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: karapace-allow
+  namespace: data-ingestion
+  labels:
+    app: karapace
+spec:
+  selector:
+    matchLabels:
+      app: karapace
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["data-ingestion", "data-governance", "data-processing", "model-lifecycle", "istio-system"]
+      to:
+        - operation:
+            ports: ["8081"]

@@ -1,0 +1,251 @@
+# Dex runs in the 'common' namespace (PSS restricted label is set on the
+# `common` namespace itself in components/common/namespace.yaml).  The previous
+# 'auth' namespace was unused (no workloads ever landed in it).
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authcodes.dex.coreos.com
+spec:
+  group: dex.coreos.com
+  names:
+    kind: AuthCode
+    listKind: AuthCodeList
+    plural: authcodes
+    singular: authcode
+  scope: Namespaced
+  versions:
+    - name: v1
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+      served: true
+      storage: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dex
+  namespace: common
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dex
+rules:
+  - apiGroups:
+      - dex.coreos.com
+    resources:
+      - "*"
+    verbs:
+      - "*"
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dex
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dex
+subjects:
+  - kind: ServiceAccount
+    name: dex
+    namespace: common
+---
+apiVersion: v1
+data:
+  config.yaml: |
+    issuer: http://dex.common.svc.cluster.local:5556/dex
+    storage:
+      type: kubernetes
+      config:
+        inCluster: true
+    web:
+      http: 0.0.0.0:5556
+    logger:
+      level: "debug"
+      format: text
+    oauth2:
+      skipApprovalScreen: true
+    enablePasswordDB: true
+    staticPasswords:
+    - email: user@example.com
+      hashFromEnv: DEX_USER_PASSWORD
+      username: user
+      userID: "15841185641784"
+    staticClients:
+    # https://github.com/dexidp/dex/pull/1664
+    - idEnv: OIDC_CLIENT_ID
+      redirectURIs: ["/oauth2/callback"]
+      name: 'Dex Login Application'
+      secretEnv: OIDC_CLIENT_SECRET
+kind: ConfigMap
+metadata:
+  name: dex
+  namespace: common
+---
+# =============================================================================
+# Dex — OpenBao-sourced credentials (ADR-008)
+# =============================================================================
+# Two ExternalSecrets replace the hand-rolled Secrets that previously shipped
+# a committed OIDC client secret + bcrypt password hash in the git tree.
+# ESO pulls the real values at install time from:
+#   platform/dex/clients/kubeflow → OIDC_CLIENT_ID / OIDC_CLIENT_SECRET
+#   platform/dex/admin            → DEX_USER_PASSWORD (bcrypt hash)
+# The OpenBao seeder stores BOTH the plaintext password and its bcrypt-12 hash;
+# the Dex `hashFromEnv: DEX_USER_PASSWORD` directive consumes the hash.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: dex-oidc-client
+  namespace: common
+  labels:
+    app: dex
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: dex-oidc-client
+    creationPolicy: Owner
+  data:
+    - secretKey: OIDC_CLIENT_ID
+      remoteRef: { key: platform/dex/clients/kubeflow, property: client_id }
+    - secretKey: OIDC_CLIENT_SECRET
+      remoteRef: { key: platform/dex/clients/kubeflow, property: client_secret }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: dex-passwords
+  namespace: common
+  labels:
+    app: dex
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: dex-passwords
+    creationPolicy: Owner
+  data:
+    - secretKey: DEX_USER_PASSWORD
+      remoteRef: { key: platform/dex/admin, property: password_bcrypt }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: common
+spec:
+  ports:
+    - name: dex
+      port: 5556
+      protocol: TCP
+      targetPort: 5556
+  selector:
+    app: dex
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dex
+  name: dex
+  namespace: common
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      containers:
+        - command:
+            - dex
+            - serve
+            - /etc/dex/cfg/config.yaml
+          env:
+            - name: KUBERNETES_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - secretRef:
+                name: dex-oidc-client
+            - secretRef:
+                name: dex-passwords
+          image: ghcr.io/dexidp/dex:v2.45.1
+          name: dex
+          ports:
+            - containerPort: 5556
+              name: http
+          # Kyverno `require-resource-limits` denies pods that omit either
+          # requests OR limits on every container. Field-observed 2026-05-14
+          # blocked dex on RS FailedCreate ("All containers must set
+          # resources.requests AND resources.limits"). Dex 2.45 is a small Go
+          # binary (~30Mi steady, <50m CPU); single-pod bootstrap headroom.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /etc/dex/cfg
+              name: config
+      serviceAccountName: dex
+      volumes:
+        - configMap:
+            items:
+              - key: config.yaml
+                path: config.yaml
+            name: dex
+          name: config
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: dex
+  namespace: common
+spec:
+  gateways:
+    - kubeflow/kubeflow-gateway
+  hosts:
+    - "*"
+  http:
+    - match:
+        - uri:
+            prefix: /dex/
+      route:
+        - destination:
+            host: dex.common.svc.cluster.local
+            port:
+              number: 5556

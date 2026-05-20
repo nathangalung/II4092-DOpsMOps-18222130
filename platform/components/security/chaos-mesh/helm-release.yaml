@@ -1,0 +1,121 @@
+# =============================================================================
+# Chaos Mesh 2.8.2 (2026) — Chaos Engineering for Kubernetes
+# =============================================================================
+# ADR-014.  KNF-04 validation: the proposal requires failure-scenario testing
+# (Bab_1.tex:219).  Chaos Mesh provides CRDs for pod/network/IO/stress/time
+# chaos experiments.
+#
+# DaemonSet chaos-daemon runs PRIVILEGED (mounts /proc, /sys to inject chaos).
+# Keep in a dedicated namespace + restricted-from-dev policy.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chaos-mesh
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: chaos-engineering
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chaos-mesh
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://charts.chaos-mesh.org
+    chart: chaos-mesh
+    targetRevision: 2.8.2
+    helm:
+      releaseName: chaos-mesh
+      values: |
+        # Single-node k3s: replicaCount 1 everywhere. Leader election stays on
+        # for when we scale out (multi-node future). The chart has no built-in
+        # pod anti-affinity, but there's no HA win on a single node either.
+        dashboard:
+          create: true
+          replicaCount: 1
+          securityMode: true
+          # Chart default leaves `limits: {}`; Kyverno require-resource-limits
+          # (Deny) rejects the dashboard pod without explicit limits.
+          resources:
+            requests: { cpu: 50m,  memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+        controllerManager:
+          replicaCount: 1
+          leaderElection: { enabled: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          serviceAccount: chaos-controller-manager
+        chaosDaemon:
+          runtime: containerd
+          socketPath: /run/k3s/containerd/containerd.sock
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          # Hostname verification for k3s
+          hostnameOverride: ""
+        # DNSChaos experiments live in a separate DNS server Deployment. Chart
+        # default ships `resources.limits: {}` → Kyverno reject without these.
+        dnsServer:
+          create: true
+          resources:
+            requests: { cpu: 50m,  memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+        prometheus:
+          create: false    # use kube-prometheus-stack
+        webhook:
+          certManager:
+            enabled: true
+            issuerRef:
+              name: platform-ca
+              kind: ClusterIssuer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chaos-mesh
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+---
+# =============================================================================
+# PolicyException — exempt chaos-daemon DaemonSet pods from disallow-privileged.
+# Scope is deliberately narrow: ONLY pods labelled
+# `app.kubernetes.io/component=chaos-daemon` in the `chaos-mesh` namespace.
+# All other chaos-mesh workloads (controller-manager, dashboard, dns-server)
+# still pass through disallow-privileged unchanged, so a future regression that
+# accidentally sets `privileged: true` on those stays blocked.
+# Targeted here instead of adding `chaos-mesh` to the policy exclusion list
+# (see ADR-019 guidance: narrow scope, audit posture preserved).
+# =============================================================================
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: chaos-mesh-privileged-daemon
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: chaos-mesh
+    adr: "012"
+spec:
+  policyRefs:
+    - kind: ValidatingPolicy
+      name: disallow-privileged
+  matchConditions:
+    - name: only-chaos-daemon-pods
+      expression: |
+        object.metadata.namespace == 'chaos-mesh' &&
+        has(object.metadata.labels) &&
+        'app.kubernetes.io/component' in object.metadata.labels &&
+        object.metadata.labels['app.kubernetes.io/component'] == 'chaos-daemon'
+  reportResult: skip

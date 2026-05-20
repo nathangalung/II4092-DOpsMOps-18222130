@@ -1,0 +1,68 @@
+# =============================================================================
+# FEATURE ENGINE — Real-time Streaming Features (Rust)
+# =============================================================================
+# Consumes validated data from Kafka, computes streaming features (moving
+# averages, momentum), writes to Valkey (online) and Kafka features topic.
+#
+# Platform tool integration:
+#   - Kafka Connect: Sinks features topic → ClickHouse
+#   - Feast: Feature serving (reads from Valkey online store via RESP)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-engine
+  labels:
+    app: feature-engine
+    component: processing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feature-engine
+  template:
+    metadata:
+      labels:
+        app: feature-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: feature-engine
+          image: feature-engine:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "info"
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: pipeline-config

@@ -1,0 +1,59 @@
+# =============================================================================
+# RETRAINING — Automated Model Retraining (Python)
+# =============================================================================
+# Checks drift events and triggers model retraining when drift is detected.
+#
+# Platform tool integration:
+#   - MLflow: Register retrained models, compare with production
+#   - Grafana: Drift alerting triggers retraining
+#   - Kafka: Consumes drift-events topic for triggers
+#   - Kubeflow Pipelines: Alternative for managed retraining workflows
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retraining
+  labels:
+    app: retraining
+    schedule: on-drift
+spec:
+  schedule: "0 */6 * * *" # Every 6 hours (checks if retrain needed)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 14400
+      template:
+        metadata:
+          labels:
+            app: retraining
+            job-type: auto-retrain
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: retraining
+              image: retraining:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--check-and-retrain"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: "2Gi"
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+              volumeMounts:
+                - name: feature-repo
+                  mountPath: /app/feature_repo
+          volumes:
+            - name: feature-repo
+              configMap:
+                name: feast-feature-repo

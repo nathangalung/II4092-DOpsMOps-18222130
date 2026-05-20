@@ -1,0 +1,89 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# KEDA 2.19.0 — Kubernetes Event-Driven Autoscaling (ADR-012/022/026).
+#
+# Rendered via `kustomize build --enable-helm` (apply-component.sh) and
+# applied with `kubectl apply --server-side --force-conflicts`. Server-side
+# apply is mandatory: KEDA ships scaledobjects, scaledjobs, triggerauthent-
+# ications, clustertriggerauthentications, cloudeventsources CRDs whose
+# schemas exceed the 256KB annotation limit.
+#
+# Sole custom-metric APIServer on the cluster — owns both
+# `custom.metrics.k8s.io` and `external.metrics.k8s.io` registrations
+# (prometheus-adapter retired by ADR-026, 2026-04-21). ScaledObjects live
+# with the workloads they target (data-ingestion, data-processing,
+# use-case-crypto manifests).
+namespace: keda
+
+helmCharts:
+  - name: keda
+    repo: https://kedacore.github.io/charts
+    version: 2.19.0
+    releaseName: keda
+    namespace: keda
+    includeCRDs: true
+    valuesInline:
+      # cluster-scoped: watch all
+      watchNamespace: ""
+      # Helm chart default `imagePullPolicy: Always` triggers a manifest
+      # HEAD against ghcr.io on every restart, so a transient DNS blip
+      # (`lookup ghcr.io: Try again`) flips a cached pod into
+      # ImagePullBackOff and never recovers — observed restartCount=89
+      # while the image was already on disk.  Force IfNotPresent so the
+      # cached layer is reused; phase-full bumps the chart version
+      # explicitly when KEDA upgrades.
+      #
+      # NB: chart 2.19.0 exposes pullPolicy at `image.pullPolicy` (single
+      # global setting for keda/metricsApiServer/webhooks). An earlier
+      # attempt used the wrong `image.keda.pullPolicy` per-component path
+      # which silently no-ops because the chart only renders
+      # `image.pullPolicy`. Verified against charts/keda-2.19.0/values.yaml:44.
+      image:
+        pullPolicy: IfNotPresent
+      operator:
+        # Scaled-to-zero by default — opt-in via
+        # `kubectl scale -n keda deploy keda-operator --replicas=1` once
+        # ScaledObjects need reconciliation.
+        replicaCount: 1
+        resources:
+          requests: { cpu: 100m, memory: 128Mi }
+          limits:   { cpu: 1000m, memory: 1Gi }
+      metricsServer:
+        replicaCount: 1
+        resources:
+          requests: { cpu: 100m, memory: 128Mi }
+          limits:   { cpu: 1000m, memory: 1Gi }
+      webhooks:
+        replicaCount: 1
+        resources:
+          requests: { cpu: 50m, memory: 64Mi }
+          limits:   { cpu: 250m, memory: 256Mi }
+      podSecurityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: [ALL] }
+      prometheus:
+        # ServiceMonitor (monitoring.coreos.com/v1) requires Prometheus
+        # Operator CRDs from atom-obs-stack which runs AFTER phase-base.
+        # Re-apply this component once Established to enable scrape.
+        metricServer:
+          enabled: false
+        operator:
+          enabled: false
+      # NOTE: KEDA 2.19.0 operator binary does NOT bind leader-election timing
+      # flags (--leader-elect-lease-duration / --leader-elect-renew-deadline /
+      # --leader-elect-retry-period). Only `--leader-elect` (boolean) is
+      # available; lease/renew/retry durations are hardcoded to controller-
+      # runtime defaults (15s/10s/2s). Attempted bump via `extraArgs.keda`
+      # caused `Error: unknown flag: --leader-elect-lease-duration` →
+      # CrashLoopBackOff. Root-cause of historical `leader election lost`
+      # storm was IO pressure under pre-ADR-031 CSI sidecar churn (#214/#243
+      # fixed; ADR-031 dropped Longhorn entirely). Defaults acceptable on the
+      # healed single-node cluster.
+
+resources:
+  - namespace.yaml

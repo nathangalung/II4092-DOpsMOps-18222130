@@ -1,0 +1,382 @@
+# =============================================================================
+# MinIO Bucket Bootstrap — idempotent creation of platform-required buckets
+# =============================================================================
+# Runs once after MinIO is ready.  Creates every bucket the platform depends
+# on, so operators (CNPG, Loki, MLflow, Flink, Velero, …) never start
+# against a missing bucket and silently fail archiving.
+#
+# ADR-008 — credentials come from the OpenBao-populated `minio-root` secret.
+# The Job uses `mc` from the official minio client image and is safe to
+# re-run: `mc mb --ignore-existing` is a no-op when the bucket exists.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-bootstrap
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: storage-bootstrap
+  annotations:
+    # ArgoCD sync-wave places this after the MinIO Deployment (wave 0) but
+    # before any consumer expects its bucket (wave ≥ 10).  Declared as a
+    # regular resource via kustomization.yaml, not a sync-hook, so ArgoCD
+    # tracks the Job in the application tree and its completion status is
+    # visible to `kubectl get application`.
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: minio-bucket-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: minio
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # lightgbm (transitively pulled by `flaml.automl` at import time)
+        # is a C++ wheel that dlopen's `libgomp.so.1` (GNU OpenMP runtime).
+        # The `ghcr.io/astral-sh/uv:python3.12-trixie-slim` base ships the
+        # Python interpreter only — no system OpenMP runtime — so the
+        # train-iris-model init container hits:
+        #   OSError: libgomp.so.1: cannot open shared object file
+        # when `flaml.automl.model` does `from lightgbm import LGBM…`.
+        # We install the libgomp1 system package once via a root-only
+        # init container and stage the .so under /shared/sysroot for the
+        # non-root train container to pick up via LD_LIBRARY_PATH.  The
+        # storage namespace is PSA-baseline, so container-level
+        # runAsUser:0 + runAsNonRoot:false override the pod-level
+        # restricted defaults — no namespace label change required.
+        - name: install-libgomp
+          # Reuse the uv image (Debian trixie-slim base, ships apt) so the
+          # node only ever pulls one layer for this Job.  We don't use uv
+          # here — just `apt-get install libgomp1` — but air-gapped k3s
+          # already has this image cached from the train container.
+          image: ghcr.io/astral-sh/uv:python3.12-trixie-slim
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            # PSA baseline allows the default cap set.  apt-get needs
+            # DAC_OVERRIDE/CHOWN/FOWNER (to chmod its /var/cache/apt and
+            # /var/lib/apt dirs) and SETUID/SETGID (to drop privs to `_apt`
+            # during downloads).  Dropping ALL caps leaves root unable to
+            # bypass file perms — apt fails with EPERM.  We drop ALL then
+            # add back only what apt needs; no NET_ADMIN, no SYS_ADMIN.
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID"]
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              apt-get update -qq
+              apt-get install -y --no-install-recommends libgomp1
+              mkdir -p /shared/sysroot/usr/lib/x86_64-linux-gnu
+              cp -a /usr/lib/x86_64-linux-gnu/libgomp.so.1* \
+                /shared/sysroot/usr/lib/x86_64-linux-gnu/
+              # Make the .so world-readable so uid 1000 in the next init
+              # container can dlopen it via LD_LIBRARY_PATH.
+              chmod -R a+rX /shared/sysroot
+              echo "libgomp.so.1 staged for train-iris-model"
+          resources:
+            # apt-get + dpkg need ~200 MiB RSS for index resolution; the
+            # initial 128Mi limit OOMKilled the container during
+            # `apt-get update` index parsing.
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - { name: shared-model, mountPath: /shared }
+        # Trains a tiny iris classifier with FLAML AutoML and writes it in
+        # MLflow format to /shared/iris-mlflow/ for the main `mc` container
+        # to upload to `s3://platform-models/sklearn/iris/`.  MLflow flavor
+        # (not raw joblib) so the platform smoke test exercises the same
+        # `kserve-mlflowserver` ClusterServingRuntime use-case models flow
+        # through (ADR-027) — single runtime, single code path under test.
+        # Air-gap-friendly: no outbound HTTP to gs://kfserving-examples.
+        #
+        # AutoML choice: FLAML (Microsoft Research) — CFO + BlendSearch over
+        # an explicit estimator family.  Winning estimator is a plain
+        # sklearn object → `mlflow.sklearn.save_model` writes a vanilla
+        # bundle → MLServer `mlflow` runtime serves it without any FLAML
+        # dep at serve-time (ADR-027 single-runtime stays intact).
+        #
+        # GPU avoidance: the `flaml[automl]` extra normally pulls the
+        # default `xgboost` wheel which embeds CUDA NCCL (~500 MB
+        # nvidia-nccl-cu12 + xgboost) — useless on this CPU-only K3s and
+        # ~15 min disk-bound link.  We bypass the extra and install its
+        # transitives manually with the CPU-only `xgboost-cpu` wheel
+        # (drop-in replacement that owns the `xgboost` import namespace,
+        # no GPU libs).  `lightgbm` is CPU by default.  `estimator_list`
+        # is restricted to pure-sklearn learners (rf / extra_tree / lrl1 /
+        # lrl2) so neither xgboost nor lightgbm is instantiated at runtime;
+        # they are present only to satisfy `flaml.automl` import-time
+        # registration.  Rejected alternatives:
+        #   • H2O AutoML: JVM ~500 MB, MOJO save format needs h2o runtime
+        #     to deserialize → breaks ADR-027 single-runtime.
+        #   • AutoGluon: >1 GB install, needs autogluon runtime at serve
+        #     → breaks ADR-027.
+        - name: train-iris-model
+          image: ghcr.io/astral-sh/uv:python3.12-trixie-slim
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          # uv writes its cache to $HOME/.cache and falls back to /.cache
+          # for nonroot UIDs without a home — pin both to /tmp where
+          # fsGroup=1000 owns the empty dir. HOME=/tmp also keeps any uv
+          # config lookup off the readonly rootfs.
+          env:
+            - name: HOME
+              value: /tmp
+            - name: UV_CACHE_DIR
+              value: /tmp/.uv-cache
+            - name: UV_LINK_MODE
+              value: copy
+            # lightgbm's C++ wheel dlopen's libgomp.so.1 at import; the
+            # install-libgomp init container staged it under /shared/sysroot.
+            - name: LD_LIBRARY_PATH
+              value: /shared/sysroot/usr/lib/x86_64-linux-gnu
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              cd /tmp && uv init --no-readme iris && cd iris
+              # Install FLAML's [automl] transitives MANUALLY (bare `flaml`
+              # + explicit deps) instead of `flaml[automl]` so we can pin
+              # `xgboost-cpu` in place of the default `xgboost` wheel.
+              # The default `xgboost` PyPI wheel bundles CUDA NCCL libs
+              # (~500 MB nvidia-nccl-cu12 + xgboost) — useless on CPU K3s
+              # and disk-bound link stalls the init container ~15 min.
+              # `xgboost-cpu` is the official CPU-only build from the
+              # xgboost team and owns the `xgboost` import namespace, so
+              # FLAML's import-time `import xgboost` succeeds and the
+              # `flaml.automl` module loads cleanly.
+              # `mlflow-skinny` (vs full `mlflow`) drops the UI server stack
+              # (alembic, gunicorn, matplotlib, pyarrow, sqlalchemy) and
+              # keeps install/link time bounded on single-node K3s — full
+              # `mlflow` pulled ~90 wheels and stalled the init container
+              # ~6 min on disk-bound link.  `mlflow.sklearn.save_model` is
+              # shipped in the skinny distribution (flavor modules live in
+              # the core wheel).
+              uv add --python 3.12 \
+                flaml \
+                xgboost-cpu \
+                lightgbm \
+                scipy \
+                pandas \
+                scikit-learn \
+                mlflow-skinny
+              # UV mandate (project policy): no `uv run python`, no `python -c`.
+              # Write the trainer to a .py file and call `uv run train.py` —
+              # uv resolves the entry inside the project venv (uv add'd above).
+              #
+              # MLServer 1.7.x mlflow runtime expects MLmodel + model.pkl in
+              # the storage prefix. `mlflow.sklearn.save_model` writes the
+              # full bundle (MLmodel manifest, conda.yaml, requirements.txt,
+              # python_env.yaml, model.pkl). MLServer's mlserver_mlflow
+              # adapter reads MLmodel to dispatch to the python_function
+              # flavor and uses its bundled sklearn — no conda install at
+              # serving time, so no outbound install required.
+              cat > train.py <<'PYEOF'
+              import numpy as np
+              from sklearn.datasets import load_iris
+              # flaml 2.x moved the top-level AutoML re-export under
+              # `flaml.automl`; importing from the bare package raises
+              # `ImportError: cannot import name 'AutoML'`.
+              from flaml.automl import AutoML
+              import mlflow.sklearn
+              from mlflow.models.signature import infer_signature
+              X, y = load_iris(return_X_y=True)
+              # Cast features to float32 so the inferred MLmodel signature is
+              # Tensor('float32', (-1, 4)). Probe payload uses V2 OIP datatype
+              # FP32 (mlserver NumpyCodec); without matching signature dtype,
+              # mlflow.pyfunc enforces float64 and raises:
+              # 'dtype of input float32 does not match expected dtype float64'.
+              # Field-validated 2026-05-07 against mlflow 2.x + mlserver 1.7.1.
+              X = X.astype(np.float32)
+              # FLAML AutoML — CFO + BlendSearch over a restricted sklearn-only
+              # estimator family.  `time_budget=20` is plenty for 150 rows /
+              # 4 features; FLAML converges in <5 s on this scale and we
+              # still leave headroom for cold-cache iterations.  Seed pinned
+              # so the smoke-test artifact is reproducible across `make nuke`
+              # + `make phase-full` cycles.  `estimator_list` is pure-sklearn
+              # (rf / extra_tree / lrl1 / lrl2) — xgboost-cpu and lightgbm are
+              # installed only to satisfy flaml.automl's import-time
+              # registration; they are NEVER instantiated at runtime, so the
+              # winning estimator at save-time is pure sklearn (no xgb/lgbm
+              # dep needed at serve-time in the MLServer mlflow runtime).
+              # CPU-only by construction: xgboost-cpu has no GPU libs and
+              # estimator_list excludes any tree-booster path anyway.
+              automl = AutoML()
+              automl.fit(
+                  X_train=X, y_train=y,
+                  task='classification',
+                  time_budget=20,
+                  metric='accuracy',
+                  estimator_list=['rf', 'extra_tree', 'lrl1', 'lrl2'],
+                  eval_method='cv',
+                  n_splits=5,
+                  seed=42,
+                  verbose=0,
+                  log_file_name='',
+                  n_jobs=1,
+              )
+              # `automl.model.estimator` is the trained underlying sklearn
+              # estimator (RandomForestClassifier / ExtraTreesClassifier /
+              # LogisticRegression).  Saving via mlflow.sklearn keeps the
+              # serve-time deps to scikit-learn alone — no flaml needed in
+              # the MLServer mlflow runtime container.
+              best_model = automl.model.estimator
+              # MLmodel signature is REQUIRED for mlserver_mlflow.MLflowRuntime
+              # to decode V2 OIP inputs via PandasCodec/NumpyCodec. Without it,
+              # mlserver passes the raw InferenceRequest to model.predict() and
+              # sklearn raises 'Expected 2D array, got scalar array instead'.
+              # Field-validated 2026-05-07 against mlserver 1.7.1.
+              signature = infer_signature(X, best_model.predict(X))
+              mlflow.sklearn.save_model(
+                  sk_model=best_model,
+                  path='/shared/iris-mlflow',
+                  signature=signature,
+                  input_example=X[:2],
+              )
+              print(
+                  'iris FLAML AutoML model saved — best_estimator=%s '
+                  'best_config=%s accuracy=%.4f' % (
+                      automl.best_estimator,
+                      automl.best_config,
+                      best_model.score(X, y),
+                  )
+              )
+              PYEOF
+              uv run train.py
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: 1000m, memory: 1Gi }
+          volumeMounts:
+            - { name: shared-model, mountPath: /shared }
+      containers:
+        - name: mc
+          # Upstream minio/mc repo was archived 2026-02-13; the pgsty/mc
+          # community fork continues cutting 2026 releases in lockstep with
+          # the pgsty/minio server fork.  Keep in sync with deployment.yaml.
+          image: pgsty/mc:RELEASE.2026-04-17T00-00-00Z
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: { name: minio-root, key: MINIO_ROOT_USER }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: minio-root, key: MINIO_ROOT_PASSWORD }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              # Wait for the MinIO API to respond (`mc alias set` retries
+              # but only at the network layer — we also need Ready).
+              # Bounded retry: 60 attempts × 3s = 3 min ceiling
+              for i in $(seq 1 60); do
+                if mc alias set platform \
+                      http://minio.storage.svc.cluster.local:9000 \
+                      "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" \
+                      --api S3v4; then
+                  echo "MinIO alias set (attempt $i)"
+                  break
+                fi
+                echo "waiting for MinIO (attempt $i/60)…"; sleep 3
+                if [ "$i" = "60" ]; then
+                  echo "MinIO still unreachable after 3 min"
+                  exit 1
+                fi
+              done
+
+              # Every bucket the platform needs, one line per concern.
+              # `--ignore-existing` makes the job idempotent.
+              for b in \
+                cnpg-backups \
+                mlflow \
+                feast \
+                warehouse \
+                pipeline-artifacts \
+                airflow-logs \
+                loki-data \
+                flink-checkpoints \
+                flink-savepoints \
+                flink-ha \
+                velero-backups \
+                lakefs \
+                clickhouse-backups \
+                datahub-metadata \
+                tempo-traces \
+                falco-audit \
+                pyroscope-profiles \
+                platform-models ; do
+                mc mb --ignore-existing "platform/${b}"
+                # Enable versioning so PITR restore is possible and so the
+                # object-lock retention can be layered on later.
+                mc version enable "platform/${b}" || true
+              done
+
+              # KServe MLflow iris smoke-test model — written by the
+              # `train-iris-model` initContainer as an MLflow bundle in
+              # /shared/iris-mlflow/ (MLmodel + model.pkl + conda.yaml +
+              # requirements.txt + python_env.yaml).  Recursive upload so
+              # the MLServer mlflow runtime sees the full directory at
+              # /mnt/models after the storage-initializer pull.
+              # `mc cp --recursive` is overwrite-safe; bucket versioning
+              # (enabled above) keeps prior copies for rollback.
+              if [ -f /shared/iris-mlflow/MLmodel ]; then
+                mc cp --recursive /shared/iris-mlflow/ \
+                  platform/platform-models/sklearn/iris/
+                echo "iris MLflow model bundle uploaded"
+              else
+                echo "iris MLflow model artifact missing — initContainer skipped?"
+              fi
+
+              # Per-bucket lifecycle: expire non-current versions after 30d
+              # for backup buckets; aggressive expiry keeps MinIO sized sanely.
+              mc ilm add --noncurrent-expire-days 30 \
+                platform/cnpg-backups || true
+              mc ilm add --noncurrent-expire-days 30 \
+                platform/clickhouse-backups || true
+              mc ilm add --noncurrent-expire-days 90 \
+                platform/velero-backups || true
+              # Falco audit: keep current versions 30d, non-current 7d
+              # (raw syscall traces; volume is high, retention modest).
+              mc ilm add --expire-days 30 --noncurrent-expire-days 7 \
+                platform/falco-audit || true
+              # Tempo blocks: compactor sets block_retention=14d; the
+              # non-current lifecycle here only covers orphaned WAL flushes.
+              mc ilm add --noncurrent-expire-days 1 \
+                platform/tempo-traces || true
+              # Pyroscope profiles: compactor sets retention_period=14d to
+              # match Tempo; the non-current lifecycle here only covers
+              # orphaned WAL flushes.
+              mc ilm add --noncurrent-expire-days 1 \
+                platform/pyroscope-profiles || true
+
+              echo "bucket bootstrap complete"
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: mc-config, mountPath: /.mc }
+            - { name: shared-model, mountPath: /shared, readOnly: true }
+      volumes:
+        - { name: tmp,          emptyDir: {} }
+        - { name: mc-config,    emptyDir: {} }
+        - { name: shared-model, emptyDir: {} }

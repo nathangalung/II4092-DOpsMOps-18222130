@@ -1,0 +1,89 @@
+# =============================================================================
+# FLINK RBAC + Shared Config — Platform-level Flink resources
+# =============================================================================
+# The Flink Kubernetes Operator (flink-operator.yaml) manages all
+# FlinkDeployment CRs. Each use-case ships its own FlinkDeployment
+# (e.g. <use-case>/manifests/base/flink/flinkdeployment.yaml).
+#
+# This file provides:
+#   - ServiceAccount / Role / RoleBinding for HA leader election
+#   - Reference ConfigMap (flink-config)
+#   - ExternalSecret for S3/MinIO checkpoint/HA credentials
+#
+# Legacy standalone JobManager/TaskManager Deployments removed (ADR-023/025):
+# the operator manages pod lifecycle, scaling, and upgrades.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: data-processing
+  labels:
+    app: flink
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink
+  namespace: data-processing
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink
+  namespace: data-processing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: flink
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: data-processing
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flink-config
+  namespace: data-processing
+data:
+  config.yaml: |+
+    jobmanager.rpc.address: flink-jobmanager
+    taskmanager.numberOfTaskSlots: 1  # Single-pod bootstrap; bump for production load.
+    blob.server.port: 6124
+    jobmanager.rpc.port: 6123
+    taskmanager.rpc.port: 6122
+    query.server.port: 6125
+    rest.port: 8081
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: flink-s3-secret
+  namespace: data-processing
+  labels:
+    app: flink
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: flink-s3-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: S3_ACCESS_KEY
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: S3_SECRET_KEY
+      remoteRef: { key: platform/minio/root, property: password }

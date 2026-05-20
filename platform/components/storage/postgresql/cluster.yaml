@@ -1,0 +1,377 @@
+# =============================================================================
+# PostgreSQL 18.3 — CloudNativePG Cluster (3-replica HA + PITR to MinIO)
+# =============================================================================
+# ADR-011.  Replaces the hand-rolled single-replica Deployment.
+#
+# Cluster provides services:
+#   postgresql-rw.storage.svc     → primary (read-write)
+#   postgresql-ro.storage.svc     → replicas only (read-only)
+#   postgresql-r.storage.svc      → any (round-robin; replicas preferred)
+#
+# Backup: continuous WAL + daily base backup to MinIO bucket `cnpg-backups`.
+# Credentials sourced from OpenBao via ExternalSecret.
+#
+# There is intentionally NO `postgresql-superuser` ExternalSecret and no
+# `spec.superuserSecret:` on the Cluster CR: CNPG defaults
+# `enableSuperuserAccess: false`, which disables password auth for the
+# `postgres` role at the PG level.  Every platform app connects as the
+# CNPG-owned `platform` user instead — published by CNPG itself as the
+# `postgresql-app` Secret and mirrored to OpenBao at
+# `secret/platform/postgres/app` by the openbao-bootstrap Job (see
+# platform/components/security/openbao/openbao-bootstrap.yaml).  That mirror
+# is the single source of truth for every downstream ExternalSecret
+# consumer (Airflow, Superset, MLflow, DataHub, LakeFS, Lakekeeper,
+# kafka-connect, Trino, Kubeflow Pipelines, …).
+# =============================================================================
+# -----------------------------------------------------------------------------
+# Bootstrap-role passwords (OpenBao-sourced).  CNPG's postInitApplicationSQL
+# creates `feast` and `spicedb` roles with a placeholder password
+# (`'set-by-eso'`); `platform/scripts/setup-databases.sh` reads these two
+# Secrets and runs ALTER USER to align with OpenBao.  The Secret names match
+# the pattern `postgres-<role>` that the script looks up.
+# -----------------------------------------------------------------------------
+# feast role — managed declaratively by CNPG via `.spec.managed.roles[]`.
+# basic-auth template REQUIRED by CNPG's passwordSecret ref (CNPG 1.22+).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: postgres-feast
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: postgres-feast
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/basic-auth
+      data:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+  data:
+    - secretKey: username
+      remoteRef: { key: platform/postgres/feast, property: username }
+    - secretKey: password
+      remoteRef: { key: platform/postgres/feast, property: password }
+---
+# spicedb role — managed declaratively by CNPG via `.spec.managed.roles[]`.
+# basic-auth template REQUIRED by CNPG's passwordSecret ref (CNPG 1.22+).
+# Without the basic-auth type CNPG silently skips reconciliation, leaving the
+# spicedb role's password as the postInitApplicationSQL placeholder
+# (`set-by-eso`) while ESO writes the real openbao password into
+# `spicedb-secret.datastore-uri` — mismatch causes SASL 28P01 in datastore-
+# migrate. Field-validated 2026-05-04.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: postgres-spicedb
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: postgres-spicedb
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/basic-auth
+      data:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+  data:
+    - secretKey: username
+      remoteRef: { key: platform/spicedb/postgres, property: username }
+    - secretKey: password
+      remoteRef: { key: platform/spicedb/postgres, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: postgresql-s3-backup
+  namespace: storage
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: postgresql-s3-backup
+    creationPolicy: Owner
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef: { key: platform/minio/root, property: password }
+---
+# Mirror the CNPG-managed `postgresql-app` Secret (the `platform` DB owner
+# credentials, regenerated on every cluster recovery/restore) into OpenBao at
+# `secret/platform/postgres/app`. Every downstream consumer (Airflow, MLflow,
+# DataHub, LakeFS, Lakekeeper, kafka-connect, Trino, Kubeflow Pipelines, …)
+# reads from that KV path via ExternalSecret.
+#
+# Replaces the imperative `bao kv put` block that used to live in
+# `platform/components/security/openbao/openbao-bootstrap.yaml`. That block
+# deadlocked phase-base because openbao installs BEFORE CNPG, so postgresql-app
+# never existed when the bootstrap Job ran. Declarative PushSecret
+# eliminates the ordering race: it's applied as part of `make install-postgresql`
+# (after both ESO + openbao + CNPG are healthy), and the 1h refreshInterval
+# keeps OpenBao in sync after CNPG password rotations.
+#
+# Auth: ESO's `external-secrets` SA is bound to the `external-secrets` K8s
+# auth role in OpenBao with both `eso-reader` + `eso-pusher` policies (see
+# openbao-bootstrap.yaml). `eso-pusher` grants
+# `create/read/update/delete` on `secret/data/platform/*`.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: postgresql-app-to-openbao
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRefs:
+    - name: platform-openbao
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: postgresql-app  # CNPG creates this on Cluster bootstrap
+  data:
+    - match:
+        secretKey: username
+        remoteRef:
+          remoteKey: platform/postgres/app
+          property: username
+    - match:
+        secretKey: password
+        remoteRef:
+          remoteKey: platform/postgres/app
+          property: password
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgresql
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # Single-node bootstrap. Scale to 3 for HA via `kubectl patch cluster
+  # postgresql -n storage --type=merge -p '{"spec":{"instances":3,
+  # "minSyncReplicas":1,"maxSyncReplicas":1}}'` once node has CPU headroom.
+  instances: 1
+  # CNPG publishes per-major rolling tags (MM-TYPE-OS); `18-standard-trixie`
+  # tracks the latest PostgreSQL 18.x minor on Debian 13 Trixie with the
+  # standard extension bundle. Pin to a timestamped tag
+  # (e.g. 18.0-YYYYMMDDHHMM-standard-trixie) for reproducible prod rollouts.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+
+  bootstrap:
+    initdb:
+      database: platform
+      owner: platform
+      # Logical databases for downstream consumers are created via Database CR.
+      postInitApplicationSQL:
+        - CREATE DATABASE mlflow OWNER platform;
+        - CREATE DATABASE airflow OWNER platform;
+        - CREATE DATABASE superset OWNER platform;
+        - CREATE DATABASE datahub OWNER platform;
+        - CREATE DATABASE lakefs OWNER platform;
+        - CREATE DATABASE feast OWNER platform;
+        - CREATE DATABASE spicedb OWNER platform;
+        - CREATE DATABASE lakekeeper OWNER platform;
+        - CREATE USER spicedb WITH PASSWORD 'set-by-eso';
+        - GRANT ALL ON DATABASE spicedb TO spicedb;
+        # PG 15+: GRANT ALL on DATABASE does NOT grant CREATE on schema
+        # public — schema public is owned by the database owner (platform).
+        # SpiceDB's `datastore-migrate` init container creates tables in
+        # schema public and fails 42501 (permission denied for schema
+        # public). Transferring database ownership makes spicedb the
+        # `pg_database_owner` and grants CREATE on schema public.
+        - ALTER DATABASE spicedb OWNER TO spicedb;
+        # The `feast` role is also created here with a placeholder password;
+        # `platform/scripts/setup-databases.sh` aligns it with the OpenBao value
+        # (`platform/postgres/feast#password`) after Cluster bootstrap finishes.
+        - CREATE USER feast WITH PASSWORD 'set-by-eso';
+        - GRANT ALL ON DATABASE feast TO feast;
+        # `platform` owns every CNPG-created database above, so it already
+        # has SELECT on all their tables. The three attributes below make
+        # it usable as the single non-superuser bootstrap principal for
+        # the whole platform (CNPG defaults `enableSuperuserAccess: false`,
+        # so there is NO working superuser password anywhere):
+        #   REPLICATION — Debezium (kafka-connect) must CREATE_REPLICATION_SLOT
+        #     for logical CDC against the `platform` database; without this
+        #     the pgoutput decoder cannot start.
+        #   CREATEROLE  — `platform/scripts/setup-databases.sh` aligns the
+        #     bootstrap-created `feast` and `spicedb` role
+        #     passwords with OpenBao via `ALTER USER ... WITH PASSWORD`;
+        #     CREATEROLE gives exactly that administrative surface over
+        #     non-superuser roles (and nothing else).
+        #   CREATEDB    — defensive: lets the same script create any future
+        #     database that lands in PG_DATABASES but is not yet in this
+        #     postInitApplicationSQL block (new clusters pick it up here,
+        #     existing clusters pick it up through the script).
+        # Idempotent on re-init; existing clusters are aligned by
+        # `platform/scripts/setup-databases.sh` running the same three
+        # ALTER ROLE statements.
+        - ALTER ROLE platform WITH REPLICATION;
+        - ALTER ROLE platform WITH CREATEROLE;
+        - ALTER ROLE platform WITH CREATEDB;
+
+  storage:
+    size: 50Gi
+    storageClass: local-path
+
+  walStorage:
+    size: 20Gi
+    storageClass: local-path
+
+  resources:
+    # Single-node lab: cpu req 500m→100m. Real usage <80m at idle, ~150m
+    # under typical analytics queries (kubectl top). Memory floor 1Gi forced
+    # by shared_buffers=1GB (CNPG admission rejects mem<shared_buffers).
+    requests: { cpu: 100m, memory: 1Gi }
+    limits:   { cpu: 2000m, memory: 4Gi }
+
+  postgresql:
+    parameters:
+      max_connections: "300"
+      shared_buffers: "1GB"
+      effective_cache_size: "3GB"
+      work_mem: "16MB"
+      maintenance_work_mem: "256MB"
+      max_wal_size: "2GB"
+      min_wal_size: "512MB"
+      wal_level: logical
+      max_replication_slots: "10"
+      max_wal_senders: "10"
+      synchronous_commit: "remote_apply"
+      password_encryption: "scram-sha-256"
+
+  # Declarative role management (CNPG 1.22+). Non-superuser platform roles
+  # (feast, spicedb) are reconciled from ExternalSecret-produced basic-auth
+  # Secrets. CNPG owns ALTER ROLE ... WITH PASSWORD ... idempotently on
+  # every reconcile loop, replacing the historical
+  # `platform/scripts/setup-databases.sh` post-bootstrap script.
+  # Roles are pre-created by the postInitApplicationSQL block above with a
+  # placeholder password (`set-by-eso`); CNPG aligns them on Cluster
+  # reconcile once the postgres-{feast,spicedb} ExternalSecrets land.
+  managed:
+    roles:
+      - name: feast
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-feast
+      - name: spicedb
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-spicedb
+
+  monitoring:
+    # `enablePodMonitor` is deprecated; explicit PodMonitor below.
+    customQueriesConfigMap:
+      - name: cnpg-queries
+        key: queries.yaml
+
+  # Backup/WAL archiving is delegated to the Barman Cloud plugin (CNPG-I).
+  # The deprecated `.spec.backup.barmanObjectStore` block was removed in
+  # CNPG 1.30; 1.26+ installations must use `.spec.plugins` pointing at an
+  # `ObjectStore` CR defined below.
+  # See: https://cloudnative-pg.io/plugin-barman-cloud/docs/migration
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: postgresql-backup-store
+
+  affinity:
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+---
+# Plugin-managed backup configuration. Replaces the deprecated inline
+# `.spec.backup.barmanObjectStore`. The `postgresql` Cluster above references
+# this ObjectStore by name via `.spec.plugins[].parameters.barmanObjectName`.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: postgresql-backup-store
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # retentionPolicy lives at spec level in plugin v0.12.0 CRD, NOT inside
+  # .configuration (the v0.6.x chart embedded it in configuration; the 0.12
+  # plugin moved it up per upstream API rationalization).
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: "s3://cnpg-backups/pg"
+    endpointURL: "http://minio.storage.svc.cluster.local:9000"
+    s3Credentials:
+      accessKeyId:     { name: postgresql-s3-backup, key: ACCESS_KEY_ID }
+      secretAccessKey: { name: postgresql-s3-backup, key: ACCESS_SECRET_KEY }
+    wal:
+      compression: gzip
+      maxParallel: 4
+    data:
+      compression: gzip
+      immediateCheckpoint: false
+      jobs: 2
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: postgresql-daily
+  namespace: storage
+spec:
+  # CNPG uses 6-field cron (sec min hour dom mon dow). Daily at 02:00.
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  cluster:
+    name: postgresql
+---
+# Connection pooler in front of the primary for apps that can't handle
+# short-lived connections (Airflow, MLflow).
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: postgresql-rw-pool
+  namespace: storage
+spec:
+  cluster:
+    name: postgresql
+  # Single-pod bootstrap; bump to 2 for HA via
+  # `kubectl patch pooler postgresql-rw-pool -n storage --type=merge \
+  #   -p '{"spec":{"instances":2}}'`.
+  instances: 1
+  type: rw
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      max_client_conn: "1000"
+      default_pool_size: "25"
+  # Pod template overrides — CNPG injects an init container `bootstrap-controller`
+  # without resource limits, which Kyverno's enforce-mode `require-resource-limits`
+  # ClusterPolicy denies. The template must declare resources for BOTH the
+  # injected init container AND the pgbouncer main container so admission passes.
+  template:
+    spec:
+      initContainers:
+        - name: bootstrap-controller
+          resources:
+            requests: { cpu: 50m,  memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+      containers:
+        - name: pgbouncer
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+# PodMonitor CRs (postgresql + pgbouncer pooler) live in pod-monitors.yaml,
+# applied by atom-obs-stack overlay after monitoring.coreos.com/v1 CRD lands
+# (chart-rendered components use the same `serviceMonitor.enabled: false`
+# bootstrap pattern).

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Tekton Pipelines ships resources across two namespaces
+# (`tekton-pipelines` + `tekton-pipelines-resolvers`) with colliding
+# resource names (e.g. `config-logging` ConfigMap exists in both). We
+# keep the upstream namespacing intact instead of rewriting with
+# `namespace: gitops`, which would collapse both into a single ns and
+# produce ID conflicts.
+resources:
+  - namespaces.yaml
+  - pipeline.yaml
+  - triggers.yaml
+  - interceptors.yaml
+  - dashboard.yaml
+  - ingress.yaml
+
+# Strategic-merge patches that inject resources.requests/limits onto the
+# Tekton Deployments whose upstream release.yaml ships no `resources` block.
+# Required by the cluster's Kyverno `require-resource-limits` policy — without
+# these patches ReplicaSets stay 0/1 with FailedCreate (field-observed
+# 2026-05-14, see resources-patch.yaml header for the full diagnosis).
+patches:
+  - path: resources-patch.yaml

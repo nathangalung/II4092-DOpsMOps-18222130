@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: great-expectations-config
+  namespace: data-processing
+data:
+  # Great Expectations is a Python data quality library, NOT a standalone server.
+  # It is integrated into use-case data validation services.
+  #
+  # Use-cases import GE in their Python services and use this configuration
+  # to connect to data sources and store validation results.
+  #
+  # This ConfigMap provides the base GE project configuration template.
+  # Use-cases mount this config and extend it with their own expectations.
+  #
+  # Credentials are injected via environment variables from Kubernetes Secrets.
+  # Services must set:
+  #   - PG_USER, POSTGRES_PASSWORD   (from the CNPG-mirrored `postgresql-app`
+  #                                   Secret, i.e. OpenBao `platform/postgres/app`)
+  #   - CH_USER, CH_PASSWORD         (from clickhouse-admin Secret)
+  #   - S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY (from minio-root Secret)
+
+  # Great Expectations project configuration
+  great_expectations.yaml: |
+    config_version: 4
+
+    # Data sources for validation
+    fluent_datasources:
+      # ClickHouse OLAP store.  `clickhouse-platform` is the Altinity CHI
+      # convenience service; CH_USER/CH_PASSWORD must be set from the
+      # `clickhouse-admin` Secret (platform/clickhouse/admin in OpenBao).
+      clickhouse:
+        type: sql
+        connection_string: clickhousedb+connect://${CH_USER}:${CH_PASSWORD}@clickhouse-platform.storage.svc.cluster.local:8123/default
+
+      # PostgreSQL OLTP store — PG_USER / POSTGRES_PASSWORD must be set from
+      # the CNPG-mirrored `postgresql-app` Secret (OpenBao path
+      # `platform/postgres/app`; the `platform` user owns the `platform` DB).
+      postgresql:
+        type: sql
+        connection_string: postgresql+psycopg2://${PG_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/platform
+
+    # Store validation results in MinIO — credentials from env
+    stores:
+      expectations_store:
+        class_name: ExpectationsStore
+        store_backend:
+          class_name: TupleS3StoreBackend
+          bucket: great-expectations
+          prefix: expectations/
+          boto3_options:
+            endpoint_url: http://minio.storage.svc.cluster.local:9000
+            aws_access_key_id: ${S3_ACCESS_KEY_ID}
+            aws_secret_access_key: ${S3_SECRET_ACCESS_KEY}
+
+      validation_results_store:
+        class_name: ValidationResultsStore
+        store_backend:
+          class_name: TupleS3StoreBackend
+          bucket: great-expectations
+          prefix: validations/
+          boto3_options:
+            endpoint_url: http://minio.storage.svc.cluster.local:9000
+            aws_access_key_id: ${S3_ACCESS_KEY_ID}
+            aws_secret_access_key: ${S3_SECRET_ACCESS_KEY}
+
+      checkpoint_store:
+        class_name: CheckpointStore
+        store_backend:
+          class_name: TupleS3StoreBackend
+          bucket: great-expectations
+          prefix: checkpoints/
+          boto3_options:
+            endpoint_url: http://minio.storage.svc.cluster.local:9000
+            aws_access_key_id: ${S3_ACCESS_KEY_ID}
+            aws_secret_access_key: ${S3_SECRET_ACCESS_KEY}
+
+    # Data docs served from MinIO
+    data_docs_sites:
+      s3_site:
+        class_name: SiteBuilder
+        store_backend:
+          class_name: TupleS3StoreBackend
+          bucket: great-expectations
+          prefix: data_docs/
+          boto3_options:
+            endpoint_url: http://minio.storage.svc.cluster.local:9000
+            aws_access_key_id: ${S3_ACCESS_KEY_ID}
+            aws_secret_access_key: ${S3_SECRET_ACCESS_KEY}
+        site_index_builder:
+          class_name: DefaultSiteIndexBuilder

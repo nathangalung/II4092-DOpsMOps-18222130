@@ -1,0 +1,110 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Kyverno 1.17 (chart 3.7.1, 2026-02-02) — Policy-as-Code for Kubernetes.
+#
+# Rendered via `kustomize build --enable-helm` (apply-component.sh) and
+# applied with `kubectl apply --server-side --force-conflicts`. Server-side
+# apply is mandatory: clusterpolicies.kyverno.io exceeds the 256KB annotation
+# limit of client-side apply.
+#
+# CRD-then-CR ordering (CRDs + admission webhook from chart, ValidatingPolicy
+# / GeneratingPolicy CRs in policies.yaml) is handled by the retry loop in
+# apply-component.sh — first apply lands CRDs + controllers, retries land the
+# policy CRs once admission-controller is serving.
+namespace: kyverno
+
+helmCharts:
+  - name: kyverno
+    repo: https://kyverno.github.io/kyverno/
+    version: 3.7.1
+    releaseName: kyverno
+    namespace: kyverno
+    includeCRDs: true
+    valuesInline:
+      features:
+        policyExceptions:
+          enabled: true
+          # Kyverno 1.17 admission controller refuses to start with
+          # `--exceptionNamespace=` empty. `*` permits PolicyException CRs in
+          # any namespace; pin to a specific NS for operator-only exceptions.
+          namespace: "*"
+        reporting:
+          enabled: true
+        generateValidatingAdmissionPolicy:
+          enabled: true
+        # Force every webhook to behave as failurePolicy=Ignore.  Without
+        # this, when the single Kyverno admission-controller pod is being
+        # restarted (OOM, eviction, image pull) the webhook returns
+        # "no endpoints available for service kyverno-svc", which the API
+        # server treats as Fail → every Pod / Deployment admission request
+        # cluster-wide is denied → cluster cannot self-heal.  On a
+        # single-node lab cluster the trade-off (brief governance gap
+        # while kyverno is down) is strictly better than the deadlock.
+        # Flip back to false on multi-node prod where the admission
+        # controller is HA (replicas >= 3).  Field-validated 2026-05-01
+        # after observing the deadlock cascade post-OOM event.
+        forceFailurePolicyIgnore:
+          enabled: true
+      admissionController:
+        # >=1 replica — the webhook MUST serve before ValidatingPolicy CRs in
+        # policies.yaml apply. HA needs replicas:3.
+        replicas: 1
+        rbac:
+          clusterRole:
+            extraResources:
+              - apiGroups: [""]
+                resources: [secrets]
+                verbs: [get, list, watch]
+        container:
+          # Bumped 2026-05-01 — 512Mi limit was causing OOM/probe-fail under
+          # CEL eval load (cluster-wide policy storms during phase-full).
+          # Endpoint flap broke pod creation everywhere. 1Gi gives headroom.
+          resources:
+            requests: { cpu: 200m, memory: 384Mi }
+            limits:   { cpu: 2000m, memory: 1Gi }
+        # Probes tuned for kine-bound cold-start (CEL engine warm-up + policy
+        # tree hydration). Field-stabilised 2026-04-28 — flat restart count.
+        livenessProbe:
+          httpGet: { path: /health/liveness, port: 9443, scheme: HTTPS }
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 10
+        readinessProbe:
+          httpGet: { path: /health/readiness, port: 9443, scheme: HTTPS }
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 15
+          failureThreshold: 20
+        startupProbe:
+          httpGet: { path: /health/liveness, port: 9443, scheme: HTTPS }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 15
+          failureThreshold: 30
+        priorityClassName: system-cluster-critical
+        # ServiceMonitor disabled at bootstrap — Prometheus Operator (CRD
+        # source) installs in atom-obs-stack AFTER phase-base. Re-apply this
+        # component once monitoring.coreos.com/v1 is Established to enable
+        # scrape (or rely on the apply-component retry loop on second apply).
+        serviceMonitor:
+          enabled: false
+      # Background / cleanup / reports controllers disabled — they only
+      # reconcile existing PolicyReport / generated resources, which there
+      # are none of on a fresh cluster. Chart rejects replicas:0 explicitly
+      # ("Kyverno does not support running with 0 replicas"), so use enabled:
+      # false to drop the Deployment entirely. Re-enable per controller when
+      # PolicyReports / generators are needed.
+      backgroundController:
+        enabled: false
+      cleanupController:
+        enabled: false
+      reportsController:
+        enabled: false
+      policyReports:
+        enabled: true
+
+resources:
+  - namespace.yaml
+  - policies.yaml

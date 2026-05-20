@@ -1,0 +1,237 @@
+# =============================================================================
+# ML MODEL TEMPLATES — Available Model Types & AutoML
+# =============================================================================
+# Defines model architectures available in the platform trainer.
+# Use cases select from these templates in their config.yaml:
+#
+#   models:
+#     my_model:
+#       template: regression       # from model_templates below
+#       type: xgboost              # from the types list
+#       target: my_target_col
+#       framework: sklearn         # sklearn | tensorflow | pytorch | h2o
+# =============================================================================
+
+model_templates:
+  # ---------------------------------------------------------------------------
+  # REGRESSION — Predict continuous values
+  # ---------------------------------------------------------------------------
+  # Use for: value prediction, demand forecasting, sensor readings, trend estimation
+  regression:
+    description: "Predict continuous numerical values"
+    types:
+      # Tree-based (fast, high accuracy, low tuning)
+      - name: lightgbm
+        framework: sklearn
+        default_params:
+          { num_leaves: 31, learning_rate: 0.05, feature_fraction: 0.9 }
+      - name: xgboost
+        framework: sklearn
+        default_params:
+          {
+            max_depth: 6,
+            learning_rate: 0.1,
+            n_estimators: 100,
+            subsample: 0.8,
+          }
+      - name: catboost
+        framework: sklearn
+        default_params: { iterations: 100, depth: 6, learning_rate: 0.05 }
+      - name: random_forest
+        framework: sklearn
+        default_params: { n_estimators: 100, max_depth: 10 }
+      # Linear (interpretable, fast training)
+      - name: linear_regression
+        framework: sklearn
+        default_params: { normalize: true }
+      - name: ridge
+        framework: sklearn
+        default_params: { alpha: 1.0 }
+      - name: lasso
+        framework: sklearn
+        default_params: { alpha: 1.0 }
+      - name: elastic_net
+        framework: sklearn
+        default_params: { alpha: 1.0, l1_ratio: 0.5 }
+      # Support vector
+      - name: svr
+        framework: sklearn
+        default_params: { kernel: "rbf", C: 1.0, epsilon: 0.1 }
+      # Deep learning
+      - name: mlp_regressor
+        framework: sklearn
+        default_params: { hidden_layer_sizes: [128, 64], activation: "relu" }
+      - name: tabnet_regressor
+        framework: tensorflow
+        default_params: { n_d: 8, n_a: 8, n_steps: 3 }
+
+  # ---------------------------------------------------------------------------
+  # CLASSIFICATION — Predict categories
+  # ---------------------------------------------------------------------------
+  # Use for: signal classification, fraud detection, anomaly labels, churn prediction
+  classification:
+    description: "Predict discrete categories or labels"
+    types:
+      - name: xgboost
+        framework: sklearn
+        default_params:
+          { max_depth: 8, objective: "binary:logistic", n_estimators: 200 }
+      - name: lightgbm
+        framework: sklearn
+        default_params: { num_leaves: 31, objective: "binary" }
+      - name: catboost
+        framework: sklearn
+        default_params: { iterations: 200, depth: 8, loss_function: "Logloss" }
+      - name: random_forest
+        framework: sklearn
+        default_params: { n_estimators: 100, max_depth: 10 }
+      - name: logistic_regression
+        framework: sklearn
+        default_params: { max_iter: 1000, C: 1.0 }
+      - name: svm
+        framework: sklearn
+        default_params: { kernel: "rbf", C: 1.0 }
+      - name: mlp_classifier
+        framework: sklearn
+        default_params: { hidden_layer_sizes: [128, 64], activation: "relu" }
+      - name: tabnet_classifier
+        framework: tensorflow
+        default_params: { n_d: 8, n_a: 8, n_steps: 3 }
+
+  # ---------------------------------------------------------------------------
+  # TIME SERIES — Sequence-based prediction
+  # ---------------------------------------------------------------------------
+  # Use for: sequence forecasting, trend prediction, temporal patterns
+  time_series:
+    description: "Sequence-based temporal prediction"
+    types:
+      # RNN-based
+      - name: lstm
+        framework: tensorflow
+        default_params:
+          { sequence_length: 24, units: [128, 64], dropout: 0.2, epochs: 50 }
+      - name: gru
+        framework: tensorflow
+        default_params:
+          { sequence_length: 24, units: [64, 32], dropout: 0.2, epochs: 50 }
+      - name: bidirectional_lstm
+        framework: tensorflow
+        default_params:
+          { sequence_length: 24, units: [64], dropout: 0.2, epochs: 50 }
+      # Attention-based
+      - name: transformer
+        framework: tensorflow
+        default_params:
+          { sequence_length: 24, d_model: 64, num_heads: 4, num_layers: 2 }
+      # Statistical / Prophet-style
+      - name: prophet
+        framework: sklearn
+        default_params:
+          { seasonality_mode: "multiplicative", changepoint_prior_scale: 0.05 }
+      - name: arima
+        framework: sklearn
+        default_params: { order: [5, 1, 0] }
+      # Neural forecasting
+      - name: nbeats
+        framework: tensorflow
+        default_params:
+          { forecast_length: 24, backcast_length: 96, num_blocks: 3 }
+
+  # ---------------------------------------------------------------------------
+  # ANOMALY DETECTION — Identify outliers and anomalies
+  # ---------------------------------------------------------------------------
+  # Use for: fraud detection, system monitoring, quality control
+  anomaly_detection:
+    description: "Detect anomalies and outliers in data"
+    types:
+      - name: isolation_forest
+        framework: sklearn
+        default_params: { n_estimators: 100, contamination: 0.1 }
+      - name: one_class_svm
+        framework: sklearn
+        default_params: { kernel: "rbf", nu: 0.1 }
+      - name: local_outlier_factor
+        framework: sklearn
+        default_params: { n_neighbors: 20, contamination: 0.1 }
+      - name: autoencoder
+        framework: tensorflow
+        default_params:
+          { encoding_dim: 32, epochs: 50, threshold_percentile: 95 }
+
+  # ---------------------------------------------------------------------------
+  # CLUSTERING — Unsupervised grouping
+  # ---------------------------------------------------------------------------
+  # Use for: customer segmentation, pattern discovery, data exploration
+  clustering:
+    description: "Unsupervised grouping of similar data points"
+    types:
+      - name: kmeans
+        framework: sklearn
+        default_params: { n_clusters: 5, max_iter: 300 }
+      - name: dbscan
+        framework: sklearn
+        default_params: { eps: 0.5, min_samples: 5 }
+      - name: hierarchical
+        framework: sklearn
+        default_params: { n_clusters: 5, linkage: "ward" }
+      - name: gaussian_mixture
+        framework: sklearn
+        default_params: { n_components: 5, covariance_type: "full" }
+
+  # ---------------------------------------------------------------------------
+  # ENSEMBLE — Combine multiple models
+  # ---------------------------------------------------------------------------
+  # Use for: improved accuracy, reduced overfitting, robust predictions
+  ensemble:
+    description: "Combine predictions from multiple models"
+    types:
+      - name: voting_regressor
+        framework: sklearn
+        default_params: { estimators: ["xgboost", "lightgbm", "random_forest"] }
+      - name: voting_classifier
+        framework: sklearn
+        default_params:
+          {
+            voting: "soft",
+            estimators: ["xgboost", "lightgbm", "random_forest"],
+          }
+      - name: stacking_regressor
+        framework: sklearn
+        default_params: { final_estimator: "ridge" }
+      - name: stacking_classifier
+        framework: sklearn
+        default_params: { final_estimator: "logistic_regression" }
+
+  # ---------------------------------------------------------------------------
+  # AUTOML — Automated model selection & hyperparameter tuning
+  # ---------------------------------------------------------------------------
+  # Use for: rapid prototyping, baseline models, hyperparameter optimization
+  automl:
+    description: "Automated machine learning pipelines"
+    types:
+      - name: h2o_automl
+        framework: h2o
+        default_params: { max_runtime_secs: 3600, max_models: 20, seed: 42 }
+        notes: "Requires h2o component in components.yaml"
+      - name: autosklearn
+        framework: sklearn
+        default_params:
+          { time_left_for_this_task: 3600, per_run_time_limit: 300 }
+      - name: optuna_tuner
+        framework: sklearn
+        default_params:
+          n_trials: 100
+          timeout: 3600
+          base_model: "xgboost"
+          search_space:
+            max_depth: [3, 10]
+            learning_rate: [0.01, 0.3]
+            n_estimators: [50, 300]
+
+# ---------------------------------------------------------------------------
+# EXPORT SETTINGS
+# ---------------------------------------------------------------------------
+export:
+  onnx: true # Export to ONNX for inference engine
+  mlflow_registry: true # Register in MLflow model registry
+  formats: ["onnx", "pkl", "h5"] # Available export formats

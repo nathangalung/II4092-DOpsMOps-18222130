@@ -1,0 +1,212 @@
+# =============================================================================
+# LAKEKEEPER — Iceberg REST Catalog (Rust, Apache Licensed)
+# =============================================================================
+# High-performance, lightweight Iceberg REST catalog built in Rust.
+# Implements the Apache Iceberg REST Catalog specification.
+# Uses remote signing for S3-compatible storage (MinIO) — no STS required.
+#
+# Remote signing is the pre-0.11.0 Lakekeeper default.  Lakekeeper 0.11.0
+# (2026-01-01) flips the S3 default credential-vending from `remote-signing`
+# → `vended-credentials` when clients omit the `access-delegation` header.
+# Crossing the 0.11.0 minor boundary therefore requires a client-side audit
+# (Trino / Spark / dbt / kafka-connect iceberg-sink) plus persisting the
+# `sts-enabled=false` + `remote-signing-enabled=true` storage-profile flags
+# (upstream PR #1518) on every warehouse — deferred as Task #25, rationale
+# in AUDIT_FINAL_2026-04-21.md §25.5 (corrected in §34) and VERSION.MD.
+#
+# Dependencies: PostgreSQL (metadata), MinIO (warehouse storage)
+#
+# Startup flow:
+#   1. wait-for-db  → wait for PostgreSQL
+#   2. migrate      → run database migrations (schema creation)
+#   3. lakekeeper   → start the REST catalog server
+#
+# Warehouse/namespace setup is done by the use-case init Job
+# (see <use-case>/manifests/base/connectors/iceberg-sink.yaml)
+#
+# Secrets (ADR-008):
+#   platform/postgres/app           → CNPG `platform` app user (DB owner of
+#                                     `lakekeeper`; the `postgres` superuser
+#                                     is off-limits because CNPG defaults
+#                                     `enableSuperuserAccess: false`).
+#   platform/lakekeeper/encryption  → AES key used to encrypt stored S3 creds
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: lakekeeper
+  namespace: storage
+  labels:
+    app: lakekeeper
+spec:
+  selector:
+    app: lakekeeper
+  ports:
+    - name: http
+      port: 8181
+      targetPort: 8181
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: lakekeeper-secrets
+  namespace: storage
+  labels:
+    app: lakekeeper
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: lakekeeper-secrets
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        # Lakekeeper reads/writes share the same CNPG primary on single-node.
+        # When the cluster is promoted to HA, point _READ at postgresql-ro.
+        LAKEKEEPER__PG_DATABASE_URL_READ: "postgres://{{ .pg_username }}:{{ .pg_password }}@postgresql-rw.storage.svc.cluster.local:5432/lakekeeper"
+        LAKEKEEPER__PG_DATABASE_URL_WRITE: "postgres://{{ .pg_username }}:{{ .pg_password }}@postgresql-rw.storage.svc.cluster.local:5432/lakekeeper"
+        LAKEKEEPER__PG_ENCRYPTION_KEY: "{{ .encryption_key }}"
+  data:
+    - secretKey: pg_username
+      remoteRef:
+        key: platform/postgres/app
+        property: username
+    - secretKey: pg_password
+      remoteRef:
+        key: platform/postgres/app
+        property: password
+    - secretKey: encryption_key
+      remoteRef:
+        key: platform/lakekeeper/encryption
+        property: key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lakekeeper
+  namespace: storage
+  labels:
+    app: lakekeeper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lakekeeper
+  template:
+    metadata:
+      labels:
+        app: lakekeeper
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for PostgreSQL..."
+              while ! nc -w 2 postgresql-rw.storage.svc.cluster.local 5432; do
+                sleep 3
+              done
+              echo "PostgreSQL is ready!"
+
+        # Run database migrations (creates lakekeeper schema)
+        - name: migrate
+          image: quay.io/lakekeeper/catalog:v0.12.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          command: ["/home/nonroot/lakekeeper"]
+          args: ["migrate"]
+          envFrom:
+            - secretRef:
+                name: lakekeeper-secrets
+
+      containers:
+        - name: lakekeeper
+          image: quay.io/lakekeeper/catalog:v0.12.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command: ["/home/nonroot/lakekeeper"]
+          args: ["serve"]
+          ports:
+            - containerPort: 8181
+              name: http
+          envFrom:
+            - secretRef:
+                name: lakekeeper-secrets
+          env:
+            # Base URI for the catalog (used in self-referential links)
+            - name: LAKEKEEPER__BASE_URI
+              value: "http://lakekeeper.storage.svc.cluster.local:8181"
+            # Listen on all interfaces
+            - name: LAKEKEEPER__LISTEN_PORT
+              value: "8181"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lakekeeper
+  namespace: storage
+  labels:
+    app: lakekeeper
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: lakekeeper

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    # PSA: enforce=baseline (admission gate), audit=restricted (audit log
+    # retains visibility), warn=baseline (suppress apply-time warning noise).
+    #
+    # Rationale: openbao-bootstrap Job MUST run as root for `apk add kubectl jq
+    # openssl htpasswd` on the alpine-based openbao image — `restricted`
+    # blocks runAsUser=0 even on one-shot admin Jobs. All long-lived
+    # workloads in this ns (openbao STS, ESO, Kyverno, KES, APISIX, Falco,
+    # Trivy, OPA) set their own restricted securityContext explicitly, so
+    # the actual runtime posture is unchanged.
+    #
+    # Why warn=baseline (was: restricted): the bootstrap Job's runAsUser=0
+    # is by design and unfixable without re-baking the OpenBao image. Keeping
+    # warn=restricted spammed `make install-openbao` output with a known-good
+    # warning every run; audit=restricted still logs the violation for
+    # cluster-wide compliance review.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: baseline
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: security
+    # PSA "restricted" + istio sidecar (istio-validation/istio-proxy init
+    # containers) collide: upstream istio-proxy image does not set
+    # seccompProfile, which `restricted` requires at the pod level. Keep
+    # the security namespace out of the mesh — security operators (OpenBao,
+    # OPA, Trivy, Kyverno) talk to kube-apiserver and their own backends
+    # over TLS already and do not need east-west mTLS.
+    istio-injection: disabled

@@ -1,0 +1,372 @@
+# oauth2-proxy runs in the 'common' namespace (PSS restricted label is set on
+# the `common` namespace itself in components/common/namespace.yaml).  The
+# previous 'oauth2-proxy' namespace was unused (no workloads).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oauth2-proxy
+  namespace: common
+---
+apiVersion: v1
+data:
+  oauth2_proxy.cfg: |-
+    provider = "oidc"
+    oidc_issuer_url = "http://dex.common.svc.cluster.local:5556/dex"
+    scope = "profile email groups openid"
+    email_domains = [ "*" ]
+
+    # serve a static HTTP 200 upstream on for authentication success
+    # we are using oauth2-proxy as an ExtAuthz to "check" each request, not pass it on
+    upstreams = [ "static://200" ]
+
+    # skip authentication for these paths
+    skip_auth_routes = [
+      "^/dex/",
+    ]
+
+    # requests to paths matching these regex patterns will receive a 401 Unauthorized response
+    # when not authenticated, instead of being redirected to the login page with a 302,
+    # this prevents background requests being redirected to the login page,
+    # and the accumulation of CSRF cookies
+    api_routes = [
+      # Generic
+      # NOTE: included because most background requests contain these paths
+      "/api/",
+      "/apis/",
+
+      # Kubeflow Pipelines
+      # NOTE: included because KFP UI makes MANY background requests to these paths but because they are
+      #       not `application/json` requests, oauth2-proxy will redirect them to the login page
+      "^/ml_metadata",
+    ]
+
+    # OIDC Discovery has to be skipped and login url has to be provided directly
+    # in order to enable relative auth redirect. Using OIDC Discovery would set
+    # the redirect location to http://dex.common.svc.cluster.local:5556 in the example
+    # installation. This address is usually not available through the Web Browser.
+    # If you have a setup where dex has it's url as other than the in-cluster
+    # service, this is optional.
+    skip_oidc_discovery = true
+    login_url = "/dex/auth"
+    redeem_url = "http://dex.common.svc.cluster.local:5556/dex/token"
+    oidc_jwks_url = "http://dex.common.svc.cluster.local:5556/dex/keys"
+
+    # if `false`, a sign-in page is displayed before starting the login flow
+    # prevents background requests starting their own login flow on token expiry,
+    # which can lead to many CSRF cookies, potentially exceeding the cookie limit
+    skip_provider_button = false
+
+    # style the sign-in page
+    provider_display_name = "Dex"
+    custom_sign_in_logo = "/custom-theme/kubeflow-logo.svg"
+    banner = "-"
+    footer = "-"
+
+    # oauth2-proxy sends "force" by default, which causes dex to always prompt for login
+    # https://github.com/dexidp/dex/pull/3086
+    prompt = "none"
+
+    # set Authorization Bearer response header. This is needed in order to
+    # forward the Authorization Bearer token to Istio and enable authorization
+    # based on JWT.
+    set_authorization_header = true
+
+    # set X-Auth-Request-User, X-Auth-Request-Groups, X-Auth-Request-Email and
+    # X-Auth-Request-Preferred-Username. This is optional for Kubeflow but you
+    # may have other services that use standard auth headers.
+    set_xauthrequest = true
+
+    cookie_name = "oauth2_proxy_kubeflow"
+
+    # Dex default cookie expiration is 24h.
+    # If set to 168h (default oauth2-proxy), Istio will not be able to use the JWT after 24h,
+    # but oauth2-proxy will still consider the cookie valid.
+    # It's possible to configure the JWT Refresh Token to enable longer login session.
+    cookie_expire = "24h"
+    cookie_refresh = 0
+
+    code_challenge_method = "S256"
+
+    redirect_url = "/oauth2/callback"
+    relative_redirect_url = true
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-hk55gm96k4
+  namespace: common
+---
+apiVersion: v1
+data:
+  ALLOW_SELF_SIGNED_ISSUER: "true"
+  ENABLE_M2M_TOKENS: "true"
+  EXTRA_JWT_ISSUERS: ""
+  FORCE_HTTPS: "false"
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-parameters-74659b6648
+  namespace: common
+---
+apiVersion: v1
+data:
+  kubeflow-logo.svg: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <svg width="256" height="256" version="1.1" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+     <g transform="matrix(.85002 0 0 .85002 10.306 11.309)" data-name="Layer 2">
+      <g data-name="Layer 1">
+       <path d="m95.9 62.15 4.1 102.1 73.75-94.12a6.79 6.79 0 0 1 9.6-1.11l46 36.92-15-65.61z" fill="#4279f4"/>
+       <path d="m102.55 182.98h65.42l-40.17-32.23z" fill="#0028aa"/>
+       <path d="m180.18 83.92-44 56.14 46.88 37.61 44.47-55.76z" fill="#014bd1"/>
+       <path d="m83.56 52.3 0.01-0.01 38.69-48.52-62.39 30.05-15.41 67.51z" fill="#bedcff"/>
+       <path d="m45.32 122.05 41.44 51.96-3.95-98.98z" fill="#6ca1ff"/>
+       <path d="m202.31 28.73-59.66-28.73-37.13 46.56z" fill="#a1c3ff"/>
+       <path d="m1.6 272v-44.78h5.74v23.41l20.48-23.41h6.4l-17.39 19.7 19 25.07h-6.73l-15.92-20.8-5.84 6.65v14.16zm40.02-9.79v-22.21h5.43v22.39a4.67 4.67 0 0 0 2.35 4.19 11 11 0 0 0 11 0 4.69 4.69 0 0 0 2.33-4.19v-22.39h5.43v22.19a9.08 9.08 0 0 1-4.1 7.87 16.2 16.2 0 0 1-18.37 0 9.07 9.07 0 0 1-4.07-7.85zm35.84 9.79v-48h5.43v16.81a29.29 29.29 0 0 1 9.32-1.73 13.1 13.1 0 0 1 6.2 1.41 10.71 10.71 0 0 1 4.18 3.74 18.07 18.07 0 0 1 2.23 5.06 21.26 21.26 0 0 1 0.73 5.58q0 8.43-4.38 12.79t-13.82 4.34zm5.43-4.87h4.55q6.77 0 9.72-2.95t3-9.51a14.21 14.21 0 0 0-2-7.52 6.55 6.55 0 0 0-6-3.22 24.73 24.73 0 0 0-9.25 1.54zm29.47-11.19q0-7.71 4.09-12.3a13.75 13.75 0 0 1 10.8-4.59q13.35 0 13.36 18.86h-22.82a12.3 12.3 0 0 0 2.9 7.07q2.59 3.11 7.9 3.1a24.92 24.92 0 0 0 10.55-2v5a27.74 27.74 0 0 1-9.86 1.87 19.83 19.83 0 0 1-7.7-1.37 13.31 13.31 0 0 1-5.28-3.76 16.21 16.21 0 0 1-3-5.38 20.84 20.84 0 0 1-0.94-6.5zm5.62-2.12h17.26a14.91 14.91 0 0 0-2.37-7.12 6.44 6.44 0 0 0-5.62-2.78 8.2 8.2 0 0 0-6.21 2.72 12.07 12.07 0 0 0-3.04 7.18z" fill="#4279f4" stroke="#4279f4" stroke-miterlimit="10" stroke-width="3.2"/>
+       <path d="m147.32 244.89v-4.89h5v-7.59a8.14 8.14 0 0 1 2.31-6.05 7.79 7.79 0 0 1 5.69-2.28h7.86v4.92h-5c-2.21 0-3.67 0.45-4.37 1.34s-1.06 2.55-1.06 5v4.66h8.46v4.87h-8.46v27.13h-5.44v-27.1zm27.94 27.11v-48h5.43v48zm19.15-3.95a17.86 17.86 0 1 1 12.33 4.9 16.57 16.57 0 0 1-12.33-4.9zm3.84-20.65a13.16 13.16 0 0 0 0 17.2 12.07 12.07 0 0 0 17 0 13.09 13.09 0 0 0 0-17.2 12.07 12.07 0 0 0-17 0zm30.2-7.4h5.75l7.3 25.32 7.43-25.32h5.36l7.34 25.34 7.37-25.34h5.74l-10.04 32h-6.12l-6.83-24.58-6.75 24.58h-6.47z" fill="#0028aa" stroke="#0028aa" stroke-miterlimit="10" stroke-width="3.2"/>
+      </g>
+     </g>
+    </svg>
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-theme-5t624ft8b8
+  namespace: common
+---
+# oauth2-proxy credentials — OpenBao-sourced (ADR-008).  Pulls from the same
+# Dex client record (`platform/dex/clients/kubeflow`) that Dex itself uses,
+# so client_id/client_secret are guaranteed to match; the cookie-signing
+# secret (oauth2-proxy-specific) is co-located on the same path for rotation
+# atomicity.  Target Secret name is preserved as the kustomize-generated
+# hash so the downstream env `secretKeyRef` entries keep resolving.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-proxy-h675gf55ht
+  namespace: common
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: oauth2-proxy-h675gf55ht
+    creationPolicy: Owner
+  data:
+    - secretKey: client-id
+      remoteRef: { key: platform/dex/clients/kubeflow, property: client_id }
+    - secretKey: client-secret
+      remoteRef: { key: platform/dex/clients/kubeflow, property: client_secret }
+    - secretKey: cookie-secret
+      remoteRef: { key: platform/dex/clients/kubeflow, property: cookie_secret }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: common
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: oauth2-proxy
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: oauth2-proxy
+  name: oauth2-proxy
+  namespace: common
+spec:
+  # Single-replica bootstrap; HPA below scales 1→3 on CPU.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+    spec:
+      containers:
+        - args:
+            - --http-address=0.0.0.0:4180
+            - --config=/etc/oauth2_proxy/oauth2_proxy.cfg
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: client-id
+                  name: oauth2-proxy-h675gf55ht
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: client-secret
+                  name: oauth2-proxy-h675gf55ht
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: cookie-secret
+                  name: oauth2-proxy-h675gf55ht
+            - name: OAUTH2_PROXY_COOKIE_SECURE
+              valueFrom:
+                configMapKeyRef:
+                  key: FORCE_HTTPS
+                  name: oauth2-proxy-parameters-74659b6648
+            - name: OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY
+              valueFrom:
+                configMapKeyRef:
+                  key: ALLOW_SELF_SIGNED_ISSUER
+                  name: oauth2-proxy-parameters-74659b6648
+            - name: OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS
+              valueFrom:
+                configMapKeyRef:
+                  key: ENABLE_M2M_TOKENS
+                  name: oauth2-proxy-parameters-74659b6648
+            - name: OAUTH2_PROXY_EXTRA_JWT_ISSUERS
+              valueFrom:
+                configMapKeyRef:
+                  key: EXTRA_JWT_ISSUERS
+                  name: oauth2-proxy-parameters-74659b6648
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+              scheme: HTTP
+          name: oauth2-proxy
+          ports:
+            - containerPort: 4180
+              name: http
+              protocol: TCP
+            - containerPort: 44180
+              name: metrics
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /etc/oauth2_proxy/oauth2_proxy.cfg
+              name: oauth2-proxy-config
+              readOnly: true
+              subPath: oauth2_proxy.cfg
+            - mountPath: /custom-theme/kubeflow-logo.svg
+              name: oauth2-proxy-theme
+              readOnly: true
+              subPath: kubeflow-logo.svg
+      volumes:
+        - configMap:
+            name: oauth2-proxy-hk55gm96k4
+          name: oauth2-proxy-config
+        - configMap:
+            name: oauth2-proxy-theme-5t624ft8b8
+          name: oauth2-proxy-theme
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: oauth2-proxy
+  namespace: common
+spec:
+  gateways:
+    - kubeflow/kubeflow-gateway
+  hosts:
+    - "*"
+  http:
+    - match:
+        - uri:
+            prefix: /oauth2/
+      route:
+        - destination:
+            host: oauth2-proxy.common.svc.cluster.local
+            port:
+              number: 80
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-ingressgateway-oauth2-proxy
+  namespace: istio-system
+spec:
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+    - to:
+        - operation:
+            notPaths:
+              - /dex/*
+              - /dex/**
+              - /oauth2/*
+      when:
+        - key: request.headers[authorization]
+          notValues:
+            - "*"
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-ingressgateway-require-jwt
+  namespace: istio-system
+spec:
+  action: DENY
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals:
+              - "*"
+      to:
+        - operation:
+            notPaths:
+              - /dex/*
+              - /dex/**
+              - /oauth2/*
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: dex-jwt
+  namespace: istio-system
+spec:
+  jwtRules:
+    - forwardOriginalToken: true
+      fromHeaders:
+        - name: Authorization
+          prefix: "Bearer "
+      issuer: http://dex.common.svc.cluster.local:5556/dex
+      outputClaimToHeaders:
+        - claim: email
+          header: kubeflow-userid
+        - claim: groups
+          header: kubeflow-groups
+  selector:
+    matchLabels:
+      app: istio-ingressgateway

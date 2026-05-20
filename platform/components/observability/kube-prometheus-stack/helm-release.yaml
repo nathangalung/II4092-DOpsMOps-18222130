@@ -1,0 +1,265 @@
+# =============================================================================
+# kube-prometheus-stack 83.4.3 (app v0.89.0) — Prometheus Operator + Alertmanager
+# + kube-state-metrics + node-exporter + Grafana dashboards
+# =============================================================================
+# ADR-010.  Replaces hand-rolled Prometheus Deployment.  Adds:
+#   - Prometheus:          persistent storage (local-path, ADR-031), ServiceMonitor/PodMonitor
+#   - Alertmanager:        Slack + PagerDuty receivers, HA 3 replicas
+#   - node-exporter:       DaemonSet
+#   - kube-state-metrics:  Deployment (replaces k3s metrics-server)
+#   - Prometheus rules:    default set + platform-specific rule group
+#
+# Custom-metrics HPA endpoint: KEDA 2.19.0 (components/common/keda) is the
+# single `external.metrics.k8s.io` / `custom.metrics.k8s.io` APIServer after
+# ADR-026 retired the prior prometheus-adapter sidecar — KEDA's Prometheus
+# trigger reads this Prometheus directly for RPS-style scaling.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 84.4.0     # 2026-04-29 latest; ships Operator v0.91.0 line with Prometheus v3.6.
+    helm:
+      releaseName: kube-prometheus-stack
+      values: |
+        crds:
+          enabled: true
+        defaultRules:
+          create: true
+          rules:
+            alertmanager: true
+            etcd: false
+            general: true
+            k8sContainerCpuUsageSecondsTotal: true
+            kubeApiserver: true
+            kubeControllerManager: true
+            kubelet: true
+            kubeProxy: true
+            kubeScheduler: true
+            kubernetesApps: true
+            kubernetesResources: true
+            kubernetesStorage: true
+            kubernetesSystem: true
+            network: true
+            node: true
+            nodeExporterAlerting: true
+            nodeExporterRecording: true
+            prometheus: true
+            prometheusOperator: true
+
+        prometheusOperator:
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          # Sidecar that watches PrometheusRule/ConfigMap and triggers a config
+          # reload in the prometheus container; ALSO injected into prometheus
+          # and alertmanager pods. Without explicit resources, Kyverno
+          # require-resource-limits Deny rejects the prometheus StatefulSet
+          # pod ("All containers must set resources.requests AND resources.limits").
+          prometheusConfigReloader:
+            resources:
+              requests: { cpu: 10m, memory: 32Mi }
+              limits:   { cpu: 100m, memory: 64Mi }
+          admissionWebhooks:
+            certManager:
+              enabled: true
+              issuerRef:
+                name: platform-ca
+                kind: ClusterIssuer
+
+        prometheus:
+          prometheusSpec:
+            # Single-replica bootstrap; scale to 2 once node has CPU headroom.
+            replicas: 1
+            # 7d/15GB on single-node sda — 30d/45GB saturated IO PSI to 60%+
+            # (containerd CreateContainer started timing out cluster-wide).
+            # Compaction is the killer: 2h blocks → daily → 14d blocks each
+            # rewrites the entire TSDB head; on a shared root disk also
+            # hosting kine sqlite + containerd, sustained 100MB/s writes
+            # blocked overlayfs sync. 7d is enough for KEDA scaler
+            # lookback windows + on-call alert investigation; long-term
+            # storage is Thanos→MinIO once enabled.
+            retention: 7d
+            retentionSize: "15GB"
+            # 60s scrape (default 30s) halves WAL write rate; per-target
+            # interval can still be overridden in ServiceMonitor specs that
+            # genuinely need 30s (none do at platform tier).
+            scrapeInterval: "60s"
+            evaluationInterval: "60s"
+            externalLabels:
+              cluster: platform
+              environment: "${ENV}"
+            walCompression: true
+            enableAdminAPI: false
+            enableRemoteWriteReceiver: true      # for OTel Collector
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: local-path
+                  accessModes: ["ReadWriteOnce"]
+                  resources: { requests: { storage: 20Gi } }
+            # Prometheus 3.x baseline: TSDB head + WAL + ~3MB/active series.
+            # Single-node platform scrapes ~20 ServiceMonitors (kube-state,
+            # node-exporter, otel, kserve, datahub, mlflow…) →
+            # 80-150k active series, ~600-900Mi RSS; spike under rule eval.
+            # 256Mi was OOMKilled within 2 min of WAL replay. 2Gi gives
+            # headroom for 7d/15GB retention and KEDA scaler queries.
+            resources:
+              requests: { cpu: 200m, memory: 1Gi }
+              limits:   { cpu: 1000m, memory: 2Gi }
+            ruleSelector: {}
+            ruleNamespaceSelector: {}
+            serviceMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorSelector: {}
+            serviceMonitorNamespaceSelector: {}
+            podMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelector: {}
+            podMonitorNamespaceSelector: {}
+            probeSelectorNilUsesHelmValues: false
+            additionalScrapeConfigs: []
+            # Prometheus 3.x removed `--storage.tsdb.out-of-order-time-window`
+            # and `--storage.tsdb.allow-overlapping-blocks` CLI flags. OOO
+            # ingestion is now configured via the prometheus YAML (storage.tsdb)
+            # which the operator does NOT expose; if OOO is needed, switch to
+            # `tsdb.out_of_order_time_window` in the prometheus CR `tsdb`
+            # field instead. We leave defaults for now.
+            additionalArgs: []
+
+        alertmanager:
+          alertmanagerSpec:
+            # Single-replica bootstrap; scale to 3 (HA) once stable.
+            replicas: 1
+            # Mount the ExternalSecret-managed webhook/pagerduty Secrets so
+            # the `api_url_file:` / `service_key_file:` paths resolve. The
+            # operator mounts each under /etc/alertmanager/secrets/<name>/.
+            secrets:
+              - alertmanager-slack-webhook
+              - alertmanager-pagerduty
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: local-path
+                  accessModes: ["ReadWriteOnce"]
+                  resources: { requests: { storage: 5Gi } }
+            resources:
+              requests: { cpu: 50m, memory: 128Mi }
+              limits:   { cpu: 200m, memory: 256Mi }
+            # Discover per-usecase AlertmanagerConfig CRs cluster-wide.
+            alertmanagerConfigSelector:
+              matchLabels:
+                alertmanager: platform
+            alertmanagerConfigNamespaceSelector: {}
+            alertmanagerConfigMatcherStrategy:
+              type: None   # don't auto-add namespace matchers (we set them explicitly)
+          config:
+            global:
+              resolve_timeout: 5m
+            # Root route is intentionally minimal: page on critical (continue=true
+            # so the alert also flows down to team/SLO sub-routes), then fall
+            # through to the default-slack catch-all.  Team- and SLO-specific
+            # branching lives in the `platform-slo-routing` AlertmanagerConfig
+            # CR (alertmanager-configs.yaml) — keeping routing rules and
+            # receiver definitions co-located with one another instead of
+            # split across the helm values and the CR makes on-call debugging
+            # ("why did this alert land here?") a single-file lookup.
+            route:
+              receiver: default-slack
+              group_by: [alertname, cluster, namespace, severity]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 4h
+              routes:
+                - matchers: [severity=critical]
+                  receiver: pagerduty
+                  continue: true
+            receivers:
+              - name: default-slack
+                slack_configs:
+                  - api_url_file: /etc/alertmanager/secrets/alertmanager-slack-webhook/default
+                    channel: '#platform-alerts'
+                    send_resolved: true
+                    title: '{{ template "slack.default.title" . }}'
+                    text: '{{ template "slack.default.text" . }}'
+              - name: pagerduty
+                pagerduty_configs:
+                  - service_key_file: /etc/alertmanager/secrets/alertmanager-pagerduty/service_key
+                    severity: critical
+
+        grafana:
+          enabled: false                  # use our own Grafana Deployment
+
+        kubeStateMetrics:
+          enabled: true
+
+        nodeExporter:
+          enabled: true
+
+        # Subchart values for the bundled node-exporter DaemonSet. Chart
+        # default ships no resources block, which trips Kyverno's
+        # require-resource-limits policy.
+        prometheus-node-exporter:
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+
+        # Subchart values for the bundled kube-state-metrics Deployment.
+        # Same Kyverno require-resource-limits gate as node-exporter above —
+        # the upstream subchart ships {} resources by default. Field-observed
+        # 2026-05-14: kube-state-metrics RS FailedCreate, kube-prometheus-stack
+        # ArgoCD app stuck Degraded. KSM at platform scale (~150 active
+        # workloads scraped at 60s) holds ~50Mi RSS, <30m CPU steady.
+        kube-state-metrics:
+          resources:
+            requests: { cpu: 30m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 256Mi }
+
+        # Use Thanos for long-term retention + HA query.  Disabled until bucket
+        # is provisioned; see components/observability/thanos/.
+        thanos: { enabled: false }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+---
+# Alertmanager receiver secrets pulled from OpenBao.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-slack-webhook
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target: { name: alertmanager-slack-webhook, creationPolicy: Owner }
+  data:
+    - { secretKey: default,  remoteRef: { key: platform/alertmanager/slack, property: default } }
+    - { secretKey: platform, remoteRef: { key: platform/alertmanager/slack, property: platform } }
+    - { secretKey: ml,       remoteRef: { key: platform/alertmanager/slack, property: ml } }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-pagerduty
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target: { name: alertmanager-pagerduty, creationPolicy: Owner }
+  data:
+    - secretKey: service_key
+      remoteRef: { key: platform/alertmanager/pagerduty, property: service_key }

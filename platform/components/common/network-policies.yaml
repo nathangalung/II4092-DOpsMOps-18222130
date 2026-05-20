@@ -1,0 +1,381 @@
+# =============================================================================
+# Platform-wide NetworkPolicies — default-deny + explicit allow rules
+# =============================================================================
+# Applied to every platform namespace.  Two policies per namespace:
+#   1. default-deny-ingress:  baseline — no inbound unless explicitly allowed.
+#   2. allow-within-namespace: pods in the SAME namespace can reach each other.
+#
+# Additional cross-namespace allows are appended per namespace below.
+#
+# Kyverno GeneratingPolicy `auto-default-deny-networkpolicy` (ADR-012) emits
+# these for new namespaces at creation time; the YAML below is the static
+# baseline applied to the platform namespaces that already exist.
+# =============================================================================
+
+# ──────────────────────────────────────────────────────────────────────────
+# storage
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: storage }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: storage }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-consumers, namespace: storage }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-ingestion } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-governance } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-serving } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: security } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: external-secrets } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: velero } }
+        # cnpg operator + barman-cloud-plugin call postgresql-1:8000/pg/status
+        # to extract instance health. Without this entry, default-deny-ingress
+        # blocks the operator and Cluster.status.phase stays at "Instance Status
+        # Extraction Error: HTTP communication issue" → Application Health=Unknown.
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# data-ingestion
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: data-ingestion }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: data-ingestion }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-consumers, namespace: data-ingestion }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-governance } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-serving } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# data-processing
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: data-processing }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: data-processing }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-consumers, namespace: data-processing }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-governance } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        # flink-kubernetes-operator probes session-cluster-rest:8081 to read
+        # JobManager /overview; without this, SessionObserver gets connection
+        # refused at L4 and FlinkDeployment.status.jobManagerDeploymentStatus
+        # stays DEPLOYING permanently, which ArgoCD health.lua marks
+        # Progressing on the parent platform-data-processing app.
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: flink-operator } }
+        # spark-operator submits Spark driver pods into data-processing and
+        # reads driver pod status via webhook; same pattern as flink-operator.
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: spark-operator } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# data-governance
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: data-governance }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: data-governance }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-emitters, namespace: data-governance }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# observability
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: observability }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: observability }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-emitters, namespace: observability }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {}  # any namespace can push OTLP/metrics/logs
+      ports:
+        - { protocol: TCP, port: 4317 }  # OTLP gRPC
+        - { protocol: TCP, port: 4318 }  # OTLP HTTP
+        - { protocol: TCP, port: 3100 }  # Loki push
+        - { protocol: TCP, port: 9090 }  # Prometheus remote-write
+        - { protocol: TCP, port: 9091 }  # Pushgateway
+        - { protocol: TCP, port: 8000 }  # Evidently
+---
+# ──────────────────────────────────────────────────────────────────────────
+# security
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: security }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: security }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-openbao-clients, namespace: security }
+spec:
+  podSelector: { matchLabels: { app: openbao } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: external-secrets } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: storage } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-ingestion } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-governance } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-serving } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-apisix-external, namespace: security }
+spec:
+  podSelector: { matchLabels: { app: apisix } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
+---
+# KES is a KMS edge — MinIO (storage) generates encryption keys against it
+# over mTLS on :7373. Without an explicit allow, default-deny-ingress drops
+# the cross-namespace SYN and MinIO crashloops with "connection refused".
+# Allow consumers from every platform namespace; KES still enforces its own
+# identity check (client cert SPKI hash) on top of the netpol.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-kes-clients, namespace: security }
+spec:
+  podSelector: { matchLabels: { app: kes } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: storage } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-ingestion } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-governance } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-serving } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# gitops
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: gitops }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: gitops }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-external-ingress, namespace: gitops }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/name: argocd-server } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: security } }
+---
+# Gitea is the in-cluster git source for airflow git-sync (DAGs), tekton
+# Pipelines, and any other workload that pulls platform manifests. Without
+# this rule the default-deny-ingress above would block every cross-namespace
+# git fetch with `Connection reset by peer`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-gitea-clients, namespace: gitops }
+spec:
+  podSelector: { matchLabels: { app: gitea } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { app.kubernetes.io/part-of: mlops-platform }
+        - namespaceSelector:
+            matchLabels: { mlops-platform.io/use-case: "true" }
+      ports:
+        - { protocol: TCP, port: 3000 }   # HTTP git
+        - { protocol: TCP, port: 22 }     # SSH git
+---
+# ──────────────────────────────────────────────────────────────────────────
+# model-lifecycle
+# Kubeflow's core NetworkPolicies (see common/kubeflow-core/network-policies.yaml)
+# already restrict traffic to specific Kubeflow components, but pods that are
+# NOT selected by any of those policies would otherwise default to wide-open.
+# This baseline narrows default traffic to the namespace itself; Kubeflow's
+# per-component policies are additive.
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: model-lifecycle }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: model-lifecycle }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-clients, namespace: model-lifecycle }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Experiment/pipeline runs submitted from use-cases
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
+        # Serving ns pulls model artefacts from MLflow / Model Registry
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-serving } }
+        # Airflow orchestrates KFP runs
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: data-processing } }
+        # Observability needs /metrics on Kubeflow controllers
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        # Istio sidecar + ingress gateway
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
+---
+# ──────────────────────────────────────────────────────────────────────────
+# model-serving
+# KServe controllers + InferenceService pods land here. Inbound must be
+# restricted to Knative (activator/autoscaler), istio-ingressgateway, the
+# controller namespace (model-lifecycle), and Prometheus scrapers. Use-case
+# gateways (e.g. <use-case>-gateway) call InferenceServices through the
+# ingress gateway, so they do NOT need a direct allow rule.
+# ──────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress, namespace: model-serving }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-within-namespace, namespace: model-serving }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: {} }] }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-clients, namespace: model-serving }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Knative activator / autoscaler reach Revisions in this namespace
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: knative-serving } }
+        # Istio ingress gateway forwards external inference requests
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
+        # KServe controller reconciles InferenceServices from model-lifecycle
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
+        # Prometheus / OTel agent scrape predictor + explainer metrics
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+        # Use-case namespaces reach the isvc's internal cluster-local hostname
+        - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }

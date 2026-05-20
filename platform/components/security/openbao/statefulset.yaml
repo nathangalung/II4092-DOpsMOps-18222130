@@ -1,0 +1,288 @@
+# =============================================================================
+# OpenBao 2.5.3 — HA with Integrated Storage (Raft)
+# =============================================================================
+# Linux Foundation fork of HashiCorp Vault (MPL-2.0 licensed). API-compatible
+# replacement that speaks the original Vault HTTP API; the image still ships a
+# `/bin/vault` CLI symlink for backward compatibility with tooling, but every
+# binary, env-var, and resource name in this manifest is the native OpenBao
+# spelling (`bao`, `BAO_*`, `openbao-*`).
+#
+# 3-replica StatefulSet, each with its own Raft peer.  No Consul.  Auto-unseal
+# via a Kubernetes Secret (`openbao-unseal`) written by the bootstrap Job on
+# first boot.  For production-grade auto-unseal, migrate to the Transit seal
+# backed by a KMS (AWS KMS, GCP KMS, Azure Key Vault, or another OpenBao instance).
+#
+# ADR-008, ADR-009.  Migrated from HashiCorp Vault 1.21.5 (BSL-1.1) to
+# OpenBao 2.5.3 (MPL-2.0) for thesis open-source compliance, then renamed
+# all platform identifiers from `vault` → `openbao` to match the upstream
+# project name end-to-end.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+  namespace: security
+  labels:
+    app: openbao
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao
+  namespace: security
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  # OpenBao `service_registration "kubernetes" {}` requires patch on its own Pod.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  # Raft auto_join with provider=k8s discovers peers via pod listing.
+  - apiGroups: [""]
+    resources: ["endpoints", "services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao
+  namespace: security
+subjects:
+  - kind: ServiceAccount
+    name: openbao
+    namespace: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao
+---
+# ClusterRole for TokenReview (required for Kubernetes auth method).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openbao-tokenreview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: openbao
+    namespace: security
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+  namespace: security
+data:
+  openbao.hcl: |
+    ui           = true
+    # OpenBao removed mlock entirely (unlike OpenBao, there is no mlock
+    # syscall path).  The `disable_mlock` directive is accepted but
+    # ignored; omitted here for clarity.
+    log_level    = "info"
+    log_format   = "json"
+
+    listener "tcp" {
+      address       = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+      # TLS terminates at the Istio sidecar — OpenBao speaks HTTP on localhost.
+      tls_disable   = 1
+    }
+
+    # Raft integrated storage — each replica has its own /openbao/data PVC.
+    # `node_id` is overridden at runtime by the `BAO_RAFT_NODE_ID` env var.
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "openbao-0"
+
+      retry_join { auto_join = "provider=k8s namespace=security label_selector=\"app=openbao\"" auto_join_scheme = "http" }
+    }
+
+    # Service registration to K8s so that `openbao` and `openbao-active`
+    # Services resolve to the right Pods.
+    service_registration "kubernetes" {}
+
+    # Cluster API + standby forwarding.
+    api_addr     = "http://$(POD_IP):8200"
+    cluster_addr = "http://$(POD_IP):8201"
+
+    telemetry {
+      prometheus_retention_time = "24h"
+      disable_hostname          = true
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: security
+  annotations:
+    # Allow standby openbao pods to serve UI traffic (proxied to active).
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8200"
+    prometheus.io/path: "/v1/sys/metrics"
+spec:
+  clusterIP: None   # headless for StatefulSet pod DNS
+  ports:
+    - { port: 8200, name: http,    targetPort: 8200 }
+    - { port: 8201, name: cluster, targetPort: 8201 }
+  publishNotReadyAddresses: true
+  selector:
+    app: openbao
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao-active
+  namespace: security
+spec:
+  type: ClusterIP
+  ports:
+    - { port: 8200, name: http }
+  selector:
+    app: openbao
+    # OpenBao service_registration "kubernetes" {} writes the label
+    # `openbao-active` (not the legacy HashiCorp `vault-active`). The
+    # active leader has `openbao-active=true`; standbys have it absent.
+    openbao-active: "true"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  namespace: security
+  labels:
+    app: openbao
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  serviceName: openbao
+  # Single-node bootstrap; Raft quorum needs odd N — scale to 3 (or 5) for HA.
+  replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate: { partition: 0 }
+  selector:
+    matchLabels:
+      app: openbao
+  template:
+    metadata:
+      labels:
+        app: openbao
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8200"
+        prometheus.io/path: "/v1/sys/metrics"
+        # OpenBao is the platform trust root and MUST sit outside the
+        # service mesh. Rationale: (a) Raft cluster traffic on 8201 is a
+        # bespoke protocol that Envoy's HTTP/gRPC filters mis-route,
+        # (b) ESO reads from the `external-secrets` namespace which is
+        # not in-mesh, (c) bootstrap must succeed before any mesh identity
+        # is meaningful.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: openbao
+      terminationGracePeriodSeconds: 10
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: openbao
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: openbao
+          image: quay.io/openbao/openbao:2.5.3
+          imagePullPolicy: IfNotPresent
+          command: ["bao", "server", "-config=/openbao/config/openbao.hcl"]
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - name: BAO_ADDR
+              value: "http://127.0.0.1:8200"
+            - name: BAO_API_ADDR
+              value: "http://$(POD_IP):8200"
+            - name: BAO_CLUSTER_ADDR
+              value: "http://$(POD_IP):8201"
+            - name: BAO_K8S_POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - name: BAO_K8S_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+          ports:
+            - { containerPort: 8200, name: http }
+            - { containerPort: 8201, name: cluster }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+          readinessProbe:
+            # `/v1/sys/health` with `standbyok=true` returns 200 for both
+            # the active and (unsealed) standby peers, 503 when sealed,
+            # 501 when uninitialized.
+            httpGet:
+              path: /v1/sys/health?standbyok=true&perfstandbyok=true
+              port: 8200
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              # sealedcode=204 is required for the brief window between
+              # container start and bootstrap completion, otherwise the
+              # default 503 for a sealed OpenBao triggers liveness restart
+              # loops and the init Job never reaches a responsive pod.
+              path: /v1/sys/health?standbyok=true&uninitcode=204&sealedcode=204
+              port: 8200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: config, mountPath: /openbao/config }
+            - { name: data,   mountPath: /openbao/data }
+            - { name: home,   mountPath: /home/openbao }
+      volumes:
+        - name: config
+          configMap: { name: openbao-config }
+        - name: home
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: openbao
+  namespace: security
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: openbao

@@ -1,0 +1,220 @@
+# =============================================================================
+# Loki 3.7 — log aggregation with persistent storage
+# =============================================================================
+# Monolithic single-replica deployment (adequate for target load).
+#   /loki/wal  — PVC (local-path, ADR-031) for write-ahead log
+#   s3://loki-data/chunks — MinIO object store for chunks (long retention)
+# Retention: 30 days via compactor.  Cardinality caps prevent label explosion.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: observability
+data:
+  config.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+      log_level: info
+    common:
+      path_prefix: /loki
+      replication_factor: 1
+      ring: { kvstore: { store: inmemory } }
+      storage:
+        s3:
+          endpoint: minio.storage.svc.cluster.local:9000
+          bucketnames: loki-data
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          s3forcepathstyle: true
+          insecure: true
+    ingester:
+      wal:
+        dir: /loki/wal
+        enabled: true
+        flush_on_shutdown: true
+      chunk_idle_period: 1h
+      chunk_retain_period: 30s
+      max_chunk_age: 2h
+    schema_config:
+      configs:
+        - from: 2026-01-01
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index: { prefix: loki_index_, period: 24h }
+    storage_config:
+      tsdb_shipper:
+        active_index_directory: /loki/index
+        cache_location: /loki/cache
+        cache_ttl: 24h
+      # Loki 3.x compactor reads `storage_config.aws` (NOT `common.storage.s3`)
+      # when `compactor.delete_request_store: s3`. Without this block the
+      # compactor's S3 client falls back to an empty bucket name and fails on
+      # boot with `NoSuchBucket: The specified bucket does not exist` even
+      # though `loki-data` is provisioned. Mirror common.storage.s3 here so
+      # the compactor + tsdb-shipper both target the same MinIO bucket.
+      # Field-validated 2026-05-02 after observing the boot loop.
+      aws:
+        endpoint: minio.storage.svc.cluster.local:9000
+        bucketnames: loki-data
+        access_key_id: ${AWS_ACCESS_KEY_ID}
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        s3forcepathstyle: true
+        insecure: true
+    limits_config:
+      retention_period: 720h
+      max_global_streams_per_user: 50000
+      max_query_parallelism: 32
+      max_entries_limit_per_query: 10000
+      max_query_length: 721h
+      ingestion_rate_mb: 20
+      ingestion_burst_size_mb: 30
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      split_queries_by_interval: 30m
+      volume_enabled: true
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+      delete_request_store: s3
+    ruler:
+      storage:
+        type: s3
+        # Loki 3.x removed the `prefix:` field from aws.S3Config (returned
+        # `field prefix not found in type aws.S3Config`). Per-component
+        # bucket isolation now happens via separate bucketnames or a shared
+        # bucket with internal prefixes managed by Loki itself.
+        s3:
+          bucketnames: loki-data
+          endpoint: minio.storage.svc.cluster.local:9000
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          s3forcepathstyle: true
+          insecure: true
+      rule_path: /loki/rules
+      alertmanager_url: http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093
+      ring: { kvstore: { store: inmemory } }
+      enable_api: true
+    analytics: { reporting_enabled: false }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: loki-s3
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target: { name: loki-s3, creationPolicy: Owner }
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef: { key: platform/minio/root, property: password }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: observability
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3100"
+    prometheus.io/path: "/metrics"
+spec:
+  ports:
+    - { port: 3100, name: http, targetPort: 3100 }
+    - { port: 9095, name: grpc, targetPort: 9095 }
+  selector: { app: loki }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loki
+  namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: observability
+  labels:
+    app: loki
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: loki } }
+  template:
+    metadata: { labels: { app: loki } }
+    spec:
+      serviceAccountName: loki
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: loki
+          image: grafana/loki:3.7.1
+          imagePullPolicy: IfNotPresent
+          args: ["-config.file=/etc/loki/config.yaml", "-config.expand-env=true"]
+          envFrom:
+            - secretRef: { name: loki-s3 }
+          ports:
+            - { containerPort: 3100, name: http }
+            - { containerPort: 9095, name: grpc }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi } # Single-node lab; bump for production load.
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          readinessProbe:
+            httpGet: { path: /ready, port: 3100 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ready, port: 3100 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config,  mountPath: /etc/loki }
+            - { name: storage, mountPath: /loki }
+            - { name: tmp,     mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap: { name: loki-config }
+        - name: storage
+          persistentVolumeClaim: { claimName: loki-pvc }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-pvc
+  namespace: observability
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi # Single-pod bootstrap; bump for production load.
+---
+# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# eviction. minAvailable=1 with replicas=1 deadlocks drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: loki
+  namespace: observability
+spec:
+  maxUnavailable: 1
+  selector: { matchLabels: { app: loki } }

@@ -1,0 +1,172 @@
+# =============================================================================
+# DRIFT DETECTION — Multi-scale Monitoring (Python + scipy/numpy)
+# =============================================================================
+# Detects data drift and concept drift using PSI and KS tests at
+# multiple time scales (minute, hourly, daily, weekly).
+#
+# Platform tool integration:
+#   - Grafana: Unified alerting on drift detection events
+#   - Prometheus: Drift metrics exported via Pushgateway
+#   - Great Expectations: Data quality validation on reference vs current
+#   - Kafka: Drift events published to 'drift-events' topic
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: drift-check-minute
+  labels:
+    app: drift-detector
+    scale: minute
+spec:
+  schedule: "* * * * *" # Every minute
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 300
+      template:
+        metadata:
+          labels:
+            app: drift-detector
+            scale: minute
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift-detector
+              image: drift-detector:latest
+              imagePullPolicy: IfNotPresent
+              # UV mandate (project policy): no `uv run python`, no `python -c`.
+              # `uv run main.py` runs the project entry point inside the synced
+              # venv (uv.lock-pinned). `--scale minute --once` invokes the
+              # one-shot CronJob mode (see main.py:212-251).
+              command: ["uv", "run", "main.py"]
+              args: ["--scale", "minute", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "512Mi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: drift-check-hourly
+  labels:
+    app: drift-detector
+    scale: hourly
+spec:
+  schedule: "*/15 * * * *" # Every 15 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: drift-detector
+            scale: hourly
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift-detector
+              image: drift-detector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--scale", "hourly", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "1Gi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: drift-check-daily
+  labels:
+    app: drift-detector
+    scale: daily
+spec:
+  schedule: "0 */6 * * *" # Every 6 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: drift-detector
+            scale: daily
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift-detector
+              image: drift-detector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--scale", "daily", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: drift-check-weekly
+  labels:
+    app: drift-detector
+    scale: weekly
+spec:
+  schedule: "0 */12 * * *" # Every 12 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 7200
+      template:
+        metadata:
+          labels:
+            app: drift-detector
+            scale: weekly
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift-detector
+              image: drift-detector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--scale", "weekly", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"

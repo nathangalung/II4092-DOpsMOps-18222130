@@ -1,0 +1,420 @@
+# =============================================================================
+# Gitea bootstrap — admin user + `platform` org + `platform/platform` repo
+# =============================================================================
+# ADR-005 (GitOps activation) sequence:
+#   1. `kubectl apply -k platform/components/gitops/gitea`
+#        creates Service + Deployment + PVC + this Secret + this Job.
+#   2. The Job waits for Gitea HTTP, posts the install form (which seeds the
+#      admin user, writes install_lock=true into app.ini, and unblocks the API),
+#      then creates the `platform` org and the `platform` repo.
+#   3. Operator pushes the working tree (`platform/`) to the empty repo from
+#      the host (one-time):
+#        kubectl -n gitops port-forward svc/gitea 13000:3000
+#        git -C <repo-root> remote add origin \
+#            http://platform-admin:<password>@localhost:13000/platform/platform.git
+#        git push -u origin main
+#   4. `kubectl apply -f platform/components/gitops/argo-cd/app-of-apps.yaml`
+#      activates ArgoCD reconciliation.  From this point onwards, ArgoCD
+#      self-manages — including this gitea/ kustomization, so the Job stops
+#      running on next sync (job.spec.ttlSecondsAfterFinished cleans the pod).
+#
+# This Job is idempotent: install POST returns 200 the first time and 404 on
+# already-installed instances; org and repo creation tolerate 422/409 as
+# already-exists.  Re-running the Job is therefore safe (Argo CD will hash-
+# match the manifest and skip until you bump `metadata.generation`).
+#
+# Production hardening (out of scope for thesis bootstrap):
+#   - Replace `gitea-admin` Secret with an ExternalSecret backed by OpenBao
+#     (ADR-007).  After bootstrap, rotate `admin_passwd` and create a
+#     personal-access-token for ArgoCD repo-creds (PAT lives in a separate
+#     Secret consumed by `argocd-repo-server`).
+#   - Add a `gitea-runner-token` Secret + a Tekton EventListener so pushes
+#     into `platform/platform` trigger the build-image+sign+pin pipeline.
+# =============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-admin
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+type: Opaque
+stringData:
+  username: "platform-admin"
+  email:    "admin@platform.local"
+  # ---------------------------------------------------------------------------
+  # DEVELOPMENT-ONLY password — committed in plain text only because OpenBao is
+  # not yet bootstrapped at the moment this Secret is first applied (chicken-
+  # and-egg with ExternalSecret).  Rotation pathway:
+  #   • Once OpenBao is bootstrapped (platform/components/security/openbao),
+  #     replace this Secret with an ExternalSecret pointing at
+  #     `secret/data/platform/gitea/admin`.
+  #   • Trigger admin password change via Gitea API:
+  #       curl -u platform-admin:<old> -X PATCH \
+  #         http://gitea.gitops.svc.cluster.local:3000/api/v1/admin/users/platform-admin \
+  #         -H 'Content-Type: application/json' \
+  #         -d '{"password":"<new>","must_change_password":false}'
+  #   • Update ArgoCD repo-creds Secret to the new PAT and revoke the old one.
+  # ---------------------------------------------------------------------------
+  password: "p8YhBdEfNz3VsKlT2WqXmGc7LpRuDvJa"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-bootstrap
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-bootstrap
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["gitea-admin"]
+    verbs: ["get"]
+  # Bootstrap forces a Deployment rollout right after the install POST to make
+  # the gitea process reload the freshly-written app.ini from disk. Gitea's
+  # in-process reload after SubmitInstall is not reliable on a single-node
+  # cold-PVC k3s (context-canceled mid-CreateAuthTokenForUserID under load),
+  # so we replace it with an explicit pod restart whose ordering is provable.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["gitea"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-bootstrap
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+subjects:
+  - kind: ServiceAccount
+    name: gitea-bootstrap
+    namespace: gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-bootstrap
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-bootstrap-script
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+data:
+  bootstrap.sh: |
+    #!/usr/bin/env sh
+    set -eu
+    GITEA="${GITEA_URL:-http://gitea.gitops.svc.cluster.local:3000}"
+    ADMIN_USER="${ADMIN_USER:?missing}"
+    ADMIN_PASS="${ADMIN_PASS:?missing}"
+    ADMIN_EMAIL="${ADMIN_EMAIL:?missing}"
+
+    echo "==> wait for gitea HTTP"
+    i=0
+    while :; do
+      code=$(curl -sS -o /dev/null -w '%{http_code}' "$GITEA/" || echo 000)
+      case "$code" in
+        200|303|302) echo "  reachable (HTTP $code)"; break ;;
+      esac
+      i=$((i+1))
+      [ "$i" -gt 60 ] && { echo "ERROR: gitea unreachable after 120s"; exit 1; }
+      sleep 2
+    done
+
+    echo "==> probe install state"
+    api_code=$(curl -sS -o /tmp/v -w '%{http_code}' "$GITEA/api/v1/version")
+    echo "  /api/v1/version -> $api_code"
+
+    if [ "$api_code" = "404" ]; then
+      echo "==> POST /  (install form)"
+      # 600s (was 180s): on cold k3s with empty PVC, the install POST stalls
+      # past 180s while gitea's `SubmitInstall` runs ORM init attempt #1/10
+      # against SQLite, then `CreateAuthTokenForUserID` which hashes the admin
+      # password with pbkdf2_hi (~hundreds of ms per attempt). Field-observed
+      # 2026-05-11: curl exited 28 at 03:46:44 right after gitea logged
+      # "CreateAuthTokenForUserID: context canceled" — server-side install
+      # was in flight but client closed. With 600s the install completes and
+      # subsequent /api/v1/version flips to 200, letting the script proceed.
+      install_code=$(curl -sS -o /tmp/install.html -w '%{http_code}' \
+        --max-time 600 \
+        -X POST "$GITEA/" \
+        -d "db_type=sqlite3" \
+        -d "db_path=/data/gitea/gitea.db" \
+        -d "app_name=Platform Gitea" \
+        -d "repo_root_path=/data/git/repositories" \
+        -d "lfs_root_path=/data/git/lfs" \
+        -d "run_user=git" \
+        -d "domain=gitea.gitops.svc.cluster.local" \
+        -d "ssh_port=22" \
+        -d "http_port=3000" \
+        -d "app_url=$GITEA/" \
+        -d "log_root_path=/data/gitea/log" \
+        -d "default_allow_create_organization=on" \
+        -d "default_enable_timetracking=on" \
+        -d "no_reply_address=noreply.platform.local" \
+        -d "password_algorithm=pbkdf2_hi" \
+        -d "admin_name=$ADMIN_USER" \
+        -d "admin_passwd=$ADMIN_PASS" \
+        -d "admin_confirm_passwd=$ADMIN_PASS" \
+        -d "admin_email=$ADMIN_EMAIL")
+      echo "  install POST -> $install_code"
+      [ "$install_code" = "200" ] || [ "$install_code" = "302" ] || [ "$install_code" = "303" ] || {
+        echo "ERROR: install POST returned $install_code"
+        head -50 /tmp/install.html || true
+        exit 1
+      }
+
+      # Force gitea pod restart via Kubernetes API so the new process loads
+      # the freshly-written app.ini from disk. Background: SubmitInstall
+      # writes app.ini AND signals an in-process reload, but on a cold
+      # single-node k3s with a fresh PVC, that internal reload is racy —
+      # CreateAuthTokenForUserID can be canceled mid-flight when the in-
+      # process restart fires (field-observed 2026-05-11 against gitea
+      # 1.25.4: pod left with app.ini=INSTALL_LOCK=true SECRET_KEY=empty,
+      # process still serving the install page, /api/v1/version stays 404,
+      # subsequent bootstrap calls all fail until an external pod restart).
+      # An explicit Deployment-rollout restart is deterministic: kubelet
+      # tears the pod down, the next pod boots from scratch and reads the
+      # complete app.ini. We do this from the bootstrap container itself
+      # (no kubectl binary required) by hitting the k8s API with the
+      # service-account token. RBAC granted on the gitea Deployment only.
+      echo "==> force gitea Deployment restart (k8s API PATCH)"
+      KUBE_API="https://kubernetes.default.svc"
+      KUBE_CA="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      KUBE_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+      KUBE_NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+      now=$(date +%s)
+      patch_code=$(curl -sS \
+        --cacert "$KUBE_CA" \
+        -H "Authorization: Bearer $KUBE_TOKEN" \
+        -H "Content-Type: application/strategic-merge-patch+json" \
+        -X PATCH \
+        "$KUBE_API/apis/apps/v1/namespaces/$KUBE_NS/deployments/gitea" \
+        -d "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"gitea.platform/bootstrap-restartedAt\":\"$now\"}}}}}" \
+        -o /tmp/patch.json -w '%{http_code}')
+      echo "  PATCH gitea -> $patch_code"
+      [ "$patch_code" = "200" ] || {
+        echo "ERROR: PATCH gitea returned $patch_code"
+        head -20 /tmp/patch.json
+        exit 1
+      }
+
+      # Extended j-loop (300s instead of 120s): pod restart adds image-pull
+      # latency on top of gitea boot. Probe /api/v1/version=200 — Service
+      # routes to whichever pod (old or new) is currently Ready; the new
+      # pod boots in normal mode (INSTALL_LOCK=true), so once it's Ready
+      # the API serves 200 deterministically. Old pod is terminated by
+      # the rollout, so transient connection-refused during cutover is
+      # expected and harmless.
+      echo "==> wait for API to come up post-restart (timeout 300s)"
+      j=0
+      while :; do
+        api_code=$(curl -sS -o /dev/null -w '%{http_code}' "$GITEA/api/v1/version")
+        [ "$api_code" = "200" ] && { echo "  /api/v1/version -> 200 (gitea Ready)"; break; }
+        j=$((j+1))
+        [ "$j" -gt 150 ] && { echo "ERROR: api never came up after 300s"; exit 1; }
+        sleep 2
+      done
+    else
+      echo "  already installed, skipping install POST"
+    fi
+
+    echo "==> verify admin auth"
+    me_code=$(curl -sS -o /tmp/me -w '%{http_code}' \
+      -u "$ADMIN_USER:$ADMIN_PASS" "$GITEA/api/v1/user")
+    echo "  /api/v1/user -> $me_code"
+    [ "$me_code" = "200" ] || { echo "ERROR: admin auth failed"; cat /tmp/me; exit 1; }
+
+    echo "==> ensure org 'platform'"
+    org_code=$(curl -sS -o /tmp/org -w '%{http_code}' \
+      -u "$ADMIN_USER:$ADMIN_PASS" \
+      -H 'Content-Type: application/json' \
+      -X POST "$GITEA/api/v1/orgs" \
+      -d '{"username":"platform","full_name":"Platform","visibility":"public","repo_admin_change_team_access":true}')
+    case "$org_code" in
+      201|422) echo "  org platform -> $org_code (ok)" ;;
+      *) echo "ERROR: org create returned $org_code"; cat /tmp/org; exit 1 ;;
+    esac
+
+    # auto_init=true makes gitea seed an initial README.md commit on the
+    # `main` branch.  Without it the repo has no refs, and downstream
+    # git-sync sidecars (airflow scheduler/triggerer) fail with
+    # "couldn't find remote ref main" until the operator manually pushes
+    # the working tree.  ArgoCD app-of-apps will overwrite the README on
+    # first sync; the auto-init commit is harmless seed content that just
+    # establishes the `main` ref so consumers can fetch.
+    echo "==> ensure repo 'platform/platform'"
+    repo_code=$(curl -sS -o /tmp/repo -w '%{http_code}' \
+      -u "$ADMIN_USER:$ADMIN_PASS" \
+      -H 'Content-Type: application/json' \
+      -X POST "$GITEA/api/v1/orgs/platform/repos" \
+      -d '{"name":"platform","auto_init":true,"default_branch":"main","private":false,"description":"Platform GitOps source-of-truth (domain-agnostic).  Synced by ArgoCD app-of-apps."}')
+    case "$repo_code" in
+      201|409) echo "  repo platform/platform -> $repo_code (ok)" ;;
+      *) echo "ERROR: repo create returned $repo_code"; cat /tmp/repo; exit 1 ;;
+    esac
+
+    # Idempotent main-branch seeding.  Repo creation with auto_init=true
+    # produces the initial commit on a fresh repo, but pre-existing repos
+    # (created before auto_init was set, or by a use-case overlay) may
+    # have no refs.  Downstream git-sync sidecars (airflow scheduler,
+    # triggerer) then fail with `couldn't find remote ref main` and crash
+    # the parent pod.  Probe the branches list; if empty, write a README
+    # via the Contents API which forces creation of `main`.
+    echo "==> ensure main branch exists"
+    branches_code=$(curl -sS -o /tmp/branches -w '%{http_code}' \
+      -u "$ADMIN_USER:$ADMIN_PASS" \
+      "$GITEA/api/v1/repos/platform/platform/branches")
+    branches_body=$(cat /tmp/branches)
+    # POSIX `&&` / `||` are left-to-right same-precedence; the previous
+    # form `A && B || C && D` evaluated as `(A && B) || (C && D)` which
+    # short-circuits incorrectly when only the body needs to be one of
+    # `null` / `[]`.  Group the body match explicitly.
+    if [ "$branches_code" = "200" ] && \
+       { [ "$branches_body" = "null" ] || [ "$branches_body" = "[]" ]; }; then
+      # Base64 of "# Platform\nGitOps source-of-truth.\n" (POSIX-portable).
+      seed_b64="IyBQbGF0Zm9ybQpHaXRPcHMgc291cmNlLW9mLXRydXRoLgo="
+      seed_code=$(curl -sS -o /tmp/seed -w '%{http_code}' \
+        -u "$ADMIN_USER:$ADMIN_PASS" \
+        -H 'Content-Type: application/json' \
+        -X POST "$GITEA/api/v1/repos/platform/platform/contents/README.md" \
+        -d "{\"branch\":\"main\",\"content\":\"$seed_b64\",\"message\":\"chore: seed main branch (gitea bootstrap)\"}")
+      case "$seed_code" in
+        201) echo "  seeded main with README.md (HTTP 201)" ;;
+        422) echo "  README.md already exists on main (422 ok)" ;;
+        *) echo "ERROR: seed POST returned $seed_code"; cat /tmp/seed; exit 1 ;;
+      esac
+    else
+      echo "  branches present, skipping seed"
+    fi
+
+    # =============================================================================
+    # Use-case overlay repos: each use-case is its own gitops source-of-truth.
+    # Per ADR-013, the platform repo must NOT know about specific use-cases —
+    # so the use-case overlay (use-case-crypto/) ships its own ArgoCD AppProject
+    # + ApplicationSet which point at `http://gitea.gitops.svc.cluster.local:3000/platform/<use-case>.git`.
+    # Bootstrap creates each repo here so seed-gitea.sh can force-push the
+    # use-case tree on first run without manual provisioning.
+    # =============================================================================
+    for usecase in use-case-crypto; do
+      echo "==> ensure repo 'platform/${usecase}'"
+      uc_code=$(curl -sS -o /tmp/uc -w '%{http_code}' \
+        -u "$ADMIN_USER:$ADMIN_PASS" \
+        -H 'Content-Type: application/json' \
+        -X POST "$GITEA/api/v1/orgs/platform/repos" \
+        -d "{\"name\":\"${usecase}\",\"auto_init\":true,\"default_branch\":\"main\",\"private\":false,\"description\":\"Use-case overlay (domain-specific). Synced by ArgoCD ApplicationSet in argocd/.\"}")
+      case "$uc_code" in
+        201|409) echo "  repo platform/${usecase} -> $uc_code (ok)" ;;
+        *) echo "ERROR: repo create returned $uc_code"; cat /tmp/uc; exit 1 ;;
+      esac
+      uc_branches_code=$(curl -sS -o /tmp/uc_branches -w '%{http_code}' \
+        -u "$ADMIN_USER:$ADMIN_PASS" \
+        "$GITEA/api/v1/repos/platform/${usecase}/branches")
+      uc_branches_body=$(cat /tmp/uc_branches)
+      if [ "$uc_branches_code" = "200" ] && \
+         { [ "$uc_branches_body" = "null" ] || [ "$uc_branches_body" = "[]" ]; }; then
+        # Base64 of "# Use-case overlay\nManaged by ArgoCD AppSet.\n"
+        uc_seed_b64="IyBVc2UtY2FzZSBvdmVybGF5Ck1hbmFnZWQgYnkgQXJnb0NEIEFwcFNldC4K"
+        uc_seed_code=$(curl -sS -o /tmp/uc_seed -w '%{http_code}' \
+          -u "$ADMIN_USER:$ADMIN_PASS" \
+          -H 'Content-Type: application/json' \
+          -X POST "$GITEA/api/v1/repos/platform/${usecase}/contents/README.md" \
+          -d "{\"branch\":\"main\",\"content\":\"$uc_seed_b64\",\"message\":\"chore: seed main branch (gitea bootstrap)\"}")
+        case "$uc_seed_code" in
+          201) echo "  seeded ${usecase} main with README.md (HTTP 201)" ;;
+          422) echo "  ${usecase} README.md already exists on main (422 ok)" ;;
+          *) echo "ERROR: seed POST returned $uc_seed_code"; cat /tmp/uc_seed; exit 1 ;;
+        esac
+      else
+        echo "  ${usecase} branches present, skipping seed"
+      fi
+    done
+
+    echo "==> bootstrap done"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitea-bootstrap
+  namespace: gitops
+  # CAUTION: this Job's pod template labels DELIBERATELY omit `app: gitea`.
+  # Service `gitea` (deployment.yaml) selects on that label, and if the
+  # Job pod carries it, the Service round-robins traffic to the Job pod
+  # (which does not bind port 3000), causing the bootstrap script's own
+  # curl to receive ECONNREFUSED on every other request — a non-obvious
+  # self-DoS.  Use `app: gitea-bootstrap` to keep the bootstrap workload
+  # discoverable through label-selectors but distinct from the Service.
+  labels:
+    app: gitea-bootstrap
+    app.kubernetes.io/name: gitea-bootstrap
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: gitea-bootstrap
+        app.kubernetes.io/name: gitea-bootstrap
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: gitea-bootstrap
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: bootstrap
+          image: curlimages/curl:8.20.0
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "/scripts/bootstrap.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+          env:
+            - name: GITEA_URL
+              value: "http://gitea.gitops.svc.cluster.local:3000"
+            - name: ADMIN_USER
+              valueFrom: { secretKeyRef: { name: gitea-admin, key: username } }
+            - name: ADMIN_PASS
+              valueFrom: { secretKeyRef: { name: gitea-admin, key: password } }
+            - name: ADMIN_EMAIL
+              valueFrom: { secretKeyRef: { name: gitea-admin, key: email } }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: gitea-bootstrap-script
+            defaultMode: 0o755

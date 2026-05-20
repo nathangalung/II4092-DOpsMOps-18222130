@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Velero 1.18.0 (ADR-014).
+#
+# Ordering (see `argocd.argoproj.io/sync-wave` annotations):
+#   -10  velero-crds.yaml  — CRDs applied first, separately from Helm chart.
+#     0  helm-release.yaml — Velero controller, node-agent, schedule, ESO.
+#
+# The separation prevents the Helm CRD upgrade Job from wedging the release
+# (R8 root cause).
+resources:
+  - velero-crds.yaml
+  - helm-release.yaml

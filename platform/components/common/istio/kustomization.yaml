@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Istio 1.28.6 (2026-04-13) — service mesh, Knative ingress path, KServe traffic.
+# Minor bump 1.28→1.29 is a proper re-render from upstream helm charts (base/istiod/cni/gateway)
+# preserving hand-added Sidecar/Gateway/AuthorizationPolicy resources — tracked as follow-up.
+#
+# Task #26 defers the 1.29 re-render with corrected rationale in AUDIT_FINAL_2026-04-21.md §35
+# (2026-04-22).  The vendored `istio-install.yaml` is `istioctl manifest generate` output (not
+# plain `helm template` — the `helm.sh/chart: istio-ingress-1.28.6` label is an istioctl
+# signature) carrying load-bearing post-generate surgical edits that no re-render reproduces:
+#   (1) mesh-ConfigMap `extensionProviders` registering `oauth2-proxy` as `envoyExtAuthzHttp`
+#       (L814-830 in istio-install.yaml) — required by `action: CUSTOM` AuthorizationPolicies
+#       (ADR-024);
+#   (2) `accessLogFile: /dev/stdout` + three `tcpKeepalive` blocks (L802, L809, L3196, L3287);
+#   (3) sidecar-injector `busybox:1.28` → `busybox:1.37` override (L1693) for ADR-006.
+# Non-default `--set` inputs (`components.cni.enabled=true`, `values.cni.cniNamespace=kube-system`,
+# `values.gateways.istio-ingressgateway.type=ClusterIP`) exhibit cross-patch schema drift
+# (cniNamespace rejected at 1.28.5, accepted at 1.28.6), so the flags are not cross-version stable.
+# Proper path: inventory at 1.28.6 → regenerate 1.29.2 baseline with schema-validated flags →
+# forward-port each surgical edit → end-to-end verify ext_authz→oauth2-proxy mesh-auth contract.
+# See AUDIT_FINAL §35 and VERSION.MD L100 for full detail.
+resources:
+  - istio-crds.yaml
+  - istio-namespace.yaml
+  - istio-install.yaml
+  # Mesh-wide STRICT mTLS + deny-by-default AuthorizationPolicy at root
+  # (KNF-07).  Installed after Istio CRDs are ready.
+  - peer-authentication.yaml

@@ -1,0 +1,683 @@
+# =============================================================================
+# DataHub ingestion CronJobs — one per recipe
+# =============================================================================
+# ADR-013.  Each source has its own CronJob schedule.  Heavy scans (CH
+# profiling, S3 path scanning) daily; fast sources (Airflow, MLflow, Feast)
+# hourly.
+#
+# Yaml anchors don't work across Kustomize `---` document boundaries, so
+# each CronJob is written explicitly.  The repeating container spec is
+# shared via the recipes ConfigMap + an env var `RECIPE_FILE`.
+#
+# Recipe templating: acryldata/datahub-ingestion:v1.5.0.3 dropped
+# gettext/envsubst from the image; running `envsubst` returns
+# `sh: 2: envsubst: not found`. Python is bundled (datahub CLI is Python),
+# so `os.path.expandvars` is the drop-in replacement — it expands `$VAR`
+# and `${VAR}` from os.environ identically to envsubst.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: datahub-ingestion-env
+  namespace: data-governance
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: datahub-ingestion-env
+    creationPolicy: Owner
+    # Strimzi's User Operator emits an `admin` SCRAM Secret containing only
+    # `password` + `sasl.jaas.config` (no `username` key) which is mirrored
+    # into OpenBao by `kafka-admin-to-openbao` PushSecret. Username is the static
+    # KafkaUser name ("admin"), so we inject it via template instead of
+    # forcing a synthetic openbao property.
+    template:
+      type: Opaque
+      data:
+        KAFKA_USER: "admin"
+        KAFKA_PASSWORD: "{{ .KAFKA_PASSWORD }}"
+        GMS_TOKEN: "{{ .GMS_TOKEN }}"
+        PG_USER: "{{ .PG_USER }}"
+        PG_PASSWORD: "{{ .PG_PASSWORD }}"
+        # CH_* are the historical names used by clickhouse.yml; the
+        # feast recipe substitutes ${CLICKHOUSE_USER}/${CLICKHOUSE_PASSWORD}
+        # (Feast's feature_store.yaml convention).  Both surface from the
+        # same OpenBao path so credential rotation stays atomic.
+        CH_USER: "{{ .CH_USER }}"
+        CH_PASSWORD: "{{ .CH_PASSWORD }}"
+        CLICKHOUSE_USER: "{{ .CH_USER }}"
+        CLICKHOUSE_PASSWORD: "{{ .CH_PASSWORD }}"
+        AWS_ACCESS_KEY_ID: "{{ .AWS_ACCESS_KEY_ID }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .AWS_SECRET_ACCESS_KEY }}"
+        # VALKEY_PASSWORD — Feast online_store (redis-protocol).  Required
+        # to render the connection_string in the feast recipe's
+        # feature_store.yaml at job start.
+        VALKEY_PASSWORD: "{{ .VALKEY_PASSWORD }}"
+  data:
+    # GMS_TOKEN is a long-lived DataHub PAT JWT minted at openbao-bootstrap
+    # time (mint_datahub_pat helper, signed with platform/datahub/admin/secret
+    # — the same HMAC key GMS validates with via DATAHUB_TOKEN_SERVICE_SIGNING_KEY).
+    # Ingestion sinks pass it as `Authorization: Bearer ${GMS_TOKEN}`.
+    # Don't point this back at platform/datahub/admin.secret — that's the
+    # raw signing key; sending it as a Bearer token returns HTTP 401 from
+    # StatelessTokenService.validateAccessToken (signature mismatch).
+    - { secretKey: GMS_TOKEN,            remoteRef: { key: platform/datahub/system_token, property: token } }
+    - { secretKey: PG_USER,              remoteRef: { key: platform/postgres/app, property: username } }
+    - { secretKey: PG_PASSWORD,          remoteRef: { key: platform/postgres/app, property: password } }
+    - { secretKey: CH_USER,              remoteRef: { key: platform/clickhouse/admin,   property: username } }
+    - { secretKey: CH_PASSWORD,          remoteRef: { key: platform/clickhouse/admin,   property: password } }
+    - { secretKey: AWS_ACCESS_KEY_ID,    remoteRef: { key: platform/minio/root,         property: username } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY,remoteRef: { key: platform/minio/root,         property: password } }
+    - { secretKey: KAFKA_PASSWORD,       remoteRef: { key: platform/kafka/admin,        property: password } }
+    - { secretKey: VALKEY_PASSWORD,      remoteRef: { key: platform/valkey/auth,        property: password } }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: datahub-ingestion
+  namespace: data-governance
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dbt-artifacts
+  namespace: data-governance
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-postgres, namespace: data-governance }
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "postgres.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-clickhouse, namespace: data-governance }
+spec:
+  schedule: "15 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "clickhouse.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 2000m, memory: 4Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-minio, namespace: data-governance }
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "minio.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-kafka, namespace: data-governance }
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "kafka.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+# NOTE: a `datahub-ingest-airflow` CronJob used to live here.  Removed
+# 2026-05-11 because `source: airflow` is NOT a registered DataHub ingestion
+# source — the `acryl-datahub-airflow-plugin` package only ships
+# `airflow.plugins` / `apache_airflow_provider` entry points, i.e. it is
+# loaded INSIDE the Airflow scheduler/webserver and pushes lineage events
+# on DAG runs.  Verified by entry-point diff inside
+# acryldata/datahub-ingestion:v1.5.0.3 (95 sources before install → 97
+# after, neither named airflow).  Trying to poll airflow from the CLI
+# aborts with `PipelineInitError: Did not find a registered class for
+# airflow`.  The push path is already wired in
+# platform/components/data-processing/airflow/deployment.yaml via
+# OPENLINEAGE_URL + AIRFLOW__OPENLINEAGE__TRANSPORT pointing at
+# datahub-gms:/openapi/openlineage.  A polling CronJob would be redundant
+# and unrecoverable.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-feast, namespace: data-governance }
+spec:
+  schedule: "20 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          # Why an init container here (feast CronJob only, see task #201):
+          #   acryldata/datahub-ingestion:v1.5.0.3 ships the DataHub feast
+          #   SOURCE plugin (datahub.ingestion.source.feast) but NOT the
+          #   `feast` python package itself — the [feast] extra is documented
+          #   upstream but never baked into the public image. Plain runtime
+          #   runtime install of feast is blocked: the main container has
+          #   readOnlyRootFilesystem=true and the upstream image's venv lives
+          #   on the rootfs. So we maintain a tiny deps-only sidecar image
+          #   (image-build/) that bakes `feast<1` + dask + flask-openid + numpy<2
+          #   into /feast-deps via `uv sync` (#211 — strict uv mandate; no
+          #   `uv pip`) against an inline pyproject.toml, then the init
+          #   below cp -a's that tree onto an emptyDir shared with the main
+          #   container, and the main container picks them up via PYTHONPATH.
+          #   Order in the pod: feast-deps (regular init) → istio-proxy
+          #   (native-sidecar init, restartPolicy: Always) → ingest (main).
+          initContainers:
+            - name: feast-deps
+              image: registry.platform-registry.svc.cluster.local:5000/datahub-feast-deps:1.5.0.1
+              imagePullPolicy: IfNotPresent
+              # ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim base —
+              # bookworm ships coreutils + busybox tar, so /bin/cp + /bin/sh
+              # + /bin/tar are present.
+              #
+              # Why tar-pipe (NOT cp -a):  K3s containerd emptyDir backs onto
+              # overlayfs; utimensat() on the lower dir is denied → cp -a
+              # fails with `preserving times for '/shared/.': Operation not
+              # permitted` and exits non-zero, blocking the Job (same class
+              # as #105 apisix seed-conf).  tar c → tar x preserves modes
+              # (which the main container needs since it runs as UID 1000
+              # and depends on the world-read bits `uv sync` sets on
+              # .venv/lib/python3.10/site-packages) without touching mtimes.
+              command: ["sh", "-c"]
+              args: ["cd /feast-deps && tar cf - . | (cd /shared && tar xpf -) && echo 'feast-deps seeded into /shared'"]
+              volumeMounts:
+                - { name: shared-deps, mountPath: /shared }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits:   { cpu: 500m, memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env:
+                - { name: RECIPE_FILE, value: "feast.yml" }
+                # MinIO S3 endpoint for the file registry — boto3/fsspec
+                # pick this up automatically (AWS_ENDPOINT_URL_S3 takes
+                # precedence over AWS_ENDPOINT_URL for s3 specifically).
+                - { name: AWS_ENDPOINT_URL_S3, value: "http://minio.storage.svc.cluster.local:9000" }
+                - { name: AWS_REGION,          value: "us-east-1" }
+                # Overlay the missing feast deps onto the venv's import path.
+                # Python prepends PYTHONPATH to sys.path before the venv's
+                # site-packages, so `import feast` resolves to /shared/feast
+                # even though the acryldata venv has no `feast` package. The
+                # numpy<2 + dask<2024.7.0 pins co-installed at /shared match
+                # acryl-datahub's existing constraints — no version conflict.
+                - { name: PYTHONPATH,          value: "/shared" }
+              # DataHub's feast source loads the feature_store.yaml at the
+              # configured `path:` to discover registry + offline/online store
+              # connection coordinates, then walks the registry to emit
+              # FeatureView/FeatureService metadata.  The platform's
+              # `feast-feature-repo` ConfigMap lives in `model-lifecycle` and
+              # can't be mounted cross-namespace, so we synthesise an
+              # ingest-side feature_store.yaml at job start using the same
+              # `${CLICKHOUSE_USER}/${CLICKHOUSE_PASSWORD}/${VALKEY_PASSWORD}`
+              # envvars surfaced by `datahub-ingestion-env` (which mirror
+              # OpenBao paths `platform/clickhouse/admin` + `platform/valkey/auth`,
+              # matching what the live feast Deployment renders).  The file is
+              # written into /tmp/feature_repo and the feast.yml recipe's
+              # `path:` is rewritten to point there.
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  mkdir -p /tmp/feature_repo
+                  # Inline feature_store.yaml — kept structurally identical to
+                  # platform/components/model-lifecycle/feast/feature-repo.yaml
+                  # (same registry path, offline_store, online_store).  See
+                  # comment block above for why this isn't mounted from the
+                  # feast component's ConfigMap.
+                  cat >/tmp/feature_repo/feature_store.yaml <<'YAML'
+                  project: platform_feast
+                  provider: local
+                  registry:
+                    registry_type: file
+                    path: s3://feast/registry.pb
+                    cache_ttl_seconds: 60
+                  offline_store:
+                    type: clickhouse
+                    host: clickhouse-platform.storage.svc.cluster.local
+                    port: 9000
+                    database: default
+                    user: ${CLICKHOUSE_USER}
+                    password: ${CLICKHOUSE_PASSWORD}
+                  online_store:
+                    type: redis
+                    redis_type: redis
+                    connection_string: valkey.storage.svc.cluster.local:6379,password=${VALKEY_PASSWORD}
+                  entity_key_serialization_version: 2
+                  auth:
+                    type: no_auth
+                  YAML
+                  # UV mandate: awk-based ${VAR} expansion in place of
+                  # `python -c expandvars` (no envsubst in datahub-ingestion
+                  # v1.5.0.1 image — see #145). awk ships in the upstream
+                  # debian base; semantics match os.path.expandvars for
+                  # the ${VAR} braced form (the only form recipes use).
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' \
+                    /tmp/feature_repo/feature_store.yaml \
+                    > /tmp/feature_repo/feature_store.yaml.rendered
+                  mv /tmp/feature_repo/feature_store.yaml.rendered /tmp/feature_repo/feature_store.yaml
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' \
+                    /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+                # Mounted readOnly so a buggy ingest can't trample the
+                # init-seeded deps tree. Init's writer mount above is RW.
+                - { name: shared-deps, mountPath: /shared, readOnly: true }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+            # Init container writes the 395MB feast-deps tree here; main
+            # container imports from it via PYTHONPATH. sizeLimit guards
+            # against a misbehaving init ballooning past expected.
+            - { name: shared-deps, emptyDir: { sizeLimit: 1Gi } }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-mlflow, namespace: data-governance }
+spec:
+  schedule: "30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "mlflow.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: tmp, emptyDir: {} }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: datahub-ingest-dbt, namespace: data-governance }
+spec:
+  schedule: "45 */6 * * *"
+  # Suspended at platform layer: the recipe reads
+  # /dbt/target/{manifest,catalog,run_results}.json from the dbt-artifacts PVC,
+  # which is only populated by the use-case `dbt-run` Job (lives in the
+  # data-processing namespace, owned by the use-case repo, not this platform
+  # repo). On a platform-only deploy those files do not exist, every run hits
+  # `FileNotFoundError: /dbt/target/manifest.json`, and BackoffLimitExceeded
+  # fires every 6h. The use-case repo unsuspends this CronJob (sets
+  # `suspend: false` via Kustomize patch) once dbt-run lands.
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 21600
+      template:
+        metadata:
+          # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
+          # `istio-proxy` as an initContainer with `restartPolicy: Always`,
+          # which the kubelet terminates automatically once the main
+          # container exits — Job pods reach `Succeeded` cleanly without
+          # opting out of the mesh. Required so ingest pods can reach
+          # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
+          # istio-system rejects plaintext from non-sidecar peers).
+          labels: { app: datahub, component: ingestion }
+        spec:
+          serviceAccountName: datahub-ingestion
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: ingest
+              image: acryldata/datahub-ingestion:v1.5.0.3
+              # Capture last 4KB of stderr in the Pod's terminationMessage
+              # field so post-mortem of BackoffLimitExceeded jobs is possible
+              # after pods are GC'd (failedJobsHistoryLimit retains the Job
+              # object but pods are deleted once backoffLimit is hit).
+              terminationMessagePolicy: FallbackToLogsOnError
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              env: [{ name: RECIPE_FILE, value: "dbt.yml" }]
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  # UV mandate: switched from `python -c expandvars` (no
+                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # awk-based envvar interpolation. awk is in coreutils
+                  # equivalent of the upstream image (gawk via debian base).
+                  # Same ${VAR} regex semantics as `os.path.expandvars`.
+                  awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
+                  datahub ingest -c /tmp/recipe.yml
+              volumeMounts:
+                - { name: recipes,       mountPath: /recipes, readOnly: true }
+                - { name: dbt-artifacts, mountPath: /dbt,     readOnly: true }
+                - { name: tmp,           mountPath: /tmp }
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests: { cpu: 200m, memory: 256Mi }
+                limits:   { cpu: 1000m, memory: 2Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - { name: recipes,       configMap: { name: datahub-ingestion-recipes } }
+            - { name: dbt-artifacts, persistentVolumeClaim: { claimName: dbt-artifacts } }
+            - { name: tmp, emptyDir: {} }

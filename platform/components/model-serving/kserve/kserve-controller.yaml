@@ -1,0 +1,187 @@
+# Simplified KServe Controller without Webhooks
+# This deployment is designed to work without Knative, Istio, or webhook dependencies
+# All fixes are permanent and will persist across cluster restarts
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kserve-controller-manager
+    control-plane: kserve-controller-manager
+    app.kubernetes.io/name: kserve
+  name: kserve-controller-manager
+  namespace: model-serving
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      control-plane: kserve-controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: kserve-controller-manager
+    spec:
+      containers:
+        - name: manager
+          # Use v0.14.1 - stable version without optional CRD dependencies
+          image: kserve/kserve-controller:v0.17.0
+          command:
+            - /manager
+          args:
+            - --metrics-addr=0.0.0.0:8080
+            # Leader election DISABLED on single-replica bootstrap.
+            # Controller-runtime default lease/renew/retry (15s/10s/2s) is too
+            # tight for our k3s+kine sqlite single-node API server under load —
+            # field-observed 2026-05-14 the manager restarted every 10–30 min
+            # with `leader election lost: context deadline exceeded`. Each
+            # restart drops the webhook server briefly; pod-mutator
+            # failurePolicy=Ignore then lets predictor Pods slip through
+            # WITHOUT the storage-initializer init container, producing the
+            # mlserver `InvalidModelURI: /mnt/models` CrashLoop and Degraded
+            # platform-model-serving Application.
+            #
+            # kserve manager binary v0.17+ exposes ONLY -leader-elect /
+            # -metrics-addr / -health-probe-addr / -webhook-port / -kubeconfig.
+            # Lease durations are baked into controller-runtime defaults and
+            # cannot be overridden via CLI. With a single replica there is
+            # nothing to elect against, so turning election off removes the
+            # renew-loop entirely. Re-enable in any HA overlay that scales
+            # replicas >1 and bake a Configuration ConfigMap to tune lease
+            # durations alongside that change.
+            - --leader-elect=false
+            # Bind the controller-runtime health probe server explicitly so
+            # liveness/readiness target a STABLE endpoint instead of /metrics
+            # (the metrics handler does prometheus collection work and stalls
+            # under reconcile pressure → probe timeouts → pod restarts → the
+            # MutatingWebhookConfiguration silently fails open with
+            # failurePolicy=Ignore → KServe storage-initializer init container
+            # is NOT injected → predictor pods crash with
+            # `InvalidModelURI: /mnt/models`. Field-observed 2026-05-11 on
+            # `make phase-full`: this pod hit `Liveness probe failed: connection
+            # reset by peer` then `Readiness probe failed: connection refused`
+            # while reconciling the platform-health-check InferenceService.)
+            #
+            # controller-runtime binds /healthz + /readyz on this address. The
+            # log line `"name":"health probe","addr":"[::]:8081"` confirms the
+            # server starts; pinning the flag makes the contract explicit and
+            # survives a future kserve manager binary that changes its default.
+            - --health-probe-addr=:8081
+          env:
+            # Basic environment setup
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SYSTEM_NAMESPACE
+              value: model-serving
+            - name: KUBERNETES_CLUSTER_DOMAIN
+              value: cluster.local
+            # Configuration settings
+            - name: KSERVE_CONFIG_MAP_NAME
+              value: inferenceservice-config
+            - name: KSERVE_CONFIG_MAP_NAMESPACE
+              value: model-serving
+            # Disable complex features that require additional dependencies
+            - name: ENABLE_KNATIVE_SERVING
+              value: "false"
+            - name: ENABLE_ISTIO_INTEGRATION
+              value: "false"
+            - name: SERVERLESS_MODE
+              value: "RawDeployment"
+            - name: DEPLOYMENT_MODE
+              value: "RawDeployment"
+            - name: SECRET_NAME
+              value: "kserve-webhook-server-cert"
+          ports:
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
+            - containerPort: 8081
+              name: health
+              protocol: TCP
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+          # Liveness/readiness target the controller-runtime health probe
+          # server on :8081 (set by --health-probe-addr above), NOT the
+          # /metrics endpoint on :8080. The metrics handler blocks on
+          # prometheus scrapes during reconcile spikes and produced
+          # `Liveness probe failed: connection reset by peer` followed by a
+          # restart cascade that drained kserve-webhook-server-service
+          # endpoints (see args block above for full cascade).
+          # /healthz: process is up; /readyz: leader-elected + caches synced.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+            timeoutSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 15
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          # Mount webhook certificates
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+      dnsPolicy: ClusterFirst
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: kserve-controller-manager
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: kserve-webhook-server-cert
+            defaultMode: 420
+            optional: true
+---
+# Basic service for metrics (no webhooks)
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kserve-controller-manager
+    control-plane: kserve-controller-manager
+  name: kserve-controller-manager-metrics
+  namespace: model-serving
+spec:
+  ports:
+    - name: metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - name: health
+      port: 8081
+      protocol: TCP
+      targetPort: 8081
+  selector:
+    control-plane: kserve-controller-manager
+  type: ClusterIP

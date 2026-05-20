@@ -1,0 +1,91 @@
+# =============================================================================
+# SUPPLEMENTARY DATA — Alternative & External Data Collection
+# =============================================================================
+# Generic CronJobs for collecting supplementary/alternative data from HTTP APIs.
+# Use-cases configure which APIs to poll via pipeline-config env vars.
+#
+# CronJob 1 (supplementary-source): External source polling (every 5 min)
+# CronJob 2 (supplementary-data): Alternative data indices (hourly)
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supplementary-source
+  labels:
+    app: rest-collector
+    type: supplementary
+spec:
+  schedule: "*/5 * * * *" # Every 5 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 240
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: rest-collector
+            type: supplementary
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/app/rest-collector"]
+              args: []
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "512Mi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supplementary-data
+  labels:
+    app: rest-collector
+    type: supplementary
+spec:
+  schedule: "0 */1 * * *" # Every hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: rest-collector
+            type: supplementary
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/app/rest-collector"]
+              args: []
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "256Mi"

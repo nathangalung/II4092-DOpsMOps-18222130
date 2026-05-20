@@ -1,0 +1,70 @@
+# =============================================================================
+# VECTOR EMBEDDING — Text Embedding Generation (Python + sentence-transformers)
+# =============================================================================
+# Generates embeddings from text data and stores in Qdrant for vector search.
+#
+# Infrastructure dependencies:
+#   - Qdrant: Vector DB for embedding storage + similarity search
+#   - ClickHouse: Source for text data, archival for aggregated features
+#   - Valkey: Feature cache for online serving (Redis-RESP backend)
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vector-embedding
+  labels:
+    app: vector-processing
+    type: embedding
+spec:
+  schedule: "*/5 * * * *" # Every 5 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: vector-processing
+            job-type: embedding-generation
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: embedding
+              image: vector-processing:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args:
+                - "--mode"
+                - "embeddings"
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: EMBEDDING_MODEL
+                  value: "sentence-transformers/all-mpnet-base-v2"
+                - name: EMBEDDING_DIM
+                  value: "768"
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config
+                - name: model-cache
+                  mountPath: /root/.cache/huggingface
+          volumes:
+            - name: config
+              configMap:
+                name: pipeline-config
+            - name: model-cache
+              emptyDir:
+                sizeLimit: 2Gi

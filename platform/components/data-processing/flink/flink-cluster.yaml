@@ -1,0 +1,136 @@
+# =============================================================================
+# Reference FlinkDeployment session-cluster (managed by flink-kubernetes-operator).
+# =============================================================================
+# Use-cases copy this shape into their overlay and point `job.jarURI` at their
+# own jar. The `data-processing` namespace hosts the session cluster; jobs
+# can be submitted either as FlinkSessionJob (shared cluster) or new
+# FlinkDeployment (application mode).
+# =============================================================================
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: session-cluster
+  namespace: data-processing
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  image: flink:2.2.0-scala_2.12-java21
+  flinkVersion: v2_2
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "1"  # Single-pod bootstrap; bump for production load.
+    state.backend.type: rocksdb
+    state.checkpoints.dir: s3://flink-checkpoints/
+    state.savepoints.dir: s3://flink-savepoints/
+    high-availability.type: kubernetes
+    high-availability.storageDir: s3://flink-ha/
+    s3.endpoint: http://minio.storage.svc.cluster.local:9000
+    s3.path.style.access: "true"
+    execution.checkpointing.interval: "60000"
+    execution.checkpointing.mode: EXACTLY_ONCE
+    metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+    metrics.reporter.prom.port: "9249"
+  serviceAccount: flink
+  podTemplate:
+    spec:
+      containers:
+        - name: flink-main-container
+          envFrom:
+            - secretRef: { name: flink-s3-secret }
+          env:
+            # Maps envFrom keys to the Flink S3 keys the hadoop FS plugin
+            # reads from `flink-conf.yaml` interpolation at runtime.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_ACCESS_KEY } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_SECRET_KEY } }
+            # Flink ships s3-fs-hadoop in /opt/flink/opt/ but does NOT load it
+            # by default. ENABLE_BUILT_IN_PLUGINS symlinks the jar into
+            # /opt/flink/plugins/s3-fs-hadoop/ at container start, registering
+            # the `s3://` scheme. Without this, HA + checkpoint + savepoint
+            # writes to s3://flink-{ha,checkpoints,savepoints}/ all fail with
+            # `UnsupportedFileSystemSchemeException: Could not find a file
+            # system implementation for scheme 's3'`.
+            - name: ENABLE_BUILT_IN_PLUGINS
+              value: "flink-s3-fs-hadoop-2.2.0.jar"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 9999
+        fsGroup: 9999
+  jobManager:
+    replicas: 1
+    resource:
+      # Flink 2.2 minimum total process memory is ~896MB (off-heap framework
+      # + JVM metaspace + network + managed). 512m fails operator validation:
+      # `The configured Total Flink Memory (64.000mb) is less than the
+      # configured Off-heap Memory (128.000mb)`. 1024m gives the JVM heap
+      # ~256MB working space on top of the framework reservations.
+      memory: "1024m"
+      cpu: 0.2
+    # JM-only podTemplate — merges with spec.podTemplate at the operator. We
+    # add an explicit TCP readinessProbe + livenessProbe on REST port 8081
+    # because:
+    #   (a) Operator's SessionObserver probes `:8081/overview` over plain
+    #       HTTP from `flink-operator` (out-of-mesh) → `data-processing`
+    #       (in-mesh, PERMISSIVE PA below). Without a kubelet-level
+    #       readinessProbe the pod is marked Ready by the istio sidecar
+    #       BEFORE the JM REST socket has bound, causing the operator's
+    #       first probe to hit `Connection refused` and the FlinkDeployment
+    #       to thrash DEPLOYING → READY → DEPLOYING.
+    #   (b) TCP probe (not HTTP) avoids istio's `rewriteAppHTTPProbe` path,
+    #       which would re-route the kubelet probe through 15020 — a moving
+    #       target during sidecar startup.
+    #   (c) Confined to jobManager.podTemplate (not spec.podTemplate) so we
+    #       don't break TaskManager pods, which don't bind 8081.
+    podTemplate:
+      spec:
+        containers:
+          - name: flink-main-container
+            readinessProbe:
+              tcpSocket: { port: 8081 }
+              initialDelaySeconds: 20
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 6
+            livenessProbe:
+              tcpSocket: { port: 8081 }
+              initialDelaySeconds: 90
+              periodSeconds: 30
+              timeoutSeconds: 10
+              failureThreshold: 3
+  taskManager:
+    # Single-node bootstrap. Scale via FlinkDeployment patch when load grows.
+    replicas: 1
+    resource:
+      # Same minimum as jobManager — see comment above.
+      memory: "1024m"
+      cpu: 0.2
+  # No `job:` block → this is a session cluster. Use FlinkSessionJob CRs
+  # (one per submitted job) in use-case overlays to run workloads.
+---
+# data-processing namespace has `istio-injection=enabled` + mesh-wide STRICT
+# PeerAuthentication, so JM/TM pods get a sidecar and reject any plaintext
+# inbound connection. flink-kubernetes-operator runs in the `flink-operator`
+# namespace (out-of-mesh, no sidecar) and probes
+# `session-cluster-rest:8081/overview` over plain HTTP for SessionObserver
+# to transition status DEPLOYING → READY. Without PERMISSIVE here that
+# probe got `curl: (56) Connection reset by peer` and the parent
+# platform-data-processing ArgoCD app stayed Progressing forever.
+#
+# PERMISSIVE = accept BOTH mTLS (from in-mesh airflow → flink) AND plain
+# (from out-of-mesh operator → flink). Mesh-internal traffic still proves
+# SPIFFE identity; the cost is letting the operator's plain probe through.
+# Scoped to `type=flink-native-kubernetes` so it only loosens JM/TM, not
+# other workloads in data-processing.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: session-cluster-permissive
+  namespace: data-processing
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      type: flink-native-kubernetes
+  mtls:
+    mode: PERMISSIVE

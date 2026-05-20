@@ -1,0 +1,46 @@
+# =============================================================================
+# BACKFILL — Daily Incremental Data Backfill (Go)
+# =============================================================================
+# Catches up missing data from previous 24 hours.
+# Historical backfill is handled by rest-collector Deployment on startup.
+# Orchestrated via Airflow DAGs or K8s CronJob.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: incremental-backfill
+  labels:
+    app: rest-collector
+    type: incremental-backfill
+spec:
+  schedule: "0 4 * * *" # Daily at 4 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: rest-collector
+            type: incremental-backfill
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"

@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ClickHouse via Altinity operator.  The legacy `statefulset.yaml` + `configmap.yaml`
+# are superseded by the CHI in `installation.yaml` (ADR-011).
+resources:
+  - installation.yaml

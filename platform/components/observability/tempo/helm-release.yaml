@@ -1,0 +1,230 @@
+# =============================================================================
+# Grafana Tempo 2.9.0 (chart 1.24.0, 2026-02-19) — trace backend (LGTM stack)
+# =============================================================================
+# ADR-010.  Tempo is the canonical Grafana-native trace backend for 2026:
+#   - Accepts OTLP (gRPC 4317 / HTTP 4318) directly — same protocol the OTel
+#     gateway already speaks; no protocol translation needed.
+#   - Object-storage (MinIO) backend: no Elasticsearch cluster to operate.
+#   - Deep Grafana integration: trace-to-metrics (Prometheus), trace-to-logs
+#     (Loki), and TraceQL in the same UI that hosts kube-prometheus-stack
+#     dashboards.
+#
+# Sole trace backend — Jaeger v2 was removed 2026-04-21 (ADR-010 / ADR-025).
+# The OTel gateway exports traces only to `otlp/tempo` (see
+# opentelemetry/collectors.yaml); the previous `otlp/jaeger` fan-out is gone.
+#
+# Deployment topology: Tempo chart 1.24.0 is single-binary-only by design
+# (compactor + ingester + querier colocated in one StatefulSet pod) —
+# sufficient for platform scale.  Scale-out path: migrate to chart
+# `tempo-distributed` (separate Helm release, separate chart) when trace
+# volume exceeds ~10k spans/s sustained.
+#
+# Schema note (2026-04-21 audit §18.3.e / Task #16):
+#   The previous revision used `image.*`, `singleBinary.*`, `structuredConfig`,
+#   `gateway`, and `serviceMonitor.labels` — none of which exist in chart
+#   1.24.0.  Helm silently drops unknown value keys, so Argo reported
+#   "Synced" while the live STS rendered from chart defaults (no resources,
+#   no PVC, no S3 creds, and the placeholder `grafana/tempo-query` deploy).
+#   Rewritten below to chart 1.24.0 schema (see helm pull grafana/tempo
+#   --version 1.24.0 values.yaml):
+#     • `tempo.*` shortcuts (repository, tag, resources, extraArgs,
+#       extraEnvFrom, storage, receivers, metricsGenerator, overrides,
+#       retention, ingester, server).
+#     • Top-level `replicas`, `persistence`, `serviceMonitor.additionalLabels`,
+#       `priorityClassName`.
+#   Chart 1.24.x ships Tempo appVersion 2.9.0 — pin `tempo.tag: "2.9.0"`
+#   explicitly so the image can never drift away from the chart-tested pair
+#   on a lazy `targetRevision` bump.  (No chart ships 2.10.x yet; a forced
+#   tag override would re-introduce the exact anti-pattern we're fixing.)
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: tempo
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    # Chart 1.24.4 (2026-01-30) bundles Tempo appVersion 2.9.0 — latest 1.24.x patch in helm repo.
+    targetRevision: 1.24.4
+    helm:
+      releaseName: tempo
+      values: |
+        # ---------------------------------------------------------------------
+        # Pod-level topology (top-level keys — NOT under tempo.*)
+        # ---------------------------------------------------------------------
+        replicas: 1
+        priorityClassName: system-cluster-critical
+        # Persistent WAL + metrics-generator scratch.  Without a PVC the
+        # 14-day retention WAL and span-metrics buffers land on the pod's
+        # ephemeral filesystem — a restart replays/loses spans.  The chart's
+        # default is `persistence.enabled: false`; we override because
+        # Tempo-as-trace-of-record needs durable WAL across pod churn.
+        persistence:
+          enabled: true
+          accessModes: [ReadWriteOnce]
+          size: 5Gi # Single-pod bootstrap; bump for production load.
+          # local-path is the only storage class on this single-node platform
+          # (ADR-031). Pod is pinned to the node holding the hostPath dir —
+          # acceptable on a 1-node cluster; revisit if scaled out.
+          storageClassName: local-path
+          # k8s 1.23+: delete the PVC when the STS is deleted/scaled to 0.
+          # Keeps the cluster tidy on re-install; the data is in MinIO
+          # anyway (WAL is a transient flush buffer).
+          enableStatefulSetAutoDeletePVC: true
+        serviceMonitor:
+          enabled: true
+          # kube-prometheus-stack's Prometheus selector matches
+          # `release: kube-prometheus-stack`.  Chart key is
+          # `additionalLabels`, not `labels`.
+          additionalLabels:
+            release: kube-prometheus-stack
+        # ---------------------------------------------------------------------
+        # Container-level (`tempo.*`) — matches chart 1.24.0 values schema
+        # ---------------------------------------------------------------------
+        tempo:
+          repository: grafana/tempo
+          # Pin to the chart-tested pair (chart 1.24.0 ships 2.9.0).  If
+          # `targetRevision` bumps to a 1.25+ chart with a newer appVersion,
+          # revisit both together.  Explicit > inherited for reproducibility.
+          tag: "2.9.0"
+          pullPolicy: IfNotPresent
+          # Required by the platform-wide `require-resource-limits`
+          # ValidatingPolicy (Kyverno 1.17 / ADR-012).  Chart default is
+          # `resources: {}`, which would trip the policy on admission.
+          resources:
+            requests: { cpu: 100m, memory: 256Mi } # Single-node lab; bump for production load.
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          memBallastSizeMbs: 1024
+          multitenancyEnabled: false
+          reportingEnabled: false
+          # --- Retention & compaction ---------------------------------------
+          # 14-day block retention.  Chart shortcut sets
+          # `compactor.compaction.block_retention` directly.
+          retention: 336h
+          # --- Ingester tuning ----------------------------------------------
+          # Raw config passed through via `toYaml .Values.tempo.ingester`.
+          # Short idle/flush windows keep span-metrics near-real-time for
+          # trace-to-metrics dashboards in Grafana.
+          ingester:
+            max_block_duration: 5m
+            trace_idle_period: 10s
+            flush_check_period: 10s
+          # --- Receivers -----------------------------------------------------
+          # Platform speaks OTLP end-to-end (OTel gateway → Tempo).  We only
+          # configure the OTLP listener; jaeger/zipkin/opencensus ports are
+          # hardcoded in the chart's StatefulSet template so they still bind,
+          # but the OTel gateway does not send to them.
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                  max_recv_msg_size_mib: 32
+                http:
+                  endpoint: 0.0.0.0:4318
+          # --- Metrics generator (RED metrics → Prometheus) ------------------
+          # Enables Tempo's span-metrics + service-graphs processors and
+          # remote-writes aggregated metrics to the cluster Prometheus.
+          metricsGenerator:
+            enabled: true
+            remoteWriteUrl: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+          # --- Overrides (activate metrics_generator per-tenant) -------------
+          # Required for the generator to actually emit metrics — presence of
+          # the feature-flag block on `overrides.defaults` is what Tempo
+          # checks at runtime (see grafana/tempo-helm/values.yaml example).
+          overrides:
+            defaults:
+              metrics_generator:
+                processors: [service-graphs, span-metrics]
+          # --- Storage backend (MinIO S3) ------------------------------------
+          # The chart's `config:` template renders ${S3_ACCESS_KEY} and
+          # ${S3_SECRET_KEY} literally into /conf/tempo.yaml — Tempo does
+          # NOT expand env vars in its YAML unless `-config.expand-env=true`
+          # is passed on the CLI (see `extraArgs` below).  Without that flag
+          # trace writes 403 silently (HTTP probe still green — same failure
+          # class as §18.3.a pyroscope; Tempo's S3 client has no
+          # `native_aws_auth_enabled` escape hatch, so the additive CLI flag
+          # is the correct fix).
+          storage:
+            trace:
+              backend: s3
+              wal:
+                path: /var/tempo/wal
+              s3:
+                endpoint: minio.storage.svc.cluster.local:9000
+                bucket: tempo-traces
+                access_key: ${S3_ACCESS_KEY}
+                secret_key: ${S3_SECRET_KEY}
+                insecure: true
+                forcepathstyle: true
+          # --- CLI args ------------------------------------------------------
+          # `config.expand-env=true` is required for the `${S3_*}` env-var
+          # placeholders in `storage.trace.s3.*` above to resolve.  Chart
+          # iterates this map as `-{key}{=value|}` and appends to args.
+          extraArgs:
+            config.expand-env: "true"
+          # --- S3 credential injection --------------------------------------
+          # `envFrom.secretRef` pulls S3_ACCESS_KEY / S3_SECRET_KEY from the
+          # ExternalSecret-materialised `tempo-s3-credentials` Secret below.
+          extraEnvFrom:
+            - secretRef:
+                name: tempo-s3-credentials
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+# =============================================================================
+# S3 credentials (MinIO) — sourced from OpenBao via ExternalSecret (ADR-008).
+# Reuses the platform `minio-root` credentials already provisioned by the
+# OpenBao bootstrap Job (secret/platform/minio/root) — same pattern that
+# Velero, Loki, and MLflow consume.  Dedicated policy-scoped MinIO users
+# per service are a future hardening step (ADR-008 §Rotation).
+# The Helm chart reads S3_ACCESS_KEY / S3_SECRET_KEY env vars and substitutes
+# them into the `storage.trace.s3.access_key/secret_key` config values above
+# (requires `-config.expand-env=true`, set via tempo.extraArgs).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tempo-s3-credentials
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: tempo
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: tempo-s3-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: S3_ACCESS_KEY
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: S3_SECRET_KEY
+      remoteRef: { key: platform/minio/root, property: password }

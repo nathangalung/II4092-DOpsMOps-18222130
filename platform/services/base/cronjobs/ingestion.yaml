@@ -1,0 +1,46 @@
+# =============================================================================
+# INGESTION — Hourly REST API Polling (Go)
+# =============================================================================
+# Polls REST API for time-series data → Kafka.
+# Schema validation via Karapace schema registry.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingestion-hourly
+  labels:
+    app: rest-collector
+    schedule: hourly
+spec:
+  schedule: "0 * * * *" # Every hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: rest-collector
+            job-type: scheduled
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/app/rest-collector"]
+              args: []
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: secrets
+    # Istio sidecar (istio-validation/istio-proxy init containers) violates
+    # PodSecurity "restricted" because the upstream istio-proxy image does not
+    # set seccompProfile, which is required at the pod level here. Keep ESO
+    # out of the mesh — the operator talks to OpenBao and the kube-apiserver,
+    # both of which already use TLS. Re-enable per-pod via annotation if a
+    # specific ExternalSecret needs mesh-mediated egress.
+    istio-injection: disabled

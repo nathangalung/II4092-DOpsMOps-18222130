@@ -1,0 +1,111 @@
+# =============================================================================
+# APISIX 3.16 — Standalone mode (no etcd), TLS 1.3, OIDC via Dex
+# =============================================================================
+# ADR-002 + KNF-07.  Listeners:
+#   9080  HTTP    — internal mesh traffic (Istio sidecar terminates TLS).
+#   9443  HTTPS   — external traffic (TLS 1.3, cert from platform-ca issuer).
+#   9180  ADMIN   — control plane (cluster-local only).
+#
+# Plugins: openid-connect (Dex), spicedb (authz), opentelemetry, prometheus,
+# key-auth, limit-req/count, cors, proxy-rewrite, ip-restriction.
+#
+# TLS-cipher note: nginx `ssl_ciphers` (= APISIX `ssl.ssl_ciphers`) is the
+# OpenSSL TLS 1.2-and-below cipher list. TLS 1.3 ciphersuites are controlled
+# separately via `SSL_CTX_set_ciphersuites` (default
+# TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256).
+# Passing those names to `ssl_ciphers` in OpenSSL 3.x crashes the worker with
+# `error:0A0000B9:SSL routines::no cipher match`. Since we lock to TLSv1.3,
+# we drop `ssl_ciphers` entirely — the OpenSSL 3.x TLS 1.3 defaults are the
+# same three suites, so behavior is unchanged.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-config
+  namespace: security
+data:
+  config.yaml: |
+    deployment:
+      role: data_plane
+      role_data_plane:
+        config_provider: yaml
+
+    apisix:
+      node_listen:
+        - port: 9080
+      ssl:
+        enable: true
+        listen:
+          - port: 9443
+            enable_http3: true
+        ssl_protocols: TLSv1.3
+        ssl_session_tickets: false
+      admin_listen:
+        - port: 9180
+      enable_control: true
+      control:
+        ip: "0.0.0.0"
+        port: 9090
+      real_ip_header: X-Forwarded-For
+      real_ip_recursive: "on"
+      real_ip_from:
+        - 0.0.0.0/0
+      dns_resolver:
+        - 10.43.0.10
+
+    plugins:
+      - real-ip
+      - key-auth
+      - openid-connect
+      - limit-req
+      - limit-count
+      - cors
+      - proxy-rewrite
+      - response-rewrite
+      - ip-restriction
+      - serverless-pre-function
+      - serverless-post-function
+      - prometheus
+      - opentelemetry
+      - file-logger
+      - http-logger
+
+    plugin_attr:
+      prometheus:
+        export_addr:
+          ip: "0.0.0.0"
+          port: 9091
+      opentelemetry:
+        trace_id_source: x-request-id
+        resource:
+          service.name: apisix
+        collector:
+          address: otel-collector.observability.svc.cluster.local:4317
+          request_timeout: 3
+    #END
+---
+# TLS certificate for the HTTPS listener (port 9443). Issued from the
+# platform-ca ClusterIssuer.  APISIX pod mounts this Secret at /usr/local/apisix/ssl.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apisix-tls
+  namespace: security
+  labels:
+    app: apisix
+spec:
+  secretName: apisix-tls
+  duration: 2160h       # 90 days
+  renewBefore: 360h     # 15 days
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+  commonName: apisix.platform.local
+  dnsNames:
+    - apisix.platform.local
+    - apisix.security.svc.cluster.local
+    - "*.api.platform.local"
+  issuerRef:
+    name: platform-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

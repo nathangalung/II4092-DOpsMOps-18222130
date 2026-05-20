@@ -1,0 +1,224 @@
+# KServe Webhook Components for model-serving namespace
+# These components are required for KServe controller to function properly
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kserve-webhook-server-secret
+  namespace: model-serving
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kserve-webhook-server-service
+  namespace: model-serving
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+    control-plane: kserve-controller-manager
+spec:
+  ports:
+  - port: 443
+    targetPort: webhook-server
+    protocol: TCP
+    name: webhook-server
+  selector:
+    control-plane: kserve-controller-manager
+  type: ClusterIP
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: model-serving
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: serving-cert
+  namespace: model-serving
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+spec:
+  commonName: kserve-webhook-server-service.model-serving.svc
+  dnsNames:
+  - kserve-webhook-server-service.model-serving.svc
+  - kserve-webhook-server-service.model-serving.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+  secretName: kserve-webhook-server-cert
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: kserve-inference-service-mutator
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+  annotations:
+    cert-manager.io/inject-ca-from: model-serving/serving-cert
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /mutate-serving-kserve-io-v1beta1-inferenceservice
+  failurePolicy: Ignore
+  name: inferenceservice.kserve-webhook-server.defaulter
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - inferenceservices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /mutate-pods
+  failurePolicy: Ignore
+  name: inferenceservice.kserve-webhook-server.pod-mutator
+  namespaceSelector:
+    matchExpressions:
+    - key: control-plane
+      operator: DoesNotExist
+  # KServe v0.13 PredictorReconciler labels its pod template
+  # `app: isvc.<isvc-name>-<component>` (e.g. `isvc.platform-health-check-
+  # predictor`), NOT `app: isvc-workload` — the upstream chart's default
+  # objectSelector therefore filters out every actual InferenceService pod
+  # and skips storage-initializer + agent injection. Result: predictor pod
+  # comes up with no `/mnt/models` content and mlserver crashes with
+  # `InvalidModelURI: Invalid URI specified for model … (/mnt/models)`.
+  # Fix: select on `serving.kserve.io/inferenceservice` (always set by the
+  # PredictorReconciler), which is also far more specific than the broad
+  # `app: isvc-workload` placeholder. Field-validated 2026-05-07.
+  objectSelector:
+    matchExpressions:
+      - key: serving.kserve.io/inferenceservice
+        operator: Exists
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kserve-validation
+  labels:
+    app: kserve
+    app.kubernetes.io/name: kserve
+  annotations:
+    cert-manager.io/inject-ca-from: model-serving/serving-cert
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /validate-serving-kserve-io-v1beta1-inferenceservice
+  failurePolicy: Ignore
+  name: inferenceservice.kserve-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - inferenceservices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /validate-serving-kserve-io-v1alpha1-clusterservingruntime
+  failurePolicy: Ignore
+  name: clusterservingruntime.kserve-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterservingruntimes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /validate-serving-kserve-io-v1alpha1-servingruntime
+  failurePolicy: Ignore
+  name: servingruntime.kserve-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - servingruntimes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: kserve-webhook-server-service
+      namespace: model-serving
+      path: /validate-serving-kserve-io-v1alpha1-trainedmodel
+  failurePolicy: Ignore
+  name: trainedmodel.kserve-webhook-server.validator
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - trainedmodels
+  sideEffects: None

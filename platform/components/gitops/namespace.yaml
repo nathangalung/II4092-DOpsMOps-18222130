@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops
+  labels:
+    # Gitea rootful image (s6-overlay supervisor) requires root briefly during
+    # init — see deployment.yaml:50-65. enforce=baseline lets it pass; warn set
+    # to baseline (not restricted) because the kubectl-side restricted warning
+    # duplicates the kyverno require-run-as-nonroot Audit PolicyReport without
+    # adding signal. audit=restricted retained for compliance logging.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: baseline
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: gitops
+    # ArgoCD components use internal mTLS between repo-server / app-controller /
+    # redis; istio-proxy sidecar mTLS conflicts and breaks the gRPC handshake
+    # ("transport: authentication handshake failed: EOF"). Keep gitops out of
+    # the mesh — argocd-server external traffic is exposed via Istio Gateway
+    # at the platform/components/security/istio layer instead.
+    istio-injection: disabled

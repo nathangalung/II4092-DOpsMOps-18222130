@@ -1,0 +1,99 @@
+# =============================================================================
+# Evidently 0.7 — data + model drift reports (UI + API)
+# =============================================================================
+# Workspace on PVC (local-path, ADR-031) so drift reports survive pod restarts.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: evidently
+  namespace: observability
+  labels: { app: evidently }
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  selector: { app: evidently }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: evidently-workspace
+  namespace: observability
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: evidently
+  namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evidently
+  namespace: observability
+  labels:
+    app: evidently
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: evidently } }
+  template:
+    metadata: { labels: { app: evidently } }
+    spec:
+      serviceAccountName: evidently
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: evidently
+          image: evidently/evidently-service:0.7.21
+          imagePullPolicy: IfNotPresent
+          command: ["evidently", "ui", "--host", "0.0.0.0", "--port", "8000", "--workspace", "/app/workspace"]
+          ports:
+            - { containerPort: 8000, name: http }
+          env:
+            - name: EVIDENTLY_WORKSPACE
+              value: "/app/workspace"
+          volumeMounts:
+            - { name: workspace, mountPath: /app/workspace }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+          readinessProbe:
+            httpGet: { path: /, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: workspace
+          persistentVolumeClaim: { claimName: evidently-workspace }
+---
+# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# eviction. minAvailable=1 with replicas=1 deadlocks drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: evidently
+  namespace: observability
+spec:
+  maxUnavailable: 1
+  selector: { matchLabels: { app: evidently } }

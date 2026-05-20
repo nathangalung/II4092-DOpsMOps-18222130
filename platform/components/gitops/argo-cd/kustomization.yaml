@@ -1,0 +1,100 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gitops
+
+# Argo CD v3.3.6 (2026).
+#   - install.yaml:     upstream release manifest — reconciled by the
+#                       `platform-gitops` Application (kustomize-source,
+#                       picks up this directory through the parent
+#                       `platform/components/gitops/kustomization.yaml`).
+#
+# `app-of-apps.yaml` is INTENTIONALLY excluded from this resources list. It
+# is the bootstrap of ArgoCD's own AppProject + self-managed root
+# Application + the `platform-components` ApplicationSet. Those resources
+# are claimed by the `app-of-apps` Application (defined in
+# `app-of-apps.yaml` itself) which uses a *directory* source with
+# `include: app-of-apps.yaml` — i.e. it reads the raw YAML straight from
+# git, not via kustomize. Adding it here as a resource would re-emit
+# AppProject/platform + ApplicationSet/platform-components under the
+# `platform-gitops` Application as well, producing `SharedResourceWarning`
+# (verified 2026-05-11 — flipped platform-gitops Degraded forever). The
+# file remains on disk; `make install-argo-cd` applies it once via
+# `kubectl apply -f app-of-apps.yaml` after kustomize-build of this dir,
+# bootstrapping the loop.
+resources:
+  - install.yaml
+
+# Strategic-merge patches over upstream install.yaml.
+#
+# argocd-cm-patch.yaml — `kustomize.buildOptions: --enable-helm` so the
+#   repo-server can render components/common/keda, components/security/
+#   external-secrets, components/observability/* (all use `helmCharts:`).
+#
+# argocd-{server,repo-server,application-controller}-patch.yaml — overrides:
+#     - resources:        Kyverno require-resource-limits rejected upstream
+#                         pods (no requests/limits set) — admission-blocked
+#                         every restart; controller separately OOMed at 1Gi
+#                         while reconciling 23 platform-* Apps in parallel.
+#     - strategy:Recreate Single-replica only — RollingUpdate would briefly
+#                         schedule a second pod and Kyverno serialises pod
+#                         creation behind the validating webhook (which is
+#                         this very repo-server!), causing self-deadlock.
+#     - imagePullPolicy:  IfNotPresent.  Air-gap-tolerant — upstream's
+#                         `Always` triggers a HEAD against quay.io on every
+#                         restart and `lookup quay.io: Try again` flips a
+#                         cached pod into ImagePullBackOff (verified
+#                         2026-05-07 on argocd-server restart cascade).
+#     - readOnlyRootFs +  Hardens the upstream pod spec; restricted PSA on
+#       drop ALL caps     gitops namespace would reject otherwise.
+#
+# Kustomize disallows multi-doc patch files when a `target` selector is set,
+# so each resource lives in its own single-doc file (no `target` needed —
+# metadata.name + kind in the patch already select the upstream resource).
+patches:
+  # Defaults batch FIRST — applies to every argocd Deployment.  Adds a small
+  # resources block (Kyverno require-resource-limits rejects pods with none)
+  # and flips imagePullPolicy to IfNotPresent (air-gap tolerant).  The three
+  # strategic-merge patches BELOW override resources for argocd-server /
+  # repo-server / application-controller with their tuned sizes; the four
+  # side-controllers (dex, redis, applicationset, notifications) keep these
+  # defaults — the workloads are tiny.
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/part-of=argocd
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  # dex-server has a `copyutil` initContainer (copies argocd binary to a
+  # shared volume) — initContainers live at a different JSON path so the
+  # labelSelector batch above doesn't reach them.
+  - target:
+      kind: Deployment
+      name: argocd-dex-server
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/imagePullPolicy
+        value: IfNotPresent
+      - op: add
+        path: /spec/template/spec/initContainers/0/resources
+        value:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+  - path: argocd-cm-patch.yaml
+  - path: argocd-server-patch.yaml
+  - path: argocd-repo-server-patch.yaml
+  - path: argocd-application-controller-patch.yaml

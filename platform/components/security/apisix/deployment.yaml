@@ -1,0 +1,212 @@
+# =============================================================================
+# Apache APISIX — high-performance API Gateway (replaces Kong)
+# =============================================================================
+# Standalone YAML mode (no etcd) per ADR-002.  140-220% faster than Kong,
+# O(k) routing, ms-level config sync. Apache 2.0 license, CNCF Top-Level.
+#
+# Image: 3.16.0-debian (latest stable, 2026-04-13 — verified via Docker Hub
+# tag listing.  Earlier 3.15.0 was the prior pin; 3.16.0 ships compatible
+# YAML schema and OpenSSL 3.x updates).
+#
+# Conf-dir handling: APISIX writes nginx.conf, logs, and runtime state into
+# /usr/local/apisix/{conf,logs,client_body_temp,proxy_temp,...} at startup.
+# In the apache/apisix:3.16.0-debian image, /usr/local/apisix is owned by
+# the built-in `apisix` user (UID/GID 636 — verified via `getent passwd
+# apisix` against the running image). Running the pod as anything else
+# (we previously used 1000) leaves /usr/local/apisix mode 0755 owned by
+# 636:636, so the apisix process cannot mkdir client_body_temp/proxy_temp
+# etc. lazily at startup and nginx aborts with `mkdir() ... Permission
+# denied` (Task #105 / 2026-04-28). PSA restricted only requires
+# runAsNonRoot=true, so UID 636 is fine. The conf dir is still mounted
+# as an emptyDir + seed-conf init container (the image's conf dir is
+# read-only after the chown chain in the Dockerfile), but the rest of
+# the install dir is left intact and writable for runtime temp paths.
+# fsGroup=636 so the kubelet chowns mounted emptyDir volumes to GID 636.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix
+  namespace: security
+spec:
+  ports:
+    - port: 8000
+      name: proxy
+      targetPort: 9080
+    - port: 8001
+      name: admin
+      targetPort: 9180
+  selector:
+    app: apisix
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apisix
+  namespace: security
+  labels:
+    app: apisix
+    app.kubernetes.io/name: apisix
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  # Recreate strategy: with replicas=1 (single-node bootstrap), RollingUpdate +
+  # PDB maxUnavailable=0 deadlocks — new pod cannot schedule alongside old
+  # without violating PDB; old cannot terminate while new is not ready. Recreate
+  # tears down first, then starts the replacement. Switch back to RollingUpdate
+  # once replicas≥2.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: apisix
+  template:
+    metadata:
+      labels:
+        app: apisix
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 636 = the apache/apisix:debian image's built-in `apisix` user. Match
+        # the image so /usr/local/apisix (mode 0755 owned by 636:636) is
+        # writable for runtime-created temp dirs.
+        runAsUser: 636
+        runAsGroup: 636
+        fsGroup: 636
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Seed the writable conf emptyDir from the image's prepackaged
+        # /usr/local/apisix/conf (debug.yaml, mime.types, cert/ etc) so the
+        # main APISIX process boots with a complete config tree, then layer
+        # the platform-managed config.yaml and apisix.yaml on top.
+        - name: seed-conf
+          image: apache/apisix:3.16.0-debian
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              # `cp -a` and `tar x` both fail with "Operation not
+              # permitted" on the fsGroup-chowned emptyDir root: setting
+              # utime/sgid on `.` requires CAP_FOWNER/CAP_FSETID, dropped
+              # by capabilities.drop:[ALL]. A bare-bones recursive copy
+              # that creates dirs + copies file contents (no metadata
+              # preservation) sidesteps both: the kubelet has already
+              # established `/seed` with the correct group ownership and
+              # write bits via fsGroup, and APISIX only needs the file
+              # contents + default mode bits to operate.
+              cd /usr/local/apisix/conf
+              find . -mindepth 1 -type d -exec mkdir -p /seed/{} \;
+              find . -mindepth 1 -type f -exec cp {} /seed/{} \;
+              cp /cm/config.yaml /seed/config.yaml
+              cp /routes/apisix.yaml /seed/apisix.yaml
+              echo "seeded conf dir contents:"
+              ls -la /seed | head -20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - { name: apisix-conf-rw, mountPath: /seed }
+            - { name: apisix-config-cm, mountPath: /cm, readOnly: true }
+            - { name: apisix-routes,    mountPath: /routes, readOnly: true }
+      containers:
+        - name: apisix
+          image: apache/apisix:3.16.0-debian
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # APISIX writes /usr/local/openresty/nginx/logs etc
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 9080
+              name: proxy
+            - containerPort: 9180
+              name: admin
+            - containerPort: 9443
+              name: proxy-tls
+            - containerPort: 9090
+              name: control
+            - containerPort: 9091
+              name: prom-metrics
+          env:
+            - name: APISIX_STAND_ALONE
+              value: "true"
+          volumeMounts:
+            # Single writable conf dir; init container has already seeded it
+            # with the image defaults plus the ConfigMap + Secret overlays.
+            - { name: apisix-conf-rw, mountPath: /usr/local/apisix/conf }
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          # APISIX 3.16 does NOT expose /apisix/status or /apisix/status/ready.
+          # Verified inside running container 2026-04-28: every variant of
+          # /apisix/status* returns 404 on every port; only
+          # /apisix/prometheus/metrics on :9091 returns 200. The control API
+          # (:9090) only exposes /v1/* routes (schema, healthcheck for
+          # upstreams, gc, etc.). For liveness we use a TCP probe on the
+          # proxy port (9080) — nginx accepting connections is the canonical
+          # alive signal. For readiness we hit the prometheus metrics
+          # endpoint (200 only after `init_worker_by_lua` has finished
+          # loading every plugin), which is the closest stand-in for
+          # "ready to serve traffic". Startup uses the same metrics endpoint
+          # with a generous failureThreshold to absorb cold-start lua jit.
+          startupProbe:
+            httpGet:
+              path: /apisix/prometheus/metrics
+              port: 9091
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /apisix/prometheus/metrics
+              port: 9091
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: apisix-conf-rw
+          emptyDir: {}
+        - name: apisix-config-cm
+          configMap:
+            name: apisix-config
+        # apisix-routes is rendered by ESO from OpenBao (platform/apisix/default-key)
+        # — see components/security/apisix/externalsecret-routes.yaml.
+        - name: apisix-routes
+          secret:
+            secretName: apisix-routes
+            defaultMode: 0400
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: apisix
+  namespace: security
+  labels:
+    app: apisix
+spec:
+  # Single-node single-replica: maxUnavailable=1 permits voluntary eviction.
+  # minAvailable=1 with replicas=1 deadlocks drains. Pattern aligned with all
+  # other PDBs in the platform for consistency.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: apisix

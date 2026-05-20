@@ -1,0 +1,1454 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: serviceaccount
+    app.kubernetes.io/part-of: jobset
+  name: jobset-controller-manager
+  namespace: model-lifecycle
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubeflow-trainer-controller-manager
+  namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: leader-election-role
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: role
+    app.kubernetes.io/part-of: jobset
+  name: jobset-leader-election-role
+  namespace: model-lifecycle
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jobset-manager-role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - jobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - jobset.x-k8s.io
+    resources:
+      - jobsets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - jobset.x-k8s.io
+    resources:
+      - jobsets/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - jobset.x-k8s.io
+    resources:
+      - jobsets/status
+    verbs:
+      - get
+      - patch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: metrics-reader
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: jobset
+  name: jobset-metrics-reader
+rules:
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: proxy-role
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: jobset
+  name: jobset-proxy-role
+rules:
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+---
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.authorization.kubeflow.org/aggregate-to-kubeflow-trainer-admin: "true"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin: "true"
+  name: kubeflow-trainer-admin
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeflow-trainer-controller-manager
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - secrets
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - limitranges
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - list
+      - update
+  - apiGroups:
+      - jobset.x-k8s.io
+    resources:
+      - jobsets
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - node.k8s.io
+    resources:
+      - runtimeclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - scheduling.volcano.sh
+      - scheduling.x-k8s.io
+    resources:
+      - podgroups
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - clustertrainingruntimes
+      - trainingruntimes
+      - trainjobs
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - clustertrainingruntimes/finalizers
+      - trainingruntimes/finalizers
+      - trainjobs/finalizers
+      - trainjobs/status
+    verbs:
+      - get
+      - patch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: "true"
+    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-trainer-admin: "true"
+  name: kubeflow-trainer-edit
+rules:
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - clustertrainingruntimes
+      - trainingruntimes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - trainjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - trainjobs/status
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - pods/log
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-view: "true"
+  name: kubeflow-trainer-view
+rules:
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - clustertrainingruntimes
+      - trainingruntimes
+      - trainjobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - trainjobs/status
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: leader-election-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: rolebinding
+    app.kubernetes.io/part-of: jobset
+  name: jobset-leader-election-rolebinding
+  namespace: model-lifecycle
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jobset-leader-election-role
+subjects:
+  - kind: ServiceAccount
+    name: jobset-controller-manager
+    namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: manager-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrolebinding
+    app.kubernetes.io/part-of: jobset
+  name: jobset-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jobset-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: jobset-controller-manager
+    namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jobset-metrics-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jobset-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: jobset-controller-manager
+    namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: proxy-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrolebinding
+    app.kubernetes.io/part-of: jobset
+  name: jobset-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jobset-proxy-role
+subjects:
+  - kind: ServiceAccount
+    name: jobset-controller-manager
+    namespace: model-lifecycle
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubeflow-trainer-controller-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubeflow-trainer-controller-manager
+subjects:
+  - kind: ServiceAccount
+    name: kubeflow-trainer-controller-manager
+    namespace: model-lifecycle
+---
+apiVersion: v1
+data:
+  controller_manager_config.yaml: |
+    apiVersion: config.jobset.x-k8s.io/v1alpha1
+    kind: Configuration
+    # Bump leader-election timings — controller-runtime defaults (15s/10s/2s)
+    # are too tight under K3s kine pressure. Lease-renewal HTTP uses a 5s
+    # client-go timeout against API server; under pressure those time out →
+    # controller exits with `leader election lost` → SystemD restart → lease
+    # still held by dead pod for 15s → API thrash. 60/40/10 keeps lease alive
+    # across multi-second API stalls. Same pattern as ESO/kueue/spark
+    # (#216 leader-elect storm fix).
+    leaderElection:
+      leaderElect: true
+      leaseDuration: 60s
+      renewDeadline: 40s
+      retryPeriod: 10s
+    # cert-manager Certificate (jobset-webhook-server-cert below) owns the
+    # webhook Secret. Setting enable=true here makes the controller ALSO
+    # rotate the cert in-process — both managers race on the same Secret,
+    # producing a renewal loop (~12 rev/min observed via Secret managedFields).
+    # Disable internal management; cert-manager is the platform-wide standard.
+    internalCertManagement:
+      enable: false
+kind: ConfigMap
+metadata:
+  name: jobset-manager-config
+  namespace: model-lifecycle
+---
+apiVersion: v1
+data:
+  controller_manager_config.yaml: |
+    apiVersion: config.trainer.kubeflow.org/v1alpha1
+    kind: Configuration
+    # Health configuration
+    health:
+      healthProbeBindAddress: :8081
+      readinessEndpointName: readyz
+      livenessEndpointName: healthz
+
+    # Metrics configuration
+    metrics:
+      bindAddress: :8443
+      secureServing: true
+
+    # Webhook configuration
+    webhook:
+      port: 9443
+      host: ""
+
+    # Leader election configuration — bump from defaults (15/10/2) to keep
+    # lease alive across K3s kine API stalls. Same pattern as ESO/kueue/spark
+    # (#216 leader-elect storm fix). 60/40/10 keeps lease intact during
+    # multi-second renewal HTTP timeouts without slowing failover past a
+    # minute (single replica → no contender anyway).
+    leaderElection:
+      leaderElect: true
+      resourceName: trainer.kubeflow.org
+      resourceNamespace: ""
+      leaseDuration: 60s
+      renewDeadline: 40s
+      retryPeriod: 10s
+
+    # Controller configuration
+    controller:
+      groupKindConcurrency:
+        TrainJob.trainer.kubeflow.org: 5
+        TrainingRuntime.trainer.kubeflow.org: 1
+        ClusterTrainingRuntime.trainer.kubeflow.org: 1
+
+    # Certificate management configuration
+    # cert-manager Certificate (kubeflow-trainer-webhook-cert below) owns the
+    # webhook Secret. Setting enable=true here makes the controller ALSO
+    # rotate it in-process — both managers race, producing a renewal loop.
+    # Disable internal management; cert-manager is the platform-wide standard.
+    certManagement:
+      enable: false
+      webhookServiceName: kubeflow-trainer-controller-manager
+      webhookSecretName: kubeflow-trainer-webhook-cert
+
+    # Client connection configuration
+    clientConnection:
+      qps: 50
+      burst: 100
+kind: ConfigMap
+metadata:
+  name: kubeflow-trainer-config
+  namespace: model-lifecycle
+---
+# Self-signed issuer for jobset webhook certs
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: jobset-selfsigned-issuer
+  namespace: model-lifecycle
+spec:
+  selfSigned: {}
+---
+# Certificate for jobset webhook
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jobset-webhook-cert
+  namespace: model-lifecycle
+spec:
+  commonName: jobset-webhook-cert
+  dnsNames:
+    - jobset-webhook-service
+    - jobset-webhook-service.model-lifecycle
+    - jobset-webhook-service.model-lifecycle.svc
+    - jobset-webhook-service.model-lifecycle.svc.cluster.local
+  isCA: true
+  issuerRef:
+    kind: Issuer
+    name: jobset-selfsigned-issuer
+  secretName: jobset-webhook-server-cert
+---
+# Certificate for kubeflow-trainer webhook
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kubeflow-trainer-webhook-cert
+  namespace: model-lifecycle
+spec:
+  commonName: kubeflow-trainer-webhook-cert
+  dnsNames:
+    - kubeflow-trainer-controller-manager
+    - kubeflow-trainer-controller-manager.model-lifecycle
+    - kubeflow-trainer-controller-manager.model-lifecycle.svc
+    - kubeflow-trainer-controller-manager.model-lifecycle.svc.cluster.local
+  isCA: true
+  issuerRef:
+    kind: Issuer
+    name: jobset-selfsigned-issuer
+  secretName: kubeflow-trainer-webhook-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: jobset
+    control-plane: controller-manager
+  name: jobset-controller-manager-metrics-service
+  namespace: model-lifecycle
+spec:
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: webhook-service
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: service
+    app.kubernetes.io/part-of: jobset
+  name: jobset-webhook-service
+  namespace: model-lifecycle
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubeflow-trainer-controller-manager
+  namespace: model-lifecycle
+spec:
+  ports:
+    - name: monitoring-port
+      port: 8080
+      targetPort: 8080
+    - name: webhook-server
+      port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    app.kubernetes.io/component: manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/part-of: jobset
+    control-plane: controller-manager
+  name: jobset-controller-manager
+  namespace: model-lifecycle
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      containers:
+        - args:
+            - --config=/controller_manager_config.yaml
+            - --zap-log-level=2
+          command:
+            - /manager
+          image: registry.k8s.io/jobset/jobset:v0.11.1
+          # Default timeoutSeconds=1 fails under kine apiserver latency on
+          # single-node k3s — pod restarts ~34 times in 12h with
+          # "Liveness probe failed: context deadline exceeded". Bump to 10s
+          # and lift initialDelay/period so the manager has room to settle
+          # after leader-elect + webhook cert watch boot.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          name: manager
+          ports:
+            - containerPort: 8443
+              name: metrics
+              protocol: TCP
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 200m
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /controller_manager_config.yaml
+              name: manager-config
+              subPath: controller_manager_config.yaml
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: jobset-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - configMap:
+            name: jobset-manager-config
+          name: manager-config
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: jobset-webhook-server-cert
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/name: trainer
+    app.kubernetes.io/part-of: kubeflow
+  name: kubeflow-trainer-controller-manager
+  namespace: model-lifecycle
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: manager
+      app.kubernetes.io/name: trainer
+      app.kubernetes.io/part-of: kubeflow
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: manager
+        app.kubernetes.io/name: trainer
+        app.kubernetes.io/part-of: kubeflow
+    spec:
+      containers:
+        - args:
+            - --config=/controller_manager_config.yaml
+            - --zap-log-level=2
+          image: ghcr.io/kubeflow/trainer/trainer-controller-manager:v2.2.0
+          # See jobset comment above — same kine-pressure restart pattern
+          # (36 restarts/12h with /healthz context deadline). 10s timeout +
+          # longer initialDelay gives the trainer manager room to settle
+          # under single-node kine apiserver latency.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          name: manager
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          # Single-pod bootstrap; bump for production load.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /controller_manager_config.yaml
+              name: kubeflow-trainer-config
+              readOnly: true
+              subPath: controller_manager_config.yaml
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      serviceAccountName: kubeflow-trainer-controller-manager
+      volumes:
+        - configMap:
+            name: kubeflow-trainer-config
+          name: kubeflow-trainer-config
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: kubeflow-trainer-webhook-cert
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: deepspeed
+  name: deepspeed-distributed
+spec:
+  mlPolicy:
+    mpi:
+      mpiImplementation: OpenMPI
+      numProcPerNode: 1
+      runLauncherAsNode: true
+      sshAuthMountPath: /home/mpiuser/.ssh
+    numNodes: 1
+  template:
+    spec:
+      network:
+        publishNotReadyAddresses: true
+      replicatedJobs:
+        - name: launcher
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - image: ghcr.io/kubeflow/trainer/deepspeed-runtime:v0.4.0
+                      name: node
+                      securityContext:
+                        runAsUser: 1000
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - args:
+                        - -De
+                        - -f
+                        - /home/mpiuser/.sshd_config
+                      command:
+                        - /usr/sbin/sshd
+                      image: ghcr.io/kubeflow/trainer/deepspeed-runtime:v0.4.0
+                      name: node
+                      readinessProbe:
+                        initialDelaySeconds: 5
+                        tcpSocket:
+                          port: 2222
+                      securityContext:
+                        runAsUser: 1000
+      successPolicy:
+        operator: All
+        targetReplicatedJobs:
+          - launcher
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: mlx
+  name: mlx-distributed
+spec:
+  mlPolicy:
+    mpi:
+      mpiImplementation: OpenMPI
+      numProcPerNode: 1
+      runLauncherAsNode: true
+      sshAuthMountPath: /home/mpiuser/.ssh
+    numNodes: 1
+  template:
+    spec:
+      network:
+        publishNotReadyAddresses: true
+      replicatedJobs:
+        - name: launcher
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - image: ghcr.io/kubeflow/trainer/mlx-runtime:v0.4.0
+                      name: node
+                      securityContext:
+                        runAsUser: 1000
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - args:
+                        - -De
+                        - -f
+                        - /home/mpiuser/.sshd_config
+                      command:
+                        - /usr/sbin/sshd
+                      image: ghcr.io/kubeflow/trainer/mlx-runtime:v0.4.0
+                      name: node
+                      readinessProbe:
+                        initialDelaySeconds: 5
+                        tcpSocket:
+                          port: 2222
+                      securityContext:
+                        runAsUser: 1000
+      successPolicy:
+        operator: All
+        targetReplicatedJobs:
+          - launcher
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: torch
+  name: torch-distributed
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - image: pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+                      name: node
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: torchtune
+  name: torchtune-llama3.2-1b
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: dataset-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: dataset-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://tatsu-lab/alpaca
+                      image: ghcr.io/kubeflow/trainer/dataset-initializer:v0.4.0
+                      name: dataset-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-1b
+        - name: model-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: model-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://meta-llama/Llama-3.2-1B-Instruct
+                      image: ghcr.io/kubeflow/trainer/model-initializer:v0.4.0
+                      name: model-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-1b
+        - dependsOn:
+            - name: dataset-initializer
+              status: Complete
+            - name: model-initializer
+              status: Complete
+          name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - command:
+                        - tune
+                        - run
+                        - --rdzv_endpoint=localhost:29500
+                        - full_finetune_distributed
+                        - --config
+                        - llama3_2/1B_full
+                        - dataset=torchtune.datasets.instruct_dataset
+                        - dataset.source=parquet
+                        - dataset.data_dir=/workspace/dataset/data
+                        - output_dir=/workspace/output
+                        - tokenizer.path=/workspace/model/original/tokenizer.model
+                        - checkpointer.checkpoint_dir=/workspace/model
+                      image: ghcr.io/kubeflow/trainer/torchtune-trainer:v0.4.0
+                      name: node
+                      resources:
+                        limits:
+                          nvidia.com/gpu: 2
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-1b
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: torchtune
+  name: torchtune-llama3.2-3b
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: dataset-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: dataset-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://tatsu-lab/alpaca
+                      image: ghcr.io/kubeflow/trainer/dataset-initializer:v0.4.0
+                      name: dataset-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-3b
+        - name: model-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: model-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://meta-llama/Llama-3.2-3B-Instruct
+                      image: ghcr.io/kubeflow/trainer/model-initializer:v0.4.0
+                      name: model-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-3b
+        - dependsOn:
+            - name: dataset-initializer
+              status: Complete
+            - name: model-initializer
+              status: Complete
+          name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - command:
+                        - tune
+                        - run
+                        - --rdzv_endpoint=localhost:29500
+                        - full_finetune_distributed
+                        - --config
+                        - llama3_2/3B_full
+                        - dataset=torchtune.datasets.instruct_dataset
+                        - dataset.source=parquet
+                        - dataset.data_dir=/workspace/dataset/data
+                        - output_dir=/workspace/output
+                        - tokenizer.path=/workspace/model/original/tokenizer.model
+                        - checkpointer.checkpoint_dir=/workspace/model
+                      image: ghcr.io/kubeflow/trainer/torchtune-trainer:v0.4.0
+                      name: node
+                      resources:
+                        limits:
+                          nvidia.com/gpu: 2
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-llama3.2-3b
+---
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: ClusterTrainingRuntime
+metadata:
+  labels:
+    trainer.kubeflow.org/framework: torchtune
+  name: torchtune-qwen2.5-1.5b
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: dataset-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: dataset-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://tatsu-lab/alpaca
+                      image: ghcr.io/kubeflow/trainer/dataset-initializer:v0.4.0
+                      name: dataset-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-qwen2.5-1.5b
+        - name: model-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: model-initializer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - env:
+                        - name: STORAGE_URI
+                          value: hf://Qwen/Qwen2.5-1.5B-Instruct
+                      image: ghcr.io/kubeflow/trainer/model-initializer:v0.4.0
+                      name: model-initializer
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-qwen2.5-1.5b
+        - dependsOn:
+            - name: dataset-initializer
+              status: Complete
+            - name: model-initializer
+              status: Complete
+          name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  containers:
+                    - command:
+                        - tune
+                        - run
+                        - --rdzv_endpoint=localhost:29500
+                        - full_finetune_distributed
+                        - --config
+                        - qwen2_5/1.5B_full
+                        - dataset=torchtune.datasets.instruct_dataset
+                        - dataset.source=parquet
+                        - dataset.data_dir=/workspace/dataset/data
+                        - output_dir=/workspace/output
+                        - tokenizer.path=/workspace/model/vocab.json
+                        - tokenizer.merges_file=/workspace/model/merges.txt
+                        - checkpointer.checkpoint_dir=/workspace/model
+                      image: ghcr.io/kubeflow/trainer/torchtune-trainer:v0.4.0
+                      name: node
+                      resources:
+                        limits:
+                          nvidia.com/gpu: 2
+                      volumeMounts:
+                        - mountPath: /workspace
+                          name: initializer
+                  volumes:
+                    - name: initializer
+                      persistentVolumeClaim:
+                        claimName: torchtune-qwen2.5-1.5b
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: jobset-mutating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: jobset-webhook-service
+        namespace: model-lifecycle
+        path: /mutate-jobset-x-k8s-io-v1alpha2-jobset
+    failurePolicy: Ignore
+    name: mjobset.kb.io
+    rules:
+      - apiGroups:
+          - jobset.x-k8s.io
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+        resources:
+          - jobsets
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: jobset-webhook-service
+        namespace: model-lifecycle
+        path: /mutate--v1-pod
+    failurePolicy: Ignore
+    name: mpod.kb.io
+    objectSelector:
+      matchExpressions:
+        - key: jobset.sigs.k8s.io/jobset-name
+          operator: Exists
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+    sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: jobset-validating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: jobset-webhook-service
+        namespace: model-lifecycle
+        path: /validate-jobset-x-k8s-io-v1alpha2-jobset
+    failurePolicy: Ignore
+    name: vjobset.kb.io
+    rules:
+      - apiGroups:
+          - jobset.x-k8s.io
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - jobsets
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: jobset-webhook-service
+        namespace: model-lifecycle
+        path: /validate--v1-pod
+    failurePolicy: Ignore
+    name: vpod.kb.io
+    objectSelector:
+      matchExpressions:
+        - key: jobset.sigs.k8s.io/jobset-name
+          operator: Exists
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+    sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validator.trainer.kubeflow.org
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kubeflow-trainer-controller-manager
+        namespace: model-lifecycle
+        path: /validate-trainer-kubeflow-org-v1alpha1-clustertrainingruntime
+    failurePolicy: Ignore
+    name: validator.clustertrainingruntime.trainer.kubeflow.org
+    rules:
+      - apiGroups:
+          - trainer.kubeflow.org
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - clustertrainingruntimes
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kubeflow-trainer-controller-manager
+        namespace: model-lifecycle
+        path: /validate-trainer-kubeflow-org-v1alpha1-trainingruntime
+    failurePolicy: Ignore
+    name: validator.trainingruntime.trainer.kubeflow.org
+    rules:
+      - apiGroups:
+          - trainer.kubeflow.org
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - trainingruntimes
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kubeflow-trainer-controller-manager
+        namespace: model-lifecycle
+        path: /validate-trainer-kubeflow-org-v1alpha1-trainjob
+    failurePolicy: Ignore
+    name: validator.trainjob.trainer.kubeflow.org
+    rules:
+      - apiGroups:
+          - trainer.kubeflow.org
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - trainjobs
+    sideEffects: None

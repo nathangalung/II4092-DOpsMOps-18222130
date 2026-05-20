@@ -1,0 +1,93 @@
+# =============================================================================
+# KEDA — reference ScaledObject templates for Kafka-lag scaling
+# =============================================================================
+# These are intentionally generic.  Use-case overlays COPY a snippet into
+# their own manifests/base/scaling/ and parameterise:
+#
+#   consumerGroup:   the consumer group ID the workload has joined
+#   topic:           the topic(s) to measure
+#   scaleTargetRef:  the Deployment that should be scaled
+#   lagThreshold:    when the per-partition lag exceeds this, scale up
+#
+# Why here, not in KEDA's own directory:
+# - KEDA needs the ScaledObject in the namespace of the workload
+# - the Kafka bootstrap and auth references are stable platform facts
+# - a single platform-owned TriggerAuthentication avoids every use-case
+#   redeclaring SCRAM credentials
+# =============================================================================
+# TriggerAuthentication for the TLS+SCRAM listener (port 9093).
+# Workloads out-of-mesh / in-mesh use the `plain` listener (9092) instead and
+# need no TriggerAuthentication.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: kafka-scram
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: kafka-scram-user
+      key: username
+    - parameter: password
+      name: kafka-scram-user
+      key: password
+---
+# ExternalSecret populating `kafka-scram-user` for KEDA's TriggerAuthentication.
+# Single SCRAM identity on this single-node cluster: `admin`. Strimzi User
+# Operator generates the SCRAM password at first install and writes Secret
+# `admin` (password + sasl.jaas.config); the PushSecret in kafka-cluster.yaml
+# mirrors that password to secret/platform/kafka/admin.password. The username
+# is the Strimzi KafkaUser CR name — a stable platform fact, injected here as
+# a literal via target.template (avoids the chicken-egg of pushing both
+# fields when Strimzi's source Secret has no `username` key).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kafka-scram-user
+  namespace: data-ingestion
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: kafka-scram-user
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        username: "admin"
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: platform/kafka/admin, property: password }
+---
+# Reference ScaledObject — copy into a use-case overlay and parameterise.
+# Scales the target Deployment between 1 and 20 replicas based on per-
+# partition lag on the given topic.  Uses the in-mesh `plain` listener.
+#
+# NOTE: kept commented so this file doesn't schedule a dummy Deployment.
+# Uncomment and adapt in use-case overlays.
+#
+# apiVersion: keda.sh/v1alpha1
+# kind: ScaledObject
+# metadata:
+#   name: example-kafka-consumer
+#   namespace: <use-case-namespace>
+# spec:
+#   scaleTargetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: <consumer-deployment>
+#   minReplicaCount: 1
+#   maxReplicaCount: 20
+#   pollingInterval: 15
+#   cooldownPeriod: 180
+#   triggers:
+#     - type: kafka
+#       metadata:
+#         bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092
+#         consumerGroup:    <consumer-group-id>
+#         topic:            <topic-name>
+#         lagThreshold:     "1000"
+#         offsetResetPolicy: latest

@@ -1,0 +1,111 @@
+# =============================================================================
+# GENERIC OVERLAY — Platform-only deployment (no domain use-case)
+# =============================================================================
+# Deploys all 18 services with GENERIC naming to ml-pipeline namespace.
+# Services get infrastructure endpoints from pipeline-config ConfigMap
+# plus minimal domain defaults from configmap-domain.yaml.
+#
+# Usage:
+#   kubectl kustomize services/overlays/generic | kubectl apply -f -
+#
+# To add a domain use-case on top, use the use-case overlay instead:
+#   cd ../use-case-<domain> && make deploy
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ml-pipeline
+
+resources:
+  - ../../base
+  - secrets.yaml
+
+# Generic domain labels
+labels:
+  - pairs:
+      app.kubernetes.io/name: generic-pipeline
+      environment: development
+    includeSelectors: true
+
+# Merge generic domain config into pipeline-config
+patches:
+  - path: configmap-domain.yaml
+
+  # Use IfNotPresent pull policy (works for both minikube and k3s with local registry)
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+
+# Map image names to local registry (REGISTRY defaults to localhost:5000)
+images:
+  - name: rest-collector
+    newName: localhost:5000/rest-collector
+  - name: websocket-collector
+    newName: localhost:5000/websocket-collector
+  - name: validator
+    newName: localhost:5000/validator
+  - name: analyzer
+    newName: localhost:5000/analyzer
+  - name: batch-processing
+    newName: localhost:5000/batch-processing
+  - name: feature-engine
+    newName: localhost:5000/feature-engine
+  - name: vector-processing
+    newName: localhost:5000/vector-processing
+  - name: trainer
+    newName: localhost:5000/trainer
+  - name: drift-detector
+    newName: localhost:5000/drift-detector
+  - name: gateway
+    newName: localhost:5000/gateway
+  - name: feature-cache
+    newName: localhost:5000/feature-cache
+  - name: inference-engine
+    newName: localhost:5000/inference-engine
+  - name: materialization
+    newName: localhost:5000/materialization
+  - name: retraining
+    newName: localhost:5000/retraining
+  - name: dashboard-backend
+    newName: localhost:5000/dashboard-backend
+  - name: dashboard-frontend
+    newName: localhost:5000/dashboard-frontend
+  # ADR-025: ml-bridge is Service-only at platform base. The Rollout that
+  # owns ml-bridge pods lives in each use case (none in the generic overlay),
+  # so there is no pod template here to receive an image override.
+
+# Single replicas for local development
+replicas:
+  - name: rest-collector
+    count: 1
+  - name: websocket-collector
+    count: 1
+  - name: validator
+    count: 1
+  - name: analyzer
+    count: 1
+  - name: feature-engine
+    count: 1
+  - name: gateway
+    count: 1
+  - name: feature-cache
+    count: 1
+  - name: inference-engine
+    count: 1
+  - name: dashboard-backend
+    count: 1
+  - name: dashboard-frontend
+    count: 1
+  # ADR-025: ml-bridge has no Deployment/StatefulSet in the generic overlay
+  # (no Rollout either — Rollouts ship per use case). Kustomize `replicas:`
+  # only targets Deployment/StatefulSet/ReplicaSet/ReplicationController.

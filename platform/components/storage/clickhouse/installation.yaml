@@ -1,0 +1,181 @@
+# =============================================================================
+# ClickHouse 26.3.9.8 — Altinity CHI (single-shard single-replica bootstrap)
+# =============================================================================
+# ADR-011.  The `Replicated*MergeTree` engines already used in
+# use-case overlays' init_clickhouse.sql REQUIRE a ZooKeeper/Keeper
+# quorum — previously on 1 node they were effectively non-replicated.
+#
+# Single-node bootstrap: 1 shard × 1 replica (1 pod) on local-path (ADR-031),
+# 1 Keeper. Scale to (2 shards × 2 replicas + 3-node Keeper quorum) for HA via
+#   kubectl patch chi platform -n storage --type=merge \
+#     -p '{"spec":{"configuration":{"clusters":[{"name":"main",
+#       "layout":{"shardsCount":2,"replicasCount":2}}]}}}'
+#   kubectl patch chki platform-keeper -n storage --type=merge \
+#     -p '{"spec":{"configuration":{"clusters":[{"name":"keeper",
+#       "layout":{"replicasCount":3}}]}}}'
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: clickhouse-admin
+  namespace: storage
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: clickhouse-admin
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        CLICKHOUSE_USER: "{{ .username }}"
+        CLICKHOUSE_PASSWORD: "{{ .password }}"
+        # CHI references this key for users.default.password_sha256_hex.
+        # Sprig sha256sum emits hex digest of the plaintext from OpenBao.
+        password_sha256_hex: "{{ .password | sha256sum }}"
+  data:
+    - secretKey: username
+      remoteRef: { key: platform/clickhouse/admin, property: username }
+    - secretKey: password
+      remoteRef: { key: platform/clickhouse/admin, property: password }
+---
+apiVersion: clickhouse-keeper.altinity.com/v1
+kind: ClickHouseKeeperInstallation
+metadata:
+  name: platform-keeper
+  namespace: storage
+spec:
+  configuration:
+    clusters:
+      - name: keeper
+        layout:
+          replicasCount: 1
+        templates:
+          podTemplate: keeper
+          volumeClaimTemplate: keeper-data
+    settings:
+      logger/level: information
+      keeper_server/tcp_port: "9181"
+      keeper_server/four_letter_word_white_list: "*"
+      keeper_server/coordination_settings/raft_logs_level: "information"
+  templates:
+    podTemplates:
+      - name: keeper
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: mlops-platform
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            fsGroup: 101
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: clickhouse-keeper
+              image: clickhouse/clickhouse-keeper:26.3.10.60
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 500m, memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                capabilities: { drop: ["ALL"] }
+    volumeClaimTemplates:
+      - name: keeper-data
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: local-path
+          resources:
+            requests: { storage: 10Gi }
+---
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata:
+  name: platform
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  configuration:
+    users:
+      default/access_management: 1
+      default/networks/ip: "::/0"
+      default/password_sha256_hex:
+        valueFrom:
+          secretKeyRef: { name: clickhouse-admin, key: password_sha256_hex }
+    zookeeper:
+      # Altinity CHK operator creates HEADLESS Service `keeper-<chk-name>`
+      # (ClusterIP: None) selecting all keeper pods. For headless Services,
+      # DNS returns the pod IP directly and the client connects to that IP
+      # on the configured port — kube-proxy port-mapping (2181→9181) is NOT
+      # applied. So we MUST use the pod's actual listen port 9181
+      # (keeper_server/tcp_port). `platform-keeper` alone does not exist as
+      # a Service.
+      nodes:
+        - host: keeper-platform-keeper.storage.svc.cluster.local
+          port: 9181
+      session_timeout_ms: 10000
+    clusters:
+      - name: main
+        layout:
+          shardsCount: 1
+          replicasCount: 1
+        templates:
+          podTemplate: ch-pod
+          volumeClaimTemplate: ch-data
+    settings:
+      logger/level: information
+      max_concurrent_queries: "200"
+      max_connections: "1024"
+      merge_tree/parts_to_delay_insert: "300"
+      merge_tree/parts_to_throw_insert: "600"
+      # Do NOT set remote_servers/* here — the operator generates the full
+      # `<remote_servers>` block from spec.configuration.clusters[*].layout.
+      # A flat `remote_servers/main/shard/internal_replication: "true"` line
+      # produces an empty `<shard>` element that overwrites the operator
+      # output, leaving zero replicas under the shard. ClickHouse then
+      # crashes at startup with `Cluster::addShard out_of_range — vector`
+      # / CANNOT_LOAD_CONFIG. Field-validated 2026-05-07 against
+      # 26.3.9.8: removing this line lets `chop-generated-remote-servers.xml`
+      # populate `<replica><host>chi-platform-main-0-0</host></replica>`.
+    profiles:
+      # max_memory_usage is per-query/user-level — server refuses at top
+      # level with UNKNOWN_ELEMENT_IN_CONFIG. Must live under profiles.
+      default/max_memory_usage: "4294967296"
+      default/log_queries: "1"
+  templates:
+    podTemplates:
+      - name: ch-pod
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "8001"
+            prometheus.io/path: "/metrics"
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            fsGroup: 101
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: clickhouse
+              image: clickhouse/clickhouse-server:26.3.10.60
+              resources:
+                # Single-node bootstrap. Bump for production load.
+                requests: { cpu: 200m, memory: 1Gi }
+                limits:   { cpu: 2000m, memory: 4Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                capabilities: { drop: ["ALL"] }
+    volumeClaimTemplates:
+      - name: ch-data
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: local-path
+          resources:
+            # Bootstrap size; expand via `kubectl edit pvc <name>` (local-path
+            # SC has allowVolumeExpansion: true since k3s 1.35).
+            requests: { storage: 20Gi }

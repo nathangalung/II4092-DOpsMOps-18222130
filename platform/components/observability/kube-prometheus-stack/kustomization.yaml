@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# kube-prometheus-stack 83.6.0 (ADR-010) + platform SLO PrometheusRules +
+# per-SLO AlertmanagerConfig routing and inhibit rules.
+resources:
+  - helm-release.yaml
+  - prometheus-rules.yaml
+  - alertmanager-configs.yaml

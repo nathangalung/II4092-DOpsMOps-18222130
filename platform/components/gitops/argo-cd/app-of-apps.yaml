@@ -1,0 +1,220 @@
+# =============================================================================
+# Argo CD App-of-Apps — platform bootstrap
+# =============================================================================
+# ADR-005 (GitOps activation).  Once ArgoCD is bootstrapped, a single
+# `kubectl apply -f app-of-apps.yaml` creates:
+#   1. The `platform` AppProject          — RBAC + repo allowlist.
+#   2. A self-managed root `Application`  — reconciles THIS directory, so any
+#      future change to `platform/components/gitops/argo-cd/` (new
+#      ApplicationSet, new AppProject, sync-wave tweak) is picked up by
+#      ArgoCD itself without a fresh manual `kubectl apply`. This closes the
+#      GitOps "bootstrap bootstrap" loop.
+#   3. The `platform-components` ApplicationSet — fans out to every
+#      `platform/components/*` directory with explicit sync waves:
+#        wave -10 : common + storage + security              (deps for everything)
+#        wave   0 : data-ingestion + data-processing + model-lifecycle
+#        wave  10 : data-governance + model-serving + observability + gitops
+#
+# Controller pulls from Gitea (air-gapped):
+#   http://gitea.gitops.svc.cluster.local:3000/platform/platform.git
+#
+# Use-case AppProjects + Applications live in their OWN repos (ADR-013):
+#   use-case-<name>/argocd/application.yaml      — contains both AppProject +
+#                                                  Application for that use-case.
+# Platform repo does not reference `use-case-*` to preserve domain agnosticism.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  description: "Platform-wide workloads (storage, ingestion, processing, ml, serving, observability, security, gitops)"
+  sourceRepos:
+    - "http://gitea.gitops.svc.cluster.local:3000/platform/platform.git"
+    - "https://strimzi.io/charts/"
+    - "https://cloudnative-pg.github.io/charts"
+    - "https://helm.altinity.com"
+    - "https://charts.external-secrets.io"
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    - "https://kyverno.github.io/kyverno/"
+    - "https://vmware-tanzu.github.io/helm-charts"
+    # Raw CRDs come from the velero git repo (separate Application installs
+    # `config/crd/v1/bases` ahead of the helm chart, sync-wave=-10) — the
+    # chart's pre-upgrade CRD job is disabled. Without this allowlist entry
+    # ArgoCD rejects the velero-crds Application:
+    #   "application repo https://github.com/vmware-tanzu/velero.git is not
+    #    permitted in project 'platform'"
+    - "https://github.com/vmware-tanzu/velero.git"
+    - "https://charts.chaos-mesh.org"
+    - "https://grafana.github.io/helm-charts"
+    - "https://falcosecurity.github.io/charts"
+    - "https://slok.github.io/sloth"
+    - "https://aquasecurity.github.io/helm-charts"
+    - "https://argoproj.github.io/argo-helm"
+    - "https://downloads.apache.org/flink/flink-kubernetes-operator-1.14.0/"
+    - "https://kubeflow.github.io/spark-operator"
+  destinations:
+    - { namespace: "*", server: https://kubernetes.default.svc }
+  clusterResourceWhitelist:
+    - { group: "*", kind: "*" }
+  namespaceResourceWhitelist:
+    - { group: "*", kind: "*" }
+  orphanedResources:
+    # warn: false — orphaned resources still appear in the ArgoCD UI for
+    # visibility, but no `OrphanedResourceWarning` condition is emitted.
+    # With warn=true the condition flips Application.status.health to
+    # "Degraded" even though the orphan is informational (e.g. Helm hook
+    # Jobs, ESO-managed Secrets in the destination namespace, leftover
+    # CronJob children, EventListener-created pods). Field-observed
+    # 2026-05-11: `platform-common` + `platform-model-lifecycle` reported
+    # Degraded health solely because each had 5 orphaned resources (ESO
+    # secrets + Helm hooks), masking real degradation signals.
+    warn: false
+  roles:
+    - name: admin
+      policies:
+        - "p, proj:platform:admin, applications, *, platform/*, allow"
+        - "p, proj:platform:admin, exec, create, platform/*, allow"
+      groups: ["platform-admins"]
+    - name: viewer
+      policies:
+        - "p, proj:platform:viewer, applications, get, platform/*, allow"
+      groups: ["platform-viewers"]
+---
+# -----------------------------------------------------------------------------
+# Self-managed root Application
+# -----------------------------------------------------------------------------
+# Reconciles `platform/components/gitops/argo-cd/` itself. Any edit to THIS
+# file (or any sibling) is applied by ArgoCD on next sync — no more
+# "out-of-band" kubectl apply. sync-wave=-20 ensures it wins the ordering
+# race against the ApplicationSet it manages.
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: bootstrap
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: "http://gitea.gitops.svc.cluster.local:3000/platform/platform.git"
+    path: platform/components/gitops/argo-cd
+    targetRevision: main
+    directory:
+      recurse: false
+      include: "app-of-apps.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops
+  syncPolicy:
+    automated:
+      prune: false          # never prune the bootstrap itself
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-components
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  generators:
+    - list:
+        elements:
+          # wave -10 : foundations that every other component depends on
+          - { name: common,          path: platform/components/common,          wave: "-10" }
+          - { name: storage,         path: platform/components/storage,         wave: "-10" }
+          - { name: security,        path: platform/components/security,        wave: "-10" }
+          # wave 0 : ingest / process / ML lifecycle
+          - { name: data-ingestion,  path: platform/components/data-ingestion,  wave:   "0" }
+          - { name: data-processing, path: platform/components/data-processing, wave:   "0" }
+          - { name: model-lifecycle, path: platform/components/model-lifecycle, wave:   "0" }
+          # wave 10 : downstream consumers that read from the above
+          - { name: data-governance, path: platform/components/data-governance, wave:  "10" }
+          - { name: model-serving,   path: platform/components/model-serving,   wave:  "10" }
+          - { name: observability,   path: platform/components/observability,   wave:  "10" }
+          - { name: gitops,          path: platform/components/gitops,          wave:  "10" }
+  template:
+    metadata:
+      name: "platform-{{name}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{wave}}"
+      labels:
+        app.kubernetes.io/part-of: mlops-platform
+        app.kubernetes.io/component: "{{name}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io/background
+    spec:
+      project: platform
+      source:
+        repoURL: "http://gitea.gitops.svc.cluster.local:3000/platform/platform.git"
+        path: "{{path}}"
+        targetRevision: main
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: gitops     # ignored — resources carry their own namespace
+      syncPolicy:
+        # PRUNE INTENTIONALLY DISABLED ON AppSet TEMPLATE
+        # ================================================
+        # `prune: true` here triggers cascading self-prune of the platform's
+        # own control plane.  The AppSet emits an Application for every
+        # `platform/components/*` path including `platform/components/gitops/`
+        # which itself renders `argo-cd/install.yaml` + patches — i.e.
+        # platform-gitops co-owns ArgoCD's own Deployments/StatefulSets.
+        # Any transient render flutter (kustomize build failure, gitea
+        # network hiccup, stale repo cache, ApplicationSet re-evaluation
+        # race) made `selfHeal:true + prune:true` delete the argocd
+        # controllers themselves and gitea (catastrophic, three times on
+        # 2026-05-11).
+        #
+        # `prune: false + selfHeal: true` retains GitOps drift correction
+        # (re-apply diverged fields, recreate missing Deployments) without
+        # the delete authority that caused the catastrophe.  Orphan
+        # accumulation across refactors is recoverable manually
+        # (`argocd app sync <app> --prune` is opt-in).
+        automated:
+          prune: false
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - ApplyOutOfSyncOnly=true
+          - PruneLast=true
+          - RespectIgnoreDifferences=true
+          # Section apps render sub-Applications (sloth, chaos-mesh, falco, velero,
+          # trivy-operator) that install CRDs *plus* CRs of those CRDs in the same
+          # kustomize render. Without this, ArgoCD's dry-run validation rejects
+          # the whole sync ("server could not find requested resource
+          # sloth.slok.dev/v1") before the sub-Application can install the CRD,
+          # leaving the parent app stuck Missing/OutOfSync. Skipping dry-run on
+          # missing CRDs lets the apply proceed: sub-App lands → chart installs
+          # CRD → next reconcile retries the CR successfully.
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 5
+          backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+      revisionHistoryLimit: 10

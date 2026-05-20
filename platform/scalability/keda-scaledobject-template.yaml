@@ -1,0 +1,60 @@
+# =============================================================================
+# KEDA ScaledObject — event-driven scale-to-zero for any workload
+# =============================================================================
+# KEDA scales 0..N based on external metrics (Kafka lag, CRON, Prometheus,
+# Redis queue, etc.). Use when HPA's resource metrics aren't enough.
+#
+# Replace placeholders:
+#   {{COMPONENT}}    target Deployment/StatefulSet name
+#   {{NAMESPACE}}    target namespace
+#   {{KIND}}         Deployment | StatefulSet
+#   {{MIN}}          minReplicaCount (0 enables scale-to-zero)
+#   {{MAX}}          maxReplicaCount
+#   {{TRIGGER}}      kafka | prometheus | cron | redis | postgresql | ...
+#   {{TRIGGER_META}} per-trigger metadata block (see KEDA scaler docs)
+#
+# Examples:
+#   - Kafka consumer lag scaler: TRIGGER=kafka with bootstrap+topic+lagThreshold
+#   - Cron scaler:               schedule + timezone + desiredReplicas
+#   - Prometheus scaler:         serverAddress + metricName + threshold
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{COMPONENT}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: {{COMPONENT}}
+    app.kubernetes.io/managed-by: platform-makefile
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: {{KIND}}
+    name: {{COMPONENT}}
+  pollingInterval: 30
+  cooldownPeriod: 300
+  idleReplicaCount: 0
+  minReplicaCount: {{MIN}}
+  maxReplicaCount: {{MAX}}
+  fallback:
+    failureThreshold: 3
+    replicas: 1
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+  triggers:
+    - type: {{TRIGGER}}
+      metadata:
+        {{TRIGGER_META}}

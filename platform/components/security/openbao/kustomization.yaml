@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# OpenBao 2.5.3 (MPL-2.0) — HA with integrated Raft storage.
+# API-compatible replacement for HashiCorp OpenBao (BSL-1.1 → MPL-2.0).
+# Bootstrap Job initializes OpenBao, enables KV v2 + K8s auth, and seeds
+# platform-scope secrets (ADR-008).
+resources:
+  - statefulset.yaml
+  - openbao-bootstrap.yaml
+  # Auto-unsealer Deployment — keeps openbao-0 unsealed across pod
+  # restarts (k3s service restart, node reboot, manual delete).  See
+  # the file header for the rationale vs. Transit-seal / cloud KMS /
+  # CronJob alternatives.
+  - openbao-unsealer.yaml

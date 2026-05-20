@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: gitops
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      name: http
+      targetPort: 3000
+    - port: 22
+      name: ssh
+      targetPort: 2222
+  selector:
+    app: gitea
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: gitops
+  labels:
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/component: git-server
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  # Recreate strategy is intentional.  Gitea's install-mode pod returns 404
+  # on /api/v1/version (the readiness probe path) until the bootstrap Job
+  # completes the install POST, which means a rolling update would deadlock:
+  # the new pod cannot pass readiness without the Job, and the Job's HTTP
+  # client routes through the Service which only forwards to Ready pods.
+  # Recreate terminates the old pod first, the bootstrap Job then races
+  # the new pod's startup, posts the install form (200), and the new pod
+  # becomes Ready — total downtime ≤ 60 s on a warm-cache k3s.  Once Gitea
+  # is installed, this could be relaxed to RollingUpdate, but with a single
+  # replica the practical difference is nil.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      # NOTE on runAsUser/runAsNonRoot:
+      # The Gitea rootful image (gitea/gitea:1.26.1) ships an s6-overlay
+      # supervisor that requires write access to internal lock dirs at
+      # /etc/s6/.s6-svscan/lock during start-up.  When the pod-level
+      # securityContext forces runAsUser=1000 + runAsNonRoot=true, s6
+      # cannot create that lock and the container exits 111 with
+      # "Permission denied" before Gitea's main process starts.  The image
+      # itself drops privileges to the `git` user (uid 1000) once s6
+      # finishes its setup, so the effective workload still runs as
+      # non-root.  fsGroup=1000 ensures PVC ownership matches the runtime
+      # uid.  If a fully rootless variant is required (PSS-restricted
+      # namespace), switch to gitea/gitea:1.26.1-rootless and remount the
+      # PVC at /var/lib/gitea — see ADR-027 §B.
+      # Kyverno `require-run-as-nonroot` ValidatingPolicy stays in Audit
+      # mode for this workload (policies.yaml:105) so a PolicyReport row
+      # is emitted but admission is not blocked.
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.26.1
+          # Container-level securityContext intentionally left empty.  The
+          # rootful Gitea image's s6-overlay supervisor escalates briefly
+          # (setuid drop from root → git uid 1000) during start-up, so
+          # capabilities.drop=ALL + allowPrivilegeEscalation=false aborts
+          # the boot sequence.  After s6 hands off to the Gitea binary,
+          # the workload runs as uid 1000 with no setuid syscalls — the
+          # security envelope is comparable to enforcing the policy
+          # explicitly, but without breaking entrypoint init.
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USER_UID
+              value: "1000"
+            - name: USER_GID
+              value: "1000"
+            - name: GITEA__database__DB_TYPE
+              value: "sqlite3"
+            - name: GITEA__database__PATH
+              value: "/data/gitea/gitea.db"
+            - name: GITEA__server__HTTP_PORT
+              value: "3000"
+            - name: GITEA__server__SSH_PORT
+              value: "22"
+            - name: GITEA__server__SSH_LISTEN_PORT
+              value: "2222"
+            - name: GITEA__server__DOMAIN
+              value: "gitea.gitops.svc.cluster.local"
+            # In-cluster SVC URL is the canonical AppURL — both ArgoCD repo-server
+            # and Tekton CSI git-clone resolve via this hostname.  Setting
+            # ROOT_URL=localhost (the chart default) breaks the install POST
+            # because Gitea rejects form submissions when the Host header
+            # mismatches AppURL CSRF origin.
+            - name: GITEA__server__ROOT_URL
+              value: "http://gitea.gitops.svc.cluster.local:3000/"
+            # INSTALL_LOCK is intentionally NOT set in env: bootstrap.yaml's
+            # Job runs the install POST which writes install_lock=true into
+            # /data/gitea/conf/app.ini.  Subsequent pod restarts read app.ini
+            # and stay in operational mode.  Setting INSTALL_LOCK=true in env
+            # before admin exists locks the pod out of installation entirely.
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            - name: GITEA__service__REQUIRE_SIGNIN_VIEW
+              value: "false"
+            - name: GITEA__repository__DEFAULT_BRANCH
+              value: "main"
+            - name: GITEA__log__LEVEL
+              value: "Info"
+          ports:
+            - containerPort: 3000
+              name: http
+            - containerPort: 2222
+              name: ssh
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          # Probes intentionally use TCP socket on the HTTP port rather than
+          # an HTTP path.  /api/v1/version returns 404 while Gitea is in
+          # install mode (the install page is served from /), so a path-
+          # based probe deadlocks the bootstrap: liveness keeps killing the
+          # pod, the pod never reaches Ready, the Service has zero
+          # endpoints, and the bootstrap Job's curl loop cannot reach the
+          # install endpoint.  TCP-readiness goes green as soon as the
+          # listener binds, the Service starts forwarding to the new pod,
+          # the Job posts the install form, and Gitea transitions to
+          # operational mode.  The HTTP server itself is what we ultimately
+          # care about; if it crashes the listener disappears too, so a
+          # TCP probe is sufficient.
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          startupProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            - name: gitea-data
+              mountPath: /data
+      volumes:
+        - name: gitea-data
+          persistentVolumeClaim:
+            claimName: gitea-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-pvc
+  namespace: gitops
+spec:
+  # k3s built-in `local-path` (ADR-031). Single-node + reclaimPolicy=Delete
+  # means PVC drop releases the hostPath dir automatically.
+  storageClassName: local-path
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gitea
+  namespace: gitops
+  labels:
+    app: gitea
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gitea

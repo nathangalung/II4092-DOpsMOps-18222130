@@ -1,0 +1,34 @@
+# =============================================================================
+# MinIO Service alias in kubeflow namespace
+# =============================================================================
+# KFP v2 launcher hardcodes "minio-service.kubeflow" when resolving the
+# minio:// URI scheme for artifact storage. Since we deploy KFP in
+# model-lifecycle namespace (not kubeflow), we need this ExternalName
+# service to bridge the DNS gap.
+#
+# This is a known KFP v2 limitation — the launcher binary resolves:
+#   minio://<bucket>/<path> → http://minio-service.kubeflow:9000/<bucket>/<path>
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeflow
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: compatibility
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: kubeflow
+  labels:
+    app: minio
+    component: minio-compatibility
+spec:
+  type: ExternalName
+  externalName: minio.storage.svc.cluster.local
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000

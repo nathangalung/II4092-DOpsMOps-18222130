@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Storage layer (ADR-007 / ADR-011 / ADR-031).
+#   StorageClass strategy: rely on k3s built-in `local-path` (rancher.io/local-path).
+#   Single-node + replicaCount=1 mandate eliminates Longhorn's value prop
+#   (replication, snapshot, multi-node failover). Pure hostPath bind-mount avoids
+#   the iSCSI+engine+replica+CSI-sidecar overhead that caused recurring
+#   #160/#166/#169/#209/#214/#249/#256/#260/#261 cascade tasks. See ADR-031.
+#   Backups: velero `defaultVolumesToFsBackup: true` (Kopia file-system mode,
+#   not CSI snapshot) targets MinIO bucket `velero-backups`.
+#
+#   Components:
+#   - cnpg:                 CloudNativePG operator (single replica, PG cluster)
+#   - clickhouse-operator:  Altinity operator (single shard × single replica)
+#   - postgresql:           PG Cluster CR (owned by cnpg operator)
+#   - clickhouse:           CHI + Keeper quorum (owned by altinity operator)
+#   - mysql:                KFP metadata (single replica)
+#   - minio:                object storage + KMS encryption at rest
+#   - valkey:               online feature store / cache (BSD-3-Clause; replaces Redis 8 AGPL)
+#   - qdrant:               vector DB (ANN HNSW, 2026)
+#   - spicedb:              ReBAC authz (PG-backed, single replica)
+#   - lakefs + lakekeeper:  data versioning + Iceberg REST catalog on MinIO
+resources:
+  - namespace.yaml
+  - cnpg
+  - clickhouse-operator
+  - clickhouse
+  - lakekeeper
+  - lakefs/deployment.yaml
+  - minio
+  - mysql
+  - postgresql
+  - qdrant
+  - valkey
+  - spicedb

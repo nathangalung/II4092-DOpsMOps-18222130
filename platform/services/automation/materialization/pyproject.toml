@@ -1,0 +1,37 @@
+[project]
+name = "materialization"
+version = "1.0.0"
+description = "Feast feature materialization job"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    # Feast with ClickHouse offline store + Valkey online store (Redis-RESP wire protocol).
+    # Feast extra is named `redis`; Valkey 9 is drop-in compatible (BSD-3-Clause vs Redis 8 AGPL).
+    "feast[clickhouse,redis]>=0.61.0",
+    # ClickHouse + PostgreSQL drivers (Feast contrib needs psycopg for SQL registry)
+    "clickhouse-connect>=0.14.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "pyyaml>=6.0.3",
+    "prometheus-client>=0.24.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[dependency-groups]
+dev = ["pytest>=8.3.4", "pytest-cov>=6.0.0", "pytest-mock>=3.14.0", "ruff>=0.8.4"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP", "ANN", "B", "C4", "SIM"]
+ignore = ["ANN401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=. --cov-report=term-missing"

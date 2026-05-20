@@ -1,0 +1,76 @@
+# =============================================================================
+# GENERIC DOMAIN CONFIG — Minimal defaults for platform-only deployment
+# =============================================================================
+# Strategic merge patch on pipeline-config ConfigMap.
+# Provides enough env vars for services to START with generic naming.
+# Use-case overlays (`use-case-<name>`) replace these with domain values.
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  # --- Identity ---
+  SYMBOL: "SAMPLE-001"
+  ACTIVE_HOURS_START: "0"
+  ACTIVE_HOURS_END: "23"
+
+  # --- Kafka topics (generic, no prefix) ---
+  KAFKA_TOPIC: "raw"
+  INPUT_TOPIC: "validated"
+  OUTPUT_TOPIC: "features"
+  VALIDATOR_KAFKA__INPUT_TOPIC: "raw"
+  VALIDATOR_KAFKA__OUTPUT_TOPIC: "validated"
+  FEATURE_KAFKA__INPUT_TOPIC: "validated"
+  FEATURE_KAFKA__OUTPUT_TOPIC: "features"
+  FEATURE_KAFKA__GROUP_ID: "feature-engine"
+  FEATURE_KAFKA__BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092"
+  FEATURE_REDIS__URL: "redis://valkey.storage.svc.cluster.local:6379"
+  FEATURE_REDIS__TTL_SECONDS: "3600"
+
+  # --- Data source ---
+  RESPONSE_FIELD_MAPPING: "timestamp,value"
+  PRIMARY_VALUE_COLUMN: "value"
+  COLLECTION_INTERVAL: "300"
+  PROCESSING_INTERVAL: "300"
+  TRAINING_INTERVAL: "21600"
+  HISTORY_START_DATE: "2025-01-01T00:00:00"
+  HISTORY_END_DATE: "2026-01-01T00:00:00"
+  HISTORY_BACKFILL_ON_START: "false"
+
+  # --- Features ---
+  FEATURES_COLUMNS: "symbol,timestamp,value"
+  FEAST_LATEST_FEATURES: "value"
+  SIMILARITY_RETURN_FIELD: "value"
+  PRIMARY_VALUE_FIELD: "value"
+  SECONDARY_VALUE_FIELD: "value"
+  FLINK_SMA_PERIODS: "7,14"
+  FLINK_EMA_PERIODS: "12,26"
+  FLINK_RSI_PERIOD: "14"
+
+  # --- Model ---
+  MODEL_TYPE: "lightgbm"
+  TASK_TYPE: "regression"
+  MLFLOW_EXPERIMENT: "generic-pipeline"
+  TARGET_COLUMN: "value"
+  EXCLUDE_COLUMNS: "symbol,timestamp,date,hour,data_type,created_at,computed_at"
+  CLASSIFICATION_THRESHOLD: "0.01"
+  NUM_CLASSES: "3"
+  FEATURES_TABLE: "data_features"
+  START_DATE: "2025-01-01"
+  END_DATE: "2025-12-31"
+
+  # --- Quality ---
+  VALIDATOR__SCHEMA: '{"type":"object","required":["symbol","timestamp","value"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"value":{"type":"number"}}}'
+  DATA_TABLE: "data"
+  DATA_COLUMNS: "symbol,timestamp,value"
+  DATA_TYPE: "generic"
+  ENTITY_COLUMN: "symbol"
+  REQUIRED_COLUMNS: "symbol,timestamp,value"
+  RANGE_CHECK_COLUMNS: "value"
+  RANGE_CHECK_MIN: "0"
+  RANGE_CHECK_MAX: "1000000"
+  NONNEG_COLUMNS: "value"
+  VALID_SYMBOLS: "SAMPLE-001"
+  DRIFT_FEATURES_TO_MONITOR: "value"

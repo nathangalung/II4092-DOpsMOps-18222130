@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# CRDs FIRST: katib-controller cache sync requires Experiment / Trial /
+# Suggestion CRDs registered before the controller pod starts.
+resources:
+  - crds
+  - deployment.yaml

@@ -1,0 +1,52 @@
+# Role bindings for test users
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: data-engineer-binding
+subjects:
+  - kind: User
+    name: data_engineer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: data-engineer-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: data-scientist-binding
+subjects:
+  - kind: User
+    name: data_scientist
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: data-scientist-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ml-engineer-binding
+subjects:
+  - kind: User
+    name: ml_engineer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: ml-engineer-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: business-user-binding
+subjects:
+  - kind: User
+    name: business_user
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: business-user-role
+  apiGroup: rbac.authorization.k8s.io

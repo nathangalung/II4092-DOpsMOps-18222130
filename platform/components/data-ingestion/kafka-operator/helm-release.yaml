@@ -1,0 +1,104 @@
+# =============================================================================
+# Strimzi Kafka Operator v0.51.0 (2026-03, Kafka 4.2.0 support)
+# =============================================================================
+# ADR-011.  Replaces the handwritten single-broker StatefulSet.  Provides CRDs:
+#   Kafka                — cluster (brokers + controllers)
+#   KafkaTopic           — declarative topic creation
+#   KafkaUser            — ACLs via SCRAM or mTLS
+#   KafkaConnect         — Connect cluster via CRD
+#   KafkaConnector       — declarative connectors
+#   KafkaNodePool        — per-role scaling (broker / controller)
+#   KafkaRebalance       — Cruise Control integration
+#   KafkaMirrorMaker2    — cross-cluster replication
+#
+# Installed via Argo CD.  Watches namespace `data-ingestion` (+ fn crossnamespace
+# when STRIMZI_NAMESPACE=* is set on the operator SA role).
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: strimzi-kafka-operator
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://strimzi.io/charts/
+    chart: strimzi-kafka-operator
+    targetRevision: 0.51.0
+    helm:
+      releaseName: strimzi
+      values: |
+        watchNamespaces:
+          - data-ingestion
+        # UseKRaft, KafkaNodePools, UnidirectionalTopicOperator graduated to GA
+        # in Strimzi 0.46+; feature gates removed in 0.51. The
+        # `ContinueReconciliationOnManualRollingUpdateFailure` gate was also
+        # retired in 0.51 (operator rejects with InvalidConfigurationException
+        # "Unknown feature gate" on startup). Empty string = use defaults.
+        featureGates: ""
+        serviceMonitor:
+          enabled: true
+          namespace: observability
+        # Single-pod bootstrap; bump for production load.
+        resources:
+          requests: { cpu: 100m, memory: 256Mi }
+          limits:   { cpu: 500m, memory: 512Mi }
+        # Single-node bootstrap; bump to 2 (active/standby) post-stabilization.
+        replicas: 1
+        leaderElection:
+          enable: true
+        # PSA `restricted:latest` namespace label on data-ingestion rejects the
+        # default Strimzi pod spec (no securityContext set on the operator
+        # container).  Inject baseline-restricted profile so the new ReplicaSet
+        # passes admission after a rollout-restart.
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          fsGroup: 0
+          seccompProfile:
+            type: RuntimeDefault
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        # Strimzi cluster-operator opens long-poll watches against
+        # kube-apiserver (kubernetes.default.svc:443) for every Strimzi CR.
+        # When the Istio sidecar wraps that connection it eventually
+        # terminates the watch and the fabric8 client throws
+        # `InterruptedIOException` → liveness probe fails → kubelet
+        # `Killing: Container failed liveness probe`.  Field-verified
+        # restartCount=6 in 12h with `Caused by: java.lang.
+        # InterruptedException` at io.fabric8.kubernetes.client.dsl.
+        # internal.OperationSupport.waitForResult.
+        #
+        # Kubernetes operators talk only to the apiserver (TLS terminated
+        # there) and Strimzi's cluster CA (TLS terminated by the broker).
+        # Sidecar adds zero security and breaks both flows.  Disable
+        # injection entirely; ambient mode (when adopted) reintroduces L4
+        # mTLS without the broken proxy interception.
+        podAnnotations:
+          sidecar.istio.io/inject: "false"
+        # Supply chain: Cosign-signed Strimzi images are available on quay.io.
+        # Kyverno verifyImages policy (ADR-012) enforces at admission.
+        labels:
+          app.kubernetes.io/part-of: mlops-platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-ingestion
+  # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

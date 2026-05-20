@@ -1,0 +1,731 @@
+# =============================================================================
+# Airflow — KubernetesExecutor layout (2026-04-21 refactor, ADR-025)
+# =============================================================================
+# Previous layout: a single Deployment running LocalExecutor, with webserver
+# and scheduler containers co-located in one pod.  LocalExecutor forks workers
+# inside the scheduler process, which caps concurrency at the scheduler pod's
+# CPU/memory budget, makes a scheduler restart kill every running task, and
+# leaves DataOps lineage (OpenLineage task-run events) attached to a long-lived
+# pod instead of discrete per-task pods.  That shape is not defensible for the
+# thesis's DataOps + MLOps story.
+#
+# New layout:
+#   - Executor: KubernetesExecutor.  The scheduler spawns one pod per task
+#     instance using the pod template mounted at /opt/airflow/pod_template.yaml.
+#     Workers are short-lived, isolated, and billed per task.
+#   - Scheduler and webserver are separate Deployments with dedicated
+#     ServiceAccounts (airflow-scheduler, airflow-webserver), each scoped to
+#     the RBAC it actually needs.
+#   - airflow-worker ServiceAccount is bound only to the ClusterRole
+#     `airflow-pod-operator` (pod + events + pods/log + pods/status) so
+#     KubernetesPodOperator-style DAG tasks can still spawn pods in any
+#     use-case namespace.
+#   - Remote task logs land in MinIO (bucket `airflow-logs`) via the
+#     `aws_minio` Airflow connection — without this every short-lived worker
+#     pod's logs would vanish on pod deletion.
+#   - Short-lived worker pods are opted out of Istio injection
+#     (`sidecar.istio.io/inject: "false"`); otherwise the istio-proxy sidecar
+#     keeps the pod `Running` indefinitely after the task container exits,
+#     which the KubernetesExecutor cannot clean up.  data-processing is in the
+#     ADR-009 mesh (STRICT); this carve-out is task-pod-only and NetworkPolicy
+#     continues to confine worker egress.
+#
+# OpenBao-sourced credentials (ADR-008):
+#   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN    — CNPG primary, DB-owner DSN
+#                                            (user `platform` from
+#                                            `secret/platform/postgres/app`;
+#                                            NOT the `postgres` superuser,
+#                                            which CNPG disables by default)
+#   AIRFLOW__API__SECRET_KEY               — API HMAC key
+#   AIRFLOW__WEBSERVER__SECRET_KEY         — webserver session signing key
+#   AIRFLOW__CORE__FERNET_KEY              — connection/variable encryption
+#   AIRFLOW_CONN_AWS_MINIO                 — MinIO-backed S3 conn for remote
+#                                            task-log storage (`airflow-logs`)
+#   LAKEFS_ACCESS_KEY_ID / LAKEFS_SECRET_ACCESS_KEY
+#     — LakeFS admin API creds consumed by use-case lakehouse DAGs'
+#       PythonOperator tasks (branch create/merge/delete); the same OpenBao
+#       path bootstraps the LakeFS server (platform/components/storage/lakefs).
+#
+# The `airflow` database is created by CNPG's `postInitApplicationSQL`
+# (platform/components/storage/postgresql/cluster.yaml) with OWNER=platform,
+# so `airflow db migrate` runs as the DB owner with full DDL rights.  No
+# defence-in-depth `ensure-db-exists` init container is needed (and it would
+# fail anyway, since CNPG's `enableSuperuserAccess: false` rejects password
+# auth for the `postgres` role).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: airflow-secrets
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: airflow-secrets
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://{{ .pg_user }}:{{ .pg_password }}@postgresql-rw.storage.svc.cluster.local:5432/airflow"
+        AIRFLOW__API__SECRET_KEY: "{{ .webserver_secret_key }}"
+        AIRFLOW__WEBSERVER__SECRET_KEY: "{{ .webserver_secret_key }}"
+        AIRFLOW__CORE__FERNET_KEY: "{{ .fernet_key }}"
+        # Airflow Connection for remote task logging.  The URI format is the
+        # one Airflow's S3Hook understands: `aws://<key>:<secret>@?endpoint_url=`.
+        # The bucket name is configured via AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER.
+        AIRFLOW_CONN_AWS_MINIO: "aws://{{ .minio_access_key }}:{{ .minio_secret_key }}@/?endpoint_url=http%3A%2F%2Fminio.storage.svc.cluster.local%3A9000"
+        # LakeFS admin credentials — scheduler-side env for DAG PythonOperator
+        # LakeFS API calls (see <use-case>/dags/lakehouse_dag.py).
+        # Scheduler reads these via os.getenv(); the same OpenBao path seeds the
+        # LakeFS server's first-boot admin account in platform/components/
+        # storage/lakefs/deployment.yaml — single source of truth.
+        LAKEFS_ACCESS_KEY_ID: "{{ .lakefs_access_key }}"
+        LAKEFS_SECRET_ACCESS_KEY: "{{ .lakefs_secret_key }}"
+        # Admin username/password — consumed by the scheduler's
+        # `airflow-init` container to bootstrap the FAB admin user via
+        # `airflow users create`.  The pair also gives operators a stable
+        # login for the web UI; DataHub no longer consumes it (the
+        # `datahub-ingest-airflow` CronJob was removed 2026-05-11 — see
+        # platform/components/data-governance/datahub-ingestion/recipes.yaml
+        # header — lineage flows push-side via OpenLineage instead).
+        # The `_AIRFLOW_WWW_USER_*` env convention from the helm chart was
+        # a 2.x contract tied to the docker-stack entrypoint; 3.x expects
+        # explicit `airflow users create` invocation instead, so we ship
+        # generic `AIRFLOW_ADMIN_*` names rather than the legacy ones.
+        AIRFLOW_ADMIN_USERNAME: "{{ .admin_username }}"
+        AIRFLOW_ADMIN_PASSWORD: "{{ .admin_password }}"
+  data:
+    # DB-owner credentials (`platform` user) sourced from the openbao path that
+    # mirrors CNPG's `postgresql-app` Secret — see
+    # platform/components/security/openbao/openbao-bootstrap.yaml (the mirror
+    # step right after the postgres/superuser seeding block).  CNPG defaults
+    # `enableSuperuserAccess: false`, so we CANNOT use `postgres/superuser`
+    # here: password auth for that role is actively disabled at the PG level.
+    - secretKey: pg_user
+      remoteRef: { key: platform/postgres/app, property: username }
+    - secretKey: pg_password
+      remoteRef: { key: platform/postgres/app, property: password }
+    - secretKey: fernet_key
+      remoteRef: { key: platform/airflow/admin, property: fernet_key }
+    - secretKey: webserver_secret_key
+      remoteRef: { key: platform/airflow/admin, property: webserver_secret_key }
+    - secretKey: admin_username
+      remoteRef: { key: platform/airflow/admin, property: username }
+    - secretKey: admin_password
+      remoteRef: { key: platform/airflow/admin, property: password }
+    - secretKey: minio_access_key
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: minio_secret_key
+      remoteRef: { key: platform/minio/root, property: password }
+    - secretKey: lakefs_access_key
+      remoteRef: { key: platform/lakefs/admin, property: access_key_id }
+    - secretKey: lakefs_secret_key
+      remoteRef: { key: platform/lakefs/admin, property: secret_access_key }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-config
+  namespace: data-processing
+data:
+  # --- Filesystem layout -----------------------------------------------
+  # AIRFLOW_HOME relocated to `/tmp/airflow-home` so UID 50000 can write
+  # airflow.cfg on first run.  DAGs delivered by git-sync v4 sidecar into
+  # an emptyDir mounted at /opt/airflow/dags-git; the `current` symlink
+  # is atomically swapped on each sync cycle.  DAGS_FOLDER points through
+  # the symlink so the scheduler picks up changes without restart.
+  AIRFLOW_HOME: "/tmp/airflow-home"
+  AIRFLOW__CORE__DAGS_FOLDER: "/opt/airflow/dags-git/current/dags"
+  AIRFLOW__CORE__PLUGINS_FOLDER: "/opt/airflow/plugins"
+  # --- Executor ---------------------------------------------------------
+  # KubernetesExecutor replaces LocalExecutor: each Airflow task instance
+  # runs in its own pod created from the template in airflow-pod-template.
+  AIRFLOW__CORE__EXECUTOR: "KubernetesExecutor"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "True"
+  AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "60"
+  # --- KubernetesExecutor ----------------------------------------------
+  AIRFLOW__KUBERNETES_EXECUTOR__NAMESPACE: "data-processing"
+  AIRFLOW__KUBERNETES_EXECUTOR__POD_TEMPLATE_FILE: "/opt/airflow/pod_template/pod_template.yaml"
+  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_REPOSITORY: "apache/airflow"
+  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_TAG: "3.1.8"
+  AIRFLOW__KUBERNETES_EXECUTOR__IN_CLUSTER: "True"
+  # Delete successful worker pods to keep the namespace clean; keep failed
+  # pods so operators can `kubectl logs` / `kubectl describe` for triage.
+  AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS: "True"
+  AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS_ON_FAILURE: "False"
+  # Tune parallelism for a single k3s node (cloud overlay bumps this).
+  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_PODS_CREATION_BATCH_SIZE: "4"
+  # --- Remote task logs (MinIO via aws_minio connection) ---------------
+  AIRFLOW__LOGGING__REMOTE_LOGGING: "True"
+  AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: "aws_minio"
+  AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: "s3://airflow-logs"
+  AIRFLOW__LOGGING__ENCRYPT_S3_LOGS: "False"
+  # --- OpenLineage → DataHub (ADR-013) ---------------------------------
+  # OpenLineage integration — sends lineage events to DataHub for every task
+  OPENLINEAGE_URL: "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"
+  OPENLINEAGE_NAMESPACE: "default"
+  AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"}'
+  # --- Auth manager (FAB provider) -------------------------------------
+  # Airflow 3.x ships SimpleAuthManager as default, but it auto-generates
+  # passwords to an on-disk JSON file (incompatible with our OpenBao-sourced
+  # credential pattern at secret/platform/airflow/admin) and exposes only
+  # JWT tokens on /auth/token (no BasicAuth).  FAB is the only 3.x auth
+  # manager that reads users from the metadata DB, giving us a declarative
+  # OpenBao→`airflow users create` path so the OPS admin (and any future
+  # service accounts) come from a single source of truth.  `basic_auth` is
+  # kept alongside `session` so external clients (CI smoke tests, future
+  # API integrations) can hit Airflow's REST API with the same OpenBao
+  # credentials; the web UI uses the cookie `session` backend.
+  AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
+  AIRFLOW__FAB__AUTH_BACKENDS: "airflow.providers.fab.auth_manager.api.auth.backend.session,airflow.providers.fab.auth_manager.api.auth.backend.basic_auth"
+---
+# --- Pod template consumed by KubernetesExecutor ---------------------------
+# Mounted at /opt/airflow/pod_template/pod_template.yaml on the scheduler.
+# The scheduler reads it, substitutes task-specific fields, and POSTs the
+# resulting pod spec to the API server to launch each worker.  The template
+# must match the API shape Kubernetes accepts (not Airflow's `k8s_object`
+# abstraction) and must NOT contain Airflow connection credentials — those
+# are supplied by envFrom on `airflow-secrets`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-pod-template
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: worker-template
+data:
+  pod_template.yaml: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: airflow-worker
+      labels:
+        app: airflow
+        app.kubernetes.io/component: worker
+      annotations:
+        # Task pods are short-lived; the istio-proxy sidecar keeps them
+        # Running forever after the task container exits and breaks the
+        # KubernetesExecutor's pod-deletion loop. Opt worker pods out of
+        # mesh injection; NetworkPolicy in data-processing still confines
+        # worker egress. ADR-009 allows this carve-out because worker pods
+        # are a controller-managed runtime subset, not a namespace default.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: airflow-worker
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 50000
+        fsGroup: 50000
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: git-sync-init
+          image: registry.k8s.io/git-sync/git-sync:v4.6.0
+          args:
+            - --repo=http://gitea.gitops.svc.cluster.local:3000/platform/platform.git
+            - --root=/git
+            - --link=current
+            - --ref=main
+            - --depth=1
+            - --one-time
+            - --submodules=off
+            # max-failures default is 0 → any DNS/network hiccup aborts the
+            # init and the worker pod never starts. Same failure class as the
+            # scheduler git-sync sidecar (#213). 5 retries on a one-time init
+            # is enough for CoreDNS to warm without blocking task launch.
+            - --max-failures=5
+          volumeMounts:
+            - name: airflow-dags
+              mountPath: /git
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      containers:
+        - name: base
+          # `localhost:5000/platform-airflow` requires the in-cluster registry
+          # component (TODO: platform/components/common/registry). Until that
+          # ships, use the public full image — bundles ~80 providers including
+          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
+          # openlineage (datahub). Slim image lacks amazon → ImportError on
+          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
+          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
+          image: apache/airflow:3.2.1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef: { name: airflow-secrets }
+            - configMapRef: { name: airflow-config }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 1000m, memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: airflow-logs
+              mountPath: /opt/airflow/logs
+            - name: airflow-dags
+              mountPath: /opt/airflow/dags-git
+              readOnly: true
+      volumes:
+        - name: airflow-logs
+          emptyDir: {}
+        - name: airflow-dags
+          emptyDir: {}
+---
+# --- ServiceAccounts -------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-scheduler
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: scheduler
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-webserver
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: webserver
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-worker
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: worker
+---
+# --- RBAC: pod CRUD for scheduler + worker --------------------------------
+# The scheduler creates task pods (KubernetesExecutor).
+# The worker SA is reused by KubernetesPodOperator-backed DAG tasks that
+# themselves spawn pods in use-case namespaces; both need the same verbs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: airflow-pod-operator
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status", "pods/exec"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: airflow-pod-operator-binding
+subjects:
+  - kind: ServiceAccount
+    name: airflow-scheduler
+    namespace: data-processing
+  - kind: ServiceAccount
+    name: airflow-worker
+    namespace: data-processing
+roleRef:
+  kind: ClusterRole
+  name: airflow-pod-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+# =============================================================================
+# Scheduler Deployment
+# =============================================================================
+# Owns DAG parsing + worker-pod creation.  Init containers perform one-shot
+# DB migration and admin-user bootstrap — these run before the scheduler
+# container starts, so the webserver can assume the schema is up-to-date.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: scheduler
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels:
+      app: airflow
+      app.kubernetes.io/component: scheduler
+  template:
+    metadata:
+      labels:
+        app: airflow
+        app.kubernetes.io/component: scheduler
+      annotations:
+        # Hold scheduler + git-sync containers until envoy sidecar is fully
+        # ready. Without this, git-sync runs `git fetch` before envoy is up
+        # → DNS lookup for gitea.gitops.svc.cluster.local hits the sidecar's
+        # pre-init iptables-redirected port → "Could not resolve host" → with
+        # --max-failures<1 (chart default), the container aborts and kubelet
+        # restart-loops it, producing 300+ restarts and a containerd CRI
+        # CreateContainer storm (#213, field-verified 2026-05-14).
+        proxy.istio.io/config: |
+          holdApplicationUntilProxyStarts: true
+    spec:
+      serviceAccountName: airflow-scheduler
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 50000
+        fsGroup: 50000
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for CNPG primary (postgresql-rw)…"
+              # Bounded retry: 60 attempts × 3s = 3 min ceiling, then exit
+              # non-zero so the kubelet restarts the pod (slot for backoff
+              # is owned by replicaset-controller, not this script).
+              for i in $(seq 1 60); do
+                if nc -w 2 postgresql-rw.storage.svc.cluster.local 5432; then
+                  echo "PostgreSQL is ready (attempt $i)."
+                  exit 0
+                fi
+                echo "PostgreSQL not ready (attempt $i/60), sleeping 3s"
+                sleep 3
+              done
+              echo "PostgreSQL still unreachable after 3 min"
+              exit 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+        - name: airflow-init
+          # `localhost:5000/platform-airflow` requires the in-cluster registry
+          # component (TODO: platform/components/common/registry). Until that
+          # ships, use the public full image — bundles ~80 providers including
+          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
+          # openlineage (datahub). Slim image lacks amazon → ImportError on
+          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
+          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
+          image: apache/airflow:3.2.1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: airflow-secrets
+            - configMapRef:
+                name: airflow-config
+          command: ["/bin/bash", "-c"]
+          args:
+            # Three-phase init:
+            #   1. `airflow db migrate`      — Airflow core schema (DAG/Run/TI/etc.).
+            #   2. `airflow fab-db migrate`  — FAB auth schema (ab_user, ab_role,
+            #      ab_permission).  Airflow 3.x moved the FAB tables into a
+            #      dedicated migration command owned by the FAB provider, so this
+            #      step is required IN ADDITION TO `airflow db migrate` — `db
+            #      migrate` alone does not create the FAB tables.  `fab-db migrate`
+            #      creates the schema on first run and is a no-op on subsequent
+            #      runs; the command is only available when the FAB provider is
+            #      installed (see apache-airflow-providers-fab>=3.6.1 in
+            #      platform/services/orchestration/airflow/pyproject.toml).
+            #   3. `airflow users create …`  — idempotent admin-user bootstrap.
+            #      The `users` subcommand is provided by the FAB auth manager;
+            #      it exists ONLY when FAB is enabled (see ConfigMap
+            #      `airflow-config`).  Check-then-create via `users list` keeps
+            #      the block safely re-runnable on every pod restart: the first
+            #      run creates the user, every subsequent run is a no-op.
+            #
+            # $AIRFLOW_ADMIN_USERNAME / $AIRFLOW_ADMIN_PASSWORD come from the
+            # `airflow-secrets` Secret (rendered from OpenBao path
+            # secret/platform/airflow/admin by the `airflow-secrets`
+            # ExternalSecret above).  This is the same credential consumed by
+            # DataHub's Airflow ingestion (BasicAuth on the REST API).
+            - |
+              set -euo pipefail
+              airflow db migrate
+              echo "[init] Airflow core schema migrated."
+              airflow fab-db migrate
+              echo "[init] FAB auth schema migrated."
+              # `-o json` gives structured output so the existence check does
+              # not depend on the table/tabulate rendering format (which
+              # changes between Airflow minor versions).  Matching on the
+              # `"username": "<value>"` JSON field is tight: no other field
+              # uses that exact key, and we set `--firstname Platform
+              # --lastname Admin` so those fields can never collide with the
+              # username value even on partial string match.
+              if airflow users list -o json 2>/dev/null | grep -q "\"username\": \"${AIRFLOW_ADMIN_USERNAME}\""; then
+                echo "[init] admin user '${AIRFLOW_ADMIN_USERNAME}' already exists — skipping create."
+              else
+                airflow users create \
+                  --role Admin \
+                  --username "${AIRFLOW_ADMIN_USERNAME}" \
+                  --password "${AIRFLOW_ADMIN_PASSWORD}" \
+                  --email admin@platform.local \
+                  --firstname Platform \
+                  --lastname Admin
+                echo "[init] admin user '${AIRFLOW_ADMIN_USERNAME}' created."
+              fi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      containers:
+        - name: scheduler
+          # `localhost:5000/platform-airflow` requires the in-cluster registry
+          # component (TODO: platform/components/common/registry). Until that
+          # ships, use the public full image — bundles ~80 providers including
+          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
+          # openlineage (datahub). Slim image lacks amazon → ImportError on
+          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
+          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
+          image: apache/airflow:3.2.1
+          imagePullPolicy: IfNotPresent
+          command: ["airflow"]
+          args: ["scheduler"]
+          envFrom:
+            - secretRef:
+                name: airflow-secrets
+            - configMapRef:
+                name: airflow-config
+          volumeMounts:
+            - name: airflow-pod-template
+              mountPath: /opt/airflow/pod_template
+              readOnly: true
+            - name: airflow-dags
+              mountPath: /opt/airflow/dags-git
+              readOnly: true
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: "200m"
+              memory: "512Mi"  # JVM/Python scheduler; keep ≥512Mi
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'airflow jobs check --job-type SchedulerJob --hostname "$(hostname)"'
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+        # git-sync v4 sidecar — keeps DAGs in sync with the Gitea repo.
+        # Assumes anonymous HTTP read on the internal Gitea (air-gapped,
+        # no REQUIRE_SIGNIN_VIEW).  If Gitea is locked down, add
+        # --username / --password-file from a Secret.
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.6.0
+          args:
+            - --repo=http://gitea.gitops.svc.cluster.local:3000/platform/platform.git
+            - --root=/git
+            - --link=current
+            - --ref=main
+            - --depth=1
+            - --period=60s
+            - --submodules=off
+            # max-failures default is 0 (any fetch failure aborts the
+            # container). On a cold cluster, the first `git fetch` races
+            # CoreDNS warm-up + gitea pod readiness, deterministically
+            # producing one transient EAI_AGAIN → restart loop (#213).
+            # 10 retries × 60s period = 10 min DNS-tolerance window before
+            # we declare the upstream genuinely broken.
+            - --max-failures=10
+          volumeMounts:
+            - name: airflow-dags
+              mountPath: /git
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: airflow-pod-template
+          configMap:
+            name: airflow-pod-template
+        - name: airflow-dags
+          emptyDir: {}
+---
+# =============================================================================
+# Webserver Deployment
+# =============================================================================
+# Read-only UI + REST API.  Scales independently of the scheduler.  Tolerates
+# an extended startup window (`startupProbe`) so a concurrent scheduler
+# migration does not knock it out of the rotation.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-webserver
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: webserver
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+      app.kubernetes.io/component: webserver
+  template:
+    metadata:
+      labels:
+        app: airflow
+        app.kubernetes.io/component: webserver
+    spec:
+      serviceAccountName: airflow-webserver
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 50000
+        fsGroup: 50000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: webserver
+          # `localhost:5000/platform-airflow` requires the in-cluster registry
+          # component (TODO: platform/components/common/registry). Until that
+          # ships, use the public full image — bundles ~80 providers including
+          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
+          # openlineage (datahub). Slim image lacks amazon → ImportError on
+          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
+          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
+          image: apache/airflow:3.2.1
+          imagePullPolicy: IfNotPresent
+          command: ["airflow"]
+          args: ["api-server"]
+          envFrom:
+            - secretRef:
+                name: airflow-secrets
+            - configMapRef:
+                name: airflow-config
+          ports:
+            - containerPort: 8080
+              name: web
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              cpu: "200m"
+              memory: "512Mi"  # JVM/Python webserver; keep ≥512Mi
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          startupProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30   # ~5 min window for first-boot migration
+          livenessProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+---
+# Primary Service — selects only the webserver pods.  Kept on the generic
+# name `airflow` so existing callers (AIRFLOW_URL, DataHub ingestion,
+# infrastructure.yaml) resolve without changes.
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: webserver
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: web
+  selector:
+    app: airflow
+    app.kubernetes.io/component: webserver
+---
+# Component-qualified alias — matches the name some ingestion recipes use
+# (e.g. <use-case>/scripts/libs/datahub/ingestion_config.py).
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-webserver
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: webserver
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: web
+  selector:
+    app: airflow
+    app.kubernetes.io/component: webserver
+---
+# Headless Service for the scheduler — needed by the `airflow jobs check`
+# liveness probe (`--hostname`) and by future HA-mode leader coordination.
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-scheduler
+  namespace: data-processing
+  labels:
+    app: airflow
+    app.kubernetes.io/component: scheduler
+spec:
+  clusterIP: None
+  selector:
+    app: airflow
+    app.kubernetes.io/component: scheduler
+  ports:
+    - name: scheduler
+      port: 8793
+      targetPort: 8793

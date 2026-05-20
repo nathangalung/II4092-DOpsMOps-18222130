@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Observability stack (ADR-010, KNF-06).
+#   - kube-prometheus-stack: Prometheus Operator + Alertmanager + kube-state-metrics + node-exporter
+#   - opentelemetry:         OTel Operator + gateway Collector + agent DaemonSet + auto-instrumentation
+#   - grafana:               UI (uses the kube-prometheus-stack Prometheus)
+#   - loki:                  log aggregator (PVC + MinIO chunks)
+#   - tempo:                 OTLP trace backend on MinIO S3 (LGTM stack) —
+#                            sole trace backend for the platform (ADR-010 /
+#                            ADR-025). The former Jaeger v2 component was
+#                            removed 2026-04-21: Tempo already accepts OTLP
+#                            natively, stores on MinIO (not Elasticsearch),
+#                            and integrates with Grafana TraceQL, so Jaeger
+#                            was pure duplication.
+#   - evidently:             drift UI (persistent workspace)
+#   - opencost:              FinOps cost attribution
+#   - pushgateway:           batch-job metrics push (Airflow, CronJobs)
+#   - sloth:                 SLO-as-code (PrometheusServiceLevel CR → recording
+#                            rules + multi-window burn-rate alerts)
+#   - pyroscope:             continuous profiling (LGTM++) — ADR-014, 2026-04-20
+#
+# Retired 2026-04-21 (ADR-026):
+#   - prometheus-adapter: custom/external metrics API for HPAs. The only live
+#     consumer (gateway HPA — `http_requests_per_second`) was migrated to a
+#     KEDA prometheus trigger in <use-case>/manifests/base/scaling/
+#     scaledobjects.yaml. Kafka-lag HPAs had already moved to KEDA kafka
+#     triggers in ADR-022. With zero HPAs consuming the adapter, running it
+#     is cost without benefit — and the upstream HEAD (v0.12.0, May 2024)
+#     fails the 2026-minimum-release rule in components/VERSION.MD.
+#
+# The legacy hand-rolled `prometheus/` component is replaced by kube-prometheus-stack.
+resources:
+  - namespace.yaml
+  - kube-prometheus-stack
+  - opentelemetry
+  - grafana
+  - tempo
+  - loki
+  - evidently/deployment.yaml
+  - evidently/hpa.yaml
+  - opencost/deployment.yaml
+  - pushgateway
+  - sloth
+  - pyroscope

@@ -1,0 +1,157 @@
+# =============================================================================
+# Kubeflow Spark Operator — declarative SparkApplication lifecycle
+# =============================================================================
+# Provides the `SparkApplication` / `ScheduledSparkApplication` CRDs. The
+# operator watches the data-processing namespace (and use-case namespaces)
+# and orchestrates `spark-submit` through a dedicated controller pod.
+#
+# ADR-012.  Coexists with the current `spark-submit`-from-Airflow pattern
+# (via `deployment.yaml` RBAC + spark-defaults ConfigMap) until every job
+# is migrated to a SparkApplication CR.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spark-operator
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: batch-operator
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://kubeflow.github.io/spark-operator
+    chart: spark-operator
+    targetRevision: 2.5.0        # 2026-03-19, supports Spark 4.1.x + alpha feature gates
+    helm:
+      releaseName: spark-operator
+      values: |
+        # Cluster-wide watch: SparkApplication / ScheduledSparkApplication CRs
+        # in any namespace are reconciled. Chart 2.5.0 reads the watch list
+        # from `spark.jobNamespaces` (not `controller.namespaces`, which the
+        # chart silently ignores and falls back to `default` — leaving CRs in
+        # data-processing un-reconciled, applicationState empty, and ArgoCD
+        # health.lua stuck at Progressing on the parent app).
+        # `[""]` (empty string in the list) is the canonical cluster-wide
+        # value; restrict via explicit ns list for compliance scope only.
+        spark:
+          jobNamespaces: [""]
+        controller:
+          workers: 5
+          labelSelectorFilter: ""
+          # Chart defaults (15s / 10s / 2s) drop the leader lease under
+          # kine-bound apiserver latency on single-node k3s — observed 121
+          # restarts/40h with `failed to renew lease ... context deadline
+          # exceeded` followed by `Failed to start manager: leader election
+          # lost`. 60s / 40s / 8s gives the renew loop room when kine stalls
+          # past 10s without sacrificing failover speed (still re-elects in
+          # under a minute).
+          leaderElection:
+            enable: true
+            leaseDuration: 60s
+            renewDeadline: 40s
+            retryPeriod: 8s
+          # Kyverno require-resource-limits (Deny) blocks pods whose
+          # containers omit requests/limits. Chart 2.5.0 splits the operator
+          # into controller + webhook Deployments; each needs its own block.
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+        webhook:
+          enable: true
+          # cert-manager issues the webhook cert (prerequisite).
+          certManager:
+            enable: true
+          # Webhook hits the same lease-renew issue as the controller (chart
+          # 2.5.0 doesn't surface lease params for the webhook block — see
+          # the controller block above for the chosen values).
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 250m, memory: 256Mi }
+        metrics:
+          enable: true
+          portName: metrics
+          port: 8080
+          endpoint: /metrics
+        prometheus:
+          podMonitor:
+            create: true
+            jobLabel: spark-operator
+        serviceAccounts:
+          sparkoperator:
+            create: true
+            name: spark-operator
+          spark:
+            # The Spark driver's SA; matches the one in deployment.yaml so
+            # existing jobs keep working while they're migrated.
+            create: false
+            name: spark
+        resources:
+          # Single-pod bootstrap; bump for production load.
+          requests: { cpu: 100m, memory: 256Mi }
+          limits:   { cpu: 500m, memory: 1Gi }
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 185
+          fsGroup: 185
+          seccompProfile: { type: RuntimeDefault }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: [ALL] }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spark-operator
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not
+    # auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# SparkApplication CRs are per-job and use-case-owned. The platform stays
+# domain-agnostic: no reference-batch SparkApplication is shipped here.
+# A SparkApplication with empty `.status.applicationState.state` triggers
+# the ArgoCD health.lua "SparkApplication was added, enqueuing it for
+# submission" branch → Progressing forever on the parent app (since this
+# repo doesn't allow auto-submit + auto-delete cycles for a sample). Use
+# cases declare their own SparkApplication / ScheduledSparkApplication in
+# `use-case-*/` overlays — see apache/spark examples or the spark-operator
+# README for the shape.
+---
+# Same mTLS PERMISSIVE bridge as Flink (see flink/flink-cluster.yaml).
+# spark-operator runs out-of-mesh in `spark-operator` ns and submits to
+# the in-mesh `spark-driver` pods here; without PERMISSIVE the submission
+# webhook + driver status probes hit STRICT and fail with TCP reset.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: spark-driver-permissive
+  namespace: data-processing
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      spark-role: driver
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: spark-executor-permissive
+  namespace: data-processing
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      spark-role: executor
+  mtls:
+    mode: PERMISSIVE

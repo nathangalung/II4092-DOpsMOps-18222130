@@ -1,0 +1,100 @@
+# =============================================================================
+# PLATFORM INFRASTRUCTURE — Shared K8s Service Endpoints
+# =============================================================================
+# Base ConfigMap inherited by ALL use cases. Contains infrastructure endpoints
+# that are common across the cluster. Use-cases add domain-specific values
+# via Kustomize patches on this ConfigMap (e.g. KSERVE_INFERENCE_URL, which
+# is use-case-scoped because the InferenceService name is use-case-specific).
+#
+# Source of truth: platform/config/infrastructure.yaml (update that first,
+# then regenerate this ConfigMap so both stay in lock-step).
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  labels:
+    app: ml-pipeline
+data:
+  # --- Storage (OLAP — Altinity CHI `platform`; ADR-011) ---
+  # The Altinity operator creates a cluster Service named
+  # `clickhouse-<chi-name>` in the chi's namespace. Our CHI is named
+  # `platform`, so the service is `clickhouse-platform.storage.svc`.
+  CLICKHOUSE_HOST: "clickhouse-platform.storage.svc.cluster.local"
+  CLICKHOUSE_PORT: "8123"
+  # Default ClickHouse database. Use-case overlays set specific databases
+  # via schema.yaml patches when they organise data with schema prefixes
+  # (e.g., TRAINING_DB: "gold", DATA_TABLE: "bronze.<domain>_ohlcv").
+  CLICKHOUSE_DB: "features"
+
+  # --- Storage (OLTP — CNPG primary via -rw service; ADR-011) ---
+  POSTGRES_HOST: "postgresql-rw.storage.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "pipeline"
+  POSTGRES_USER: "postgres"
+  # Read-replica endpoint for read-heavy workloads (ADR-011)
+  POSTGRES_RO_HOST: "postgresql-ro.storage.svc.cluster.local"
+  # PgBouncer pooler (prefer for high-fanout apps)
+  POSTGRES_POOLER_HOST: "postgresql-rw-pool.storage.svc.cluster.local"
+
+  # --- Storage (Cache + Object + Vector) ---
+  # Valkey 9 (BSD-3-Clause) — Redis-RESP-compatible drop-in (ADR: Redis 8 AGPL → Valkey).
+  VALKEY_HOST: "valkey.storage.svc.cluster.local"
+  VALKEY_PORT: "6379"
+  S3_ENDPOINT: "http://minio.storage.svc.cluster.local:9000"
+  MINIO_ENDPOINT: "minio.storage.svc.cluster.local:9000"
+  QDRANT_URL: "http://qdrant.storage.svc.cluster.local:6333"
+  QDRANT_GRPC_URL: "qdrant.storage.svc.cluster.local:6334"
+
+  # --- Lakehouse (Iceberg + LakeFS) ---
+  ICEBERG_CATALOG_URL: "http://lakekeeper.storage.svc.cluster.local:8181/catalog"
+  ICEBERG_CATALOG_TYPE: "rest"
+  ICEBERG_WAREHOUSE: "warehouse"
+  LAKEFS_URL: "http://lakefs.storage.svc.cluster.local:8000"
+
+  # --- Data Ingestion (Strimzi KRaft cluster "platform-kafka"; ADR-011) ---
+  KAFKA_BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092"
+  # Karapace — Apache 2.0 open-source schema registry (Confluent API compatible)
+  SCHEMA_REGISTRY_URL: "http://karapace.data-ingestion.svc.cluster.local:8081"
+  KAFKA_CONNECT_URL: "http://kafka-connect.data-ingestion.svc.cluster.local:8083"
+
+  # --- Data Processing ---
+  FLINK_JOBMANAGER_REST: "http://flink-jobmanager.data-processing.svc.cluster.local:8081"
+  AIRFLOW_URL: "http://airflow.data-processing.svc.cluster.local:8080"
+  TRINO_HOST: "trino.data-processing.svc.cluster.local"
+  TRINO_PORT: "8085"
+  # Spark runs K8s-native (spark-submit --master k8s://...), no standalone master
+  SPARK_MASTER: "k8s://https://kubernetes.default.svc:443"
+
+  # --- Model Lifecycle ---
+  MLFLOW_TRACKING_URI: "http://mlflow.model-lifecycle.svc.cluster.local:5000"
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.storage.svc.cluster.local:9000"
+  FEAST_REGISTRY_HOST: "feast.model-lifecycle.svc.cluster.local"
+  FEAST_REGISTRY_PORT: "6566"
+  KFP_HOST: "http://ml-pipeline.model-lifecycle.svc.cluster.local:8888"
+
+  # --- Model Serving ---
+  # KSERVE_INFERENCE_URL is use-case-specific (InferenceService name varies).
+  # Define it in a use-case configmap patch on pipeline-config — e.g.
+  # `http://<isvc>-predictor.<namespace>.svc.cluster.local`.
+
+  # --- Observability ---
+  PROMETHEUS_PUSHGATEWAY: "pushgateway.observability.svc.cluster.local:9091"
+  # OTLP endpoint — services emit traces/metrics/logs to the OTel gateway,
+  # which fans out to Tempo (traces), kube-prometheus-stack (metrics via
+  # remote_write), and Loki (logs).  The legacy JAEGER_ENDPOINT was removed
+  # 2026-04-21 (ADR-010 / ADR-025) — Tempo is the sole trace backend.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector-gateway.observability.svc.cluster.local:4317"
+  LOKI_URL: "http://loki.observability.svc.cluster.local:3100"
+
+  # --- Data Governance (OpenLineage → DataHub) ---
+  OPENLINEAGE_URL: "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"
+  OPENLINEAGE_NAMESPACE: "default"
+
+  # --- API Gateway ---
+  APISIX_PROXY_URL: "http://apisix.security.svc.cluster.local:8000"
+  APISIX_ADMIN_URL: "http://apisix.security.svc.cluster.local:8001"
+
+  # --- Defaults ---
+  LOG_LEVEL: "INFO"

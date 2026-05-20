@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml         # RBAC, ConfigMap, ExternalSecret (Spark-on-K8s plumbing)
+  - spark-operator.yaml     # ADR-012: Kubeflow Spark Operator + reference SparkApplication

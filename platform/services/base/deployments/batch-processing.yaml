@@ -1,0 +1,68 @@
+# =============================================================================
+# BATCH PROCESSING — Feature Engineering (Python + pandas/ta-lib)
+# =============================================================================
+# Computes rolling statistics, momentum indicators, volatility measures,
+# temporal features, and lag features from ClickHouse time-series data.
+#
+# Platform tool integration:
+#   - Airflow: Workflow orchestration via DAGs
+#   - Great Expectations: Data quality validation on computed features
+#   - Karapace: Schema validation for feature output
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch-processing
+  labels:
+    app: batch-processing
+    component: processing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: batch-processing
+  template:
+    metadata:
+      labels:
+        app: batch-processing
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: batch-processing
+          image: batch-processing:latest
+          imagePullPolicy: IfNotPresent
+          command: ["uv", "run", "main.py"]
+          args: ["--mode", "features"]
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: pipeline-config

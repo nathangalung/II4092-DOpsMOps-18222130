@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# SpiceDB v1.51.0 with PostgreSQL-backed datastore (persistent across
+# restarts) + schema loader Job.  Preshared key sourced from OpenBao via
+# External Secrets Operator (ADR-008).
+resources:
+  - deployment.yaml
+  - schema-loader.yaml

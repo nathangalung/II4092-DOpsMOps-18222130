@@ -1,0 +1,297 @@
+# =============================================================================
+# Falco 0.43.1 (2026-02-18) — Runtime Security for Kubernetes (CNCF graduated)
+# =============================================================================
+# ADR-014 / KNF-09.  Falco is the de-facto runtime security layer for
+# Kubernetes: it watches syscalls via eBPF and emits structured alerts on
+# "suspicious" behaviour (shell in a container, mount of /proc, unexpected
+# outbound connection, privileged exec, etc).  Pairs with Kyverno
+# (admission-time) for defence-in-depth:
+#
+#     Kyverno        — blocks non-compliant YAML at kube-apiserver
+#     Falco          — detects compliant YAML that becomes non-compliant at
+#                      RUNTIME (e.g. an image that drops a malicious binary
+#                      after passing Cosign verification)
+#     Falcosidekick  — fan-out alerts to Alertmanager, Slack, Loki, and the
+#                      audit-log S3 bucket (bucket `falco-audit` on MinIO)
+#
+# Driver choice: `modern_ebpf` (CO-RE eBPF), which needs no kernel headers
+# and works on every k3s node the platform targets (kernel >= 5.8).
+# Legacy `kmod` driver is explicitly disabled — it requires kernel headers
+# on every node and breaks air-gapped upgrades.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: falco
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: falco
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://falcosecurity.github.io/charts
+    chart: falco
+    # Chart 8.0.2 (latest on falcosecurity/charts) bundles Falco 0.43.1 +
+    # falcosidekick 2.32.x. Chart 6.x was never published on the public
+    # index; 8.x consolidated the `falco` / `falco-no-driver` images into
+    # a single `falcosecurity/falco` image where the driver is selected
+    # at runtime via `driver.kind`.
+    targetRevision: 8.0.2
+    helm:
+      releaseName: falco
+      values: |
+        image:
+          repository: falcosecurity/falco
+          tag: 0.43.1
+        # ----- driver -----
+        driver:
+          enabled: true
+          kind: modern-bpf       # CO-RE eBPF; no kernel headers required.
+        # ----- Falco itself -----
+        falco:
+          json_output: true
+          json_include_output_property: true
+          # HTTP endpoint for kubectl-based introspection + `curl :8765/healthz`
+          # liveness probes.
+          webserver:
+            enabled: true
+            listen_port: 8765
+            ssl_enabled: false
+          # File output is kept OFF; all alerts go to falcosidekick which
+          # forwards to Alertmanager + Loki (structured) + S3 (raw audit).
+          file_output: { enabled: false }
+          stdout_output: { enabled: true }
+          # Outputs queued in-memory to survive brief sidekick outages.
+          outputs: { rate: 1, max_burst: 1000 }
+          # ----- rule files -----
+          # Loading order matters: earlier files define macros reused later.
+          rules_files:
+            - /etc/falco/falco_rules.yaml
+            - /etc/falco/falco_rules.local.yaml
+            - /etc/falco/k8s_audit_rules.yaml
+            - /etc/falco/rules.d
+            - /etc/falco/rules.local/platform-rules.yaml
+        # Custom platform rules (ADR-014 §Runtime-Detection).
+        customRules:
+          platform-rules.yaml: |
+            # ----------------------------------------------------------------
+            # Platform-specific rules layered on top of upstream defaults.
+            # ----------------------------------------------------------------
+            - macro: platform_sensitive_ns
+              condition: (k8s.ns.name in (security, storage, gitops, model-lifecycle))
+            - rule: Exec into sensitive namespace
+              desc: Catches any `kubectl exec`/`docker exec` into pods in
+                namespaces that hold platform secrets.
+              condition: >
+                spawned_process and container and platform_sensitive_ns
+                and (proc.name in (sh, bash, zsh, fish, ash))
+              output: >
+                Shell spawned in sensitive namespace (user=%user.name
+                ns=%k8s.ns.name pod=%k8s.pod.name container=%container.name
+                cmdline=%proc.cmdline)
+              priority: WARNING
+              tags: [platform, shell, k8s]
+            - rule: Outbound connection from model-lifecycle
+              desc: Model training pods must NOT reach the public internet —
+                all traffic should go through the APISIX egress gateway.
+              condition: >
+                outbound and k8s.ns.name = "model-lifecycle"
+                and not fd.snet in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+              output: >
+                External egress from training pod
+                (dst=%fd.sip:%fd.sport pod=%k8s.pod.name)
+              priority: CRITICAL
+              tags: [platform, network, mlops]
+        # Single-pod bootstrap; bump for production load.
+        resources:
+          requests: { cpu: 100m, memory: 256Mi }
+          limits:   { cpu: 1000m, memory: 1Gi }
+        # falcoctl ships as an init container (rule-install) + sidecar
+        # (rule-follow). Chart 8.x leaves their resources empty, which
+        # Kyverno require-resource-limits (Deny) rejects — set them here.
+        falcoctl:
+          artifact:
+            install:
+              resources:
+                requests: { cpu: 50m,  memory: 64Mi }
+                limits:   { cpu: 200m, memory: 128Mi }
+            follow:
+              resources:
+                requests: { cpu: 50m,  memory: 64Mi }
+                limits:   { cpu: 200m, memory: 128Mi }
+        # ServiceMonitor for kube-prometheus-stack (falco exposes /metrics
+        # on :8765 when Prometheus output is enabled).
+        metrics:
+          enabled: true
+          service:
+            type: ClusterIP
+        serviceMonitor:
+          create: true
+          labels:
+            release: kube-prometheus-stack
+        # Pod-level config.
+        tolerations:
+          - operator: Exists        # run on every node, including tainted CP
+        priorityClassName: system-node-critical
+        # ----- falcosidekick sidecar (built-in from chart 4.x+) -----
+        falcosidekick:
+          enabled: true
+          replicaCount: 1
+          image:
+            repository: falcosecurity/falcosidekick
+            tag: 2.32.0
+          # Main sidekick deployment resources — chart default is `{}` which
+          # Kyverno require-resource-limits (Deny) rejects.
+          resources:
+            requests: { cpu: 50m,  memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          config:
+            existingSecret: falco-sidekick-outputs
+            prometheus:
+              # Exposes /metrics with per-rule firing counters.
+              extralabels: "cluster:platform"
+            alertmanager:
+              hostport: http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093
+              minimumpriority: notice
+            loki:
+              hostport: http://loki.observability.svc.cluster.local:3100
+              tenant: falco
+              minimumpriority: notice
+              extralabels: "cluster:platform,source:falco"
+            s3:
+              # Raw audit trail retained in MinIO (30-day lifecycle policy
+              # set on `falco-audit` in bucket-bootstrap.yaml).
+              bucket: falco-audit
+              region: us-east-1
+              endpoint: http://minio.storage.svc.cluster.local:9000
+              prefix: events/
+              s3forcepathstyle: true
+              minimumpriority: warning
+          # HA for the sidekick webhook endpoint.
+          webui:
+            enabled: true
+            replicaCount: 1
+            image:
+              repository: falcosecurity/falcosidekick-ui
+              tag: 2.3.0
+            # Chart 8.x expects an OBJECT (registry/repository/tag) for
+            # `webui.redis.image`; chart default `redis/redis-stack:7.2.0-v11`
+            # is kept — overriding with the plain `redis:` image breaks the
+            # init container schema and prior releases had a string here.
+            # Resources must be set on BOTH webui & the redis sidecar so
+            # Kyverno require-resource-limits admits the pod.
+            resources:
+              requests: { cpu: 50m,  memory: 64Mi }
+              limits:   { cpu: 200m, memory: 256Mi }
+            initContainer:
+              resources:
+                requests: { cpu: 20m, memory: 32Mi }
+                limits:   { cpu: 100m, memory: 64Mi }
+            redis:
+              # 512Mi was OOMKilled mid-RDB-load when the persisted dump grew
+              # past 380MB (working set = RDB pages + redis-stack module
+              # bookkeeping > 512Mi). 1Gi gives headroom for module caches
+              # (RediSearch, RedisGears) without burning unused RAM at idle.
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits:   { cpu: 500m, memory: 1Gi }
+        # Run as a DaemonSet (one pod per node).
+        controller:
+          kind: daemonset
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: falco
+  syncPolicy:
+    automated:
+      # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+# =============================================================================
+# falcosidekick output credentials (MinIO S3 + Alertmanager basic auth).
+# Reuses platform/minio/root (matches Velero/Loki/Tempo pattern).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: falco-sidekick-outputs
+  namespace: falco
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: falco
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: falco-sidekick-outputs
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        AWSACCESSKEYID: "{{ .minio_user }}"
+        AWSSECRETACCESSKEY: "{{ .minio_pass }}"
+  data:
+    - secretKey: minio_user
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: minio_pass
+      remoteRef: { key: platform/minio/root, property: password }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: falco
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: falco
+    # Istio sidecar breaks the eBPF probe reload path; skip injection.
+    istio-injection: disabled
+---
+# =============================================================================
+# PolicyException — exempt the Falco DaemonSet pods from disallow-privileged.
+# Falco MUST run privileged to load its CO-RE eBPF probe and read kernel
+# tracepoints from /proc, /sys.  Scope matches ONLY pods with
+# `app.kubernetes.io/name=falco` in the falco namespace — the sidekick
+# Deployment (labelled `falcosidekick`) and the falcosidekick-ui redis
+# StatefulSet do NOT need privileged and must still pass the policy.
+# =============================================================================
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: falco-privileged-daemon
+  namespace: falco
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: falco
+    adr: "012"
+spec:
+  policyRefs:
+    - kind: ValidatingPolicy
+      name: disallow-privileged
+  matchConditions:
+    - name: only-falco-daemonset-pods
+      expression: |
+        object.metadata.namespace == 'falco' &&
+        has(object.metadata.labels) &&
+        'app.kubernetes.io/name' in object.metadata.labels &&
+        object.metadata.labels['app.kubernetes.io/name'] == 'falco'
+  reportResult: skip

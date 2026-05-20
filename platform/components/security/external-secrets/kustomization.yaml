@@ -1,0 +1,111 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# External Secrets Operator — chart 2.3.0 (app v0.22.x, 2026-04).
+#
+# Rendered via `kustomize build --enable-helm` (apply-component.sh) and
+# applied with `kubectl apply --server-side --force-conflicts`. Server-side
+# apply is mandatory: ESO ships clustersecretstores.external-secrets.io and
+# secretstores.external-secrets.io which exceed the 256KB annotation limit
+# of client-side apply.
+#
+# CRD-then-CR ordering (CRDs from the chart, ClusterSecretStore CR from this
+# layer) is handled by the retry loop in apply-component.sh — first apply
+# succeeds for CRDs, subsequent retries land the CR once Established.
+#
+# IMPORTANT: NO top-level `namespace:` here. Kustomize's namespace transformer
+# rewrites `metadata.namespace` on every namespaced resource — that would
+# clobber the explicit `namespace: storage` / `namespace: data-ingestion` on
+# the cross-namespace SA + Role + RoleBinding (eso-postgres-app-reader,
+# eso-kafka-users-reader) that back the platform-postgres-app and
+# platform-kafka-users ClusterSecretStores, leaving the stores in
+# InvalidProviderConfig with `serviceaccounts \"eso-postgres-app-reader\"
+# not found`. The chart's own resources land in `external-secrets` via
+# `helmCharts[].namespace` below, which only sets `.Release.Namespace` for
+# helm template (no transformer override).
+
+helmCharts:
+  - name: external-secrets
+    repo: https://charts.external-secrets.io
+    version: 2.3.0
+    releaseName: external-secrets
+    namespace: external-secrets
+    includeCRDs: true
+    valuesInline:
+      installCRDs: true
+      # Controller MUST have >=1 replica — without it ExternalSecret CRs
+      # never reconcile to actual Secrets, blocking every downstream
+      # bootstrap (minio-root, velero-minio, postgres-*, openbao-*).
+      # Bump higher for HA once leader-election is validated.
+      replicaCount: 1
+      leaderElect: true
+      # NOTE: ES 2.3.0 controller binary (chart maps `extraArgs` → container
+      # `args:`) does NOT bind --leader-elect-lease-duration et al. Attempted
+      # bump caused `Error: unknown flag: --leader-elect-lease-duration` →
+      # CrashLoopBackOff. Leader-election uses controller-runtime defaults
+      # (15s/10s/2s). Historical `leader election lost` storm root-caused to
+      # IO pressure under the pre-ADR-031 CSI sidecar stack (#214/#243 fixed);
+      # defaults adequate on healed single-node local-path cluster.
+      resources:
+        requests: { cpu: 100m, memory: 128Mi }
+        limits:   { cpu: 500m, memory: 256Mi }
+      # ServiceMonitor (monitoring.coreos.com/v1) requires Prometheus Operator
+      # CRDs. Operator installs in atom-obs-stack which runs AFTER phase-base.
+      # Re-apply this component once the CRD is Established (or rely on the
+      # apply-component retry loop on second apply).
+      serviceMonitor:
+        enabled: false
+      webhook:
+        # Webhook MUST have >=1 replica — ValidatingWebhookConfiguration
+        # intercepts every ClusterSecretStore/SecretStore/ExternalSecret
+        # create; a 0-replica webhook makes the apply fail with `no endpoints
+        # available for service "external-secrets-webhook"`.
+        replicaCount: 1
+        resources:
+          requests: { cpu: 50m, memory: 64Mi }
+          limits:   { cpu: 200m, memory: 128Mi }
+      certController:
+        # Cert-controller signs the webhook server cert and patches the CA
+        # bundle into the ValidatingWebhookConfiguration. Without it the
+        # webhook serves but kube-apiserver can't verify the cert.
+        replicaCount: 1
+        resources:
+          requests: { cpu: 50m, memory: 64Mi }
+          limits:   { cpu: 200m, memory: 128Mi }
+      metrics:
+        service:
+          enabled: true
+
+resources:
+  - namespace.yaml
+  - cluster-secret-store.yaml
+
+# ESO ships ValidatingWebhookConfigurations with failurePolicy=Fail. On a
+# fresh install the webhook Service has no endpoints for ~30-90s while the
+# webhook Deployment rolls out and the cert-controller injects the CA bundle.
+# During that window every ClusterSecretStore / SecretStore / ExternalSecret
+# apply fails with `no endpoints available for service
+# external-secrets-webhook` — exactly the same failure mode that
+# `forceFailurePolicyIgnore` solves for Kyverno. ESO chart 2.3.0 does not
+# expose an equivalent values knob, so patch the webhook configs directly.
+# Schema validation still happens server-side via the CRD — Ignore here only
+# affects the *semantic* validation done by the ESO controller.
+# Field-validated 2026-05-02 after observing the bootstrap deadlock.
+patches:
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: secretstore-validate
+    patch: |-
+      - op: replace
+        path: /webhooks/0/failurePolicy
+        value: Ignore
+      - op: replace
+        path: /webhooks/1/failurePolicy
+        value: Ignore
+  - target:
+      kind: ValidatingWebhookConfiguration
+      name: externalsecret-validate
+    patch: |-
+      - op: replace
+        path: /webhooks/0/failurePolicy
+        value: Ignore

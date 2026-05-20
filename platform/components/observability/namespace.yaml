@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    # PSA enforce=privileged because this namespace hosts DaemonSets that
+    # legitimately need hostPath + raised capabilities:
+    #   - alloy           : /var/log/pods + /run/k3s/containerd, DAC_READ_SEARCH
+    #   - node-exporter   : /proc, /sys, /, hostNetwork+hostPID
+    # Per-pod securityContext on every other workload (Prometheus, Loki,
+    # Grafana, Tempo) still complies with the restricted profile, so audit +
+    # warn stay at restricted to surface regressions in those non-DS pods.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+    istio-injection: enabled

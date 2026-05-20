@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Model lifecycle tier — feature store + experiment tracking + notebooks +
+# pipelines + hyper-parameter tuning + training controller.
+#
+# R12–R15 audit (2026-04-18):
+#   - Removed `kuberay/`       — unused; our workloads are traditional (FLAML
+#                                 lgbm/xgboost/catboost/rf); no Ray dependency.
+#   - Removed `label-studio/`  — unused; label generation is fully deterministic
+#                                 via `compute_target_features` from future bars
+#                                 (see <use-case>/pipelines/compute_target_features.py);
+#                                 no manual labeling workflow required.
+# If a future use-case needs distributed Ray workers or human labeling, add a
+# new component directory here rather than resurrecting these paths.
+resources:
+  - namespace.yaml
+  - feast
+  - kubeflow-katib/crds
+  - kubeflow-katib/deployment.yaml
+  - kubeflow-notebooks
+  - kubeflow-pipelines
+  - kubeflow-trainer
+  - mlflow
+  - kubeflow-metadata/hpa.yaml
+  - kubeflow-pipeline-api/hpa.yaml
+  # ExternalName alias `minio-service.kubeflow` — required by KFP v2
+  # launcher's hardcoded minio:// URL scheme.  Lives in namespace `kubeflow`.
+  - minio-service-kubeflow.yaml
+
+patches:
+  - target:
+      kind: ServiceAccount
+      name: .*
+    patch: |-
+      - op: replace
+        path: /metadata/namespace
+        value: model-lifecycle
+
+  # Global patches for all deployments to ensure restart policy and resource efficiency
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/restartPolicy
+        value: Always
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+
+  # Global patches for all StatefulSets
+  - target:
+      kind: StatefulSet
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/restartPolicy
+        value: Always
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30

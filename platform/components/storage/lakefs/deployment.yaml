@@ -1,0 +1,320 @@
+# =============================================================================
+# LakeFS — Git-like data lake (Iceberg/S3 branching) — OpenBao-sourced secrets
+# =============================================================================
+# ADR-008.  Four OpenBao paths contribute to lakefs-secrets:
+#   - Postgres `platform` app user → platform/postgres/app (CNPG-mirrored;
+#     the DB owner with full rights on the `lakefs` database — the
+#     `postgres` superuser is unusable because CNPG defaults
+#     `enableSuperuserAccess: false`).
+#   - MinIO root access key/secret → platform/minio/root
+#   - LAKEFS_AUTH_ENCRYPT_SECRET_KEY (server-side AES key derivation)
+#                                   → platform/lakefs/encryption
+#   - LakeFS admin API credentials → platform/lakefs/admin
+#     Consumed by the lakefs-bootstrap Job below (POSTs to the LakeFS
+#     setup API on fresh-cluster first-boot) and by the Airflow
+#     scheduler for DAG LakeFS API calls — see platform/components/
+#     data-processing/airflow/deployment.yaml.  The LakeFS server itself
+#     does NOT read admin creds from env (LAKEFS_INSTALLATION_* env vars
+#     only work when database.type=local, and this deployment runs
+#     database.type=postgres).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: lakefs-secrets
+  namespace: storage
+  labels:
+    app: lakefs
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: lakefs-secrets
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        # Full DSN templated so the ConfigMap / env never carries plaintext.
+        LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING: "postgres://{{ .pg_user }}:{{ .pg_password }}@postgresql-rw.storage.svc.cluster.local:5432/lakefs?sslmode=disable"
+        LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID: "{{ .s3_access_key }}"
+        LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY: "{{ .s3_secret_key }}"
+        LAKEFS_AUTH_ENCRYPT_SECRET_KEY: "{{ .encryption_key }}"
+        # LAKEFS_SETUP_* — consumed ONLY by the lakefs-bootstrap Job below,
+        # which POSTs these to /api/v1/setup_lakefs to seed the admin
+        # account on fresh-cluster first-boot.  The Job tolerates HTTP 409
+        # ("setup was already called") so re-apply is idempotent.  The
+        # LakeFS server process also envFroms this Secret but silently
+        # ignores these keys (no matching config path in the LakeFS
+        # schema).  Rotation runbook: update via LakeFS CLI/UI first, then
+        # `bao kv patch secret/platform/lakefs/admin ...`.
+        LAKEFS_SETUP_USER_NAME: "{{ .lakefs_admin_user }}"
+        LAKEFS_SETUP_ACCESS_KEY_ID: "{{ .lakefs_admin_access_key }}"
+        LAKEFS_SETUP_SECRET_ACCESS_KEY: "{{ .lakefs_admin_secret_key }}"
+  data:
+    - secretKey: pg_user
+      remoteRef: { key: platform/postgres/app, property: username }
+    - secretKey: pg_password
+      remoteRef: { key: platform/postgres/app, property: password }
+    - secretKey: s3_access_key
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: s3_secret_key
+      remoteRef: { key: platform/minio/root, property: password }
+    - secretKey: encryption_key
+      remoteRef: { key: platform/lakefs/encryption, property: key }
+    - secretKey: lakefs_admin_user
+      remoteRef: { key: platform/lakefs/admin, property: username }
+    - secretKey: lakefs_admin_access_key
+      remoteRef: { key: platform/lakefs/admin, property: access_key_id }
+    - secretKey: lakefs_admin_secret_key
+      remoteRef: { key: platform/lakefs/admin, property: secret_access_key }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lakefs
+  namespace: storage
+  labels:
+    app: lakefs
+spec:
+  selector:
+    app: lakefs
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lakefs
+  namespace: storage
+  labels:
+    app: lakefs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lakefs
+  template:
+    metadata:
+      labels:
+        app: lakefs
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lakefs
+          image: treeverse/lakefs:1.80.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LAKEFS_DATABASE_TYPE
+              value: "postgres"
+            - name: LAKEFS_BLOCKSTORE_TYPE
+              value: "s3"
+            - name: LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: LAKEFS_BLOCKSTORE_S3_ENDPOINT
+              value: "http://minio.storage.svc.cluster.local:9000"
+            - name: LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION
+              value: "false"
+            - name: LAKEFS_LOGGING_LEVEL
+              value: "INFO"
+            - name: LAKEFS_STATS_ENABLED
+              value: "false"
+          envFrom:
+            # Secrets block supplies DB DSN + S3 creds + AES encryption key.
+            - secretRef:
+                name: lakefs-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # /lakefs/data/cache is the committed-tier local cache dir; rootfs
+          # is read-only so we mount an emptyDir over /lakefs.
+          volumeMounts:
+            - name: lakefs-cache
+              mountPath: /lakefs
+          readinessProbe:
+            httpGet:
+              path: /api/v1/healthcheck
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/healthcheck
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: lakefs-cache
+          emptyDir: {}
+---
+# =============================================================================
+# LakeFS bootstrap — runs once on first cluster boot to create the admin
+# account.  LakeFS v1.80 with database.type=postgres cannot self-bootstrap
+# from env vars (LAKEFS_INSTALLATION_* is local-backend-only), so we POST
+# to /api/v1/setup_lakefs ourselves with OpenBao-seeded credentials.
+#
+# Idempotency: the setup endpoint returns HTTP 409 ("setup was already
+# called") on re-invocation; we treat 409 as success so GitOps re-apply is
+# safe.  backoffLimit+restartPolicy: OnFailure gives the Job a handful of
+# retries for transient Service-unavailable windows, and
+# ttlSecondsAfterFinished cleans up the pod after completion.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lakefs-bootstrap
+  namespace: storage
+  labels:
+    app: lakefs
+    app.kubernetes.io/component: bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+  # Argo CD PostSync hook — runs after the LakeFS Deployment is synced.
+  # hook-delete-policy removes the previous Job before creating a new one
+  # (Job specs are immutable, so plain re-apply would otherwise fail) and
+  # deletes on success to keep the namespace clean.  Pattern matches
+  # platform/components/storage/spicedb/schema-loader.yaml.
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: lakefs
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        seccompProfile:
+          type: RuntimeDefault
+      # readOnlyRootFilesystem=true on the setup container blocks curl's
+      # `-o /tmp/resp.json` (curl error 23: write error). Mount tmpfs at /tmp
+      # so the response-body capture (used to print non-200/409 errors) works
+      # without weakening the rootfs constraint.
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-lakefs
+          image: curlimages/curl:8.20.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "Waiting for LakeFS /api/v1/healthcheck to return 2xx…"
+              for i in $(seq 1 60); do
+                if curl -fsS -o /dev/null -w '%{http_code}' \
+                     http://lakefs.storage.svc.cluster.local:8000/api/v1/healthcheck \
+                     | grep -qE '^2..'; then
+                  echo "LakeFS is healthy."
+                  exit 0
+                fi
+                echo "  attempt $i: not ready, retrying in 5s"
+                sleep 5
+              done
+              echo "LakeFS did not become healthy within 5 minutes" >&2
+              exit 1
+      containers:
+        - name: setup
+          image: curlimages/curl:8.20.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            # lakefs-secrets carries LAKEFS_SETUP_USER_NAME /
+            # _ACCESS_KEY_ID / _SECRET_ACCESS_KEY seeded from OpenBao path
+            # platform/lakefs/admin.
+            - secretRef:
+                name: lakefs-secrets
+          command: ["/bin/sh", "-c"]
+          args:
+            # POST to /api/v1/setup_lakefs.  Body schema (per LakeFS v1.80
+            # swagger): { username, key: { access_key_id, secret_access_key } }.
+            # No `password` field — LakeFS admin auth is access-key-based.
+            # HTTP 200 → fresh install; 409 → already set up (idempotent
+            # re-run); anything else is a hard failure.
+            - |
+              set -eu
+              body=$(printf '{"username":"%s","key":{"access_key_id":"%s","secret_access_key":"%s"}}' \
+                "${LAKEFS_SETUP_USER_NAME}" \
+                "${LAKEFS_SETUP_ACCESS_KEY_ID}" \
+                "${LAKEFS_SETUP_SECRET_ACCESS_KEY}")
+              status=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+                -X POST \
+                -H 'Content-Type: application/json' \
+                -d "${body}" \
+                http://lakefs.storage.svc.cluster.local:8000/api/v1/setup_lakefs)
+              echo "setup_lakefs returned HTTP ${status}"
+              case "${status}" in
+                200)
+                  echo "LakeFS admin account created." ;;
+                409)
+                  echo "LakeFS already initialised — nothing to do." ;;
+                *)
+                  echo "Unexpected response:" >&2
+                  cat /tmp/resp.json >&2 || true
+                  exit 1 ;;
+              esac
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lakefs
+  namespace: storage
+  labels:
+    app: lakefs
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: lakefs

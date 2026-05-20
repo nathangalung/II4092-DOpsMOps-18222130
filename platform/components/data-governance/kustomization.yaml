@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Data-governance layer (ADR-013):
+#   - DataHub GMS + frontend + actions (metadata catalog, lineage, classification)
+#   - OpenSearch (DataHub storage — Apache-2.0; replaces Elasticsearch 9 AGPL.
+#     Dedicated to DataHub now that Jaeger v2 was removed 2026-04-21)
+#   - OpenLineage (native integration to DataHub GMS, ConfigMap only)
+#   - DataHub ingestion: recipes + CronJobs for PG/CH/MinIO/Kafka/Airflow/dbt/Feast/MLflow
+resources:
+  - namespace.yaml
+  - datahub/actions.yaml
+  - datahub/deployment.yaml
+  - datahub/hpa.yaml
+  - opensearch/deployment.yaml
+  - openlineage/deployment.yaml
+  - datahub-ingestion

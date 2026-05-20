@@ -1,0 +1,33 @@
+# =============================================================================
+# OPENLINEAGE — Native Integration (Direct to DataHub)
+# =============================================================================
+# OpenLineage lineage events are sent DIRECTLY from producers (Airflow, Spark,
+# Flink, dbt) to DataHub's OpenLineage endpoint. No proxy needed.
+#
+# Each producer is configured with:
+#   OPENLINEAGE_URL=http://datahub-gms.data-governance:8080/openapi/openlineage
+#   OPENLINEAGE_API_KEY="" (no auth needed for internal cluster)
+#
+# Supported producers (native OpenLineage support):
+#   - Airflow 3.x: Built-in OpenLineage provider
+#   - Spark 4.x: OpenLineage Spark integration jar
+#   - Flink 2.x: OpenLineage Flink connector
+#   - dbt: OpenLineage dbt integration
+#
+# This ConfigMap provides the shared OpenLineage configuration
+# that services reference via envFrom.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openlineage-config
+  namespace: data-governance
+  labels:
+    app: openlineage
+    app.kubernetes.io/name: openlineage
+    app.kubernetes.io/component: lineage-config
+    app.kubernetes.io/part-of: mlops-platform
+data:
+  # DataHub's native OpenLineage endpoint
+  OPENLINEAGE_URL: "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"
+  OPENLINEAGE_NAMESPACE: "default"

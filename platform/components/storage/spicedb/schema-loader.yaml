@@ -1,0 +1,157 @@
+# =============================================================================
+# SpiceDB schema loader — Zanzibar-style policy for MLOps platform
+# =============================================================================
+# One-shot Job that writes the platform's authorization schema once SpiceDB
+# is ready.  Idempotent: zed schema write is a no-op when identical.
+#
+# Schema model:
+#   user          — subjects (humans, service accounts)
+#   team          — group of users (data-engineering, ml-engineering, …)
+#   project       — top-level tenant (e.g. a use-case namespace)
+#   dataset       — data asset under a project, with reader/editor relations
+#   model         — ML model (MLflow run_id / KServe InferenceService)
+#   pipeline      — Airflow/KFP pipeline run
+#
+# Example check:  can user:alice read dataset:<project>/bronze/<table> ?
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spicedb-schema
+  namespace: storage
+data:
+  schema.zed: |
+    definition user {}
+
+    definition team {
+      relation member: user
+      relation admin: user
+
+      permission membership = member + admin
+    }
+
+    definition project {
+      relation owner: user
+      relation admin: user | team#membership
+      relation developer: user | team#membership
+      relation viewer: user | team#membership
+
+      permission admin_perm = owner + admin
+      permission write = admin_perm + developer
+      permission read = write + viewer
+    }
+
+    definition dataset {
+      relation parent: project
+      relation editor: user | team#membership
+      relation viewer: user | team#membership
+
+      permission edit = editor + parent->write
+      permission view = edit + viewer + parent->read
+    }
+
+    definition model {
+      relation parent: project
+      relation owner: user
+      relation deployer: user | team#membership
+      relation viewer: user | team#membership
+
+      permission deploy = owner + deployer + parent->admin_perm
+      permission view = deploy + viewer + parent->read
+    }
+
+    definition pipeline {
+      relation parent: project
+      relation runner: user | team#membership
+      relation viewer: user | team#membership
+
+      permission run = runner + parent->write
+      permission view = run + viewer + parent->read
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spicedb-schema-loader
+  namespace: storage
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: spicedb
+        job: schema-loader
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: spicedb
+      initContainers:
+        - name: wait-for-spicedb
+          image: busybox:1.37
+          command: ["sh", "-c"]
+          args:
+            - |
+              # Bounded retry: 60 attempts × 2s = 2 min ceiling
+              for i in $(seq 1 60); do
+                if nc -z spicedb.storage.svc.cluster.local 50051; then
+                  echo "SpiceDB gRPC is ready (attempt $i)"
+                  exit 0
+                fi
+                echo "waiting for SpiceDB gRPC (attempt $i/60) ..."; sleep 2
+              done
+              echo "SpiceDB gRPC still unreachable after 2 min"
+              exit 1
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: zed
+          # authzed/zed is distroless — no shell, no busybox. Drive zed
+          # purely via flags + env vars (ZED_ENDPOINT/ZED_TOKEN/ZED_INSECURE)
+          # so we don't depend on `sh -c`. The previous `sh -c` wrapper
+          # caused StartError "exec: 'sh': executable file not found in
+          # $PATH" on every Job retry (seen 2026-04-28).
+          image: authzed/zed:v0.33.0
+          command: ["zed"]
+          args:
+            - schema
+            - write
+            - /schema/schema.zed
+          env:
+            - name: ZED_ENDPOINT
+              value: spicedb.storage.svc.cluster.local:50051
+            - name: ZED_INSECURE
+              value: "true"
+            - name: ZED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: spicedb-secret
+                  key: preshared-key
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+              readOnly: true
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+      volumes:
+        - name: schema
+          configMap:
+            name: spicedb-schema

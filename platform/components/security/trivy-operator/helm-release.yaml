@@ -1,0 +1,274 @@
+# =============================================================================
+# Trivy Operator 0.30.1 (2026-03-13) — Kubernetes-native vulnerability scans
+# =============================================================================
+# ADR-014 / KNF-09.  Complements Cosign (admission-time supply-chain verify)
+# with CONTINUOUS, runtime reconciliation of the attack surface.  The
+# operator exposes results as first-class Kubernetes CRDs:
+#
+#   VulnerabilityReport        — per-container CVE list (synced from Trivy DB)
+#   ConfigAuditReport          — per-workload Kubernetes best-practice scan
+#   ExposedSecretReport        — per-container secret leak detection
+#   ClusterComplianceReport    — NSA/CIS/PSS aggregated posture
+#   SbomReport                 — Cyclone DX SBOM per image (for Cosign attest)
+#   InfraAssessmentReport      — kube-bench (CIS Kubernetes benchmark)
+#
+# All reports are scraped by kube-prometheus-stack via a bundled ServiceMonitor
+# (metric families `trivy_*`) and surfaced in the platform Grafana dashboard
+# `security-posture.json`.  Critical CVEs trigger AlertmanagerConfig routes
+# owned by the security team (see observability/kube-prometheus-stack/
+# alertmanager-configs.yaml).
+#
+# Scanner topology: trivy-operator uses the `Trivy` job-template mode which
+# spawns a short-lived Job per image — this keeps the operator stateless and
+# lets the CVE database refresh hot without restarting the controller.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trivy-operator
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: trivy-operator
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://aquasecurity.github.io/helm-charts
+    chart: trivy-operator
+    # Chart 0.32.1 (2026-03-13) bundles operator v0.30.1 + Trivy CLI 0.69.3.
+    targetRevision: 0.32.1
+    helm:
+      releaseName: trivy-operator
+      values: |
+        # Chart 0.32.1: operator container `resources` is a TOP-LEVEL key,
+        # NOT `operator.resources`. Likewise `targetNamespaces` /
+        # `excludeNamespaces` are top-level (the `operator:` block holds
+        # behavioural flags like scan timeouts & scanner enables, not the
+        # scope or container resources). Kyverno require-resource-limits
+        # (Deny) blocks the operator pod unless `resources` is set here.
+        resources:
+          requests: { cpu: 100m, memory: 128Mi }
+          limits:   { cpu: 500m, memory: 512Mi }
+        # Scope: scan everything EXCEPT platform infra (we trust our own
+        # base images) AND chaos-mesh (privileged by design).
+        targetNamespaces: ""          # empty = all namespaces
+        excludeNamespaces: "kube-system,kube-public,kube-node-lease,chaos-mesh,falco"
+        operator:
+          # Held at 0: chart 0.32.1 / trivy-operator v0.30.1 has an upstream
+          # bug where vulnerabilityScannerEnabled:false is ignored, and the
+          # controller-runtime workload informer triggers a scan storm against
+          # the air-gapped ghcr.io/aquasecurity/trivy-db. Re-enable only after
+          # bumping to a release that honors the flag OR after mirroring
+          # trivy-db locally. See #160/166/169/214/249/256/259.
+          replicas: 0
+          # 2m bounds each failed-pull Job so kube-apiserver/etcd aren't tied
+          # up with long-Pending pods. ghcr.io/aquasecurity/trivy-db is
+          # unreachable in this air-gapped lab — every vuln scan ends in
+          # ImagePullBackOff, so a tight deadline reclaims resources fast.
+          scanJobTimeout: 2m
+          # Single-node k3s has only 16 vCPU; 10 concurrent scans × 200m
+          # reservation = 2000m held in Pending when image-pulls stall. Two
+          # concurrent scans keep the queue drained without starving workloads
+          # on this single-node cluster.
+          scanJobsConcurrentLimit: 2
+          # 1h delay between retries — chart 0.32.1 / operator v0.30.1 ignores
+          # `vulnerabilityScannerEnabled: false`, so vuln scan Jobs keep
+          # firing on every workload reconcile. A 30s default produced a
+          # >50 req/s admission stream (each Job hitting Kyverno's deny webhook
+          # → re-queue → retry) that hammered kube-apiserver and starved CSI
+          # attacher + Longhorn — root cause of recurring IO cascade
+          # (#160/166/169/214/249/256). 1h caps the storm at <1 req/min per
+          # workload while still letting the offline-Rego scanners (configAudit,
+          # rbacAssessment, exposedSecret, infraAssessment) complete normally.
+          scanJobsRetryDelay: 1h
+          metricsVulnIdEnabled: true
+          metricsExposedSecretInfo: true
+          # Chart 0.32.1 uses one `scannerReportTTL` knob for all
+          # scanners (not per-scanner). 24h keeps the CR store from
+          # accumulating indefinitely while still surviving a full
+          # operator rescan cycle.
+          scannerReportTTL: "24h"
+          # vulnerabilityScanner + sbomGeneration disabled in this lab:
+          # both require Trivy's CVE DB which is hosted at
+          # ghcr.io/aquasecurity/trivy-db and returns DENIED in our
+          # air-gapped k3s. Each scan Job's init container retried in a
+          # CrashLoop, holding 100m CPU + 256Mi RAM × scanJobsConcurrentLimit.
+          # The other scanners (configAudit, rbacAssessment,
+          # infraAssessment, exposedSecret) use Trivy's built-in Rego
+          # checks bundle (`policiesBundle` below) and run fully offline,
+          # so KNF-09 posture coverage stays >80% even without CVE data.
+          # Re-enable after mirroring trivy-db OCI image to in-cluster
+          # registry (zot/Gitea-OCI) and pointing dbRepository at it.
+          vulnerabilityScannerEnabled: false
+          configAuditScannerEnabled: true
+          rbacAssessmentScannerEnabled: true
+          infraAssessmentScannerEnabled: true
+          exposedSecretScannerEnabled: true
+          sbomGenerationEnabled: false
+          clusterComplianceEnabled: true
+          # SBOM caching (speeds up subsequent scans by ~10x).
+          sbomCacheSize: 5000
+        trivy:
+          # Chart 0.32.1 reads `trivy.repository` / `trivy.tag` as FLAT keys
+          # (not nested `trivy.image.*`). Leaving them nested left the chart
+          # default `mirror.gcr.io/ghcr.io/aquasecurity/trivy` — that path does
+          # not exist in the GCR mirror, so every scan Job hit ImagePullBackOff
+          # and accumulated Pending pods that reserved 200m CPU each.
+          repository: ghcr.io/aquasecurity/trivy
+          tag: "0.69.3"
+          # Scan ONLY the layers not already covered by the platform's base
+          # image (reduces noise + speeds scans).
+          ignoreUnfixed: false
+          # Severity thresholds (alerts fire on CRITICAL/HIGH; LOW/MEDIUM
+          # logged to ConfigAuditReport only).
+          severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+          # Trivy DB persistence (so the operator can survive DB-server
+          # rate limits and air-gapped environments).
+          storageClassName: local-path
+          storageSize: 5Gi
+          # Offline mode toggles + mirror override.
+          dbRegistry: "ghcr.io/aquasecurity/trivy-db"
+          javaDbRegistry: "ghcr.io/aquasecurity/trivy-java-db"
+          # Enable Trivy's built-in HTTP server so scan jobs don't re-download
+          # the 600 MB DB on every scan.
+          serverEnabled: true
+          server:
+            replicas: 1
+            resources:
+              requests: { cpu: 100m, memory: 256Mi }
+              limits:   { cpu: 1000m, memory: 1Gi }
+            persistence:
+              enabled: true
+              storageClassName: local-path
+              size: 10Gi
+            # Token-auth for the Trivy server API.
+            tokenHeader: "Trivy-Token"
+            token:
+              existingSecret: trivy-server-token
+              secretKey: token
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 1000m, memory: 1Gi }
+        # Dedicated NodeSelector so heavy scan jobs don't evict critical
+        # workloads (optional; falls back to any node if selector misses).
+        nodeSelector: {}
+        tolerations: []
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+          labels:
+            release: kube-prometheus-stack
+        # Per-scan Job pod/container securityContext. Chart 0.32.x defaults
+        # set allowPrivilegeEscalation/capabilities/readOnlyRootFilesystem
+        # but NOT runAsNonRoot/runAsUser, so Kyverno's
+        # `require-run-as-nonroot` ClusterPolicy denies every scan-job pod.
+        # 65532 is the upstream `nonroot` UID baked into the trivy CLI image.
+        trivyOperator:
+          scanJobPodTemplatePodSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          scanJobPodTemplateContainerSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+        # Admission-time image validation hook (complements Kyverno
+        # ImageValidatingPolicy): if enabled, the operator blocks pods whose
+        # images have new CRITICAL CVEs since the last scan.
+        # Chart 0.32.x concatenates `<registry>/<repository>:<tag>`. Setting
+        # registry to `mirror.gcr.io/aquasec/trivy-checks` produced the OCI
+        # path `mirror.gcr.io/aquasec/trivy-checks/aquasec/trivy-checks:0.17.0`
+        # (double prefix → 404 on every reconcile). Split into hostname +
+        # repository keys per upstream chart convention.
+        policiesBundle:
+          # Chart 0.32.1 default is tag `1` (major-version pointer at
+          # `mirror.gcr.io/aquasec/trivy-checks:1`). Tag `0.17.0` returned
+          # `MANIFEST_UNKNOWN: Failed to fetch "0.17.0"` because that
+          # specific minor tag isn't published at the GCR mirror — the
+          # mirror only carries the moving major-version tag. With the
+          # bundle download broken, the operator runs in a degraded
+          # reconcile loop that re-spawns scan jobs even when individual
+          # scanners are disabled (OPERATOR_VULNERABILITY_SCANNER_ENABLED
+          # is "false" in the rendered ConfigMap, but vuln-scan Jobs keep
+          # firing until the bundle loads). Pinning to `"1"` matches the
+          # upstream chart default and works at mirror.gcr.io.
+          registry: "mirror.gcr.io"
+          repository: "aquasec/trivy-checks"
+          tag: "1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trivy-system
+  syncPolicy:
+    automated:
+      # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+# =============================================================================
+# Trivy server token (API auth between the operator's per-scan Jobs and the
+# persistent Trivy HTTP server).  Random at seed; rotated by re-running the
+# OpenBao bootstrap Job with SEED_TRIVY_TOKEN set.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trivy-server-token
+  namespace: trivy-system
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: trivy-operator
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: trivy-server-token
+    creationPolicy: Owner
+  data:
+    - secretKey: token
+      remoteRef: { key: platform/trivy/server, property: token }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+  labels:
+    # PSA privileged: trivy-operator's `infraAssessmentScannerEnabled` spawns a
+    # node-collector Job that needs hostPID=true + hostPath mounts of
+    # /var/lib/etcd, /var/lib/kubelet, /etc/kubernetes etc. (kube-bench inspects
+    # host files for the CIS Kubernetes benchmark). PSA `baseline` blocks both,
+    # so every node-collector reconcile fails with "violates PodSecurity
+    # baseline:latest: host namespaces (hostPID=true), hostPath volumes ...".
+    # Privileged is the only PSA level compatible with infra-assessment workloads.
+    # Other defenses still apply: Kyverno `require-resource-limits` (Deny) covers
+    # CPU/memory budgets; only system-owned scan Jobs run in this namespace.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: trivy-operator
+    # istio-injection disabled: trivy-operator talks only to kube-apiserver
+    # and the Trivy server (cluster-local). No service-mesh mTLS required,
+    # and the injected istio-proxy / istio-validation containers lack
+    # seccompProfile which clashes with stricter PSA postures if re-tightened.

@@ -1,0 +1,245 @@
+# =============================================================================
+# OpenBao Auto-Unsealer — single-node Shamir auto-unseal watcher
+# =============================================================================
+# Why this exists: openbao-bootstrap.yaml is a one-shot Job (PostSync hook,
+# `hook-delete-policy: HookSucceeded`) that initializes OpenBao and unseals
+# it once.  After any pod restart — k3s service restart, node reboot,
+# kubelet eviction, manual `kubectl delete pod openbao-0` — OpenBao comes
+# back **Sealed** and the bootstrap Job has already been deleted, so
+# nothing brings it back.  Every downstream consumer (KES → MinIO,
+# external-secrets → ALL component Secrets) goes red until an operator
+# manually re-applies the bootstrap Job.
+#
+# This Deployment closes that gap: a long-running watch-loop that polls
+# openbao-0 every 30s and unseals it whenever it is found Sealed.  Reads
+# the same `openbao-unseal` Secret the bootstrap Job populated.
+#
+# Why NOT the alternatives:
+#   - Transit-seal (unseal-openbao.yaml): adds a 2nd OpenBao StatefulSet
+#     + PVC + Service + PDB just to hold one Transit key.  Documented in
+#     that file as an "out-of-band migration artefact" — overkill for a
+#     single-node thesis cluster.
+#   - Cloud KMS auto-unseal (AWS/GCP/Azure): air-gapped K3s, no cloud
+#     KMS available.
+#   - CronJob every 1min: works, but max recovery window is 60s, and the
+#     succeeded-Job pile-up obscures real failures.  A Deployment shows
+#     up cleanly in `kubectl get pods` and gives a continuous health
+#     signal.
+#
+# Trust delta vs. status quo: zero.  `openbao-unseal` already lives in
+# this namespace as the bootstrap Job's output.  This unsealer reads it
+# with NARROWER RBAC than the bootstrap Job (no `create/update/patch`
+# on Secrets — get-only on a single resourceName).
+#
+# Single-node + max-1-replica directive: replicas: 1.  PodDisruptionBudget
+# omitted — the unsealer is recoverable (a 30s window with openbao still
+# unsealed from the previous iteration is fine), unlike the primary STS.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-unsealer
+  namespace: security
+  labels:
+    app: openbao-unsealer
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: openbao-auto-unseal
+---
+# Narrower than openbao-bootstrap RBAC: read-only on the unseal Secret,
+# exec only into openbao container.  No write capability on Secrets, no
+# wildcard pod access.  Principle of least privilege — the unsealer
+# does not need the bootstrap's seed-secret permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-unsealer
+  namespace: security
+rules:
+  # Read the bootstrap-produced Secret.  resourceNames is a hard allowlist
+  # — RBAC cannot read any other Secret in the namespace.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["openbao-unseal"]
+    verbs: ["get"]
+  # `pods get list` to discover openbao pods (label selector applied
+  # in-script; RBAC has no label-selector verb).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # `kubectl exec openbao-0 -- bao operator unseal` is the only mutation
+  # this SA performs.  Same pattern as the bootstrap Job — bypasses Envoy
+  # by talking to 127.0.0.1:8200 inside the openbao container.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-unsealer
+  namespace: security
+subjects:
+  - kind: ServiceAccount
+    name: openbao-unsealer
+    namespace: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-unsealer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao-unsealer
+  namespace: security
+  labels:
+    app: openbao-unsealer
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: openbao-auto-unseal
+spec:
+  # Single-node, max-1-replica directive.  A second replica would
+  # double-call `bao operator unseal` — the API is idempotent on share
+  # replay, but the noise in audit logs is undesirable.
+  replicas: 1
+  strategy:
+    # Recreate avoids two unsealer pods racing during rollout.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: openbao-unsealer
+  template:
+    metadata:
+      labels:
+        app: openbao-unsealer
+        app.kubernetes.io/part-of: mlops-platform
+      annotations:
+        # Same rationale as openbao-0 + bootstrap Job: this pod must reach
+        # openbao-0 BEFORE ESO can mint mesh certs (chicken-and-egg).
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: openbao-unsealer
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        # Root only because `apk add` writes to /etc/apk/world + /usr/bin
+        # at startup.  Same trade-off as the bootstrap Job.  After apk,
+        # the unseal calls run as the same UID — there is no further
+        # privilege escalation.
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: unsealer
+          image: quay.io/openbao/openbao:2.5.3
+          imagePullPolicy: IfNotPresent
+          env:
+            # Probe target: openbao-0 over the headless Service.  The
+            # unsealer never goes through the mesh (no sidecar) and never
+            # uses the cluster-IP service — it talks directly to the
+            # bound pod address.
+            - name: BAO_ADDR
+              value: "http://openbao-0.openbao.security.svc.cluster.local:8200"
+            # Polling interval.  30s ≈ recovery time after a k3s service
+            # restart; tighter polling burns CPU for no benefit.
+            - name: POLL_INTERVAL_SECONDS
+              value: "30"
+          # Modest ceiling — sleeps most of the time, only wakes for a
+          # `bao status` HTTP call + (rarely) 3× `kubectl exec`.
+          resources:
+            requests: { cpu: 20m,  memory: 64Mi }
+            limits:   { cpu: 200m, memory: 192Mi }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -uo pipefail
+
+              # apk mirrors flake; same retry loop as the bootstrap Job.
+              for i in 1 2 3 4 5; do
+                if apk add --no-cache curl jq kubectl; then
+                  break
+                fi
+                echo ">>> apk attempt $i failed, retrying in $((i*3))s"
+                sleep $((i * 3))
+              done
+              for bin in kubectl jq curl bao; do
+                if ! command -v "$bin" >/dev/null 2>&1; then
+                  echo "!!! FATAL: $bin not installed; refusing to start watch loop" >&2
+                  exit 1
+                fi
+              done
+
+              echo ">>> openbao-unsealer entering watch loop (poll=${POLL_INTERVAL_SECONDS}s)"
+              while true; do
+                # `bao status` exits non-zero on Sealed (2) or uninit (1).
+                # Capture stderr+stdout, parse separately — pipefail-safe.
+                status=$(bao status 2>&1 || true)
+
+                if ! echo "$status" | grep -qE 'Initialized'; then
+                  # openbao-0 not yet reachable (still ContainerCreating
+                  # or kubelet still attaching the volume).  Quiet wait —
+                  # bootstrap Job will handle the actual init when ready.
+                  echo ">>> openbao-0 not reachable; will retry"
+                  sleep "${POLL_INTERVAL_SECONDS}"
+                  continue
+                fi
+
+                if echo "$status" | grep -q 'Initialized\s*false'; then
+                  # openbao-0 is reachable but not yet initialized.  Bootstrap
+                  # Job is responsible for `bao operator init`; the unsealer
+                  # MUST NOT attempt unseal here — there are no shares yet.
+                  echo ">>> openbao-0 not yet initialized; waiting for bootstrap Job"
+                  sleep "${POLL_INTERVAL_SECONDS}"
+                  continue
+                fi
+
+                if echo "$status" | grep -q 'Sealed\s*false'; then
+                  # Healthy: nothing to do.  Heartbeat once per minute is
+                  # enough — log every 2 polls (= every 60s by default).
+                  : # noop; suppress to keep logs clean
+                  sleep "${POLL_INTERVAL_SECONDS}"
+                  continue
+                fi
+
+                # Sealed.  Read shares from the bootstrap-produced Secret.
+                # If the Secret is missing, the cluster is in an unrecoverable
+                # state — fail loudly so the operator notices.
+                if ! kubectl -n security get secret openbao-unseal >/dev/null 2>&1; then
+                  echo "!!! openbao-unseal Secret missing — cannot unseal." >&2
+                  echo "!!! Re-run the openbao-bootstrap Job or restore the Secret from backup." >&2
+                  sleep "${POLL_INTERVAL_SECONDS}"
+                  continue
+                fi
+
+                INIT_JSON=$(kubectl -n security get secret openbao-unseal \
+                  -o jsonpath='{.data.init\.json}' | base64 -d)
+                UNSEAL_1=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[0]')
+                UNSEAL_2=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[1]')
+                UNSEAL_3=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[2]')
+
+                # Unseal every member labelled app=openbao (1 on single-node).
+                # `bao operator unseal` is idempotent on duplicate share
+                # submission — replays do not advance progress, so racing
+                # the bootstrap Job here is safe.
+                for pod in $(kubectl -n security get pod -l app=openbao -o name); do
+                  name=${pod#pod/}
+                  echo ">>> unsealing ${name}"
+                  kubectl -n security exec "$name" -c openbao -- \
+                    bao operator unseal "$UNSEAL_1" >/dev/null 2>&1 || true
+                  kubectl -n security exec "$name" -c openbao -- \
+                    bao operator unseal "$UNSEAL_2" >/dev/null 2>&1 || true
+                  kubectl -n security exec "$name" -c openbao -- \
+                    bao operator unseal "$UNSEAL_3" >/dev/null 2>&1 || true
+                done
+
+                # Verify on next loop iteration; do not assume success here.
+                sleep "${POLL_INTERVAL_SECONDS}"
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # apk writes to /etc/apk/world + /usr/bin
+            capabilities:
+              drop: ["ALL"]
+              # CAP_SETUID/SETGID needed by apk to set ownership on
+              # extracted files; CAP_CHOWN for the same.  Smaller surface
+              # than `add: ["ALL"]` — only what apk actually uses.
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]

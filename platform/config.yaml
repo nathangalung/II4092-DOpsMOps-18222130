@@ -1,0 +1,108 @@
+# =============================================================================
+# PLATFORM CONFIG — Integrated DataOps/MLOps Architecture on Kubernetes
+# =============================================================================
+# Central configuration for the shared platform. Use-case AGNOSTIC.
+#
+# Structure:
+#   config.yaml                  - This file (cluster, environments, resources)
+#   config/services.yaml         - Enable/disable microservices + dependencies
+#   config/components.yaml       - Enable/disable infrastructure tools + required_by
+#   config/infrastructure.yaml   - Common K8s service endpoints
+#   config/models.yaml           - ML model templates (regression, classification, etc.)
+#
+# Portability (KNF-11): Deploy on local, GCP, AWS, Azure, or on-prem by
+# changing environment + uncommenting the matching cloud override below.
+# =============================================================================
+
+# --- Cluster ---
+cluster:
+  name: platform
+  environment: local # local | gcp | aws | azure | on-prem
+
+# --- Namespaces (match K8s namespace names) ---
+namespaces:
+  common: common
+  storage: storage
+  gitops: gitops
+  security: security
+  data_ingestion: data-ingestion
+  data_processing: data-processing
+  observability: observability
+  model_lifecycle: model-lifecycle
+  model_serving: model-serving
+  data_governance: data-governance
+
+# --- Resource Profiles ---
+# Applied based on cluster.environment to size service pods appropriately.
+resource_profiles:
+  development:
+    default_cpu_request: "100m"
+    default_cpu_limit: "500m"
+    default_memory_request: "128Mi"
+    default_memory_limit: "512Mi"
+    default_replicas: 1
+  staging:
+    default_cpu_request: "250m"
+    default_cpu_limit: "1000m"
+    default_memory_request: "256Mi"
+    default_memory_limit: "2Gi"
+    default_replicas: 2
+  production:
+    default_cpu_request: "500m"
+    default_cpu_limit: "2000m"
+    default_memory_request: "512Mi"
+    default_memory_limit: "4Gi"
+    default_replicas: 3
+
+# --- Minikube Resources (local development only) ---
+minikube:
+  cpus: 12
+  memory: 24576 # MB
+  disk: 100g
+
+# --- Timeouts ---
+timeouts:
+  max_retries: 5
+  pod_wait: 180 # seconds
+  layer_wait: 30 # seconds between layer checks
+  max_total_wait: 600 # seconds
+
+# --- Platform Feature Flags ---
+features:
+  auto_scaling: true # Enable HPA for services
+  service_mesh: true # Enable Istio sidecar injection
+  tls_enabled: true # Enable TLS via cert-manager
+  monitoring: true # Enable Prometheus metrics collection
+  tracing: true # Enable distributed tracing (OTel → Tempo; ADR-010 / ADR-025)
+  log_aggregation: true # Enable Loki log collection
+  gitops: true # Enable ArgoCD deployment
+
+
+# =============================================================================
+# ENVIRONMENT OVERRIDES — Cloud-managed service endpoints
+# =============================================================================
+# Uncomment and customize for cloud deployments. These override values in
+# config/infrastructure.yaml with managed service endpoints.
+#
+# environments:
+#   gcp:
+#     clickhouse: { host: bigquery.googleapis.com, type: bigquery }
+#     redis: { host: "10.0.0.3", port: 6379, type: memorystore }
+#     kafka: { brokers: "pkc-xxx.us-central1.gcp.confluent.cloud:9092", type: confluent }
+#     minio: { endpoint: storage.googleapis.com, type: gcs, bucket: "gs://mlops-artifacts" }
+#
+#   aws:
+#     clickhouse: { host: "cluster.xxx.us-east-1.redshift.amazonaws.com", type: redshift }
+#     redis: { host: "cluster.xxx.cache.amazonaws.com", port: 6379, type: elasticache }
+#     kafka: { brokers: "b-1.cluster.xxx.kafka.us-east-1.amazonaws.com:9092", type: msk }
+#     minio: { endpoint: s3.amazonaws.com, type: s3, bucket: "s3://mlops-artifacts" }
+#
+#   azure:
+#     clickhouse: { host: "workspace.sql.azuresynapse.net", type: synapse }
+#     redis: { host: "cache.redis.cache.windows.net", port: 6380, type: azure_redis }
+#     kafka: { brokers: "namespace.servicebus.windows.net:9093", type: eventhubs }
+#     minio: { endpoint: blob.core.windows.net, type: azure_blob }
+#
+#   on-prem:
+#     # Same as local (svc.cluster.local) but with custom network policies
+#     # and certificate authorities for TLS.

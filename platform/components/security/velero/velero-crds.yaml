@@ -1,0 +1,124 @@
+# =============================================================================
+# Velero CRDs — installed SEPARATELY from the Helm release
+# =============================================================================
+# Why a separate Application?
+#   - The velero Helm chart bundles CRDs behind a pre-install-or-upgrade Job
+#     (`velero-upgrade-crds`) that has bitten us in R8: the Job wedges on
+#     activeDeadlineSeconds, the Helm release hangs in `pending-upgrade`,
+#     and ArgoCD keeps retrying forever.
+#   - Best-practice CRD handling (KEP-1824, Flux + ArgoCD docs) is:
+#       1. Check the CRD manifests into GitOps.
+#       2. Apply them with ServerSideApply + Replace so that schema diffs
+#          (added validation rules, new columns in kubectl output) upgrade
+#          cleanly without deleting+recreating — no data loss on CRs.
+#       3. Sync BEFORE the chart (lower sync-wave).
+#
+# Source of truth: the upstream velero v1.18.0 CRD set. When bumping
+# velero, re-pull from
+#   github.com/vmware-tanzu/velero/tree/v1.18.0/config/crd/v1/bases/      (v1 CRDs)
+#   github.com/vmware-tanzu/velero/tree/v1.18.0/config/crd/v2alpha1/bases (DataUpload/DataDownload)
+# and commit verbatim. Do NOT hand-edit CRDs.
+#
+# velero v1.18.0 split CRDs across two API versions: stable kinds (Backup,
+# Restore, Schedule, etc.) under v1, plus DataUpload/DataDownload under
+# v2alpha1 for the CSI snapshot data-mover (node-agent + controller crash
+# with `no matches for kind "DataUpload" in version "velero.io/v2alpha1"`
+# if the v2alpha1 CRDs are missing). ArgoCD Application can target only one
+# git path, so we install with two parallel Applications at the same
+# sync-wave -10. Both must land before the helm-release Application
+# (sync-wave 0) starts.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero-crds
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: velero-crds
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/vmware-tanzu/velero.git
+    targetRevision: v1.18.0
+    path: config/crd/v1/bases
+    directory:
+      recurse: true
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated:
+      prune: false           # CRDs are never auto-pruned — deleting them wipes CRs.
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true  # merges schema changes instead of replacing.
+      - Replace=true          # falls back to client-side replace if SSA conflicts.
+      - ApplyOutOfSyncOnly=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    # kube-apiserver stamps status/acceptedNames + conditions on CRDs.
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /status
+---
+# v2alpha1 CRDs: DataUpload + DataDownload (CSI snapshot data-mover).
+# Without these, velero-server + node-agent CrashLoop with
+#   "no matches for kind \"DataUpload\" in version \"velero.io/v2alpha1\""
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero-crds-v2alpha1
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: velero-crds
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/vmware-tanzu/velero.git
+    targetRevision: v1.18.0
+    path: config/crd/v2alpha1/bases
+    directory:
+      recurse: true
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - Replace=true
+      - ApplyOutOfSyncOnly=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 5
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /status

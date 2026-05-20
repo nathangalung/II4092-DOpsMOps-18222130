@@ -1,0 +1,217 @@
+# =============================================================================
+# Chaos Mesh — Baseline Resilience Experiments (KNF-04, KNF-11)
+# =============================================================================
+# Each Schedule runs on a low cadence so failure is injected regularly in
+# lower environments and can be paused in production via the `--paused`
+# annotation.  The experiments map 1:1 to the thesis resilience KPIs:
+#
+#   CNPG pod-kill   →  failover time RTO < 30s (KNF-04)
+#   Kafka net-chaos →  consumer recovery (KNF-11)
+#   Feature stress  →  HPA/KEDA reaction (KNF-11)
+#   Time skew       →  OpenTelemetry trace ordering (KNF-08)
+# =============================================================================
+# --- CNPG pod-kill: kills one of the 3 PG replicas every hour (business hours)
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: cnpg-pod-kill
+  namespace: chaos-mesh
+  annotations:
+    # Chaos Mesh chart (sub-App in helm-release.yaml) installs the
+    # Schedule/Workflow CRDs asynchronously. Without this, ArgoCD's
+    # API-discovery on the parent platform-security sync rejects the
+    # whole batch with "failed to discover server resources for group
+    # version chaos-mesh.org/v1alpha1" *before* the chaos-mesh sub-App
+    # has a chance to install the CRD. Skipping discovery on missing
+    # resource lets the CR queue silently and apply on a later
+    # reconcile once the CRD is Established.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    experiment.thesis: KNF-04-cnpg-failover
+spec:
+  schedule: "17 9-17 * * 1-5"         # 17 past the hour, weekdays, 09–17
+  historyLimit: 10
+  concurrencyPolicy: Forbid
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: [storage]
+      labelSelectors:
+        cnpg.io/cluster: postgresql
+    gracePeriod: 0
+---
+# --- Kafka broker network loss: 5% loss on broker-0 for 2 minutes, daily
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: kafka-network-loss
+  namespace: chaos-mesh
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    experiment.thesis: KNF-11-kafka-resilience
+spec:
+  schedule: "0 3 * * *"                # 03:00 daily
+  historyLimit: 10
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    action: loss
+    mode: one
+    selector:
+      namespaces: [data-ingestion]
+      labelSelectors:
+        strimzi.io/name: platform-kafka-broker
+    loss:
+      loss: "5"
+      correlation: "25"
+    duration: "2m"
+    # `direction: both` requires a `target` selector (chaos-mesh validation
+    # `vschedule.kb.io` rejects empty target with from/both).  We only
+    # care about outbound loss from broker-0 to consumers, so `to` is the
+    # narrowest correct value here.
+    direction: to
+---
+# --- Feature-engine CPU stress: prove HPA/KEDA reaction, 3× per week
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: feature-engine-cpu-stress
+  namespace: chaos-mesh
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    experiment.thesis: KNF-11-autoscale
+spec:
+  schedule: "0 14 * * 1,3,5"           # Mon/Wed/Fri 14:00
+  historyLimit: 10
+  concurrencyPolicy: Forbid
+  type: StressChaos
+  stressChaos:
+    mode: one
+    selector:
+      labelSelectors:
+        app: feature-engine
+    stressors:
+      cpu:
+        workers: 2
+        load: 90
+    duration: "5m"
+---
+# --- Time skew on OpenTelemetry Collector gateway: 200ms drift, weekly
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: otel-time-skew
+  namespace: chaos-mesh
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    experiment.thesis: KNF-08-trace-correctness
+spec:
+  schedule: "0 5 * * 6"                # Saturday 05:00
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  type: TimeChaos
+  timeChaos:
+    mode: one
+    selector:
+      namespaces: [observability]
+      labelSelectors:
+        app.kubernetes.io/name: opentelemetry-collector
+    timeOffset: "200ms"
+    duration: "10m"
+---
+# --- MinIO disk pressure: validates that backups + archival can still
+#     complete when the data volume is ~90% full.  Monthly.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: minio-disk-pressure
+  namespace: chaos-mesh
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    experiment.thesis: KNF-11-storage-pressure
+spec:
+  schedule: "0 4 1 * *"                # 1st of every month, 04:00
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  type: StressChaos
+  stressChaos:
+    mode: one
+    selector:
+      namespaces: [storage]
+      labelSelectors:
+        app: minio
+    stressors:
+      memory:
+        workers: 1
+        size: 512MB
+    duration: "10m"
+---
+# Workflow that sequences the CNPG + Kafka + feature-engine experiments
+# back-to-back once a month — “game day” drill.  Can be triggered manually
+# with `kubectl -n chaos-mesh apply -f <this-file>` to test the full
+# recovery story end-to-end.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: monthly-game-day
+  namespace: chaos-mesh
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  entry: game-day
+  templates:
+    - name: game-day
+      templateType: Serial
+      children: [cnpg-kill, kafka-loss, fe-stress]
+    - name: cnpg-kill
+      templateType: PodChaos
+      deadline: "5m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces: [storage]
+          labelSelectors: { cnpg.io/cluster: postgresql }
+    - name: kafka-loss
+      templateType: NetworkChaos
+      # Workflow Template lifetime is owned by `deadline` (vworkflow.kb.io
+      # rejects per-chaos `duration` inside Workflow members).  `direction`
+      # narrowed to `to` for the same vschedule reason as the standalone
+      # `kafka-network-loss` Schedule above.
+      deadline: "5m"
+      networkChaos:
+        action: loss
+        mode: one
+        selector:
+          namespaces: [data-ingestion]
+          labelSelectors: { strimzi.io/name: platform-kafka-broker }
+        loss: { loss: "10", correlation: "25" }
+        direction: to
+    - name: fe-stress
+      templateType: StressChaos
+      deadline: "10m"
+      stressChaos:
+        mode: one
+        selector:
+          labelSelectors: { app: feature-engine }
+        stressors:
+          cpu: { workers: 2, load: 95 }

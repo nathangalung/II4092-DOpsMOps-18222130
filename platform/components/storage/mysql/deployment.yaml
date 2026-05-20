@@ -1,0 +1,201 @@
+# =============================================================================
+# MySQL 8.4 — Kubeflow metadata backend (Katib + MLMD)
+# =============================================================================
+# Katib's db-manager and KFP's ml-metadata-grpc-server speak the MySQL wire
+# protocol only (they cannot use libpq).  We keep a single-replica MySQL
+# instance purely for those two consumers; everything else on the platform
+# runs on CloudNativePG.
+#
+# Secret flow (ADR-008):
+#   platform/mysql/root (OpenBao) → mysql-root-secret (ESO-managed) → env.
+# The mysql image auto-creates root@localhost from MYSQL_ROOT_PASSWORD and,
+# with MYSQL_ROOT_HOST=%, also creates root@'%' — so no template/envsubst
+# step is needed and the root password never appears in SQL text.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: storage
+  labels:
+    app: mysql
+spec:
+  ports:
+    - port: 3306
+      name: mysql
+      targetPort: 3306
+  selector:
+    app: mysql
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mysql-root-secret
+  namespace: storage
+  labels:
+    app: mysql
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: mysql-root-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: MYSQL_ROOT_PASSWORD
+      remoteRef:
+        key: platform/mysql/root
+        property: password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-sql
+  namespace: storage
+data:
+  # Mounted read-only at /docker-entrypoint-initdb.d. The mysql image runs
+  # *.sh and *.sql files here AFTER root@localhost / root@'%' have been
+  # created from MYSQL_ROOT_PASSWORD + MYSQL_ROOT_HOST. We use a .sh wrapper
+  # so we can ALTER USER to mysql_native_password (libmysqlclient-based
+  # clients — KFP MLMD + Katib db-manager — cannot do caching_sha2_password
+  # over the wire) without leaking the password into a static SQL file.
+  init.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" <<EOF
+    -- libmysqlclient-based MLMD/Katib clients require native_password.
+    ALTER USER 'root'@'%'         IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
+    ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
+    -- Katib (HP-tuning) — MLMD-equivalent schema, MySQL-only client.
+    CREATE DATABASE IF NOT EXISTS katib;
+    -- KFP MLMD (metadata-grpc-deployment) — name MUST match
+    -- pipeline-install-config.mlmdDb (=metadb).
+    CREATE DATABASE IF NOT EXISTS metadb;
+    -- KFP API server / persistence agent / cache-server — names MUST match
+    -- pipeline-install-config.pipelineDb (=mlpipeline) and .cacheDb (=cachedb).
+    CREATE DATABASE IF NOT EXISTS mlpipeline;
+    CREATE DATABASE IF NOT EXISTS cachedb;
+    FLUSH PRIVILEGES;
+    EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: storage
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 27
+        fsGroup: 27
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mysql
+          image: mysql:8.4.9-oraclelinux9
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            # Enable mysql_native_password plugin (disabled by default in 8.4)
+            # Required for MLMD (metadata-grpc) and Katib db-manager
+            - "--mysql-native-password=ON"
+          env:
+            - name: MYSQL_DATABASE
+              value: "platform"
+            # Create root@'%' in addition to root@localhost so Katib/MLMD
+            # (running in other namespaces) can connect as root.
+            - name: MYSQL_ROOT_HOST
+              value: "%"
+          envFrom:
+            - secretRef:
+                name: mysql-root-secret
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+              subPath: mysql-data-v8
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        - name: init-sql
+          configMap:
+            name: mysql-init-sql
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: storage
+spec:
+  storageClassName: local-path
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mysql
+  namespace: storage
+  labels:
+    app: mysql
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: mysql

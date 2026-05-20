@@ -1,0 +1,283 @@
+# =============================================================================
+# OpenTelemetryCollector — gateway (Deployment) + agent (DaemonSet)
+# =============================================================================
+# Gateway handles sampling, filtering, fan-out.  Agent handles host-level
+# collection (kubelet stats, filelog for /var/log/pods).
+# =============================================================================
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: gateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  mode: deployment
+  # Single-replica bootstrap; OpenTelemetryCollector CR supports HPA via
+  # spec.autoscaler. Add when telemetry volume grows.
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:0.151.0
+  serviceAccount: otel-collector-gateway
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+  ports:
+    - { name: otlp-grpc,  port: 4317, protocol: TCP }
+    - { name: otlp-http,  port: 4318, protocol: TCP }
+    - { name: metrics,    port: 8888, protocol: TCP }
+    - { name: zipkin,     port: 9411, protocol: TCP }
+  # `resourcedetection` with `k8snode` detector needs K8S_NODE_NAME via
+  # downward API. Without this the gateway crashes on boot with
+  # `failed creating detector type "k8snode": node name can't be found`
+  # (otelcol-contrib v0.148). Agent DaemonSet wires the same var below.
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317, max_recv_msg_size_mib: 32 }
+          http: { endpoint: 0.0.0.0:4318 }
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'otel-self'
+              scrape_interval: 30s
+              static_configs: [{ targets: ['localhost:8888'] }]
+      zipkin: { endpoint: 0.0.0.0:9411 }
+
+    processors:
+      batch: { timeout: 5s, send_batch_size: 1024 }
+      memory_limiter: { check_interval: 5s, limit_percentage: 80, spike_limit_percentage: 25 }
+      resourcedetection:
+        # otelcol-contrib v0.148 — node detector renamed to `k8snode`
+        # (`k8s`/`kubernetes` are not valid keys).
+        detectors: [env, k8snode, system]
+        timeout: 5s
+      k8sattributes:
+        passthrough: false
+        extract:
+          metadata: [k8s.namespace.name, k8s.pod.name, k8s.pod.uid, k8s.deployment.name, k8s.statefulset.name, k8s.node.name]
+          labels:
+            - tag_name: app
+              key: app.kubernetes.io/name
+              from: pod
+        pod_association:
+          - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+          - sources: [{ from: resource_attribute, name: k8s.pod.uid }]
+          - sources: [{ from: connection }]
+      # Tail sampling: keep all errors, sample 10% of normal traffic,
+      # keep 100% of high-latency (>1s) traces.
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 50000
+        expected_new_traces_per_sec: 1000
+        policies:
+          - { name: errors-policy,      type: status_code, status_code: { status_codes: [ERROR] } }
+          - { name: slow-policy,        type: latency, latency: { threshold_ms: 1000 } }
+          - { name: default-sampling,   type: probabilistic, probabilistic: { sampling_percentage: 10 } }
+      transform/add_cluster:
+        trace_statements:
+          - context: resource
+            statements:
+              - 'set(attributes["cluster.name"], "platform")'
+        metric_statements:
+          - context: resource
+            statements:
+              - 'set(attributes["cluster.name"], "platform")'
+        log_statements:
+          - context: resource
+            statements:
+              - 'set(attributes["cluster.name"], "platform")'
+
+    exporters:
+      # Sole trace backend (LGTM stack — Tempo 2.10.4).  Grafana dashboards
+      # and TraceQL queries resolve against this instance.  Jaeger v2 was
+      # removed 2026-04-21 (ADR-010 / ADR-025) — Tempo already speaks OTLP
+      # natively on MinIO S3 storage, so the parallel Jaeger+Elasticsearch
+      # path was pure duplication.
+      otlp/tempo:
+        endpoint: tempo.observability.svc.cluster.local:4317
+        tls: { insecure: true }
+        sending_queue: { enabled: true, num_consumers: 4, queue_size: 5000 }
+        retry_on_failure: { enabled: true, initial_interval: 5s, max_interval: 30s }
+      prometheusremotewrite/kps:
+        endpoint: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write
+        tls: { insecure: true }
+        resource_to_telemetry_conversion: { enabled: true }
+      # Loki exporter removed in otel-contrib v0.140+. Use otlphttp against
+       # Loki's built-in OTLP receiver (Loki v3.0+ ships /otlp endpoint).
+      otlphttp/loki:
+        endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+        tls: { insecure: true }
+      debug: { verbosity: basic }
+
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+      pprof: { endpoint: 0.0.0.0:1777 }
+      zpages: { endpoint: 0.0.0.0:55679 }
+
+    service:
+      telemetry:
+        # otelcol v0.123+ replaced `metrics.address` with the readers block.
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+        logs: { level: info, encoding: json }
+      extensions: [health_check, pprof, zpages]
+      pipelines:
+        traces:
+          receivers: [otlp, zipkin]
+          processors: [memory_limiter, resourcedetection, k8sattributes, transform/add_cluster, tail_sampling, batch]
+          # Tempo is the sole trace backend (LGTM stack).  Zipkin spans are
+          # normalised to OTLP at the receiver before export.
+          exporters: [otlp/tempo]
+        metrics:
+          receivers: [otlp, prometheus]
+          processors: [memory_limiter, resourcedetection, k8sattributes, transform/add_cluster, batch]
+          exporters: [prometheusremotewrite/kps]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, k8sattributes, transform/add_cluster, batch]
+          exporters: [otlphttp/loki]
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: agent
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  mode: daemonset
+  image: otel/opentelemetry-collector-contrib:0.151.0
+  serviceAccount: otel-collector-agent
+  hostNetwork: false
+  resources:
+    # Daemonset agent ingests hostmetrics + filelogs across the whole node;
+    # 256Mi was OOMKilled within minutes (exit 137, restartCount=12), and a
+    # follow-up bump to 512Mi still produced 158 OOMKills in ~30h on the
+    # populated platform (filelog receiver tails every pod under
+    # /var/log/pods, so headroom scales with pod count not workload spans).
+    # The otel pipeline buffers batches in memory before flushing to
+    # gateway, so the collector needs headroom for the largest batch across
+    # all receivers (hostmetrics + filelog + otlp) plus the memory_limiter
+    # spike margin.  1Gi keeps the agent stable on a fully-loaded single
+    # node (~100 pods); memory_limiter soft_limit=750Mi / hard_limit=900Mi
+    # below the cgroup ceiling lets the receiver throttle gracefully.
+    requests: { cpu: 100m, memory: 384Mi }
+    limits:   { cpu: 500m, memory: 1Gi }
+  volumeMounts:
+    - { name: varlog,        mountPath: /var/log,        readOnly: true }
+    - { name: varlibdocker,  mountPath: /var/lib/docker, readOnly: true }
+  volumes:
+    - { name: varlog,        hostPath: { path: /var/log } }
+    - { name: varlibdocker,  hostPath: { path: /var/lib/docker } }
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+  config:
+    receivers:
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          memory: {}
+          disk: {}
+          filesystem:
+            exclude_mount_points:
+              mount_points: [ "/var/lib/docker/containers/*", "/var/lib/kubelet/pods/*" ]
+              match_type: regexp
+          network: {}
+          load: {}
+          processes: {}
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: "serviceAccount"
+        endpoint: "${env:K8S_NODE_NAME}:10250"
+        insecure_skip_verify: true
+      filelog:
+        include: [ /var/log/pods/*/*/*.log ]
+        start_at: end
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - { type: container, id: container-parser }
+    processors:
+      # otelcol-contrib v0.148 — `k8s` and `kubernetes` are not valid keys.
+      # Node-level detector for the agent DaemonSet is `k8snode`.
+      resourcedetection: { detectors: [env, k8snode, system] }
+      # memory_limiter MUST be first in every pipeline. soft (limit_percentage)
+      # makes the collector refuse new data; spike margin (spike_limit_percentage)
+      # is the cushion below the cgroup ceiling. Without this the filelog
+      # receiver tails grow unbounded under burst → 158 OOMKills in ~30h on a
+      # populated platform. See open-telemetry/opentelemetry-collector#5328.
+      memory_limiter: { check_interval: 5s, limit_percentage: 80, spike_limit_percentage: 25 }
+      batch: { timeout: 5s }
+    exporters:
+      otlp/gateway:
+        endpoint: otel-collector-gateway.observability.svc.cluster.local:4317
+        tls: { insecure: true }
+    service:
+      telemetry: { logs: { level: info, encoding: json } }
+      pipelines:
+        metrics:
+          receivers: [hostmetrics, kubeletstats]
+          processors: [memory_limiter, resourcedetection, batch]
+          exporters: [otlp/gateway]
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, resourcedetection, batch]
+          exporters: [otlp/gateway]
+---
+# ServiceAccounts for Collectors (used by k8sattributes + kubeletstats).
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: otel-collector-gateway, namespace: observability }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: otel-collector-agent,   namespace: observability }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: otel-collector }
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/metrics, nodes/stats, nodes/proxy, namespaces, pods, services, endpoints]
+    verbs: [get, list, watch]
+  - apiGroups: ["apps"]
+    resources: [daemonsets, deployments, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: ["batch"]
+    resources: [cronjobs, jobs]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: otel-collector-gateway }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: otel-collector }
+subjects:
+  - { kind: ServiceAccount, name: otel-collector-gateway, namespace: observability }
+  - { kind: ServiceAccount, name: otel-collector-agent,   namespace: observability }
+---
+# Auto-instrumentation injection: set `instrumentation.opentelemetry.io/inject-*: "true"`
+# on pods to auto-attach OTel SDK for Go/Python/Java/Node/DotNet.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: platform-default
+  namespace: observability
+spec:
+  exporter: { endpoint: http://otel-collector-gateway.observability.svc.cluster.local:4317 }
+  propagators: [tracecontext, baggage, b3]
+  sampler: { type: parentbased_traceidratio, argument: "0.1" }
+  python: { image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.50b0 }
+  go:     { image: ghcr.io/open-telemetry/opentelemetry-go-instrumentation/autoinstrumentation-go:v0.23.0 }
+  java:   { image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.14.0 }
+  nodejs: { image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.56.0 }

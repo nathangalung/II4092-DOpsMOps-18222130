@@ -1,0 +1,188 @@
+# =============================================================================
+# Argo Rollouts 1.9.0 — progressive delivery controller (2026-03-20)
+# =============================================================================
+# ADR-016.  Argo Rollouts replaces the earlier Flagger candidate for canary /
+# blue-green delivery:
+#   1. Native `Rollout` CRD — drop-in replacement for `Deployment` that adds
+#      `.spec.strategy.canary.steps` / `.spec.strategy.blueGreen` control
+#      without re-templating the workload.
+#   2. First-class Istio support via `trafficRouting.istio.virtualService`:
+#      the controller rewrites VS weights; no sidecar-on-sidecar penalty
+#      (matches our ADR-009 mesh-wide STRICT mTLS posture).
+#   3. AnalysisTemplate + Kayenta integration — progressive promotion gated
+#      by Prometheus queries (SLO violations revert automatically).
+#   4. KServe InferenceService shipping: Knative Revisions already do
+#      traffic splitting, but long-lived Deployments (ml-bridge, quality
+#      analyzer, websocket-collector) benefit from canary gates before
+#      flipping 100%.
+#   5. Single Application; no CRD conflict with KFP's Argo Workflows
+#      controller (see `gitops/kustomization.yaml` note about lease
+#      contention — Rollouts uses `rollouts.argoproj.io`, not `workflows.*`).
+#
+# 2026 provenance:
+#   - App version v1.9.0 released 2026-03-20 (argoproj/argo-rollouts).
+#   - Chart version 2.40.9 on `argoproj/argo-helm` tracks app v1.9.0.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"  # before use-case Rollouts CRs come up
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: progressive-delivery
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-rollouts
+    # Chart 2.40.9 bundles Argo Rollouts v1.9.0 (2026-03-20).
+    targetRevision: 2.40.9
+    helm:
+      releaseName: argo-rollouts
+      values: |
+        controller:
+          replicas: 1
+          # Cluster-wide watch — Rollouts in any namespace are reconciled.
+          # Use-case overlays own their own Rollout CRs; platform stays
+          # domain-agnostic.
+          args: []
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: true
+              additionalLabels:
+                release: kube-prometheus-stack
+          extraArgs:
+            # Leader election on single-node k3s still works, but we tighten
+            # the renew window so stuck controllers get evicted faster.
+            # Flag names per `argo-rollouts --help`: `leader-election-*`,
+            # not `leader-elect-*` (the shorter form triggers CLI help output
+            # and CrashLoop on startup).
+            - --leader-election-renew-deadline=30s
+            - --leader-election-retry-period=2s
+            - --leader-election-lease-duration=45s
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            fsGroup: 999
+            seccompProfile: { type: RuntimeDefault }
+          containerSecurityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+        # Dashboard — read-only UI, mTLS-gated via Istio AuthorizationPolicy
+        # in the platform AuthPolicy bundle.
+        dashboard:
+          enabled: true
+          replicas: 1
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          containerSecurityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+        # Traffic provider defaults — Istio is our primary provider
+        # (ADR-009).  Rollouts also recognises nginx + ambassador + plugins
+        # if a use-case ever needs them; no extra config required here.
+        providers:
+          istio: { enabled: true }
+        # Notifications — integrates with Alertmanager through the platform
+        # notifications-engine.  Configure receivers in the use-case overlay.
+        notifications:
+          enabled: true
+          notifiers: {}
+        # CRD install — let the chart install CRDs (idempotent), disable
+        # ONLY if CRDs are managed by a separate ApplicationSet.
+        crds:
+          install: true
+          keep: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  syncPolicy:
+    automated: { prune: true, selfHeal: true, allowEmpty: false }
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10
+---
+# =============================================================================
+# Reference AnalysisTemplate — use-cases copy this shape and point
+# `.spec.metrics[].provider.prometheus.query` at their own SLO PromQL.
+# The controller evaluates each step of `.spec.strategy.canary.steps` against
+# this template; a failing `successCondition` rolls back automatically.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate-p99
+  namespace: argo-rollouts
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: progressive-delivery
+spec:
+  args:
+    - name: service-name
+    - name: namespace
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 5
+      successCondition: result[0] >= 0.99
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+          query: |
+            sum(rate(istio_requests_total{
+              destination_service_name="{{args.service-name}}",
+              destination_service_namespace="{{args.namespace}}",
+              response_code!~"5.."
+            }[1m])) /
+            sum(rate(istio_requests_total{
+              destination_service_name="{{args.service-name}}",
+              destination_service_namespace="{{args.namespace}}"
+            }[1m]))
+    - name: p99-latency-ms
+      interval: 30s
+      count: 5
+      successCondition: result[0] <= 500
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(istio_request_duration_milliseconds_bucket{
+                destination_service_name="{{args.service-name}}",
+                destination_service_namespace="{{args.namespace}}"
+              }[1m])) by (le))
+---
+# PodDisruptionBudget — single-node single-replica: maxUnavailable=1 permits
+# voluntary eviction. maxUnavailable=0 would deadlock drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argo-rollouts
+  namespace: argo-rollouts
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: progressive-delivery
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-rollouts

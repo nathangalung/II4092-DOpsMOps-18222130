@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# cert-manager v1.20.0 (2026-03-09).
+resources:
+  - cert-manager-base.yaml
+  - kubeflow-issuer.yaml
+  # kfp-cache-cert is defined by the upstream KFP manifest in
+  # model-lifecycle/kubeflow-pipelines/pipelines.yaml (the kubeflow-pipelines
+  # kustomization patches its dnsNames there). Do not redeclare it here.
+  # Platform-wide ClusterIssuers: self-signed root CA + Let's Encrypt.
+  - platform-issuers.yaml

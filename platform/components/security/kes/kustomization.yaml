@@ -1,0 +1,35 @@
+# =============================================================================
+# KES — MinIO SSE-KMS front-end, backed by OpenBao transit
+# =============================================================================
+# ADR-008.  KES ("Key Encryption Service") is the KMS adapter MinIO calls into
+# when `MINIO_KMS_AUTO_ENCRYPTION=on`: MinIO asks KES for per-object data
+# encryption keys, KES uses the OpenBao transit engine to wrap/unwrap the
+# master key.  All master-key material lives in OpenBao; KES holds nothing
+# long-term.
+#
+# Auth chain: MinIO ──mTLS──▶ KES ──approle──▶ OpenBao transit/minio-master-key
+#
+# Dependencies (ArgoCD sync-waves / order):
+#   cert-manager (platform-ca ClusterIssuer)   wave -20
+#   openbao (unsealed + transit enabled)       wave -15
+#   external-secrets                           wave -15
+#   kes                                        wave -5
+#   minio                                      wave  0   (mounts kes client cert)
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Intentionally NO top-level `namespace:` here — doing so would rewrite
+# every namespaced resource's metadata.namespace, including the cross-ns
+# bits that MUST stay in `storage`:
+#   * certificate.yaml → `minio-kes-client` Certificate (storage ns)
+#   * deployment.yaml  → `kes-minio-cert-reader` Role + RoleBinding (storage ns)
+# Each resource declares its namespace explicitly; kustomize leaves those
+# alone when no top-level namespace is set.
+resources:
+  - certificate.yaml
+  - configmap.yaml
+  - externalsecret.yaml
+  - deployment.yaml
+commonLabels:
+  app.kubernetes.io/part-of: mlops-platform
+  app.kubernetes.io/component: kms-frontend

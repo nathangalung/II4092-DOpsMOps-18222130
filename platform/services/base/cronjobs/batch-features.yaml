@@ -1,0 +1,58 @@
+# =============================================================================
+# BATCH FEATURES — Hourly Feature Computation (Python)
+# =============================================================================
+# Computes rolling statistics, momentum, and volatility features
+# from time-series data in ClickHouse and writes to features table.
+#
+# Platform tool integration:
+#   - Airflow: Workflow orchestration via DAGs
+#   - ClickHouse: SQL-based feature computation (window functions can
+#     replace Python pandas transformations for simpler indicators)
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: batch-features
+  labels:
+    app: batch-processing
+    schedule: hourly
+spec:
+  schedule: "30 * * * *" # 30 minutes after each hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: batch-processing
+            job-type: feature-computation
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: batch-processing
+              image: batch-processing:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--mode", "features"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config
+          volumes:
+            - name: config
+              configMap:
+                name: pipeline-config

@@ -1,0 +1,42 @@
+[package]
+name = "websocket-collector"
+version = "1.0.0"
+edition = "2024"
+authors = ["ML Pipeline Team"]
+license = "MIT"
+rust-version = "1.95"
+
+# Exposed as both a library (for use-case overlays that plug in custom
+# MessageParser implementations) and a binary (platform default, ships the
+# DefaultTickerParser which is source-agnostic).
+[lib]
+name = "websocket_collector"
+path = "src/lib.rs"
+
+[[bin]]
+name = "websocket-collector"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.49", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+simd-json = "0.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rdkafka = { version = "0.37", features = ["cmake-build"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+prometheus = "0.13"
+config = "0.14"
+thiserror = "2.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+async-trait = "0.1"
+actix-web = "4.13"
+actix-rt = "2.10"
+url = "2.5"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.13"

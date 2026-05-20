@@ -1,0 +1,210 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+  namespace: model-lifecycle
+spec:
+  ports:
+    - port: 5000
+      name: http
+      targetPort: 5000
+  selector:
+    app: mlflow
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: model-lifecycle
+  labels:
+    app: mlflow
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/component: experiment-tracker
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+      annotations:
+        # MLflow sits outside the mesh for now: the PG client in MLflow opens
+        # long-lived connections that Envoy's inactive-connection GC kills,
+        # and the init container `psql` TLS handshake conflicts with the
+        # sidecar's mTLS origination. ADR-009 covers a future migration once
+        # the Postgres client supports ISTIO_MUTUAL origination cleanly.
+        sidecar.istio.io/inject: "false"
+    spec:
+      # Pod-level securityContext satisfies PSS `restricted` for every container
+      # (init + main) without per-container duplication. All MLflow workloads
+      # run as uid/gid 1000 — psql, uv, and busybox all tolerate non-root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - |
+              echo "Waiting for CNPG primary (postgresql-rw)…"
+              # Bounded retry: 60 attempts × 3s = 3 min ceiling
+              for i in $(seq 1 60); do
+                if nc -w 2 postgresql-rw.storage.svc.cluster.local 5432 </dev/null; then
+                  echo "PostgreSQL is ready (attempt $i)."
+                  exit 0
+                fi
+                echo "PostgreSQL not ready (attempt $i/60), sleeping 3s"
+                sleep 3
+              done
+              echo "PostgreSQL still unreachable after 3 min"
+              exit 1
+        - name: ensure-db-exists
+          # CNPG bootstraps the `mlflow` database via
+          # .spec.bootstrap.initdb.postInitApplicationSQL, so under normal
+          # operation this init container is a no-op. We keep it as a
+          # defence-in-depth guard for cluster re-bootstraps where the
+          # postInit SQL did not run (e.g. restore-from-backup without
+          # re-running initdb).
+          image: postgres:18.4-alpine
+          command: ["/bin/sh", "-c"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - |
+              set -euo pipefail
+              echo "Ensuring database 'mlflow' exists…"
+              psql -h postgresql-rw.storage.svc.cluster.local -U "${PGUSER}" -d postgres \
+                   -tc "SELECT 1 FROM pg_database WHERE datname = 'mlflow'" | grep -q 1 \
+                || psql -h postgresql-rw.storage.svc.cluster.local -U "${PGUSER}" -d postgres \
+                        -c "CREATE DATABASE mlflow OWNER ${PGUSER};"
+              echo "Database 'mlflow' is ready."
+          envFrom:
+            - secretRef:
+                name: mlflow-db
+        - name: install-db-drivers
+          image: ghcr.io/astral-sh/uv:python3.10-trixie-slim
+          command: ["sh", "-c"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # uv writes its venv into HOME (/root by default). Override to a
+          # writable, non-root path under /tmp so it works at uid 1000.
+          env:
+            - name: HOME
+              value: /tmp
+            - name: UV_CACHE_DIR
+              value: /tmp/uv-cache
+          args:
+            - |
+              cd /tmp && uv init --no-readme deps && cd deps && \
+              uv add --python 3.10 pymysql psycopg2-binary && \
+              cp -r .venv/lib/python*/site-packages/. /shared/packages/
+              # cp -a fails with "Operation not permitted" on the shared EmptyDir
+              # when the container runs as uid 1000 — preserving owner/times
+              # requires CAP_FOWNER/CAP_CHOWN which restricted PSS strips. cp -r
+              # copies contents only; new uid/timestamps are fine for a venv.
+          volumeMounts:
+            - name: shared-packages
+              mountPath: /shared/packages
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v3.11.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - mlflow
+            - server
+            - --host
+            - 0.0.0.0
+            - --port
+            - $(MLFLOW_PORT)
+            - --backend-store-uri
+            - $(MLFLOW_BACKEND_STORE_URI)
+            - --default-artifact-root
+            - $(MLFLOW_DEFAULT_ARTIFACT_ROOT)
+            - --artifacts-destination
+            - $(MLFLOW_ARTIFACTS_DESTINATION)
+            - --allowed-hosts
+            - "mlflow.model-lifecycle.svc.cluster.local:5000,mlflow.model-lifecycle:5000,mlflow:5000,localhost:5000,localhost,127.0.0.1"
+          env:
+            - name: PYTHONPATH
+              value: "/shared/packages:$PYTHONPATH"
+          envFrom:
+            # Order matters: configmap first (non-secret defaults), then the
+            # two ESO-populated secrets. `mlflow-secrets` supplies the AWS_*
+            # keys; `mlflow-db` supplies MLFLOW_BACKEND_STORE_URI (and
+            # PGUSER/PGPASSWORD, which MLflow ignores but are harmless).
+            - configMapRef:
+                name: mlflow-config
+            - secretRef:
+                name: mlflow-secrets
+            - secretRef:
+                name: mlflow-db
+          volumeMounts:
+            - name: shared-packages
+              mountPath: /shared/packages
+          ports:
+            - containerPort: 5000
+              name: http
+          # runAsNonRoot/runAsUser/runAsGroup/fsGroup/seccompProfile inherited
+          # from pod-level securityContext above.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # MLflow 3.x baseline: Python interpreter + psycopg2 + boto3 +
+          # uv-installed venv (~120 MB shared-packages emptyDir mounted at
+          # /shared/packages) lands ~600-900MB RSS even idle; under tracking
+          # write load (artifact upload + run logging) it sustains 1.1-1.3GB.
+          # 1Gi limit was OOMKilled at idle import (exit 137); 2Gi gives
+          # headroom for sustained load on a single-node bootstrap.
+          resources:
+            requests:
+              memory: "768Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: shared-packages
+          emptyDir: {}

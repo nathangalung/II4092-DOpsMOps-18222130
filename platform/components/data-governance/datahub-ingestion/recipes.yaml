@@ -1,0 +1,162 @@
+# =============================================================================
+# DataHub ingestion recipes — PG, ClickHouse, MinIO, Kafka, dbt, Feast, mlflow
+# =============================================================================
+# ADR-013.  One ConfigMap per source.  Recipes executed by a shared CronJob
+# that iterates recipe files (see ingestion-cronjob.yaml).  Uses the
+# DataHub Python ingestion framework (datahub[all] 1.5.0.1).
+#
+# Airflow is NOT in this list.  DataHub has no polling `source.type: airflow`
+# (the `acryl-datahub-airflow-plugin` package only registers as an Airflow
+# `airflow.plugins` / `apache_airflow_provider` — i.e. it runs INSIDE the
+# Airflow scheduler/webserver and pushes lineage events on DAG runs).  The
+# platform wires this push path directly: airflow Deployment carries
+# OPENLINEAGE_URL + AIRFLOW__OPENLINEAGE__TRANSPORT pointing at
+# `datahub-gms:/openapi/openlineage` (see platform/components/data-processing/
+# airflow/deployment.yaml AIRFLOW__OPENLINEAGE__* env).  A polling recipe
+# would aborts with `PipelineInitError: Did not find a registered class for
+# airflow` because the source type does not exist in datahub-ingestion
+# v1.5.0.1's plugin registry (verified 2026-05-11).
+#
+# OpenBao paths (Strategic-merged into recipes at runtime by init container):
+#   secret/data/platform/datahub/admin    → GMS auth token
+#   secret/data/platform/postgres/app
+#   secret/data/platform/clickhouse/admin
+#   secret/data/platform/minio/root
+#   secret/data/platform/kafka/admin
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datahub-ingestion-recipes
+  namespace: data-governance
+  labels:
+    app: datahub
+    component: ingestion
+data:
+  postgres.yml: |
+    source:
+      type: postgres
+      config:
+        host_port: postgresql-rw.storage.svc.cluster.local:5432
+        database: platform
+        username: ${PG_USER}
+        password: ${PG_PASSWORD}
+        include_tables: true
+        include_views: true
+        include_query_lineage: true
+        include_usage_statistics: true
+        profiling: { enabled: true, limit: 10000 }
+        classification:
+          enabled: true
+          classifiers:
+            - type: datahub
+              config:
+                confidence_level_threshold: 0.7
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+    transformers:
+      - type: simple_add_dataset_tags
+        config:
+          tag_urns: [ "urn:li:tag:layer:postgres", "urn:li:tag:classification:internal" ]
+
+  clickhouse.yml: |
+    source:
+      type: clickhouse
+      config:
+        host_port: clickhouse-platform.storage.svc.cluster.local:9000
+        username: ${CH_USER}
+        password: ${CH_PASSWORD}
+        include_tables: true
+        include_views: true
+        profiling: { enabled: true, include_field_stddev_value: true, limit: 50000 }
+        classification:
+          enabled: true
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+
+  minio.yml: |
+    source:
+      type: s3
+      config:
+        aws_config:
+          aws_endpoint_url: http://minio.storage.svc.cluster.local:9000
+          aws_region: us-east-1
+          aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+          aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        path_specs:
+          - include: "s3://warehouse/*/*.parquet"
+            default_extension: parquet
+          - include: "s3://pipeline-artifacts/*/*.*"
+        profiling: { enabled: false }
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+
+  kafka.yml: |
+    source:
+      type: kafka
+      config:
+        connection:
+          bootstrap: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092
+          schema_registry_url: http://karapace.data-ingestion.svc.cluster.local:8081
+        topic_patterns: { allow: [".*"], deny: ["__.*", "_schemas"] }
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+
+  dbt.yml: |
+    source:
+      type: dbt
+      config:
+        manifest_path: /dbt/target/manifest.json
+        catalog_path: /dbt/target/catalog.json
+        run_results_paths: [ /dbt/target/run_results.json ]
+        target_platform: clickhouse
+        target_platform_instance: platform-clickhouse
+        # Emits column-level lineage from dbt → ClickHouse.
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+
+  feast.yml: |
+    source:
+      type: feast
+      config:
+        # The CronJob's args block renders /tmp/feature_repo/feature_store.yaml
+        # at pod start (envsubst over the platform's feast template using
+        # CLICKHOUSE_USER/CLICKHOUSE_PASSWORD/VALKEY_PASSWORD from
+        # datahub-ingestion-env).  We can't mount the feast-feature-repo
+        # ConfigMap from `model-lifecycle` cross-namespace, so synthesise it
+        # locally with the same connection coordinates as the live feast
+        # Deployment.  Keep this path aligned with the CronJob's mkdir.
+        path: /tmp/feature_repo
+        environment: prod
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}
+
+  mlflow.yml: |
+    source:
+      type: mlflow
+      config:
+        tracking_uri: http://mlflow.model-lifecycle.svc.cluster.local:5000
+        registry_uri: http://mlflow.model-lifecycle.svc.cluster.local:5000
+    sink:
+      type: datahub-rest
+      config:
+        server: http://datahub-gms.data-governance.svc.cluster.local:8080
+        token: ${GMS_TOKEN}

@@ -1,0 +1,108 @@
+# =============================================================================
+# Tekton Deployments — Kyverno require-resource-limits compliance
+# =============================================================================
+# Upstream Tekton v1 release YAMLs (pipeline.yaml, triggers.yaml,
+# dashboard.yaml, interceptors.yaml — vendored from
+# github.com/tektoncd/pipeline/releases/download/v1.4.0/release.yaml etc.)
+# ship most Deployments WITHOUT a `resources` block on their main containers.
+# Only `tekton-pipelines-webhook` got a chart-shipped requests+limits.
+#
+# Kyverno `require-resource-limits` policy (failurePolicy=Fail, mode=enforce)
+# blocks the ReplicaSet → Pod creation with:
+#   Error creating: admission webhook
+#   "vpol.validate.kyverno.svc-ignore-finegrained-require-resource-limits"
+#   denied the request: Policy require-resource-limits failed: All containers
+#   must set resources.requests AND resources.limits for cpu and memory.
+#
+# Field-observed 2026-05-14: tekton-pipelines-controller, tekton-events-
+# controller, tekton-dashboard, tekton-triggers-controller, tekton-triggers-
+# core-interceptors, and tekton-triggers-webhook were all stuck 0/1 ready,
+# which propagated upward to platform-gitops ArgoCD app status=Degraded.
+#
+# Sized for a single-node bootstrap: controllers are mostly idle Go binaries
+# that wake up on CR event ticks (~30-80Mi RSS, <50m CPU steady). Bump for
+# production load via overlay later.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-pipelines-controller
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: tekton-pipelines-controller
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-events-controller
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: tekton-events-controller
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-dashboard
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: tekton-dashboard
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-triggers-controller
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: tekton-triggers-controller
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-triggers-webhook
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: webhook
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-triggers-core-interceptors
+  namespace: tekton-pipelines
+spec:
+  template:
+    spec:
+      containers:
+        - name: tekton-triggers-core-interceptors
+          resources:
+            requests: { cpu: 50m, memory: 100Mi }
+            limits:   { cpu: 500m, memory: 500Mi }

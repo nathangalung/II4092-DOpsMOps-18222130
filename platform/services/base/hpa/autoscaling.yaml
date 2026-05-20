@@ -1,0 +1,264 @@
+# =============================================================================
+# Platform template — plain CPU/memory HPAs only (domain-agnostic).
+# =============================================================================
+# ADR-022 + ADR-026 retired every HPA that depended on prometheus-adapter:
+#   - feature-engine-hpa   (was `External kafka_consumer_lag`) → KEDA kafka trigger
+#   - gateway-hpa          (was `Pods http_requests_per_second`) → KEDA prometheus trigger
+# Live use cases declare their own KEDA ScaledObjects with use-case-
+# specific topic names / consumer groups / thresholds that cannot be
+# templated here (the platform knows nothing about any concrete topic).
+# This file therefore ships only the generic CPU/memory HPAs that every
+# deployment can benefit from with no external-metrics coupling. When you
+# stamp a new use case, add `scaling/scaledobjects.yaml` under your
+# overlay (`use-case-<name>/manifests/base/`) with your own kafka topics
+# and Prometheus queries.
+# =============================================================================
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rest-collector-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rest-collector
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+---
+# feature-engine + gateway HPAs removed — scaling is KEDA-driven
+# (ADR-022 / ADR-026). See the header comment above for the rationale.
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dashboard-backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dashboard-backend
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vector-processing-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vector-processing
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+# =============================================================================
+# PodDisruptionBudgets — one per long-running Deployment
+# =============================================================================
+# `maxUnavailable: 1` is the platform default. Idle workloads run at
+# replicas=1 (single-node k3s), so any `minAvailable: 1` PDB would block
+# `kubectl drain` and node maintenance. `maxUnavailable: 1` correctly
+# permits a single eviction at idle (1/1 → 0) and at HPA-scaled load
+# (e.g. 5/5 → 4/5) — kubelet then reschedules.
+# CronJob pods (which reuse the same `app:` label on some services) are
+# excluded via `matchExpressions: [key: type, operator: DoesNotExist]` where
+# ambiguity exists (see rest-collector).
+# =============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rest-collector-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: rest-collector
+    matchExpressions:
+      # Exclude CronJob pods that may reuse the `app: rest-collector` label.
+      - key: type
+        operator: DoesNotExist
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vector-processing-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: vector-processing
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: websocket-collector-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: websocket-collector
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: validator-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: validator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analyzer-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: analyzer
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feature-engine-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: feature-engine
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: batch-processing-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: batch-processing
+---
+# ADR-023/025: flink-job-pdb removed from the platform base. Stream
+# processing is use-case scoped (FlinkDeployment CR in each use case);
+# the PDB for the operator-managed JobManager lives with that CR. The
+# generic overlay does not ship a FlinkDeployment.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feature-cache-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: feature-cache
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: inference-engine-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: inference-engine
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-backend-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-frontend-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ml-bridge-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: ml-bridge

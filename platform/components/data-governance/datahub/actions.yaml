@@ -1,0 +1,251 @@
+# =============================================================================
+# datahub-actions — SASL_SSL on Kafka 9093 (ADR-008)
+# =============================================================================
+# Kafka authorization=simple denies anonymous on plain 9092 (only `admin` is in
+# superUsers).  GMS + upgrade-job already authenticate via SASL_SSL/SCRAM-SHA-512
+# on 9093 with the `admin` SCRAM credential (mirrored via ESO into the
+# `datahub-kafka` Secret).  Actions uses a Python confluent-kafka client
+# whose connection params live in the executor YAML's `consumer_config`,
+# not env vars — so we override the bundled `executor.yaml` via a ConfigMap
+# mounted with subPath, injecting the security.protocol/sasl.* keys.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datahub-actions-executor
+  namespace: data-governance
+  labels:
+    app: datahub-actions
+    app.kubernetes.io/part-of: mlops-platform
+data:
+  # Mirrors upstream /etc/datahub/actions/system/conf/executor.yaml plus
+  # consumer_config + schema_registry_config wiring for SASL_SSL/SCRAM.
+  # The actions Pipeline expander resolves ${VAR} from process env at load.
+  executor.yaml: |
+    name: ${DATAHUB_ACTIONS_INGESTION_EXECUTOR_CONSUMER_GROUP_ID:-ingestion_executor}
+    source:
+      type: "kafka"
+      config:
+        connection:
+          bootstrap: ${KAFKA_BOOTSTRAP_SERVER}
+          schema_registry_url: ${KAFKA_SCHEMAREGISTRY_URL}
+          consumer_config:
+            security.protocol: ${KAFKA_PROPERTIES_SECURITY_PROTOCOL}
+            sasl.mechanism: ${KAFKA_PROPERTIES_SASL_MECHANISM}
+            sasl.username: admin
+            sasl.password: ${KAFKA_ADMIN_PASSWORD}
+            ssl.ca.location: /etc/kafka-ca/ca.crt
+        topic_routes:
+          mcl: ${METADATA_CHANGE_LOG_VERSIONED_TOPIC_NAME:-MetadataChangeLog_Versioned_v1}
+          pe: ${PLATFORM_EVENT_TOPIC_NAME:-PlatformEvent_v1}
+    filter:
+      event_type: "MetadataChangeLogEvent_v1"
+      event:
+        entityType: "dataHubExecutionRequest"
+        changeType: "UPSERT"
+        aspectName:
+          - "dataHubExecutionRequestInput"
+          - "dataHubExecutionRequestSignal"
+        aspect:
+          value:
+            executorId: "${EXECUTOR_ID:-default}"
+    action:
+      type: "executor"
+      config:
+        executor_id: "${EXECUTOR_ID:-default}"
+    datahub:
+      server: "${DATAHUB_GMS_PROTOCOL:-http}://${DATAHUB_GMS_HOST:-localhost}:${DATAHUB_GMS_PORT:-8080}"
+      extra_headers:
+        Authorization: "Basic ${DATAHUB_SYSTEM_CLIENT_ID:-__datahub_system}:${DATAHUB_SYSTEM_CLIENT_SECRET:-JohnSnowKnowsNothing}"
+  # System action `doc_propagation` runs alongside `ingestion_executor` and
+  # opens its own confluent-kafka client — bundled file only sets
+  # max.poll.interval.ms in consumer_config, no security.protocol, so it
+  # connects plaintext to 9093 and fails APIVERSION_QUERY against the
+  # SASL_SSL listener.  Mirror the upstream YAML and inject the same SASL
+  # block as executor.yaml.
+  doc_propagation_action.yaml: |
+    name: ${DATAHUB_ACTIONS_DOC_PROPAGATION_CONSUMER_GROUP_ID:-datahub_doc_propagation_action}
+    enabled: ${DATAHUB_ACTIONS_DOC_PROPAGATION_ENABLED:-true}
+    source:
+      type: "kafka"
+      config:
+        connection:
+          bootstrap: ${KAFKA_BOOTSTRAP_SERVER}
+          schema_registry_url: ${KAFKA_SCHEMAREGISTRY_URL}
+          consumer_config:
+            security.protocol: ${KAFKA_PROPERTIES_SECURITY_PROTOCOL}
+            sasl.mechanism: ${KAFKA_PROPERTIES_SASL_MECHANISM}
+            sasl.username: admin
+            sasl.password: ${KAFKA_ADMIN_PASSWORD}
+            ssl.ca.location: /etc/kafka-ca/ca.crt
+            max.poll.interval.ms: ${MAX_POLL_INTERVAL_MS:-60000}
+        topic_routes:
+          mcl: ${METADATA_CHANGE_LOG_VERSIONED_TOPIC_NAME:-MetadataChangeLog_Versioned_v1}
+          pe: ${PLATFORM_EVENT_TOPIC_NAME:-PlatformEvent_v1}
+    action:
+      type: doc_propagation
+      config:
+        columns_enabled: ${DATAHUB_ACTIONS_DOC_PROPAGATION_COLUMNS_ENABLED:-true}
+        max_propagation_depth: ${DATAHUB_ACTIONS_DOC_PROPAGATION_MAX_PROPAGATION_DEPTH:-5}
+        max_propagation_fanout: ${DATAHUB_ACTIONS_DOC_PROPAGATION_MAX_PROPAGATION_FANOUT:-1000}
+        max_propagation_time_millis: ${DATAHUB_ACTIONS_DOC_PROPAGATION_MAX_PROPAGATION_TIME_MILLIS:-3600000}
+        rate_limit_propagated_writes: ${DATAHUB_ACTIONS_DOC_PROPAGATION_RATE_LIMIT_PROPAGATED_WRITES:-1500}
+        rate_limit_propagated_writes_period: ${DATAHUB_ACTIONS_DOC_PROPAGATION_RATE_LIMIT_PROPAGATED_WRITES_PERIOD:-15}
+    datahub:
+      server: "http://${DATAHUB_GMS_HOST:-localhost}:${DATAHUB_GMS_PORT:-8080}"
+      extra_headers:
+        Authorization: "Basic ${DATAHUB_SYSTEM_CLIENT_ID:-__datahub_system}:${DATAHUB_SYSTEM_CLIENT_SECRET:-JohnSnowKnowsNothing}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datahub-actions
+  namespace: data-governance
+  labels:
+    app: datahub-actions
+    app.kubernetes.io/name: datahub-actions
+    app.kubernetes.io/component: actions
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: datahub-actions
+  template:
+    metadata:
+      labels:
+        app: datahub-actions
+      annotations:
+        # Istio sidecar terminates outbound TLS on every port and re-emits
+        # plain TCP toward the destination — it can't proxy Kafka's
+        # broker-side TLS+SASL handshake, so the SSL handshake on 9093
+        # closes mid-APIVERSION_QUERY.  Excluding 9093 lets the librdkafka
+        # client speak SSL+SCRAM directly to platform-kafka while still
+        # mTLSing 8080 (datahub-gms) and any future HTTP outbound through
+        # the mesh.  Same trick as `sidecar.istio.io/inject:"false"` on
+        # mlflow but scoped to one port instead of disabling the sidecar.
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9093"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-gms
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          command: ['sh', '-c']
+          args:
+            - |
+              # Bounded retry for GMS port. 60 attempts × 5s ≈ 5 min ceiling
+              # then exit non-zero so the kubelet restarts the pod (slot for
+              # backoff is owned by replicaset-controller, not this script).
+              for i in $(seq 1 60); do
+                if nc -w 2 datahub-gms 8080; then
+                  echo "GMS reachable on attempt $i"
+                  exit 0
+                fi
+                echo "GMS not ready (attempt $i/60), sleeping 5s"
+                sleep 5
+              done
+              echo "GMS still unreachable after 5 min"
+              exit 1
+          resources:
+            requests: { cpu: 25m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 32Mi }
+      containers:
+        - name: datahub-actions
+          image: acryldata/datahub-actions:v1.5.0.3
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DATAHUB_GMS_HOST
+              value: "datahub-gms"
+            - name: DATAHUB_GMS_PORT
+              value: "8080"
+            # Kafka — SASL_SSL on 9093.  authorization=simple denies anonymous
+            # on plain 9092; the `admin` SCRAM credential is fetched via ESO
+            # from platform-kafka-users into the `datahub-kafka` Secret.
+            - name: KAFKA_BOOTSTRAP_SERVER
+              value: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+            - name: KAFKA_SCHEMAREGISTRY_URL
+              value: "http://karapace.data-ingestion.svc.cluster.local:8081"
+            - name: KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: KAFKA_PROPERTIES_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: KAFKA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datahub-kafka, key: kafka-password }
+          volumeMounts:
+            # Override bundled executor.yaml + doc_propagation_action.yaml;
+            # subPath ensures the rest of the /etc/datahub/actions/system/
+            # conf/ directory (slack_action.yaml, teams_action.yaml) stays
+            # untouched from the image.  Both overridden actions need the
+            # same SASL_SSL/SCRAM consumer_config to talk to 9093.
+            - name: executor-config
+              mountPath: /etc/datahub/actions/system/conf/executor.yaml
+              subPath: executor.yaml
+              readOnly: true
+            - name: executor-config
+              mountPath: /etc/datahub/actions/system/conf/doc_propagation_action.yaml
+              subPath: doc_propagation_action.yaml
+              readOnly: true
+            - name: kafka-ca
+              mountPath: /etc/kafka-ca
+              readOnly: true
+          resources:
+            # actions spawns an ephemeral `uv pip install -r requirements.txt`
+            # venv per ingestion run (acryl-executor sub_process_ingestion_task);
+            # 1Gi peaks during venv resolution and the kubelet OOM-kills with
+            # exit 137 (verified restartCount=62 in 12h, last terminated at
+            # 2026-05-07T19:12:34Z).  Bump to 2Gi for venv headroom; HPA in
+            # datahub/hpa.yaml lifts to a second replica when CPU > 75%.
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "datahub"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["pgrep", "-f", "datahub"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: executor-config
+          configMap:
+            name: datahub-actions-executor
+            defaultMode: 0444
+        - name: kafka-ca
+          secret:
+            secretName: datahub-kafka
+            items:
+              - key: ca.crt
+                path: ca.crt
+            defaultMode: 0444

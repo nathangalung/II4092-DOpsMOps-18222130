@@ -1,0 +1,104 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: model-serving
+
+# All KServe resources configured for model-serving namespace
+# This configuration will persist across cluster restarts
+#
+# CRDs split across 17 per-CRD files in crds/ — original 5.6MB single-file
+# manifest exceeded kine sqlite single-object write window on k3s, causing
+# ArgoCD ServerSideApply to drop the 3 largest CRDs (inferenceservices,
+# llminferenceservices, llminferenceserviceconfigs) when its per-resource
+# apply deadline elapsed. Splitting bounds each kine write to <=2.1MB and
+# lets each SSA request retry independently if any single CRD times out.
+# Root pattern recurred across #160/166/169/209/210/214 sandbox cascades —
+# CRD-missing → controller stuck → cascade. Closes the loop at source.
+resources:
+  - crds/clusterservingruntimes.serving.kserve.io.yaml
+  - crds/clusterstoragecontainers.serving.kserve.io.yaml
+  - crds/inferencegraphs.serving.kserve.io.yaml
+  - crds/inferencemodelrewrites.inference.networking.x-k8s.io.yaml
+  - crds/inferenceobjectives.inference.networking.x-k8s.io.yaml
+  - crds/inferencepoolimports.inference.networking.x-k8s.io.yaml
+  - crds/inferencepools.inference.networking.k8s.io.yaml
+  - crds/inferencepools.inference.networking.x-k8s.io.yaml
+  - crds/inferenceservices.serving.kserve.io.yaml
+  - crds/llminferenceserviceconfigs.serving.kserve.io.yaml
+  - crds/llminferenceservices.serving.kserve.io.yaml
+  - crds/localmodelcaches.serving.kserve.io.yaml
+  - crds/localmodelnamespacecaches.serving.kserve.io.yaml
+  - crds/localmodelnodegroups.serving.kserve.io.yaml
+  - crds/localmodelnodes.serving.kserve.io.yaml
+  - crds/servingruntimes.serving.kserve.io.yaml
+  - crds/trainedmodels.serving.kserve.io.yaml
+  - kserve-rbac.yaml
+  - kserve-controller.yaml
+  - kserve-configmap.yaml
+  - kserve-storage-containers.yaml
+  - kserve-serving-runtimes.yaml
+  - kserve-webhooks.yaml
+  - models-web-app.yaml
+  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+  - demo-health-check.yaml         # KF-05 platform smoke test (sklearn iris)
+
+# Image pins.
+# The previous `kserve/kserve-controller → v0.11.0` override has been REMOVED.
+# The Deployment in kserve-controller.yaml declares v0.17.0 (2026-03-13),
+# which carries the cert-rotation fix and the stabilised RawDeployment path.
+# Pinning Kustomize back to v0.11.0 was a 6-minor-version downgrade and the
+# root cause of the KServe cert cascade documented in AUDIT_REPORT.md §2.
+images:
+  - name: kserve/models-web-app
+    newName: ghcr.io/kserve/models-web-app
+    newTag: 0.15.0
+
+# Generate config for models web app
+configMapGenerator:
+  - name: kserve-models-web-app-config
+    literals:
+      - APP_DISABLE_AUTH="True"
+      - GRAFANA_PREFIX="/grafana"
+      - GRAFANA_CPU_MEMORY_DB="db/knative-serving-revision-cpu-and-memory-usage"
+      - GRAFANA_HTTP_REQUESTS_DB="db/knative-serving-revision-http-requests"
+
+# Label all resources consistently
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/component: kserve
+      kustomize.component: kserve
+
+# Simple patches for basic configuration only
+patches:
+  # Update models web app for model-serving namespace
+  - target:
+      kind: Deployment
+      name: kserve-models-web-app
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+
+  # Increase kserve-controller-manager resources for stability
+  - target:
+      kind: Deployment
+      name: kserve-controller-manager
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

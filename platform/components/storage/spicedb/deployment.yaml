@@ -1,0 +1,213 @@
+# =============================================================================
+# SpiceDB — Google Zanzibar-style fine-grained authorization
+# =============================================================================
+# v1.51.1 (authzed).  Backed by PostgreSQL (not in-memory) so that schema and
+# relationship tuples survive pod restart.  The preshared key and PG connection
+# string are supplied via ExternalSecret (ADR-008) — no plain stringData.
+#
+# Schema is loaded by a one-shot Job (`spicedb-schema-loader`) after the
+# SpiceDB Deployment is Ready; see schema-loader.yaml.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: spicedb-secret
+  namespace: storage
+  labels:
+    app: spicedb
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: spicedb-secret
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        # 32+ char preshared key for gRPC clients (APISIX, microservices).
+        preshared-key: "{{ .psk }}"
+        # Datastore connection URI for PostgreSQL (CNPG cluster).
+        # urlquery escapes special chars (/, +, =) so the URI parser doesn't choke
+        # when the random password from OpenBao includes them.
+        datastore-uri: "postgres://{{ .pg_user | urlquery }}:{{ .pg_password | urlquery }}@postgresql-rw.storage.svc.cluster.local:5432/spicedb?sslmode=require"
+  data:
+    - secretKey: psk
+      remoteRef:
+        key: platform/spicedb/preshared-key
+        property: value
+    - secretKey: pg_user
+      remoteRef:
+        key: platform/spicedb/postgres
+        property: username
+    - secretKey: pg_password
+      remoteRef:
+        key: platform/spicedb/postgres
+        property: password
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spicedb
+  namespace: storage
+  labels:
+    app: spicedb
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spicedb
+  namespace: storage
+  labels:
+    app: spicedb
+spec:
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+    - name: http
+      port: 8443
+      targetPort: 8443
+    - name: dispatch
+      port: 50053
+      targetPort: 50053
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: spicedb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spicedb
+  namespace: storage
+  labels:
+    app: spicedb
+    app.kubernetes.io/name: spicedb
+    app.kubernetes.io/component: authorization
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # Single-pod bootstrap; HPA below scales 1→3 on CPU>70%.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: spicedb
+  template:
+    metadata:
+      labels:
+        app: spicedb
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: spicedb
+      # Wait for PostgreSQL (CNPG read-write endpoint) before spicedb starts.
+      initContainers:
+        - name: wait-for-pg
+          image: postgres:18.4-alpine
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              # Bounded retry: 60 attempts × 2s = 2 min ceiling
+              for i in $(seq 1 60); do
+                if pg_isready -h postgresql-rw.storage.svc.cluster.local -p 5432 -U postgres; then
+                  echo "postgresql-rw is ready (attempt $i)"
+                  exit 0
+                fi
+                echo "waiting for postgresql-rw (attempt $i/60) ..."; sleep 2
+              done
+              echo "postgresql-rw still unreachable after 2 min"
+              exit 1
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+        - name: datastore-migrate
+          image: authzed/spicedb:v1.52.0
+          command: ["spicedb", "migrate", "head"]
+          env:
+            - name: SPICEDB_DATASTORE_ENGINE
+              value: postgres
+            - name: SPICEDB_DATASTORE_CONN_URI
+              valueFrom:
+                secretKeyRef:
+                  name: spicedb-secret
+                  key: datastore-uri
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: spicedb
+          image: authzed/spicedb:v1.52.0
+          imagePullPolicy: IfNotPresent
+          command: ["spicedb", "serve"]
+          args:
+            - "--grpc-preshared-key=$(SPICEDB_GRPC_PRESHARED_KEY)"
+            - "--datastore-engine=postgres"
+            - "--datastore-conn-uri=$(SPICEDB_DATASTORE_CONN_URI)"
+            - "--dispatch-upstream-addr=kubernetes:///spicedb.storage:dispatch"
+            - "--http-enabled=true"
+            - "--metrics-enabled=true"
+            - "--log-level=info"
+            - "--log-format=json"
+          env:
+            - name: SPICEDB_GRPC_PRESHARED_KEY
+              valueFrom:
+                secretKeyRef: { name: spicedb-secret, key: preshared-key }
+            - name: SPICEDB_DATASTORE_CONN_URI
+              valueFrom:
+                secretKeyRef: { name: spicedb-secret, key: datastore-uri }
+          ports:
+            - { containerPort: 50051, name: grpc }
+            - { containerPort: 8443,  name: http }
+            - { containerPort: 50053, name: dispatch }
+            - { containerPort: 9090,  name: metrics }
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          livenessProbe:
+            grpc: { port: 50051 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            grpc: { port: 50051 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+---
+# PDB — single-node single-replica: maxUnavailable=1 (= minAvailable=0)
+# permits voluntary eviction. minAvailable=1 with replicas=1 deadlocks drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: spicedb
+  namespace: storage
+  labels: { app: spicedb }
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: spicedb

@@ -1,0 +1,101 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-data-engineer
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  # Data Ingestion, Processing, Governance, Storage Admin
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  # Specific components
+  - apiGroups: ["flink.apache.org"]
+    resources: ["flinkdeployments", "flinksessionjobs"]
+    verbs: ["*"]
+  - apiGroups: ["kafka.strimzi.io"]
+    resources: ["kafkas", "kafkatopics", "kafkausers"]
+    verbs: ["*"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  # Can access database pods
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/portforward"]
+    verbs: ["create"]
+    resourceNames: ["clickhouse-0", "postgresql-0", "valkey-0", "minio-0", "kafka-0"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-data-scientist
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  # Model Lifecycle Admin
+  - apiGroups: ["kubeflow.org"]
+    resources: ["notebooks", "experiments", "pipelines", "viewers"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  # Feature Store access
+  - apiGroups: ["feast.dev"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  # Storage Read
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  # CANNOT access database pods directly (Explicitly missing exec/portforward for DBs)
+  # But can exec into notebook pods
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+    resourceNames: ["notebook-*"] 
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-ml-engineer
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  # Model Serving, Observability, GitOps Admin
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices", "trainedmodels"]
+    verbs: ["*"]
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors", "prometheusrules"]
+    verbs: ["*"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns", "pipelines", "tasks"]
+    verbs: ["*"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch", "sync"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # Can access dashboard services
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    verbs: ["get", "list", "watch"]
+    resourceNames: ["grafana", "kiali", "tempo", "prometheus-k8s"]

@@ -1,0 +1,30 @@
+[project]
+name = "platform-airflow"
+version = "1.0.0"
+description = "Airflow with all required providers for MLOps platform orchestration"
+requires-python = ">=3.14"
+dependencies = [
+    "apache-airflow[postgres]==3.1.8",
+    "apache-airflow-providers-cncf-kubernetes>=4.3.0",
+    "apache-airflow-providers-amazon>=9.6.0",
+    # FAB auth manager — Airflow 3.x moved users/roles/password auth out of
+    # core into this provider.  Required for (a) the `airflow users create`
+    # CLI used by the scheduler init-container admin-user bootstrap and
+    # (b) the `basic_auth` REST API backend consumed by the DataHub
+    # Airflow ingestion recipe (platform/components/data-governance/
+    # datahub-ingestion/recipes.yaml).  The default SimpleAuthManager
+    # cannot satisfy either — it auto-generates passwords to an on-disk
+    # file (incompatible with our Vault-sourced credential model at
+    # secret/platform/airflow/admin) and only exposes JWT tokens on
+    # /auth/token (no BasicAuth).  3.6.1 is the first 2026 release
+    # (Apr 12 2026) and requires apache-airflow >=3.0.2.
+    "apache-airflow-providers-fab>=3.6.1",
+    "psycopg2-binary>=2.9.10",
+    "asyncpg>=0.30.0",
+    "clickhouse-connect",
+    "requests",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

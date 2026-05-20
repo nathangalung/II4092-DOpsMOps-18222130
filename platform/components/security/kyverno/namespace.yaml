@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyverno
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: security
+    # Kyverno admission webhook serves on its own pod cert (cert-controller
+    # injected into ValidatingWebhookConfiguration). PSA `baseline` (not
+    # `restricted`) because chart-default container securityContext does not
+    # set seccompProfile at the pod level. istio-injection disabled — webhook
+    # talks to kube-apiserver directly over TLS, mesh adds no value.
+    istio-injection: disabled

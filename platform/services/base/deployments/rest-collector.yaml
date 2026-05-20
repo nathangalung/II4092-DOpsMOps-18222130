@@ -1,0 +1,70 @@
+# =============================================================================
+# REST COLLECTOR — API Polling Ingestion (Go)
+# =============================================================================
+# Polls REST API for time-series data → Kafka. Includes historical backfill.
+# Schema validation via Karapace schema registry.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-collector
+  labels:
+    app: rest-collector
+    component: ingestion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rest-collector
+  template:
+    metadata:
+      labels:
+        app: rest-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+    spec:
+      containers:
+        - name: rest-collector
+          image: rest-collector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rest-collector
+spec:
+  selector:
+    app: rest-collector
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http

@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Chaos Mesh 2.8.2 (ADR-014) + baseline Schedules/Workflow (KNF-04, KNF-11).
+resources:
+  - helm-release.yaml
+  - experiments.yaml

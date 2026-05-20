@@ -1,0 +1,40 @@
+# PodMonitor CRs for CNPG cluster + pgbouncer pooler.
+#
+# NOT referenced from kustomization.yaml during phase-base — the
+# monitoring.coreos.com/v1 CRD lives in atom-obs-stack (kube-prometheus-stack)
+# which runs AFTER phase-base. Re-apply this file via the obs-stack overlay
+# once `monitoring.coreos.com/v1` is Established (same pattern as the
+# `serviceMonitor.enabled: false` flag on the chart-rendered components).
+---
+# Explicit PodMonitor: replaces deprecated `.spec.monitoring.enablePodMonitor`.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgresql
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: postgresql
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgresql-rw-pool
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: postgresql-rw-pool
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

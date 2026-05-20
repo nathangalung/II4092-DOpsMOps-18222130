@@ -1,0 +1,60 @@
+# =============================================================================
+# MATERIALIZATION — Feast Feature Store Sync (Python + Feast SDK)
+# =============================================================================
+# Materializes offline features (ClickHouse) to online store (Valkey).
+#
+# Platform tool integration:
+#   - Feast: Feature materialization via Python SDK
+#     Offline store: ClickHouse, Online store: Valkey (Redis-RESP), Registry: PostgreSQL
+#   - Airflow: Workflow orchestration via DAGs
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: materialization
+  labels:
+    app: materialization
+    schedule: hourly
+spec:
+  schedule: "15 * * * *" # 15 minutes after each hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: materialization
+            job-type: materialization
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: materialization
+              image: materialization:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--mode", "materialize"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: FEAST_REPO_PATH
+                  value: "/app/feature_repo"
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+              volumeMounts:
+                - name: feature-repo
+                  mountPath: /app/feature_repo
+          volumes:
+            - name: feature-repo
+              configMap:
+                name: feast-feature-repo

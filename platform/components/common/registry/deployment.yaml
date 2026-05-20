@@ -1,0 +1,189 @@
+# =============================================================================
+# CNCF Distribution Registry v3.0.0 — in-cluster Docker registry
+# =============================================================================
+# Cluster-internal image registry for Strimzi KafkaConnect Build (kaniko)
+# pushes and other in-cluster image producers (Tekton/Argo, custom builds).
+# Plain HTTP on port 5000, namespace-scoped, never exposed off-cluster.
+#
+# k3s containerd trusts this hostname via /etc/rancher/k3s/registries.yaml
+# at host bootstrap (insecure-skip-verify on cluster-internal address only).
+#
+# Distribution v3 GA Feb 2025 — image runs as nonroot UID 65532 by default.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-registry
+  labels:
+    # Distribution Pod uses hostPort 5000 so the host containerd can pull
+    # via `localhost:5000`; baseline PSS blocks hostPort, restricted blocks
+    # everything stricter still.  Privileged unlocks hostPort while the Pod
+    # itself keeps `runAsNonRoot:true / runAsUser:65532 / drop:ALL` — same
+    # hardening as before, just with the host-path escape hatch.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: registry
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: registry
+  namespace: platform-registry
+  labels:
+    app: registry
+    app.kubernetes.io/part-of: mlops-platform
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: platform-registry
+  labels:
+    app: registry
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      # Bootstrap size for build-output images. Bump for production load.
+      storage: 20Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-config
+  namespace: platform-registry
+  labels:
+    app: registry
+data:
+  config.yml: |
+    version: 0.1
+    log:
+      fields:
+        service: registry
+    storage:
+      filesystem:
+        rootdirectory: /var/lib/registry
+      cache:
+        blobdescriptor: inmemory
+      delete:
+        enabled: true
+    http:
+      addr: :5000
+      headers:
+        X-Content-Type-Options: [nosniff]
+    health:
+      storagedriver:
+        enabled: true
+        interval: 10s
+        threshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: platform-registry
+  labels:
+    app: registry
+spec:
+  selector:
+    app: registry
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: platform-registry
+  labels:
+    app: registry
+    app.kubernetes.io/name: distribution
+    app.kubernetes.io/component: registry
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    # Single replica + RWO PVC — Recreate avoids two pods racing on volume
+    # during rollouts.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      serviceAccountName: registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: registry
+          image: registry:3.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+              # hostPort exposes the registry on 127.0.0.1:5000 of the K3s
+              # node so the host containerd can pull pushed images via the
+              # registries.yaml mirror entry that maps
+              # `registry.platform-registry.svc.cluster.local:5000` →
+              # `http://localhost:5000`.  Without this, containerd has to
+              # resolve the cluster DNS (which it can't from the host) and
+              # fails with "lookup ... Try again".
+              hostPort: 5000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: OTEL_TRACES_EXPORTER
+              value: "none"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+            - name: config
+              mountPath: /etc/distribution
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            # Single-node bootstrap. Registry is light at idle; bursts on push.
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+        - name: config
+          configMap:
+            name: registry-config
+        - name: tmp
+          emptyDir: {}

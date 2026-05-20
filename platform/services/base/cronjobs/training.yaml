@@ -1,0 +1,63 @@
+# =============================================================================
+# TRAINING — Weekly Model Training (Python + TF/XGBoost → ONNX)
+# =============================================================================
+# Trains models on features from Feast, exports to ONNX.
+#
+# Platform tool integration:
+#   - MLflow: Experiment tracking, model registry, artifact storage
+#   - Feast: Training feature retrieval via FeatureService
+#   - Kubeflow Pipelines: Alternative for complex training DAGs
+#   - KServe: Auto-deploy trained models via InferenceService
+#   - Grafana: Alert on training failures
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: training-weekly
+  labels:
+    app: trainer
+    schedule: weekly
+spec:
+  schedule: "0 2 * * 0" # Sunday 2AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400 # Keep for 24 hours
+      activeDeadlineSeconds: 14400 # 4 hour timeout
+      template:
+        metadata:
+          labels:
+            app: trainer
+            job-type: scheduled
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: trainer
+              image: trainer:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "main.py"]
+              args: ["--train-all"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: FEAST_REPO_PATH
+                  value: "/app/feature_repo"
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: "4Gi"
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+              volumeMounts:
+                - name: feature-repo
+                  mountPath: /app/feature_repo
+          volumes:
+            - name: feature-repo
+              configMap:
+                name: feast-feature-repo

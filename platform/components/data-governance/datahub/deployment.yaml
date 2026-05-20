@@ -1,0 +1,633 @@
+# =============================================================================
+# DataHub — OpenBao-sourced credentials (ADR-008)
+# =============================================================================
+# Two ExternalSecrets replace the previous hand-rolled Secrets.  The target
+# Secret names (`platform-postgresql-secret`, `datahub-frontend-secret`)
+# are preserved so downstream env `secretKeyRef` lookups keep working
+# unchanged.  OpenSearch credentials removed — security plugin disabled
+# (internal-only, defended by Istio mTLS + NetworkPolicies).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: datahub-kafka
+  namespace: data-governance
+  labels:
+    app: datahub
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # Mirror Strimzi `admin` SCRAM-SHA-512 SASL credential + cluster CA cert
+  # from data-ingestion namespace. Kafka 9093 listener requires SASL_SSL —
+  # anonymous on plain 9092 is denied by authorization=simple. CA cert is
+  # served as PEM, consumed by Kafka client via ssl.truststore.type=PEM.
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-kafka-users, kind: ClusterSecretStore }
+  target:
+    name: datahub-kafka
+    creationPolicy: Owner
+  data:
+    - secretKey: kafka-password
+      remoteRef: { key: admin, property: password }
+    - secretKey: ca.crt
+      remoteRef: { key: platform-kafka-cluster-ca-cert, property: ca.crt }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: platform-postgresql-secret
+  namespace: data-governance
+  labels:
+    app: datahub
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # Source the live CNPG-generated `postgresql-app` Secret directly.
+  # CNPG rotates the app-user password on cluster recreate; OpenBao's mirror
+  # at `secret/platform/postgres/app` goes stale and authentication fails.
+  # platform-postgres-app ClusterSecretStore is defined in
+  # platform/components/security/external-secrets/cluster-secret-store.yaml.
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-postgres-app, kind: ClusterSecretStore }
+  target:
+    name: platform-postgresql-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: username
+      remoteRef: { key: postgresql-app, property: username }
+    - secretKey: password
+      remoteRef: { key: postgresql-app, property: password }
+---
+# DataHub frontend session-signing key (symmetric). Needed as both
+# DATAHUB_SECRET and DATAHUB_SECRET_KEY by the Play framework startup.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: datahub-frontend-secret
+  namespace: data-governance
+  labels:
+    app: datahub
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: datahub-frontend-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: DATAHUB_SECRET
+      remoteRef: { key: platform/datahub/admin, property: secret }
+---
+# --- DataHub Upgrade Job (Run on Install) ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datahub-upgrade-job
+  namespace: data-governance
+  annotations:
+    argocd.argoproj.io/hook: Sync
+spec:
+  # SystemUpdate runs Liquibase schema migrations + OpenSearch index
+  # bootstraps.  Empirical timing on this single-node cluster with the
+  # OpenSearch IO distress field-observed 2026-05-19/20 (master logs:
+  # cluster-state writes 112s, fs health checks 22s, publication 1.8 min)
+  # pushes SystemUpdate well past the previous 1800s ceiling — the Job
+  # was hitting DeadlineExceeded with the SystemUpdate still progressing
+  # legitimately, post-apply.sh's wait then FATALed install-datahub.
+  # 3600s gives Liquibase + index bootstrap real headroom on a cold IO-
+  # bound OpenSearch; healthy clusters still finish in 5–10 min.
+  activeDeadlineSeconds: 3600
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      annotations:
+        # Keep this Job inside the Istio mesh — opensearch + kafka + postgres
+        # all enforce PeerAuthentication=STRICT in their namespaces, so an
+        # out-of-mesh Job pod gets `connection reset by peer` from every
+        # downstream istio-proxy.  Native sidecar mode is globally enabled
+        # (ENABLE_NATIVE_SIDECARS=true → istio-proxy lives in initContainers
+        # with restartPolicy=Always and terminates with the app container),
+        # so there is no classic-sidecar-hang to escape.
+        #
+        # The one carve-out we still need is Kafka 9093: librdkafka's
+        # SASL_SSL + SCRAM-SHA-512 handshake is mangled by Envoy's TLS
+        # interception, so SystemUpdate's Kafka admin steps
+        # (BootstrapMCPStep, ConfigEntityRegistry) must go direct to the
+        # broker.  Everything else (Postgres, OpenSearch HTTP) keeps mesh
+        # mTLS via the sidecar — no security regression.
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9093"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: datahub-upgrade
+          image: acryldata/datahub-upgrade:v1.5.0.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+          imagePullPolicy: IfNotPresent
+          args: ["-u", "SystemUpdate"]
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka-ca
+              readOnly: true
+          env:
+            # SystemUpdate skips SQL DDL by default. On a fresh cluster the
+            # `metadata_aspect_v2` table doesn't exist yet — gms then crashes
+            # with `relation "metadata_aspect_v2" does not exist`. Enabling
+            # this flag makes UpgradeCliApplication run the SqlSetup bootstrap
+            # before SystemUpdate, creating the Ebean schema (Liquibase
+            # changelog).
+            #
+            # Real env name is DATAHUB_SQL_SETUP_ENABLED (see
+            # SqlSetupCondition.SQL_SETUP_ENABLED_ENV in upstream
+            # datahub-upgrade). The friendly log line "SQL_SETUP_ENABLED=false"
+            # is just the display label, not the variable.
+            - name: DATAHUB_SQL_SETUP_ENABLED
+              value: "true"
+            - name: DATAHUB_GMS_HOST
+              value: "datahub-gms"
+            - name: DATAHUB_GMS_PORT
+              value: "8080"
+            # Kafka Config — SASL_SSL on 9093 (see datahub-gms section).
+            - name: KAFKA_BOOTSTRAP_SERVER
+              value: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+            - name: KAFKA_SCHEMAREGISTRY_URL
+              value: "http://karapace.data-ingestion.svc.cluster.local:8081"
+            - name: KAFKA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datahub-kafka, key: kafka-password }
+            - name: SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: SPRING_KAFKA_PROPERTIES_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="admin" password="$(KAFKA_ADMIN_PASSWORD)";'
+            - name: SPRING_KAFKA_PROPERTIES_SSL_TRUSTSTORE_LOCATION
+              value: "/etc/kafka-ca/ca.crt"
+            - name: SPRING_KAFKA_PROPERTIES_SSL_TRUSTSTORE_TYPE
+              value: "PEM"
+            - name: KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: KAFKA_PROPERTIES_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="admin" password="$(KAFKA_ADMIN_PASSWORD)";'
+            - name: KAFKA_PROPERTIES_SSL_TRUSTSTORE_LOCATION
+              value: "/etc/kafka-ca/ca.crt"
+            - name: KAFKA_PROPERTIES_SSL_TRUSTSTORE_TYPE
+              value: "PEM"
+            - name: GRAPH_SERVICE_IMPL
+              value: "elasticsearch"
+            # OpenSearch config (security plugin disabled — no auth needed)
+            - name: ELASTICSEARCH_HOST
+              value: "opensearch"
+            - name: ELASTICSEARCH_PORT
+              value: "9200"
+            - name: ELASTICSEARCH_USE_SSL
+              value: "false"
+            - name: ELASTICSEARCH_SHIM_ENGINE_TYPE
+              value: "OPENSEARCH_2"
+            - name: ENTITY_REGISTRY_CONFIG_PATH
+              value: "/datahub/datahub-gms/resources/entity-registry.yml"
+            # Database Config for upgrade job
+            - name: EBEAN_DATASOURCE_URL
+              # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
+              # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
+              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # reset" on enableSSL. Mesh handles encryption at L4.
+              value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
+            - name: EBEAN_DATASOURCE_DRIVER
+              value: "org.postgresql.Driver"
+            - name: EBEAN_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: username
+            - name: EBEAN_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: password
+            - name: POSTGRES_HOST
+              value: "postgresql-rw.storage.svc.cluster.local"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: EBEAN_DATASOURCE_HOST
+              value: "postgresql-rw.storage.svc.cluster.local:5432"
+            # SystemUpdate writes to GMS-shared aspects that include AccessTokens
+            # (root user provisioning). Same HMAC key as datahub-gms must be
+            # present here, otherwise DataHubTokenServiceFactory.validate fails
+            # before the upgrade tasks run.
+            - name: METADATA_SERVICE_AUTH_ENABLED
+              value: "true"
+            - name: DATAHUB_TOKEN_SERVICE_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: datahub-frontend-secret, key: DATAHUB_SECRET }
+            - name: DATAHUB_TOKEN_SERVICE_SALT
+              valueFrom:
+                secretKeyRef: { name: datahub-frontend-secret, key: DATAHUB_SECRET }
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: datahub-kafka
+            items:
+              - key: ca.crt
+                path: ca.crt
+      # `Never` (not OnFailure) so failed pods stay around for log inspection;
+      # job-controller spawns a fresh pod up to backoffLimit. With OnFailure the
+      # kubelet restarts the container in-place, kubectl logs --previous loses
+      # the trail across restarts, and BackoffLimitExceeded deletes the pod.
+      restartPolicy: Never
+
+---
+# --- DataHub GMS (Backend) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datahub-gms
+  namespace: data-governance
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: datahub-gms
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datahub-gms
+  namespace: data-governance
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: datahub-gms
+  template:
+    metadata:
+      labels:
+        app: datahub-gms
+      annotations:
+        # See actions.yaml — Istio sidecar breaks librdkafka SSL+SCRAM on
+        # 9093.  GMS's MAE/MCE Kafka admin clients need direct broker SSL;
+        # PG (5432) + OpenSearch (9200 HTTP) still flow through mesh mTLS.
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9093"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-dependencies
+          image: curlimages/curl:8.20.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            # curlimages/curl declares user `curl_user` (non-numeric) in its
+            # image config; K8s `runAsNonRoot` validator rejects non-numeric
+            # without an explicit numeric override.  100 is the curl_user UID.
+            runAsUser: 100
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          command: ["sh", "-c"]
+          args:
+            - |
+              # Bounded retry loops (60 attempts × 5s = 5min ceiling per dep).
+              # Pod-level retry/backoff is handled by the kubelet; the init
+              # script just fails fast so the kubelet can restart the pod.
+              wait_http() {
+                for i in $(seq 1 60); do
+                  code=$(curl -s -o /dev/null -w "%{http_code}" "$1") || code=000
+                  [ "$code" = "200" ] && { echo "$2 ready (attempt $i)"; return 0; }
+                  echo "$2 not ready (attempt $i/60, code=$code), sleep 5s"
+                  sleep 5
+                done
+                echo "$2 still unreachable after 5min"; return 1
+              }
+              wait_tcp() {
+                for i in $(seq 1 60); do
+                  nc -z -w 2 "$1" "$2" 2>/dev/null && { echo "$3 ready (attempt $i)"; return 0; }
+                  echo "$3 not ready (attempt $i/60), sleep 5s"
+                  sleep 5
+                done
+                echo "$3 still unreachable after 5min"; return 1
+              }
+              wait_http "http://opensearch:9200" "OpenSearch" || exit 1
+              wait_tcp postgresql-rw.storage.svc.cluster.local 5432 "PostgreSQL" || exit 1
+              wait_tcp platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local 9093 "Kafka" || exit 1
+              wait_http "http://karapace.data-ingestion.svc.cluster.local:8081/subjects" "Schema Registry" || exit 1
+              echo "All dependencies are ready!"
+      containers:
+        - name: datahub-gms
+          image: acryldata/datahub-gms:v1.5.0.3
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka-ca
+              readOnly: true
+          env:
+            - name: DATAHUB_DB_URL
+              # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
+              # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
+              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # reset" on enableSSL. Mesh handles encryption at L4.
+              value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
+            - name: DATAHUB_DB_DRIVER
+              value: "org.postgresql.Driver"
+            - name: DATAHUB_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: username
+            - name: DATAHUB_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: password
+            - name: POSTGRES_HOST
+              value: "postgresql-rw.storage.svc.cluster.local"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: EBEAN_DATASOURCE_HOST
+              value: "postgresql-rw.storage.svc.cluster.local:5432"
+            - name: EBEAN_DATASOURCE_URL
+              # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
+              # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
+              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # reset" on enableSSL. Mesh handles encryption at L4.
+              value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
+            - name: EBEAN_DATASOURCE_DRIVER
+              value: "org.postgresql.Driver"
+            - name: EBEAN_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: username
+            - name: EBEAN_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-postgresql-secret
+                  key: password
+            # Enable DB Schema Creation
+            - name: EBEAN_DDL_GENERATE
+              value: "true"
+            - name: EBEAN_DDL_RUN
+              value: "true"
+            # Kafka Config — SASL_SSL on 9093. Strimzi authorization=simple
+            # denies anonymous on 9092; admin/SCRAM-SHA-512 SASL credential
+            # mirrored from data-ingestion via platform-kafka-users CSS, CA
+            # cert mounted as PEM at /etc/kafka-ca/ca.crt.
+            - name: KAFKA_BOOTSTRAP_SERVER
+              value: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+            - name: KAFKA_SCHEMAREGISTRY_URL
+              value: "http://karapace.data-ingestion.svc.cluster.local:8081"
+            - name: KAFKA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datahub-kafka, key: kafka-password }
+            - name: SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: SPRING_KAFKA_PROPERTIES_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="admin" password="$(KAFKA_ADMIN_PASSWORD)";'
+            - name: SPRING_KAFKA_PROPERTIES_SSL_TRUSTSTORE_LOCATION
+              value: "/etc/kafka-ca/ca.crt"
+            - name: SPRING_KAFKA_PROPERTIES_SSL_TRUSTSTORE_TYPE
+              value: "PEM"
+            - name: KAFKA_PROPERTIES_SECURITY_PROTOCOL
+              value: "SASL_SSL"
+            - name: KAFKA_PROPERTIES_SASL_MECHANISM
+              value: "SCRAM-SHA-512"
+            - name: KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="admin" password="$(KAFKA_ADMIN_PASSWORD)";'
+            - name: KAFKA_PROPERTIES_SSL_TRUSTSTORE_LOCATION
+              value: "/etc/kafka-ca/ca.crt"
+            - name: KAFKA_PROPERTIES_SSL_TRUSTSTORE_TYPE
+              value: "PEM"
+            # OpenSearch config (security plugin disabled — no auth needed)
+            - name: ELASTICSEARCH_HOST
+              value: "opensearch"
+            - name: ELASTICSEARCH_PORT
+              value: "9200"
+            - name: ELASTICSEARCH_USE_SSL
+              value: "false"
+            - name: ELASTICSEARCH_SHIM_ENGINE_TYPE
+              value: "OPENSEARCH_2"
+            # Additional DataHub GMS Config
+            - name: DATAHUB_ANALYTICS_ENABLED
+              value: "false"
+            - name: ENTITY_REGISTRY_CONFIG_PATH
+              value: "/datahub/datahub-gms/resources/entity-registry.yml"
+            - name: MAE_CONSUMER_ENABLED
+              value: "true"
+            - name: MCE_CONSUMER_ENABLED
+              value: "true"
+            - name: PE_CONSUMER_ENABLED
+              value: "true"
+            - name: GRAPH_SERVICE_IMPL
+              value: "elasticsearch"
+            - name: METADATA_SERVICE_AUTH_ENABLED
+              value: "true"
+            # Token-service HMAC signing key + salt — required when
+            # METADATA_SERVICE_AUTH_ENABLED=true; without these GMS dies at
+            # "authentication.tokenService.signingKey must be set". Reusing
+            # datahub-frontend-secret means frontend Play sessions and GMS
+            # JWT signatures share a key, so the frontend can issue tokens
+            # GMS will accept.
+            - name: DATAHUB_TOKEN_SERVICE_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: datahub-frontend-secret, key: DATAHUB_SECRET }
+            - name: DATAHUB_TOKEN_SERVICE_SALT
+              valueFrom:
+                secretKeyRef: { name: datahub-frontend-secret, key: DATAHUB_SECRET }
+            - name: SKIP_ELASTICSEARCH_CHECK
+              value: "false"
+            - name: DATAHUB_UPGRADE_HISTORY_KAFKA_CONSUMER_GROUP_ID
+              value: "generic-duhe-consumer-job-client-gms"
+            - name: DATAHUB_GMS_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+          resources:
+            # DataHub GMS is a Spring Boot app: JVM baseline + Ebean ORM
+            # + Kafka consumers (MAE/MCE/PE) + ES client. Cold start lands
+            # ~1.4Gi RSS after schema bootstrap; SystemUpdate runs concurrent
+            # with steady-state and peaks ~2.4Gi. 2Gi limit was OOMKilled
+            # mid-bootstrap on a fresh cluster. 3Gi gives headroom.
+            requests:
+              memory: "1Gi"
+              cpu: "200m"
+            limits:
+              memory: "3Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: datahub-kafka
+            items:
+              - key: ca.crt
+                path: ca.crt
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: datahub-gms
+  namespace: data-governance
+  labels:
+    app: datahub-gms
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: datahub-gms
+---
+# --- DataHub Frontend (UI) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datahub-frontend
+  namespace: data-governance
+spec:
+  ports:
+    - port: 9002
+      targetPort: 9002
+      name: http
+  selector:
+    app: datahub-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datahub-frontend
+  namespace: data-governance
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: datahub-frontend
+  template:
+    metadata:
+      labels:
+        app: datahub-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: datahub-frontend
+          image: acryldata/datahub-frontend-react:v1.5.0.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATAHUB_GMS_HOST
+              value: "datahub-gms"
+            - name: DATAHUB_GMS_PORT
+              value: "8080"
+            - name: DATAHUB_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: datahub-frontend-secret
+                  key: DATAHUB_SECRET
+            - name: DATAHUB_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: datahub-frontend-secret
+                  key: DATAHUB_SECRET
+          ports:
+            - containerPort: 9002
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9002
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+---
+# Istio AuthorizationPolicy: complement to global-deny-all in istio-system.
+# Allow intra-namespace traffic (frontend↔gms, gms↔actions, ingest cronjobs)
+# plus gateway-originated requests so the UI is reachable end-to-end.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: datahub-allow
+  namespace: data-governance
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["data-governance", "istio-system", "data-processing", "model-lifecycle", "data-ingestion"]

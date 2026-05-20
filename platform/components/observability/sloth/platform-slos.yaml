@@ -1,0 +1,152 @@
+# =============================================================================
+# Platform baseline SLOs — authored once, compiled by Sloth into ~90
+# recording rules and ~14 alerting rules.  Picked up by kube-prometheus-stack
+# via the `release: kube-prometheus-stack` label (set globally on Sloth's
+# generated rules through `sloth.extraLabels` in helm-release.yaml).
+#
+# Ownership model:
+#   - The PLATFORM ships SLOs for cross-cutting infrastructure (Kafka broker
+#     availability, Postgres connectivity, MinIO latency).
+#   - Each USE-CASE ships its OWN SLOs in its repo (e.g. a
+#     prediction-freshness SLO).  The platform does not know use-case names.
+# =============================================================================
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: platform-kafka-broker-availability
+  namespace: observability
+  annotations:
+    # Sloth chart (sub-App in helm-release.yaml) installs the
+    # PrometheusServiceLevel CRD asynchronously. Without this, ArgoCD's
+    # API-discovery prep on the parent platform-observability sync rejects
+    # the whole batch with "failed to discover server resources for group
+    # version sloth.slok.dev/v1" *before* the sloth sub-App has a chance
+    # to install the CRD. Skipping discovery on missing resource lets the
+    # CR queue silently and apply on a later reconcile once the CRD is
+    # Established.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: platform
+spec:
+  service: kafka
+  labels:
+    tier: platform
+    component: kafka
+  slos:
+    - name: broker-availability
+      objective: 99.9
+      description: >
+        99.9% of Kafka brokers across the cluster must expose metrics over
+        the last 30 days.  Computed from kafka-exporter's `up{job="kafka-exporter"}`
+        series, which is a reliable health beacon.
+      # Sloth events-based SLI requires the {{ .window }} variable so the
+      # generated multi-window/multi-burn-rate rules can substitute the
+      # correct lookback (5m, 30m, 1h, 6h, 1d, 3d, 30d). Using a hard-coded
+      # range like [5m] crashes the controller with "template must contain
+      # the {{ .window }} variable". `up` is a gauge that emits one sample
+      # per scrape, so we wrap it in count_over_time + a subquery to
+      # convert it into an event count over the variable window.
+      sli:
+        events:
+          errorQuery: >-
+            sum(count_over_time((up{job=~"kafka|kafka-exporter"} == 0)[{{ .window }}:]))
+          totalQuery: >-
+            sum(count_over_time(up{job=~"kafka|kafka-exporter"}[{{ .window }}:]))
+      alerting:
+        name: KafkaBrokerSLOBurn
+        labels:
+          severity: critical
+          router: platform-oncall
+        annotations:
+          summary: Kafka broker availability is burning budget
+        pageAlert:
+          labels: { severity: critical, routing_key: pagerduty }
+        ticketAlert:
+          labels: { severity: warning,  routing_key: jira }
+---
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: platform-postgres-availability
+  namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: platform
+spec:
+  service: postgres
+  labels:
+    tier: platform
+    component: postgres
+  slos:
+    - name: connection-success
+      objective: 99.95
+      description: >
+        99.95% of connections to the platform CNPG Postgres primary must
+        succeed over 30 days.  Uses CNPG's exporter `cnpg_collector_up`.
+      sli:
+        events:
+          errorQuery: >-
+            sum(count_over_time((cnpg_collector_up{namespace="storage"} == 0)[{{ .window }}:]))
+          totalQuery: >-
+            sum(count_over_time(cnpg_collector_up{namespace="storage"}[{{ .window }}:]))
+      alerting:
+        name: PostgresSLOBurn
+        labels:
+          severity: critical
+          router: platform-oncall
+        annotations:
+          summary: Postgres availability budget burn
+        pageAlert:
+          labels: { severity: critical, routing_key: pagerduty }
+        ticketAlert:
+          labels: { severity: warning,  routing_key: jira }
+---
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: platform-minio-api-latency
+  namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: platform
+spec:
+  service: minio
+  labels:
+    tier: platform
+    component: minio
+  slos:
+    - name: api-p99-latency-below-500ms
+      objective: 99.0
+      description: >
+        99% of S3 API calls to MinIO must complete in <500ms p99 over 30 days.
+        Uses MinIO's built-in Prometheus histogram
+        `minio_s3_requests_ttfb_seconds_distribution`.
+      sli:
+        events:
+          errorQuery: >-
+            sum(rate(minio_s3_requests_ttfb_seconds_distribution{le="+Inf"}[{{ .window }}]))
+            - sum(rate(minio_s3_requests_ttfb_seconds_distribution{le="0.5"}[{{ .window }}]))
+          totalQuery: >-
+            sum(rate(minio_s3_requests_ttfb_seconds_distribution{le="+Inf"}[{{ .window }}]))
+      alerting:
+        name: MinIOLatencySLOBurn
+        labels:
+          severity: warning
+          router: platform-oncall
+        annotations:
+          summary: MinIO p99 latency budget burn
+        pageAlert:
+          labels: { severity: critical, routing_key: pagerduty }
+        ticketAlert:
+          labels: { severity: warning,  routing_key: jira }

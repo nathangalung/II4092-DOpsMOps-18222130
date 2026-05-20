@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: storage
+    # Istio sidecar injection disabled for storage workloads:
+    # - CNPG/Strimzi/ClickHouse operators speak peer-mTLS internally and
+    #   sidecar interception breaks operator↔pod webhooks (init container
+    #   exit 126 when istio-cni readiness flaps). Re-enable per-workload
+    #   via `sidecar.istio.io/inject: "true"` annotation if mesh telemetry
+    #   is required.

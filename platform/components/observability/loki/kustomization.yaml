@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+  - alloy.yaml
+  # promtail.yaml — removed (Promtail EOL since March 2026, replaced by Grafana Alloy)

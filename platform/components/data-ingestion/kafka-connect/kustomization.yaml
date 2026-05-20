@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# kafka-connect — Strimzi KafkaConnect CR (ADR-011).
+# Strimzi reconciles a StrimziPodSet, not a vanilla Deployment, so the prior
+# HorizontalPodAutoscaler in hpa.yaml could never resolve its scaleTargetRef
+# (FailedGetScale: deployments.apps "kafka-connect" not found). Removed in
+# cycle-11. For dynamic scaling under load, add a KEDA ScaledObject targeting
+# the KafkaConnect /scale subresource (Strimzi exposes it since v0.41). A
+# parameterized template lives at:
+#   platform/components/common/keda/templates/kafka-connect-scaledobject.yaml.tmpl
+# Copy into a use-case overlay, substitute the ${VAR} placeholders, and wire it
+# from the overlay's kustomization.yaml. Static spec.replicas in deployment.yaml
+# is the platform default; the template is opt-in per use case.
+resources:
+  - deployment.yaml

@@ -1,0 +1,697 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: model-lifecycle
+
+resources:
+  - pipelines.yaml
+  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+  # `minio-service-kubeflow.yaml` was moved to ../minio-service-kubeflow.yaml
+  # because this kustomization forces `namespace: model-lifecycle` on every
+  # resource, but the KFP v2 launcher hardcodes `minio-service.kubeflow` —
+  # the Service MUST stay in namespace `kubeflow`.
+
+patches:
+  # 1. Point KFP's pipeline-install-config ConfigMap at platform MySQL + MinIO.
+  #    Cannot use Postgres for MLMD (metadata-grpc-deployment): the binary uses
+  #    libmysqlclient (C++) hard-bound to MySQL wire protocol; gorm-on-Postgres
+  #    works only for the KFP API server — not MLMD. Both share this ConfigMap,
+  #    so the LCD is mysql. dbType=mysql is the upstream default.
+  #    Service: mysql.storage.svc.cluster.local (port 3306).
+  - target:
+      kind: ConfigMap
+      name: pipeline-install-config
+    patch: |-
+      - op: replace
+        path: /data/bucketName
+        value: "kubeflow-pipelines"
+      - op: replace
+        path: /data/minioServiceHost
+        value: "minio.storage.svc.cluster.local"
+      - op: replace
+        path: /data/minioServicePort
+        value: "9000"
+      - op: replace
+        path: /data/dbHost
+        value: "mysql.storage.svc.cluster.local"
+      - op: replace
+        path: /data/mysqlHost
+        value: "mysql.storage.svc.cluster.local"
+
+  # 2 / 2a intentionally removed.  The upstream `mysql-secret` and
+  #   `mlpipeline-minio-artifact` Secrets were replaced with ExternalSecret
+  #   resources in pipelines.yaml (see the `-----KFP artifact-store +
+  #   metadata DB credentials (ADR-008)-----` block).  ESO pulls both
+  #   credential pairs from OpenBao (`platform/postgres/app` and
+  #   `platform/minio/root`), so no in-tree stringData patching is needed.
+  #   Attempting to patch a kind: Secret that no longer exists in the tree
+  #   would fail at kustomize build time — hence the removal, not a
+  #   silent update.
+
+  # 2b. Fix metadata-writer deployment (merged from kubeflow-metadata patches)
+  - target:
+      kind: Deployment
+      name: metadata-writer
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: POD_NAMESPACE
+          value: model-lifecycle
+
+  # 2b2. Fix metadata-grpc-deployment resources and probes (from kubeflow-metadata patches)
+  - target:
+      kind: Deployment
+      name: metadata-grpc-deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/initialDelaySeconds
+        value: 60
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/initialDelaySeconds
+        value: 120
+
+  # 2b3. Fix cache-server Certificate dnsNames (namespace was kubeflow, now model-lifecycle)
+  - target:
+      kind: Certificate
+      name: kfp-cache-cert
+    patch: |-
+      - op: replace
+        path: /spec/dnsNames
+        value:
+          - cache-server
+          - cache-server.model-lifecycle
+          - cache-server.model-lifecycle.svc
+          - cache-server.model-lifecycle.svc.cluster.local
+
+  # 2b4. Fix MutatingWebhookConfiguration cert annotation (namespace was kubeflow, now model-lifecycle)
+  - target:
+      kind: MutatingWebhookConfiguration
+      name: cache-webhook-kubeflow
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1inject-ca-from
+        value: model-lifecycle/kfp-cache-cert
+
+  # 2c. Add startup delay for ml-pipeline-persistenceagent
+  - target:
+      kind: Deployment
+      name: ml-pipeline-persistenceagent
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KUBERNETES_CLUSTER_DOMAIN
+          value: cluster.local
+      - op: add
+        path: /spec/template/spec/initContainers
+        value:
+          - name: wait-for-ml-pipeline
+            image: curlimages/curl:8.20.0
+            command: ['sh', '-c']
+            args:
+              - |
+                echo "Waiting for ML Pipeline API to be ready..."
+                while ! curl -f http://ml-pipeline:8888/apis/v1beta1/healthz; do
+                  echo "ML Pipeline API not ready, waiting..."
+                  sleep 10
+                done
+                echo "ML Pipeline API is ready!"
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+
+  # 3. DELETE embedded KFP minio/mysql Deployments — we use platform
+  #    minio.storage and mysql.storage via ExternalName aliases (patch #9/#11).
+  #    Previously patched to replicas=0; $patch: delete is cleaner and removes
+  #    the associated PVCs + ServiceAccounts at Kustomize build time.
+  - target:
+      kind: Deployment
+      name: minio
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: minio
+  - target:
+      kind: Deployment
+      name: mysql
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mysql
+  - target:
+      kind: PersistentVolumeClaim
+      name: minio-pvc
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: minio-pvc
+  - target:
+      kind: PersistentVolumeClaim
+      name: mysql-pv-claim
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: mysql-pv-claim
+
+  # 4. DELETE the entire metacontroller subsystem.
+  #
+  # Rationale (audit AUDIT_FINAL_2026-04-20 §5.2):
+  #   * KFP v2 caching uses MutatingWebhookConfiguration — no CompositeController.
+  #   * The only CR depending on metacontroller in the upstream manifest is the
+  #     `kubeflow-pipelines-profile-controller` DecoratorController, which is
+  #     the multi-user profile sync webhook. This deployment targets a single
+  #     `model-lifecycle` namespace (single-user pipeline), so profile
+  #     sync is dead code — the Deployment, Service, ConfigMaps, and the
+  #     DecoratorController CR go with it.
+  #   * Removing metacontroller also removes its cluster-wide RBAC surface
+  #     (wide apiGroup='*' list/watch on namespaces, deployments, etc.).
+  #
+  # What is deleted here (all via $patch: delete so kustomize omits them at
+  # build time; Argo CD pruning then removes the cluster objects):
+  #   - StatefulSet metacontroller
+  #   - ServiceAccount meta-controller-service
+  #   - ClusterRole kubeflow-metacontroller
+  #   - ClusterRoleBinding meta-controller-cluster-role-binding
+  #   - CRDs compositecontrollers/controllerrevisions/decoratorcontrollers
+  #   - DecoratorController kubeflow-pipelines-profile-controller
+  #   - Deployment + Service + code/env ConfigMaps for profile-controller
+  #
+  # Verification: `grep -rn "metacontroller\.k8s\.io" .` outside this file and
+  # pipelines.yaml returns only audit docs — nothing else references the API.
+  - target:
+      kind: StatefulSet
+      name: metacontroller
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: metacontroller
+  - target:
+      kind: ServiceAccount
+      name: meta-controller-service
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: meta-controller-service
+  - target:
+      kind: ClusterRole
+      name: kubeflow-metacontroller
+    patch: |-
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: kubeflow-metacontroller
+  - target:
+      kind: ClusterRoleBinding
+      name: meta-controller-cluster-role-binding
+    patch: |-
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: meta-controller-cluster-role-binding
+  - target:
+      group: apiextensions.k8s.io
+      version: v1
+      kind: CustomResourceDefinition
+      name: compositecontrollers.metacontroller.k8s.io
+    patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: compositecontrollers.metacontroller.k8s.io
+  - target:
+      group: apiextensions.k8s.io
+      version: v1
+      kind: CustomResourceDefinition
+      name: controllerrevisions.metacontroller.k8s.io
+    patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: controllerrevisions.metacontroller.k8s.io
+  - target:
+      group: apiextensions.k8s.io
+      version: v1
+      kind: CustomResourceDefinition
+      name: decoratorcontrollers.metacontroller.k8s.io
+    patch: |-
+      $patch: delete
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: decoratorcontrollers.metacontroller.k8s.io
+  - target:
+      group: metacontroller.k8s.io
+      version: v1alpha1
+      kind: DecoratorController
+      name: kubeflow-pipelines-profile-controller
+    patch: |-
+      $patch: delete
+      apiVersion: metacontroller.k8s.io/v1alpha1
+      kind: DecoratorController
+      metadata:
+        name: kubeflow-pipelines-profile-controller
+  - target:
+      kind: Deployment
+      name: kubeflow-pipelines-profile-controller
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: kubeflow-pipelines-profile-controller
+  - target:
+      kind: Service
+      name: kubeflow-pipelines-profile-controller
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kubeflow-pipelines-profile-controller
+  - target:
+      kind: ConfigMap
+      name: kubeflow-pipelines-profile-controller-code-42d46f9h7d
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kubeflow-pipelines-profile-controller-code-42d46f9h7d
+  - target:
+      kind: ConfigMap
+      name: kubeflow-pipelines-profile-controller-env-5252m69c4c
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kubeflow-pipelines-profile-controller-env-5252m69c4c
+
+  # 4a. DELETE seaweedfs — redundant with MinIO.  The canonical `minio-service`
+  #     (patch #9 below) already routes to `minio.storage.svc.cluster.local`.
+  #     seaweedfs-service + the seaweedfs Deployment/PVC are dropped entirely.
+  - target:
+      kind: Deployment
+      name: seaweedfs
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: seaweedfs
+  - target:
+      kind: PersistentVolumeClaim
+      name: seaweedfs-pvc
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: seaweedfs-pvc
+  - target:
+      kind: Service
+      name: seaweedfs-service
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: seaweedfs-service
+
+  # 5. Fix workflow-controller networking and API connectivity
+  - target:
+      kind: Deployment
+      name: workflow-controller
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: LEADER_ELECTION_IDENTITY
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: KUBERNETES_CLUSTER_DOMAIN
+            value: cluster.local
+          - name: ARGO_LOG_LEVEL
+            value: "info"
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe
+        value:
+          httpGet:
+            path: /healthz
+            port: 6060
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          failureThreshold: 3
+          timeoutSeconds: 10
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          httpGet:
+            path: /healthz
+            port: 6060
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          failureThreshold: 5
+          timeoutSeconds: 10
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+  # 6. Fix ml-pipeline main deployment stability and connectivity
+  - target:
+      kind: Deployment
+      name: ml-pipeline
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: KUBERNETES_CLUSTER_DOMAIN
+          value: cluster.local
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/initialDelaySeconds
+        value: 180
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/initialDelaySeconds
+        value: 90
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/timeoutSeconds
+        value: 30
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+        value: 30
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+
+  # 7. Fix ml-pipeline-scheduledworkflow networking and stability
+  # NOTE: scheduledworkflow controller does NOT expose any HTTP endpoints
+  # It only watches and manages ScheduledWorkflow CRDs, so we use exec probe instead
+  # The main process is /bin/controller
+  - target:
+      kind: Deployment
+      name: ml-pipeline-scheduledworkflow
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: replace
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: NAMESPACE
+            value: ""
+          - name: LOG_LEVEL
+            value: info
+          - name: CRON_SCHEDULE_TIMEZONE
+            valueFrom:
+              configMapKeyRef:
+                key: cronScheduleTimezone
+                name: pipeline-install-config
+          - name: KUBERNETES_CLUSTER_DOMAIN
+            value: cluster.local
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe
+        value:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - "test -f /proc/1/cmdline"
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          failureThreshold: 3
+          timeoutSeconds: 5
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - "test -f /proc/1/cmdline"
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          failureThreshold: 5
+          timeoutSeconds: 5
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+
+  # 8. Fix ml-pipeline-viewer-crd stability
+  - target:
+      kind: Deployment
+      name: ml-pipeline-viewer-crd
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - op: replace
+        path: /spec/template/spec/dnsPolicy
+        value: ClusterFirst
+      - op: replace
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: NAMESPACE
+            value: ""
+          - name: MAX_NUM_VIEWERS
+            value: "50"
+          - name: KUBERNETES_CLUSTER_DOMAIN
+            value: cluster.local
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+
+  # 9. Fix minio-service to route to actual MinIO in storage namespace
+  # This replaces the seaweedfs-based minio-service with ExternalName to minio.storage
+  - target:
+      kind: Service
+      name: minio-service
+    patch: |-
+      - op: replace
+        path: /spec
+        value:
+          type: ExternalName
+          externalName: minio.storage.svc.cluster.local
+          ports:
+            - port: 9000
+              targetPort: 9000
+              protocol: TCP
+              name: http
+
+  # 10. Fix kfp-launcher ConfigMap to set correct default pipeline root
+  # Using minio:// protocol which KFP knows how to handle for local MinIO
+  - target:
+      kind: ConfigMap
+      name: kfp-launcher
+    patch: |-
+      - op: add
+        path: /data/defaultPipelineRoot
+        value: "minio://kubeflow-pipelines/v2/artifacts"
+
+  # 11. Update workflow-controller-configmap to use correct S3 endpoint and default imagePullPolicy
+  - target:
+      kind: ConfigMap
+      name: workflow-controller-configmap
+    patch: |-
+      - op: replace
+        path: /data/artifactRepository
+        value: |
+          archiveLogs: true
+          s3:
+            endpoint: "minio.storage.svc.cluster.local:9000"
+            bucket: "kubeflow-pipelines"
+            keyFormat: "private-artifacts/{{workflow.namespace}}/{{workflow.name}}/{{workflow.creationTimestamp.Y}}/{{workflow.creationTimestamp.m}}/{{workflow.creationTimestamp.d}}/{{pod.name}}"
+            insecure: true
+            accessKeySecret:
+              name: mlpipeline-minio-artifact
+              key: accesskey
+            secretKeySecret:
+              name: mlpipeline-minio-artifact
+              key: secretkey
+      - op: add
+        path: /data/workflowDefaults
+        value: |
+          spec:
+            imagePullSecrets: []
+            podSpecPatch: |
+              containers:
+                - name: main
+                  imagePullPolicy: IfNotPresent
+
+  # 12. REMOVED — kubeflow-pipelines-profile-controller Deployment is deleted
+  #     together with metacontroller (see patch #4 above). No S3 endpoint patch
+  #     is needed because the controller no longer exists.
+
+  # 13. Fix AuthorizationPolicy principals (kubeflow→model-lifecycle)
+  - target:
+      kind: AuthorizationPolicy
+      name: ml-pipeline
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/from/0/source/principals
+        value:
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-ui
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-persistenceagent
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-scheduledworkflow
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-viewer-crd-service-account
+          - cluster.local/ns/model-lifecycle/sa/kubeflow-pipelines-cache
+
+  - target:
+      kind: AuthorizationPolicy
+      name: ml-pipeline-visualizationserver
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/from/0/source/principals
+        value:
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-ui
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-persistenceagent
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-scheduledworkflow
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-viewer-crd-service-account
+          - cluster.local/ns/model-lifecycle/sa/kubeflow-pipelines-cache
+
+  - target:
+      kind: AuthorizationPolicy
+      name: mysql
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/from/0/source/principals
+        value:
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-ui
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-persistenceagent
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-scheduledworkflow
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-viewer-crd-service-account
+          - cluster.local/ns/model-lifecycle/sa/kubeflow-pipelines-cache
+          - cluster.local/ns/model-lifecycle/sa/metadata-grpc-server
+
+  - target:
+      kind: AuthorizationPolicy
+      name: seaweedfs-service
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/from/0/source/principals
+        value:
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline
+      - op: replace
+        path: /spec/rules/1/from/0/source/principals
+        value:
+          - cluster.local/ns/model-lifecycle/sa/ml-pipeline-ui
+
+  # 14. GitOps re-pull hygiene — NOT a P0.3 closure
+  # Two upstream KFP Deployments ship with imagePullPolicy: Always, which forces
+  # a registry round-trip on every pod restart and amplifies upstream-registry
+  # latency under ArgoCD self-heal / node reboots. KFP's own digests (2.15.0)
+  # are already semver-pinned at the `images:` block, so IfNotPresent preserves
+  # version-lock while eliminating the per-restart pull storm.
+  # The P0.3 Kubeflow version-lock audit item is tracked separately and was
+  # validated closed on 2026-04-19 (see REMEDIATION_RUNBOOK §Follow-ups).
+  - target:
+      kind: Deployment
+      name: cache-server
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: ml-pipeline-viewer-crd
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: model-lifecycle
+  labels:
+    # Istio sidecar disabled: KFP launcher mints sub-pods that mount the
+    # KFP-internal ServiceAccount token — istio sidecar's mTLS mutates the
+    # request stream and breaks KFP step → MinIO/MLflow callbacks.  Keep the
+    # whole namespace mesh-free; cross-NS calls into model-lifecycle from
+    # mesh-enabled namespaces still work because Istio PeerAuthentication
+    # allows PERMISSIVE traffic at the gateway.
+    istio-injection: disabled
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: model-lifecycle
+    # PSA baseline: Kubeflow Trainer's Trainer-Job spawns user-pods whose
+    # images may not declare runAsNonRoot; restricted would reject them on
+    # admission.  Baseline is the safe floor; tighten per-pod where the
+    # image supports it (mlflow, feast, kfp-api all comply with restricted).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

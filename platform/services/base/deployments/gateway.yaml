@@ -1,0 +1,105 @@
+# =============================================================================
+# GATEWAY — API Gateway (Rust + Axum)
+# =============================================================================
+# REST + gRPC API for serving predictions and features to clients.
+#
+# Platform tool integration:
+#   - Feast: Feature retrieval via gRPC (feast.model-lifecycle:6566)
+#   - MLflow: Model version discovery
+#   - APISIX: API management, rate limiting, auth + SpiceDB for RBAC
+#   - Tempo: Distributed tracing (OTLP gRPC via otel-collector-gateway) —
+#     replaced Jaeger 2026-04-21 (ADR-010 / ADR-025)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    app: gateway
+    component: serving
+spec:
+  # Single-node k3s platform mandate — replicas=1 everywhere.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: gateway
+          image: gateway:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 50051
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          env:
+            - name: FEAST_REPO_PATH
+              value: "/app/feature_repo"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            # Dumb TCP-style probe on the dedicated health port (port 8082 in
+            # config.rs) — returns 200 to any request as long as the tokio
+            # runtime is alive. Cheap, doesn't touch dependencies.
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            # Actix HTTP server on the public port advertises `/health`,
+            # `/metrics`, and `/predict`. Probing `/health` here proves the
+            # public listener is bound (the previous `/ready` path was never
+            # registered, so readiness was stuck Failing). A future revision
+            # should add a real `/ready` route that pings cache + inference
+            # backends; until then `/health` is the correct probe.
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: feature-repo
+              mountPath: /app/feature_repo
+      volumes:
+        - name: feature-repo
+          configMap:
+            name: feast-feature-repo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+spec:
+  selector:
+    app: gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 50051
+      targetPort: 50051
+      name: grpc

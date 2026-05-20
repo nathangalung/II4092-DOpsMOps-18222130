@@ -1,0 +1,93 @@
+# =============================================================================
+# INFRASTRUCTURE ENDPOINTS — Common K8s Service Addresses
+# =============================================================================
+# Shared by ALL use cases. Injected into services via ConfigMaps.
+# Pattern: <service>.<namespace>.svc.cluster.local:<port>
+#
+# ENVIRONMENT PORTABILITY (KNF-11):
+#   local:   Uses K8s internal DNS (default, works out of the box)
+#   cloud:   Override endpoints in config.yaml under environments.<cloud>
+#            to point at managed services (BigQuery, ElastiCache, MSK, etc.)
+#   on-prem: Same as local, add custom TLS certs + network policies
+# =============================================================================
+
+infrastructure:
+  # --- Storage ---
+  clickhouse:
+    host: clickhouse-platform.storage.svc.cluster.local
+    port: 8123
+    database: features
+    user: default
+  valkey:
+    host: valkey.storage.svc.cluster.local
+    port: 6379
+  qdrant:
+    url: http://qdrant.storage.svc.cluster.local:6333
+    grpc_url: qdrant.storage.svc.cluster.local:6334
+  minio:
+    endpoint: minio.storage.svc.cluster.local:9000
+  lakefs:
+    endpoint: http://lakefs.storage.svc.cluster.local:8000
+  lakekeeper:
+    endpoint: http://lakekeeper.storage.svc.cluster.local:8181/catalog
+
+  # --- Data Ingestion ---
+  kafka:
+    brokers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092
+  schema_registry:
+    url: http://karapace.data-ingestion.svc.cluster.local:8081
+  kafka_connect:
+    url: http://kafka-connect.data-ingestion.svc.cluster.local:8083
+
+  # --- Data Processing ---
+  flink:
+    jobmanager_rpc: flink-jobmanager.data-processing.svc.cluster.local:6123
+    jobmanager_rest: http://flink-jobmanager.data-processing.svc.cluster.local:8081
+  spark:
+    master_url: spark://spark-master.data-processing.svc.cluster.local:7077
+  airflow:
+    url: http://airflow.data-processing.svc.cluster.local:8080
+  trino:
+    url: http://trino.data-processing.svc.cluster.local:8085
+  superset:
+    url: http://superset.data-processing.svc.cluster.local:8088
+  # --- Model Lifecycle ---
+  mlflow:
+    tracking_uri: http://mlflow.model-lifecycle.svc.cluster.local:5000
+    s3_endpoint_url: http://minio.storage.svc.cluster.local:9000
+  feast:
+    registry_host: feast.model-lifecycle.svc.cluster.local
+    registry_port: 6566
+
+  # --- Observability ---
+  prometheus:
+    pushgateway: pushgateway.observability.svc.cluster.local:9091
+  # OTLP endpoint (traces + metrics + logs).  Producers send to the OTel
+  # gateway — it normalises, tail-samples, and fans out to Tempo / Prometheus
+  # remote_write / Loki.  Jaeger was removed 2026-04-21 (ADR-010 / ADR-025);
+  # Tempo is the sole trace backend.
+  otel:
+    endpoint: otel-collector-gateway.observability.svc.cluster.local:4317
+  tempo:
+    endpoint: tempo.observability.svc.cluster.local:4317
+  loki:
+    endpoint: loki.observability.svc.cluster.local:3100
+  evidently:
+    url: http://evidently.observability.svc.cluster.local:8000
+
+  # --- Governance ---
+  datahub:
+    gms_url: http://datahub-gms.data-governance.svc.cluster.local:8080
+  openlineage:
+    # Native integration — producers send directly to DataHub's OpenLineage endpoint
+    url: http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage
+  opencost:
+    url: http://opencost.observability.svc.cluster.local:9003
+
+  # --- Security ---
+  apisix:
+    proxy: http://apisix.security.svc.cluster.local:8000
+    admin: http://apisix.security.svc.cluster.local:8001
+    metrics: http://apisix.security.svc.cluster.local:9091
+  openbao:
+    endpoint: http://openbao.security.svc.cluster.local:8200

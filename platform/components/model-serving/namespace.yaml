@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: model-serving
+  labels:
+    # Essential for Knative/KServe
+    serving.knative.dev/release: v1.10.0
+    istio-injection: disabled
+    # NOTE: do NOT add `control-plane: kserve-controller-manager` to this
+    # namespace. The KServe pod-mutator MutatingWebhookConfiguration uses
+    # `namespaceSelector: matchExpressions: [{key: control-plane,
+    # operator: DoesNotExist}]` to avoid recursing on its own controller
+    # namespace. Setting that label here silently no-ops storage-initializer
+    # + agent injection on every InferenceService pod, leaving /mnt/models
+    # empty and crashing mlserver with `InvalidModelURI: Invalid URI
+    # specified for model … (/mnt/models)`. The label belongs on the
+    # controller-manager Deployment (kserve-controller.yaml), not on the
+    # ns. Field-validated 2026-05-07 against KServe v0.17.0.
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: model-serving
+    # PSA baseline: KServe controller + storage-initializer init containers
+    # need read-only-root-fs which restricted permits, but predictor pods
+    # spawned by IsvcController inherit user images that may not declare
+    # runAsNonRoot. Baseline is the safe floor; tighten per-isvc if image
+    # supports it.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

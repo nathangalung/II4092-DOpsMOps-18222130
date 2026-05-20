@@ -1,0 +1,61 @@
+# =============================================================================
+# HorizontalPodAutoscaler — CPU + memory based, scaling 0..N
+# =============================================================================
+# Replace placeholders:
+#   {{COMPONENT}}   target Deployment/StatefulSet name
+#   {{NAMESPACE}}   target namespace
+#   {{KIND}}        Deployment | StatefulSet
+#   {{MIN}}         minReplicas (1 for cold-resilient services, KEDA for 0)
+#   {{MAX}}         maxReplicas
+#   {{CPU_TARGET}}  averageUtilization for CPU (e.g. 70)
+#   {{MEM_TARGET}}  averageUtilization for memory (e.g. 80)
+#
+# Stabilization windows tuned for ML/data workloads — we accept slow scale-up
+# (avoid thrash on burst traffic) but fast scale-down to free resources.
+# =============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{COMPONENT}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: {{COMPONENT}}
+    app.kubernetes.io/managed-by: platform-makefile
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: {{KIND}}
+    name: {{COMPONENT}}
+  minReplicas: {{MIN}}
+  maxReplicas: {{MAX}}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{CPU_TARGET}}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{MEM_TARGET}}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60
+      selectPolicy: Min

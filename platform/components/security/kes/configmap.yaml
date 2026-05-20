@@ -1,0 +1,137 @@
+# =============================================================================
+# KES server config — rendered by the `render-config` initContainer
+# =============================================================================
+# This ConfigMap holds a TEMPLATE.  The init container runs `sed` on it at
+# every pod start, producing /etc/kes/rendered/kes.yaml with the following
+# placeholders substituted:
+#   ${BAO_APPROLE_ID}          — from Secret `kes-openbao-auth`
+#   ${BAO_APPROLE_SECRET}      — from Secret `kes-openbao-auth`
+#   ${MINIO_CLIENT_IDENTITY}   — SHA-256 hash of the MinIO client cert's
+#                                public key; computed at pod start from the
+#                                `minio-kes-client` Secret in `storage` ns
+#                                (read via cross-namespace RBAC).
+#
+# We do NOT rely on KES's native `${VAR}` expansion (which exists only
+# inside `policy.*.identities`): performing all substitution in the
+# initContainer guarantees the file KES loads is fully static — easier to
+# debug (`kubectl exec … cat /etc/kes/rendered/kes.yaml` shows exactly
+# what KES sees) and avoids accidental shell-meta interpretation.
+#
+# Schema source: https://raw.githubusercontent.com/minio/kes/
+#                2025-03-12T09-35-18Z/server-config.yaml
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kes-config
+  namespace: security
+  labels:
+    app: kes
+data:
+  kes.yaml.tpl: |
+    # Config schema version. Currently optional but forward-looking.
+    version: v1
+
+    address: 0.0.0.0:7373
+
+    # No cluster-admin identity: every client is authorised via the
+    # `policy.minio-policy` block below.  Setting `identity` to any value
+    # that can never match a real SHA-256 identity hash (e.g. "disabled")
+    # effectively disables admin-level API access — confirmed against the
+    # 2025-03 reference config which documents this sentinel pattern.
+    admin:
+      identity: disabled
+
+    # ---------------------------------------------------------------------
+    # TLS — FLAT schema (KES 2025-03).
+    #
+    # `tls.auth: "on"` requires every client to present a certificate that
+    # chains to `tls.ca`.  Earlier KES releases used `tls.client.verify_cert`
+    # + `tls.client.ca` (nested); the 2025-03 reference config moved these
+    # to top-level `auth` + `ca`.  Mismatched schema causes a silent no-op
+    # (KES parses it as unknown fields → mTLS effectively disabled).
+    # ---------------------------------------------------------------------
+    tls:
+      key:  /etc/kes/tls/tls.key
+      cert: /etc/kes/tls/tls.crt
+      auth: "on"
+      ca:   /etc/kes/tls/ca.crt
+
+    # ---------------------------------------------------------------------
+    # API-level overrides.
+    #
+    # `/v1/metrics` is scraped by kube-prometheus-stack over the cluster
+    # network; Prometheus doesn't present a client cert, so we bypass
+    # auth for metrics only.  Every other API continues to require mTLS.
+    #
+    # Schema: KES 2025-03 uses `skip_auth: true` (NOT `auth: "off"` —
+    # that form is documented at `tls.auth` only, and the per-API block
+    # uses a distinct `skip_auth` key).  The only APIs for which auth
+    # can be disabled are `/v1/ready`, `/v1/status`, `/v1/metrics`,
+    # `/v1/api`.
+    #
+    # Note: disabling auth on ANY API changes KES's TLS handshake — KES
+    # now accepts connections without a cert, then enforces per-API auth
+    # inside the handler.  This is documented behaviour, not a weakness:
+    # unauth'd clients can ONLY reach /v1/metrics; every other path
+    # returns 403 without a valid identity cert.
+    # ---------------------------------------------------------------------
+    api:
+      /v1/metrics:
+        skip_auth: true
+        timeout:   15s
+
+    # ---------------------------------------------------------------------
+    # Only one authorised client: MinIO.  Identified by the SHA-256 hash
+    # of the SubjectPublicKeyInfo embedded in its client cert
+    # (minio-kes-client).
+    # ---------------------------------------------------------------------
+    policy:
+      minio-policy:
+        allow:
+          - /v1/key/create/minio-*
+          - /v1/key/generate/minio-*
+          - /v1/key/decrypt/minio-*
+          - /v1/key/list/minio-*
+          - /v1/key/bulk/decrypt/minio-*
+          - /v1/key/describe/minio-*
+          - /v1/status
+          - /v1/api
+        identities:
+          - ${MINIO_CLIENT_IDENTITY}
+
+    # ---------------------------------------------------------------------
+    # Keystore: OpenBao KV v1 for master-key storage, transit overlay for
+    # at-rest encryption of those K/V entries (defense-in-depth).
+    #
+    # Per the 2025-03 reference config, KES's vault backend is strictly
+    # K/V-based — there is NO transit-only keystore variant.  The
+    # `transit:` sub-block is an OPTIONAL wrapper: if set, KES encrypts
+    # every K/V entry with that transit key before writing, and decrypts
+    # on read.  The transit key itself (`kes-wrap`) is managed by the
+    # operator; KES only exercises its encrypt/decrypt endpoints.
+    #
+    # The `keystore.vault:` key name is the literal KES schema identifier
+    # (KES 2025-03); it works unchanged against OpenBao because OpenBao
+    # is HTTP-API compatible. We talk to `openbao.security.svc` over the
+    # KV + transit endpoints — KES does not care about the backend brand.
+    #
+    # Storage layout (after one `mc admin kms key create platform minio-master-key`):
+    #   bao kv get kes-kv/kes/minio-master-key
+    #     → opaque blob, ciphertext under transit/kes-wrap
+    #
+    # KV v1 (not v2) per the KES wiki recommendation: KES does not use
+    # versioning, and KV v2's metadata indirection only adds latency.
+    # ---------------------------------------------------------------------
+    keystore:
+      vault:
+        endpoint: "http://openbao.security.svc.cluster.local:8200"
+        engine:   "kes-kv"
+        version:  "v1"
+        prefix:   "kes"
+        transit:
+          engine: "transit"
+          key:    "kes-wrap"
+        approle:
+          id:     "${BAO_APPROLE_ID}"
+          secret: "${BAO_APPROLE_SECRET}"

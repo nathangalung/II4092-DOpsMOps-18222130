@@ -1,0 +1,102 @@
+# =============================================================================
+# FEATURE CACHE — Online Feature Serving (Rust + Valkey)
+# =============================================================================
+# Low-latency feature retrieval for inference. The Rust binary reads its
+# configuration from FCACHE_-prefixed env vars (see services/serving/
+# feature-cache/src/config.rs) and exposes:
+#   - HTTP 8080  — health/metrics (/health, /metrics)
+#   - gRPC 50053 — feature serving RPC
+#
+# Infrastructure dependencies:
+#   - Valkey: Feature storage backend (valkey.storage.svc.cluster.local:6379,
+#     Redis-RESP wire-compatible — Rust binary uses redis-rs URL scheme).
+#   - Prometheus: Cache hit/miss metrics
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-cache
+  labels:
+    app: feature-cache
+    component: serving
+spec:
+  # Single-node k3s platform mandate — replicas=1 everywhere.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feature-cache
+  template:
+    metadata:
+      labels:
+        app: feature-cache
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: feature-cache
+          image: feature-cache:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: health
+            - containerPort: 50053
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          env:
+            # Map platform-standard SYMBOLS (set by the use-case schema.yaml
+            # ConfigMap patch) onto the FCACHE_ prefix expected by the binary.
+            - name: FCACHE_SYMBOLS
+              valueFrom:
+                configMapKeyRef:
+                  name: pipeline-config
+                  key: SYMBOLS
+            - name: FCACHE_REDIS_URL
+              value: "redis://valkey.storage.svc.cluster.local:6379"
+            - name: FCACHE_HEALTH_PORT
+              value: "8080"
+            - name: FCACHE_GRPC_PORT
+              value: "50053"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feature-cache
+spec:
+  selector:
+    app: feature-cache
+  ports:
+    # Port 8084 preserved for legacy callers; forwards to the binary's :8080.
+    - port: 8084
+      targetPort: 8080
+      name: http
+    - port: 50053
+      targetPort: 50053
+      name: grpc

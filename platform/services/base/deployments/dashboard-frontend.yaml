@@ -1,0 +1,73 @@
+# =============================================================================
+# DASHBOARD FRONTEND — Web UI (React + Next.js)
+# =============================================================================
+# Real-time prediction dashboard with charts and metrics.
+#
+# Platform tool alternatives:
+#   - Grafana (v12.4.0): Pre-built dashboards for Prometheus metrics
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-frontend
+  labels:
+    app: dashboard-frontend
+    component: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-frontend
+  template:
+    metadata:
+      labels:
+        app: dashboard-frontend
+      annotations:
+        # Static-asset frontend — no /metrics endpoint to scrape.
+        prometheus.io/scrape: "false"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: dashboard-frontend
+          image: dashboard-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: VITE_API_URL
+              value: "http://dashboard-backend:8080"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-frontend
+spec:
+  selector:
+    app: dashboard-frontend
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  # Default ClusterIP so the base works on clusters without a LoadBalancer
+  # provisioner. Cloud overlays patch to LoadBalancer / route via Ingress.
+  type: ClusterIP

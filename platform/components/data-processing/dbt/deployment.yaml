@@ -1,0 +1,106 @@
+# =============================================================================
+# dbt profile — ClickHouse credentials pulled from OpenBao (ADR-008).
+#
+# The empty-string ClickHouse password previously in this ConfigMap relied
+# on ClickHouse's unauthenticated default user, which fails under KNF-06
+# (authenticated access) once the ClickHouse Operator is live. We now
+# render the profile through an ExternalSecret whose data block is
+# consumed by the dbt Job as a projected secret volume.
+#
+# The CronJob mounts the templated profiles.yml via secretVolume. This
+# means the rendered Secret `dbt-config` replaces the ConfigMap of the
+# same name, which is why no separate ConfigMap remains here.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: dbt-config
+  namespace: data-processing
+  labels:
+    app: dbt
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: dbt-config
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        profiles.yml: |
+          platform:
+            outputs:
+              prod:
+                type: clickhouse
+                threads: 4
+                host: clickhouse-platform.storage.svc.cluster.local
+                port: 8123
+                user: {{ .ch_user }}
+                password: {{ .ch_password }}
+                schema: features
+                secure: false
+            target: prod
+  data:
+    - secretKey: ch_user
+      remoteRef: { key: platform/clickhouse/admin, property: username }
+    - secretKey: ch_password
+      remoteRef: { key: platform/clickhouse/admin, property: password }
+---
+# dbt runs are typically orchestrated by Airflow DAGs in the use-case layer.
+# This CronJob serves as a fallback for standalone dbt runs outside Airflow.
+# Each use-case builds its own dbt image (Dockerfile.dbt) with models + tests baked in.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dbt-run
+  namespace: data-processing
+spec:
+  schedule: "0 */6 * * *"
+  suspend: true  # Suspended by default — Airflow DAGs handle orchestration
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dbt
+              image: dbt-project:v1.0.0
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              imagePullPolicy: IfNotPresent
+              args: ["build", "--profiles-dir", "/dbt/profiles", "--project-dir", "/dbt"]
+              volumeMounts:
+                # profiles.yml is rendered from OpenBao by the `dbt-config`
+                # ExternalSecret above and mounted read-only here. The
+                # container's dbt invocation reads it via --profiles-dir.
+                - name: dbt-profiles
+                  mountPath: /dbt/profiles
+                  readOnly: true
+              resources:
+                # Single-pod bootstrap; bump for production load.
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: dbt-profiles
+              secret:
+                secretName: dbt-config
+                items:
+                  - key: profiles.yml
+                    path: profiles.yml
+          restartPolicy: Never

@@ -1,0 +1,832 @@
+# =============================================================================
+# OpenBao bootstrap Job (OpenBao-compatible, MPL-2.0)
+# =============================================================================
+# Runs once to:
+#   1. Initialize OpenBao (5 key shares, threshold=3).
+#   2. Store the root token + unseal keys in K8s Secret `openbao-unseal` in
+#      namespace `security`.  (In production, these go into a KMS-based
+#      transit seal.)
+#   3. Unseal all OpenBao pods.
+#   4. Enable KV v2 at path `secret/`.
+#   5. Enable Kubernetes auth method.
+#   6. Create OpenBao policies:
+#        eso-reader       -> read `secret/data/platform/*` + `secret/data/usecases/*`
+#        platform-admin   -> full admin on `secret/`
+#   7. Bind the K8s ServiceAccount `external-secrets/external-secrets` to
+#      role `external-secrets` with policy `eso-reader`.
+#   8. Seed platform + use-case secrets. For each path, if a value is
+#      provided via the optional `openbao-bootstrap-seed` Secret (populated
+#      from `.env` by platform/scripts/seed-openbao-from-env.sh), use that
+#      value; otherwise generate a cryptographically-random value.
+#
+# Idempotent: safe to re-run. Seeding only writes when the KV path is empty.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-bootstrap
+  namespace: security
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-bootstrap
+  namespace: security
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # `kubectl exec openbao-0` is how we bypass Envoy during bootstrap; talks to
+  # 127.0.0.1:8200 inside the openbao container regardless of mesh policy.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-bootstrap
+  namespace: security
+subjects:
+  - kind: ServiceAccount
+    name: openbao-bootstrap
+    namespace: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-bootstrap
+---
+# Cross-namespace read for the CNPG-managed `postgresql-app` Secret.
+# CNPG defaults `enableSuperuserAccess: false`, which disables password auth
+# for the `postgres` role — every platform app that connects to Postgres
+# MUST authenticate as the DB owner (`platform` user).  CNPG generates and
+# rotates that credential, exposing it as `storage/secrets/postgresql-app`.
+# The bootstrap Job mirrors it into OpenBao at `secret/platform/postgres/app`
+# so ExternalSecrets consumers (Airflow, Superset, MLflow, DataHub, …) have
+# a single OpenBao path to reference.
+#
+# Scope is intentionally narrow: verb=get, resourceNames=["postgresql-app"].
+# No write/patch capability — OpenBao is a downstream mirror, CNPG is the
+# source of truth.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-bootstrap-read-pg-app
+  namespace: storage
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["postgresql-app"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-bootstrap-read-pg-app
+  namespace: storage
+subjects:
+  - kind: ServiceAccount
+    name: openbao-bootstrap
+    namespace: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-bootstrap-read-pg-app
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-bootstrap
+  namespace: security
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        # DO NOT add `app: openbao` here — the headless Service selector is
+        # `app=openbao`, and letting the Job pod land in that endpoint list
+        # (a) breaks `bao status` DNS resolution (round-robin hits this
+        # pod), (b) causes Raft auto_join on openbao-0 to treat this pod as
+        # a peer and spam 403 errors.
+        job: openbao-bootstrap
+      annotations:
+        # Same rationale as the STS: OpenBao bootstrap runs before mesh
+        # identity is meaningful; also openbao-0 has no sidecar, so this pod
+        # doesn't need one to reach it.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: openbao-bootstrap
+      restartPolicy: OnFailure
+      securityContext:
+        # Bootstrap MUST run as root so `apk add kubectl jq openssl` can
+        # write to /etc/apk/world + /usr/bin.  The OpenBao image is
+        # Alpine-based (same as the former HashiCorp image), so `apk`
+        # works unchanged.
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: bootstrap
+          image: quay.io/openbao/openbao:2.5.3
+          env:
+            - name: BAO_ADDR
+              value: "http://openbao-0.openbao.security.svc.cluster.local:8200"
+          # Kyverno `require-resource-limits` is Enforce-mode cluster-wide
+          # (platform/components/security/kyverno/policies/).  Bootstrap Job
+          # has no resource pressure profile to tune against — set modest
+          # ceilings sufficient for `apk add`, OpenBao init, ~30 `bao kv put`
+          # calls, and htpasswd bcrypt-12 (the heaviest single step, ~200ms
+          # CPU burst).  Job runs once and exits; these are not SLO-shaping.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              # Install tools before anything that could irreversibly change
+              # OpenBao state (`operator init`). Alpine mirror flakes are
+              # common, so retry up to 5x with backoff, and HARD-FAIL if any
+              # binary is still missing. Silently continuing past a missing
+              # kubectl would let init run but leave no unseal Secret — an
+              # unrecoverable cluster state.
+              for i in 1 2 3 4 5; do
+                if apk add --no-cache curl jq kubectl openssl coreutils apache2-utils; then
+                  break
+                fi
+                echo ">>> apk attempt $i failed, retrying in $((i*3))s"
+                sleep $((i * 3))
+              done
+              for bin in kubectl jq curl openssl; do
+                if ! command -v "$bin" >/dev/null 2>&1; then
+                  echo "!!! FATAL: $bin not installed after apk retries; refusing to proceed" >&2
+                  exit 1
+                fi
+              done
+
+              echo ">>> waiting for openbao-0 to respond"
+              # `bao status` exits 2 when sealed and 1 when uninit'd, so with
+              # pipefail the pipeline fails even when grep matched. Capture
+              # output, grep separately.
+              # Bounded retry: 60 attempts × 3s = 3 min ceiling
+              for i in $(seq 1 60); do
+                out=$(bao status 2>&1 || true)
+                if echo "$out" | grep -qE 'Sealed|Initialized'; then
+                  echo ">>> openbao-0 responded (attempt $i)"
+                  break
+                fi
+                echo ">>> openbao-0 not yet responding (attempt $i/60)"
+                sleep 3
+                if [ "$i" = "60" ]; then
+                  echo "!!! FATAL: openbao-0 did not respond after 3 min"
+                  exit 1
+                fi
+              done
+
+              if echo "$out" | grep -q 'Initialized\s*true'; then
+                # OpenBao's storage is already initialized. Unseal keys live in
+                # the `openbao-unseal` Secret; without it, the data is an opaque
+                # encrypted blob and the only recovery is to wipe the PVC.
+                # Fail loudly rather than re-initialize silently (which would
+                # destroy user data on an HA cluster).
+                if ! kubectl -n security get secret openbao-unseal >/dev/null 2>&1; then
+                  echo "!!! FATAL: OpenBao is initialized but openbao-unseal Secret is missing." >&2
+                  echo "!!! This means the Secret was deleted after init. Recovery options:" >&2
+                  echo "!!!   1) Restore openbao-unseal from your backup (Velero, KMS, etc.)." >&2
+                  echo "!!!   2) On a throwaway/dev cluster ONLY: delete PVC data-openbao-0 and" >&2
+                  echo "!!!      re-run this Job to initialize fresh — ALL OPENBAO DATA LOST." >&2
+                  exit 1
+                fi
+                echo ">>> OpenBao already initialized; using stored unseal keys"
+              else
+                echo ">>> initializing OpenBao (5 shares, threshold 3)"
+                bao operator init -format=json -key-shares=5 -key-threshold=3 \
+                  > /tmp/init.json
+                kubectl -n security create secret generic openbao-unseal \
+                  --from-file=init.json=/tmp/init.json \
+                  --dry-run=client -o yaml | kubectl apply -f -
+              fi
+
+              INIT_JSON=$(kubectl -n security get secret openbao-unseal -o jsonpath='{.data.init\.json}' | base64 -d)
+              ROOT_TOKEN=$(echo "$INIT_JSON" | jq -r .root_token)
+              UNSEAL_1=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[0]')
+              UNSEAL_2=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[1]')
+              UNSEAL_3=$(echo "$INIT_JSON" | jq -r '.unseal_keys_b64[2]')
+
+              # Unseal every statefulset member that exists (1 on single-node, 3 on HA).
+              # Selector is `app=openbao` to match the STS labels (not the
+              # app.kubernetes.io/name convention — the STS doesn't use it).
+              # `bao status` exits 2 when sealed, so with pipefail the
+              # pipeline fails even if grep matched — capture, then grep.
+              for pod in $(kubectl -n security get pod -l app=openbao -o name); do
+                name=${pod#pod/}
+                pod_status=$(kubectl -n security exec "$name" -c openbao -- bao status 2>&1 || true)
+                if echo "$pod_status" | grep -q 'Sealed\s*true'; then
+                  echo ">>> unsealing ${name}"
+                  kubectl -n security exec "$name" -c openbao -- bao operator unseal "$UNSEAL_1"
+                  kubectl -n security exec "$name" -c openbao -- bao operator unseal "$UNSEAL_2"
+                  kubectl -n security exec "$name" -c openbao -- bao operator unseal "$UNSEAL_3"
+                fi
+              done
+
+              # After unseal attempts, confirm the leader is actually unsealed
+              # before proceeding — silent-unseal-failure would let downstream
+              # `bao write` commands hit 503 and we'd only find out mid-run.
+              leader_status=$(kubectl -n security exec openbao-0 -c openbao -- bao status 2>&1 || true)
+              if echo "$leader_status" | grep -q 'Sealed\s*true'; then
+                echo "!!! FATAL: openbao-0 is still sealed after unseal attempts." >&2
+                echo "$leader_status" >&2
+                exit 1
+              fi
+
+              # Back to leader
+              export BAO_ADDR="http://openbao-0.openbao.security.svc.cluster.local:8200"
+              export BAO_TOKEN="$ROOT_TOKEN"
+
+              echo ">>> enabling KV v2 at path secret/"
+              bao secrets enable -version=2 -path=secret kv 2>/dev/null || true
+
+              echo ">>> enabling Kubernetes auth method"
+              bao auth enable kubernetes 2>/dev/null || true
+              bao write auth/kubernetes/config \
+                kubernetes_host="https://kubernetes.default.svc:443"
+
+              # ------------------------------------------------------------
+              # ESO policies (split read vs push to honour least-privilege)
+              # ------------------------------------------------------------
+              # Two policies cover ESO's two interaction modes:
+              #   eso-reader — ExternalSecret consumers (one-direction
+              #     OpenBao → cluster). Read on data + read on metadata so
+              #     the controller can resolve KV v2 versions during
+              #     refresh cycles.
+              #   eso-pusher — PushSecret writers (one-direction
+              #     cluster → OpenBao). Scoped to secret/data/platform/*
+              #     because use-case workloads MUST NEVER push into
+              #     OpenBao — they only consume. The metadata grant is
+              #     read+delete-only so PushSecret can probe the
+              #     remote ref before write and tombstone metadata
+              #     when DeletionPolicy=Delete fires; never list.
+              #
+              # Both policies are bound to the same Kubernetes auth role
+              # (`external-secrets`) because there is exactly one ESO
+              # controller SA in this lab. Multi-tenant deployments
+              # should split the Kubernetes auth roles too.
+              # ------------------------------------------------------------
+              echo ">>> writing eso-reader policy"
+              bao policy write eso-reader - <<'POLICY'
+              path "secret/data/platform/*" {
+                capabilities = ["read", "list"]
+              }
+              path "secret/data/usecases/*" {
+                capabilities = ["read", "list"]
+              }
+              path "secret/metadata/platform/*" {
+                capabilities = ["read", "list"]
+              }
+              path "secret/metadata/usecases/*" {
+                capabilities = ["read", "list"]
+              }
+              POLICY
+
+              echo ">>> writing eso-pusher policy (PushSecret platform → OpenBao)"
+              # ESO's PushSecret reconciler issues PUT against
+              # `secret/metadata/<path>` when creating/updating a KV-v2 path
+              # (sets `custom_metadata` + creates the metadata stub on first
+              # write). Without `create`+`update` on `secret/metadata/*`, ESO
+              # logs "403 permission denied" on the metadata write and the
+              # PushSecret status flips to Errored. Field-validated against
+              # postgresql-app-to-openbao on OpenBao 2.5.3 + ESO 0.20.x.
+              bao policy write eso-pusher - <<'POLICY'
+              path "secret/data/platform/*" {
+                capabilities = ["create", "read", "update", "delete"]
+              }
+              path "secret/metadata/platform/*" {
+                capabilities = ["create", "read", "update", "delete"]
+              }
+              POLICY
+
+              echo ">>> binding ESO SA to role external-secrets"
+              bao write auth/kubernetes/role/external-secrets \
+                bound_service_account_names=external-secrets \
+                bound_service_account_namespaces=external-secrets \
+                policies=eso-reader,eso-pusher \
+                ttl=1h
+
+              # ------------------------------------------------------------
+              # KES (MinIO SSE-KMS front-end) keystore + approle provisioning
+              # ------------------------------------------------------------
+              # KES uses OpenBao as its key STORAGE backend — master keys
+              # live in OpenBao's K/V engine (KES 2025-03 has no transit-only
+              # backend variant; the `keystore.vault` block is strictly
+              # K/V-based per the official reference config).  To avoid
+              # storing MinIO master keys in plaintext K/V, we overlay
+              # OpenBao's transit engine as an at-rest wrap: every K/V entry
+              # is encrypted with transit key `kes-wrap` before write.
+              #
+              # Two-tier architecture:
+              #   kes-kv/kes/<key-name>       ← MinIO master key (ciphertext)
+              #       └─ wrapped by ──
+              #   transit/keys/kes-wrap       ← the transit wrap key
+              #
+              # The MinIO-referenced key name (`minio-master-key`) is
+              # stored IN the K/V engine under path kes-kv/kes/minio-master-key.
+              # The transit key `kes-wrap` is operator-managed and NEVER
+              # leaves OpenBao; KES only exercises its encrypt/decrypt
+              # endpoints.
+              #
+              # Steps (all idempotent; re-runs are no-ops after first boot):
+              #   1. Enable KV v1 at path `kes-kv/` — KES doesn't use
+              #      versioning, and KV v2 adds metadata-indirection
+              #      latency (KES wiki explicitly recommends v1).
+              #   2. Enable transit (shared with other future consumers).
+              #   3. Create wrap key `kes-wrap` (AES-256-GCM).
+              #   4. Write `kes-keystore` policy scoped to kes-kv/kes/*
+              #      + transit/{encrypt,decrypt}/kes-wrap.  No `delete`
+              #      on transit — wrap-key destruction is an operator
+              #      action, never a KES capability.
+              #   5. Enable approle auth.
+              #   6. Create `kes-minio` approle with kes-keystore policy.
+              #   7. Generate role_id/secret_id ONCE; idempotency key is
+              #      the existence of `secret/platform/kes/openbao-auth`
+              #      in KV.  Re-runs reuse the stored pair rather than
+              #      issuing a new secret_id every Job run (would desync
+              #      with KES's cached auth).
+              #   8. Direct-write `kes-openbao-auth` Secret into the
+              #      `security` namespace — mirrors the `openbao-unseal`
+              #      pattern so KES can start before ESO reconciles on
+              #      first boot.  ESO's ExternalSecret (kes/externalsecret.yaml)
+              #      uses `creationPolicy: Merge` and keeps the Secret in
+              #      sync on subsequent rotations.
+              # ------------------------------------------------------------
+              echo ">>> enabling KV v1 at kes-kv/ for KES master-key storage"
+              bao secrets enable -path=kes-kv -version=1 kv 2>/dev/null || true
+
+              echo ">>> enabling transit engine + creating kes-wrap key"
+              bao secrets enable -path=transit transit 2>/dev/null || true
+              # aes256-gcm96 matches MinIO's default DEK size and is the
+              # KES-recommended wrap-key type.
+              bao write -f transit/keys/kes-wrap \
+                type=aes256-gcm96 2>/dev/null || true
+
+              echo ">>> writing kes-keystore policy"
+              bao policy write kes-keystore - <<'POLICY'
+              # K/V storage scope — KES creates one entry per master key
+              # under the `kes/` prefix (matches `keystore.vault.prefix`
+              # in the KES config).  `list` is required for KES startup
+              # validation; `delete` is required for `kes key delete`.
+              path "kes-kv/kes/*" {
+                capabilities = ["create", "read", "update", "delete"]
+              }
+              path "kes-kv/kes" {
+                capabilities = ["list"]
+              }
+              # Transit wrap of K/V entries — encrypt/decrypt only.
+              # No access to transit/keys/kes-wrap itself: KES never
+              # reads/rotates/destroys the wrap key.
+              path "transit/encrypt/kes-wrap" {
+                capabilities = ["update"]
+              }
+              path "transit/decrypt/kes-wrap" {
+                capabilities = ["update"]
+              }
+              POLICY
+
+              echo ">>> enabling approle auth"
+              bao auth enable approle 2>/dev/null || true
+
+              echo ">>> writing kes-minio approle role"
+              # token_ttl=1h with max_ttl=24h forces KES to renew tokens
+              # frequently; secret_id_ttl=0 and secret_id_num_uses=0
+              # mean the secret_id itself never expires or gets used up
+              # (manual rotation via openbao-bootstrap re-run only).
+              bao write auth/approle/role/kes-minio \
+                policies=kes-keystore \
+                token_ttl=1h \
+                token_max_ttl=24h \
+                secret_id_ttl=0 \
+                secret_id_num_uses=0
+
+              # Provision role_id + secret_id idempotently.
+              if bao kv get secret/platform/kes/openbao-auth >/dev/null 2>&1; then
+                echo "    [skip] KES approle already provisioned; reusing"
+                KES_ROLE_ID=$(bao kv get -field=role_id \
+                  secret/platform/kes/openbao-auth)
+                KES_SECRET_ID=$(bao kv get -field=secret_id \
+                  secret/platform/kes/openbao-auth)
+              else
+                echo "    provisioning fresh KES approle credentials"
+                KES_ROLE_ID=$(bao read -field=role_id \
+                  auth/approle/role/kes-minio/role-id)
+                KES_SECRET_ID=$(bao write -f -field=secret_id \
+                  auth/approle/role/kes-minio/secret-id)
+                # OpenBao KV copy — audit trail + ESO sync source.
+                bao kv put secret/platform/kes/openbao-auth \
+                  role_id="$KES_ROLE_ID" \
+                  secret_id="$KES_SECRET_ID"
+              fi
+
+              # K8s Secret consumed directly by the KES pod envFrom.
+              # `kubectl apply` is idempotent; re-running this Job never
+              # destroys existing data as long as the KV copy is intact.
+              kubectl -n security create secret generic kes-openbao-auth \
+                --from-literal=BAO_APPROLE_ID="$KES_ROLE_ID" \
+                --from-literal=BAO_APPROLE_SECRET="$KES_SECRET_ID" \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              unset KES_ROLE_ID KES_SECRET_ID
+
+              # Per-usecase bootstrap ServiceAccounts need to WRITE under
+              # their own secret/usecases/<name>/ prefix only. Each usecase
+              # instantiates its own policy by copying this template and
+              # substituting the `<name>` placeholder in its own bootstrap Job.
+              # The platform only provides the policy-writing primitive; the
+              # concrete policy lives in the usecase repo.
+
+              # -------------------------------------------------------------
+              # Seed values: optional Secret `openbao-bootstrap-seed` whose
+              # key/value pairs are passed here as shell variables. Each
+              # pair MUST be uppercase-snake-case (compatible with shell
+              # variable naming). Missing keys trigger the random default.
+              # -------------------------------------------------------------
+              if kubectl -n security get secret openbao-bootstrap-seed >/dev/null 2>&1; then
+                echo ">>> sourcing openbao-bootstrap-seed"
+                kubectl -n security get secret openbao-bootstrap-seed -o json \
+                  | jq -r '.data | to_entries[] | "export \(.key)=\"\(.value|@base64d)\""' \
+                  > /tmp/seed.env
+                # shellcheck disable=SC1091
+                . /tmp/seed.env
+              else
+                echo ">>> no openbao-bootstrap-seed Secret found; all values will be randomised"
+              fi
+
+              rand_hex()    { openssl rand -hex "${1:-16}"; }
+              rand_base64() { openssl rand -base64 "${1:-24}"; }
+              # URL-safe variant — no `+`, `/`, or `=`. Used for secrets
+              # that callers must embed in URI userinfo (e.g. the Redis
+              # password baked into `redis://:pwd@host:port`) without
+              # pulling in a percent-encoder dependency on the client side.
+              rand_base64_urlsafe() {
+                openssl rand -base64 "${1:-24}" | tr '+/' '-_' | tr -d '='
+              }
+              # Base64URL encode stdin → stdout (RFC 7515 §2 — JWS standard).
+              b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+              # Mint a long-lived DataHub Personal Access Token (PAT) JWT for
+              # the `datahub` root actor. Required by ingestion CronJobs whose
+              # datahub-rest sink talks to GMS with `METADATA_SERVICE_AUTH_ENABLED=true`
+              # — GMS validates the bearer token via StatelessTokenService
+              # which verifies an HS256 signature over the SAME signing key
+              # GMS reads from `DATAHUB_TOKEN_SERVICE_SIGNING_KEY` (= our
+              # `datahub-frontend-secret/DATAHUB_SECRET` = this very value).
+              # Required claims (datahub v1.5.0.1
+              # StatelessTokenService.validateAccessToken): `type`, `actorId`,
+              # `actorType` non-null; validateActor() then asserts the
+              # `urn:li:corpuser:<actorId>` aspect exists and is active —
+              # the `datahub` root user is created by SystemUpdate
+              # RootUserBootstrapStep, so the actor will resolve once the
+              # upgrade job has run. `version`, `iss`, `jti`, `sub`, `exp`
+              # are accepted but not validated; we set them anyway so
+              # decoded tokens render correctly in `bao kv get` debugging
+              # and in DataHub's UI token list.
+              # Args: $1 = signing key (UTF-8 string, used as raw HMAC bytes
+              # — matches how StatelessTokenService prepares the key:
+              # `signingKey.getBytes(UTF_8)` round-tripped through
+              # `Base64.encode → JwtParser.setSigningKey` cancels out).
+              # version="1" is REQUIRED: StatefulTokenService.validateAccessToken
+              # treats version=2 tokens as revocable and consults a per-token
+              # access-token entity (Constants.ACCESS_TOKEN_ENTITY_NAME) — any
+              # v2 token whose entity is missing is treated as revoked → 401.
+              # v1 tokens skip the revoke check entirely (StatefulTokenService.java
+              # line 162 `if (tokenVersion.equals(TokenVersion.TWO))`).
+              mint_datahub_pat() {
+                local key=$1
+                local now exp jti header payload signing sig
+                now=$(date +%s)
+                exp=$((now + 315360000))   # +10 years
+                jti=$(cat /proc/sys/kernel/random/uuid)
+                header='{"typ":"JWT","alg":"HS256"}'
+                payload="{\"sub\":\"datahub\",\"actorType\":\"USER\",\"actorId\":\"datahub\",\"type\":\"PERSONAL\",\"version\":\"1\",\"jti\":\"${jti}\",\"iss\":\"datahub-metadata-service\",\"exp\":${exp}}"
+                signing="$(printf '%s' "$header" | b64url).$(printf '%s' "$payload" | b64url)"
+                sig=$(printf '%s' "$signing" | openssl dgst -sha256 -hmac "$key" -binary | b64url)
+                printf '%s.%s' "$signing" "$sig"
+              }
+
+              # Write a KV path only if it is currently empty. ENV fallback applies
+              # per-field; missing seed -> random secure default.
+              ensure_kv() {
+                local path=$1 ; shift
+                if bao kv get "$path" >/dev/null 2>&1; then
+                  echo "    [skip] $path already populated"
+                  return 0
+                fi
+                bao kv put "$path" "$@"
+              }
+
+              echo ">>> seeding platform secrets"
+              ensure_kv secret/platform/minio/root \
+                username="${SEED_MINIO_ROOT_USER:-$(rand_hex 8)}" \
+                password="${SEED_MINIO_ROOT_PASSWORD:-$(rand_base64 32)}" \
+                endpoint="${SEED_MINIO_ENDPOINT:-http://minio.storage.svc.cluster.local:9000}"
+              ensure_kv secret/platform/minio/kms \
+                key="${SEED_MINIO_KMS_KEY:-$(rand_base64 32)}"
+              ensure_kv secret/platform/grafana/admin \
+                username=admin \
+                password="${SEED_GRAFANA_ADMIN_PASSWORD:-$(rand_base64 24)}"
+              ensure_kv secret/platform/grafana/oidc \
+                client_secret="${SEED_GRAFANA_OIDC_CLIENT_SECRET:-$(rand_hex 32)}"
+              ensure_kv secret/platform/spicedb/preshared-key \
+                value="${SEED_SPICEDB_PRESHARED_KEY:-$(rand_hex 32)}"
+              ensure_kv secret/platform/spicedb/postgres \
+                username=spicedb \
+                password="${SEED_SPICEDB_POSTGRES_PASSWORD:-$(rand_base64 24)}"
+
+              # -----------------------------------------------------------------
+              # CNPG platform-owner credentials (the DB user every real app uses).
+              # -----------------------------------------------------------------
+              # CNPG defaults `enableSuperuserAccess: false`, so the built-in
+              # `postgres` role has NO working password auth at the PG level —
+              # which is why there is no `secret/platform/postgres/superuser`
+              # seeded anywhere (that path was removed once every consumer
+              # migrated to `platform/postgres/app`).  Consumer apps (Airflow,
+              # Superset, MLflow, DataHub, LakeFS, Lakekeeper, kafka-connect,
+              # Trino, Kubeflow Pipelines, …) connect as the DB owner
+              # configured in the Cluster's `bootstrap.initdb.owner` — the
+              # `platform` user — which also has REPLICATION + CREATEROLE +
+              # CREATEDB granted by cluster.yaml's postInitApplicationSQL so
+              # it doubles as the Debezium CDC principal and the principal
+              # used by `platform/scripts/setup-databases.sh`.  CNPG owns
+              # that credential lifecycle and publishes it as the
+              # `postgresql-app` Secret (keys: username, password, uri,
+              # jdbc-uri, host, port, dbname, pgpass).
+              #
+              # The CNPG → OpenBao mirror is now handled DECLARATIVELY by the
+              # `postgresql-app-to-openbao` PushSecret in
+              # `platform/components/storage/postgresql/cluster.yaml`. Doing it
+              # here imperatively created a chicken-and-egg deadlock in
+              # phase-base (openbao installs BEFORE CNPG, so postgresql-app
+              # never exists when this Job runs on a fresh cluster). The
+              # PushSecret has a 1h refreshInterval, so password rotations from
+              # CNPG recovery/restore continue to land in OpenBao automatically.
+
+              ensure_kv secret/platform/postgres/feast \
+                username=feast \
+                password="${SEED_FEAST_POSTGRES_PASSWORD:-$(rand_base64 24)}"
+              ensure_kv secret/platform/clickhouse/admin \
+                username=default \
+                password="${SEED_CLICKHOUSE_ADMIN_PASSWORD:-$(rand_base64 24)}"
+              # secret/platform/kafka/admin is intentionally NOT pre-seeded:
+              # Strimzi User Operator generates the `admin` SCRAM Secret in
+              # data-ingestion ns and the kafka-admin-to-openbao PushSecret
+              # mirrors it back into OpenBao. Pre-seeding would create a
+              # value not managed by external-secrets, and ESO's PushSecret
+              # then refuses with `secret not managed by external-secrets`,
+              # leaving platform-data-ingestion ArgoCD app Health=Degraded.
+              # Valkey AUTH — enforced via `--requirepass`. Same password is
+              # consumed by (a) Valkey server (valkey-auth Secret in storage ns),
+              # (b) every client in the ml-pipeline namespace via pipeline-
+              # secrets → VALKEY_PASSWORD, and (c) Feast's online store via
+              # feast-valkey-secret in the model-lifecycle namespace. Rotation
+              # requires a coordinated roll of the Valkey pod AND every
+              # client; there is no per-user ACL plumbing on this cluster.
+              ensure_kv secret/platform/valkey/auth \
+                password="${SEED_VALKEY_PASSWORD:-$(rand_base64_urlsafe 24)}"
+              # Qdrant admin API key — sets QDRANT__SERVICE__API_KEY on the
+              # server, which then requires every REST/gRPC request to carry
+              # the key via `api-key:` header. /healthz /livez /readyz remain
+              # whitelisted (verified against qdrant v1.17.1 src/actix/mod.rs)
+              # so the Kubernetes probes continue to work without the header.
+              ensure_kv secret/platform/qdrant/admin \
+                api_key="${SEED_QDRANT_API_KEY:-$(rand_base64 32)}"
+              # MySQL root account — consumed by storage/mysql (Katib/MLMD
+              # metadata store; kept as a separate engine because Katib's
+              # db-manager only speaks MySQL wire protocol, not libpq).
+              # The companion mysql-init ConfigMap creates `root@'%'` with
+              # this password at container boot.
+              ensure_kv secret/platform/mysql/root \
+                username=root \
+                password="${SEED_MYSQL_ROOT_PASSWORD:-$(rand_base64 24)}"
+              ensure_kv secret/platform/apisix/admin \
+                key="${SEED_APISIX_ADMIN_KEY:-$(rand_hex 32)}"
+              # Trivy HTTP server auth token — consumed by the trivy-operator
+              # per-scan Jobs (header `Trivy-Token: <token>`).  Random at
+              # seed; rotation is a coordinated restart of the trivy-server
+              # Deployment + the next scan batch picks up the new secret
+              # because ESO sets `refreshInterval: 1h`.
+              ensure_kv secret/platform/trivy/server \
+                token="${SEED_TRIVY_SERVER_TOKEN:-$(rand_hex 32)}"
+              ensure_kv secret/platform/datahub/admin \
+                secret="${SEED_DATAHUB_ADMIN_SECRET:-$(rand_hex 32)}"
+              # DataHub system PAT — JWT signed with the admin signing key
+              # we just seeded, consumed by the datahub-ingestion CronJobs
+              # as `GMS_TOKEN` (Bearer auth on the datahub-rest sink). Lives
+              # at a SEPARATE path so the admin signing key and PAT are
+              # decoupled (different rotation cadences, different blast
+              # radius on leak).
+              # Unconditional `bao kv put` (not ensure_kv) — the PAT is a
+              # DERIVED value: each Job run mints a fresh JWT (signed by
+              # the live key, with new jti/exp). This auto-corrects any
+              # claim-shape drift across DataHub upgrades (e.g. version
+              # field semantics) and recovers from manual `bao kv delete`
+              # without operator action. ESO refreshInterval picks up the
+              # rotation; older tokens remain valid until exp (10y).
+              _datahub_signing_key="$(bao kv get -field=secret secret/platform/datahub/admin)"
+              bao kv put secret/platform/datahub/system_token \
+                token="$(mint_datahub_pat "${_datahub_signing_key}")" >/dev/null
+              echo "    [mint] secret/platform/datahub/system_token (datahub PAT v1 JWT)"
+              unset _datahub_signing_key
+              ensure_kv secret/platform/lakekeeper/encryption \
+                key="${SEED_LAKEKEEPER_ENCRYPTION_KEY:-$(rand_base64 32)}"
+
+              # LakeFS auth encryption key (server-side AES key derivation).
+              # Rotating it invalidates all existing auth tokens; treat as
+              # "seed once, keep forever" unless a security incident forces
+              # rotation. Consumed by
+              #   platform/components/storage/lakefs/deployment.yaml via
+              #   the `lakefs-secrets` ExternalSecret.
+              ensure_kv secret/platform/lakefs/encryption \
+                key="${SEED_LAKEFS_ENCRYPTION_KEY:-$(rand_base64 32)}"
+
+              # LakeFS admin API credentials — single source of truth at
+              # secret/platform/lakefs/admin consumed by:
+              #   - lakefs-bootstrap Job (POSTs these to /api/v1/setup_lakefs
+              #     on fresh-cluster first-boot to seed the admin account;
+              #     subsequent runs receive HTTP 409 "setup was already
+              #     called" and exit cleanly — idempotent).
+              #   - Airflow scheduler (envFrom airflow-secrets) for DAG
+              #     LakeFS API calls — branch create/merge/delete in
+              #     use-case lakehouse DAGs.
+              # See platform/components/storage/lakefs/deployment.yaml for
+              # the Job spec and platform/components/data-processing/
+              # airflow/deployment.yaml for the DAG consumer wiring.
+              # NOTE: LakeFS' LAKEFS_INSTALLATION_* env vars are NOT used
+              # — those only honour database.type=local, whereas this
+              # deployment runs database.type=postgres (ref: LakeFS docs,
+              # `installation` config section).  The setup API is the
+              # supported bootstrap mechanism for postgres-backed LakeFS.
+              # Operator rotation runbook: use `lakefs` CLI or UI to update
+              # the admin key, then `bao kv patch secret/platform/lakefs/
+              # admin access_key_id=<new> secret_access_key=<new>`.  ESO
+              # refreshInterval (1h) propagates to the Airflow envFrom
+              # consumer (the bootstrap Job does not re-run).
+              ensure_kv secret/platform/lakefs/admin \
+                username="admin" \
+                access_key_id="${SEED_LAKEFS_ACCESS_KEY:-AKIA$(rand_hex 8)}" \
+                secret_access_key="${SEED_LAKEFS_SECRET_KEY:-$(rand_base64 40)}"
+
+              # Airflow webserver Fernet key + admin login. Multiple
+              # platform consumers read `platform/airflow/admin` (Airflow
+              # webserver init, DataHub ingestion CronJob, Superset bridge).
+              # Fernet must be a 32-byte URL-safe base64 string — see
+              # https://airflow.apache.org/docs/apache-airflow/stable/security/secrets/fernet.html
+              ensure_kv secret/platform/airflow/admin \
+                username=admin \
+                password="${SEED_AIRFLOW_ADMIN_PASSWORD:-$(rand_base64 24)}" \
+                fernet_key="${SEED_AIRFLOW_FERNET_KEY:-$(rand_base64 32)}" \
+                webserver_secret_key="${SEED_AIRFLOW_WEBSERVER_SECRET:-$(rand_hex 32)}"
+
+              # Dex OIDC — upstream client credentials for the platform's
+              # SSO provider.  Each Dex client (Grafana, Superset, DataHub,
+              # Kubeflow auth-service) gets its own secret under
+              # platform/dex/clients/<name>.  The admin password is stored
+              # both plaintext (for the operator's own reference / rotation)
+              # and as a bcrypt hash (what Dex's staticPasswords block
+              # actually consumes).  `htpasswd -bnBC 12` emits `user:$2y$…`
+              # — we strip the `user:` prefix and any trailing newline.
+              #
+              # ROTATION GAP (known-and-accepted):
+              # `ensure_kv` is idempotent — once seeded, subsequent Job runs
+              # leave these values untouched.  A later
+              #     bao kv patch secret/platform/dex/admin password=<new>
+              # WILL NOT regenerate `password_bcrypt`, leaving Dex's
+              # `hashFromEnv: DEX_USER_PASSWORD` pointing at the old hash.
+              # Operator rotation runbook MUST update both properties in a
+              # single patch, e.g.:
+              #     new="$(openssl rand -base64 24)"
+              #     new_bcrypt="$(htpasswd -bnBC 12 '' "$new" | tr -d ':\n' | sed 's/^[[:space:]]*//')"
+              #     bao kv patch secret/platform/dex/admin \
+              #         password="$new" password_bcrypt="$new_bcrypt"
+              # See ADR-008 §Rotation for the full procedure.
+              _dex_admin_password="${SEED_DEX_ADMIN_PASSWORD:-$(rand_base64 24)}"
+              _dex_admin_bcrypt="$(htpasswd -bnBC 12 '' "${_dex_admin_password}" | tr -d ':\n' | sed 's/^[[:space:]]*//')"
+              ensure_kv secret/platform/dex/admin \
+                username=admin@platform.local \
+                password="${_dex_admin_password}" \
+                password_bcrypt="${_dex_admin_bcrypt}"
+              unset _dex_admin_password _dex_admin_bcrypt
+              ensure_kv secret/platform/dex/clients/grafana \
+                client_id=grafana \
+                client_secret="${SEED_DEX_GRAFANA_SECRET:-$(rand_hex 32)}"
+              ensure_kv secret/platform/dex/clients/superset \
+                client_id=superset \
+                client_secret="${SEED_DEX_SUPERSET_SECRET:-$(rand_hex 32)}"
+              ensure_kv secret/platform/dex/clients/datahub \
+                client_id=datahub \
+                client_secret="${SEED_DEX_DATAHUB_SECRET:-$(rand_hex 32)}"
+              # Kubeflow auth-service / KFP UI uses its own Dex client; the
+              # in-cluster consumer is oauth2-proxy (ExtAuthz chain for Istio
+              # IGW).  Its cookie-signing secret is co-located here because
+              # it's paired 1:1 with the client_id/client_secret above — one
+              # OpenBao path, one rotation action.
+              ensure_kv secret/platform/dex/clients/kubeflow \
+                client_id=kubeflow-oidc-authservice \
+                client_secret="${SEED_DEX_KUBEFLOW_SECRET:-$(rand_hex 32)}" \
+                cookie_secret="${SEED_OAUTH2_PROXY_COOKIE_SECRET:-$(rand_hex 16)}"
+              # DataHub GMS — dedicated Postgres role (separate from the
+              # platform superuser so the GMS blast radius is limited).
+              ensure_kv secret/platform/datahub/postgres \
+                username=datahub \
+                password="${SEED_DATAHUB_POSTGRES_PASSWORD:-$(rand_base64 24)}"
+
+              # DataHub's search / lineage graph OpenSearch. Security plugin
+              # disabled (internal-only, defended by Istio mTLS + NetworkPolicies).
+              # OpenBao path kept for forward-compat if security plugin enabled later.
+              # ensure_kv secret/platform/datahub/opensearch \
+              #   username=admin \
+              #   password="${SEED_DATAHUB_OS_PASSWORD:-$(rand_base64 24)}"
+
+              # Platform "persona" accounts used by the demo scripts and the
+              # test harness (see platform/components/common/auth/users-secret.yaml).
+              # Each persona is a distinct Dex staticPasswords entry; passwords
+              # are generated once at seed time and rotate only on explicit
+              # operator request via `bao kv patch`.
+              ensure_kv secret/platform/users/personas \
+                data_engineer_password="${SEED_DATA_ENGINEER_PASSWORD:-$(rand_base64 16)}" \
+                data_scientist_password="${SEED_DATA_SCIENTIST_PASSWORD:-$(rand_base64 16)}" \
+                ml_engineer_password="${SEED_ML_ENGINEER_PASSWORD:-$(rand_base64 16)}" \
+                business_user_password="${SEED_BUSINESS_USER_PASSWORD:-$(rand_base64 16)}"
+
+              # Kubeflow Pipelines — metadata DB user and object-store creds
+              # are fetched from platform/postgres and platform/minio, but
+              # the KFP API server itself needs a symmetric token signing
+              # key that is NOT stored in OpenBao by any other path.
+              ensure_kv secret/platform/kubeflow-pipelines/api \
+                token_signing_key="${SEED_KFP_TOKEN_KEY:-$(rand_base64 32)}"
+
+              # Superset — Flask SECRET_KEY (CSRF / session signing) + admin
+              # bootstrap password used by the superset-init container's
+              # `superset fab create-admin` invocation.
+              ensure_kv secret/platform/superset/admin \
+                username=admin \
+                password="${SEED_SUPERSET_ADMIN_PASSWORD:-$(rand_base64 24)}" \
+                secret_key="${SEED_SUPERSET_SECRET_KEY:-$(rand_base64 32)}"
+
+              # MLflow tracking server basic-auth credentials.  Not enabled
+              # by default on the platform (the MLflow server is reached
+              # through Istio AuthorizationPolicy instead), but consumed by
+              # the `services/overlays/generic/pipeline-secrets` ExternalSecret
+              # and honoured when MLFLOW_AUTH_CONFIG_PATH is set on the server.
+              ensure_kv secret/platform/mlflow/tracking \
+                username=admin \
+                password="${SEED_MLFLOW_TRACKING_PASSWORD:-$(rand_base64 24)}"
+
+              # APISIX — admin API key, used by the `apisix-admin` API to
+              # register/modify routes at runtime.  A second "default" client
+              # key is exposed to unauthenticated users for public routes.
+              ensure_kv secret/platform/apisix/default-key \
+                key="${SEED_APISIX_DEFAULT_KEY:-$(rand_hex 32)}"
+
+              # Alertmanager receivers (Slack webhooks + PagerDuty service key).
+              # The ExternalSecret in observability/kube-prometheus-stack reads
+              # these and mounts them as files into the Alertmanager pods.
+              ensure_kv secret/platform/alertmanager/slack \
+                default="${SEED_ALERTMANAGER_SLACK_DEFAULT:-https://hooks.slack.com/services/REPLACE/ME/NOW}" \
+                platform="${SEED_ALERTMANAGER_SLACK_PLATFORM:-https://hooks.slack.com/services/REPLACE/ME/NOW}" \
+                ml="${SEED_ALERTMANAGER_SLACK_ML:-https://hooks.slack.com/services/REPLACE/ME/NOW}"
+              ensure_kv secret/platform/alertmanager/pagerduty \
+                service_key="${SEED_ALERTMANAGER_PAGERDUTY_KEY:-REPLACE_ME}"
+
+              # -------------------------------------------------------------
+              # Per-usecase seeding lives in the use-case's own repo. Each
+              # use-case owns its own OpenBao policy + K8s auth role + seed
+              # Job that writes under `secret/usecases/<name>/*`. Example:
+              #   use-case-<name>/manifests/base/openbao/openbao-bootstrap-<name>.yaml
+              # The platform is strictly responsible for secret/platform/*
+              # paths and the ESO binding above. ADR-013.
+              # -------------------------------------------------------------
+
+              echo ">>> OpenBao platform bootstrap complete."
+          securityContext:
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem intentionally omitted: the bootstrap
+            # script `apk add`s kubectl + jq at runtime, which needs /usr
+            # and /etc writable. This Job runs once per cluster lifecycle
+            # and is deleted afterwards (hook-delete-policy: HookSucceeded),
+            # so the blast radius is a single short-lived pod.
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

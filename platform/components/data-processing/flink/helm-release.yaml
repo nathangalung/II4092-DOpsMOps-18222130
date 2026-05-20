@@ -1,0 +1,98 @@
+# =============================================================================
+# Apache Flink Kubernetes Operator — Argo Application (chart install).
+# =============================================================================
+# Split from flink-cluster.yaml so pre-apply.sh can land this file BEFORE
+# waiting on operator CRDs. Without that ordering, pre-apply.sh's CRD wait
+# is a chicken-egg deadlock — the CRDs come from the chart this Application
+# installs, and the chart isn't installed until the Application lands. Same
+# pattern as components/observability/opentelemetry/helm-release.yaml.
+#
+# cert-manager is a hard prerequisite — the operator's admission webhook is
+# served from a cert-manager-issued cert.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flink-kubernetes-operator
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: stream-operator
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    # Apache publishes each operator release as its own helm repo directory.
+    # 1.14.0 released 2026-02-12; supports Flink 1.19, 1.20, 2.0, 2.1, 2.2.
+    repoURL: https://downloads.apache.org/flink/flink-kubernetes-operator-1.14.0/
+    chart: flink-kubernetes-operator
+    targetRevision: 1.14.0
+    helm:
+      releaseName: flink-operator
+      values: |
+        # Cluster-wide watch: the operator reconciles FlinkDeployment /
+        # FlinkSessionJob CRs in any namespace. Use-case namespaces (labeled
+        # `mlops-platform.io/use-case=true`) own their own CRs; the platform
+        # stays domain-agnostic.  Set this to a comma-separated list only if
+        # you need to restrict reconciliation scope for compliance reasons.
+        watchNamespaces: ""
+        operatorServiceAccount:
+          create: true
+          name: flink-operator
+        webhook:
+          create: true
+          keystore:
+            useDefaultPassword: true
+        jobServiceAccount:
+          create: true
+          name: flink
+        metrics:
+          port: 9999
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 9999
+          fsGroup: 9999
+          seccompProfile: { type: RuntimeDefault }
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: [ALL] }
+        # Chart 1.14.0 embeds webhook as a SIDECAR in the operator pod;
+        # its resources nest under `operatorPod.webhook.resources`, not
+        # the top-level `webhook:` block (which controls
+        # create/keystore/etc.). Kyverno require-resource-limits (Deny)
+        # blocks the pod if EITHER container lacks requests+limits.
+        operatorPod:
+          resources:
+            # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+          webhook:
+            resources:
+              # Single-pod bootstrap; bump for production load.
+              requests: { cpu: 50m, memory: 128Mi }
+              limits:   { cpu: 250m, memory: 256Mi }
+        defaultConfiguration:
+          # The operator merges these into every FlinkDeployment.
+          create: true
+          append: true
+          flink-conf.yaml: |+
+            kubernetes.operator.reconcile.interval: 30 s
+            kubernetes.operator.metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+            kubernetes.operator.metrics.reporter.prom.port: 9999
+        # cert-manager Issuer for the webhook. The chart creates the
+        # Certificate automatically when `certManager.create=true`.
+        certManager:
+          create: true
+          rotate: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flink-operator
+  syncPolicy:
+    # selfHeal/prune disabled platform-wide so manual scale-down/delete is not
+    # auto-reverted during single-node tuning. Re-enable per app once stable.
+    automated: { prune: false, selfHeal: false }
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

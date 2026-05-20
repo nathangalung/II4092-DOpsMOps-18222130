@@ -1,0 +1,79 @@
+# =============================================================================
+# Kueue cluster-scoped queue topology — platform scope
+# =============================================================================
+# `ResourceFlavor` and `ClusterQueue` are cluster-scoped Kueue CRs and must
+# be authored once at the platform layer.  Each use-case namespace
+# (use-case-<name>, ...) ships its own namespace-scoped
+# `LocalQueue` that points at `mlops-cluster-queue`.  See:
+#   - use-case-<name>/manifests/base/kueue/queues.yaml
+#
+# Topology
+#   ResourceFlavor default-flavor
+#     |
+#   ClusterQueue mlops-cluster-queue   (cohortName=mlops)
+#     |
+#     +-- LocalQueue <name>-training-queue       (use-case-<name>)
+#     +-- LocalQueue <name>-batch-queue          (use-case-<name>)
+#     +-- ... (one pair per opted-in use-case namespace)
+#
+# Node capacity on the single-node k3s dev cluster is 16 CPU / 64 GiB.  We
+# hold back a headroom for the platform's own control-plane pods by keeping
+# the ClusterQueue's *combined* ceiling well below the node total:
+#
+#   nominalQuota    : guaranteed admission budget
+#   borrowingLimit  : how far the queue may stretch when cohort siblings idle
+#   effective max   : nominal + borrowing = 12 CPU / 48 GiB per queue
+#
+# Scheduling
+#   cohortName=mlops    — single cohort so sibling use-cases can lend
+#   queueingStrategy    — BestEffortFIFO keeps short jobs moving when a
+#                         long job is head-of-line
+#
+# Usage from a Job / CronJob:
+#   spec.template.metadata.labels:
+#     kueue.x-k8s.io/queue-name: <local-queue-name>
+# =============================================================================
+
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: default-flavor
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: queueing
+    app.kubernetes.io/managed-by: kustomize
+spec: {}
+
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: mlops-cluster-queue
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: queueing
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  cohortName: mlops
+  queueingStrategy: BestEffortFIFO
+  # Domain-agnostic admission: any namespace carrying
+  # `kueue.mlops/use-case: "true"` may attach a LocalQueue. New use-cases
+  # opt in by self-labelling their namespace — no platform-layer edit
+  # required. This removes the ADR-013 leak where the platform knew the
+  # names of specific use-cases. See
+  # <use-case>/manifests/base/namespace.yaml for the opt-in label.
+  namespaceSelector:
+    matchLabels:
+      kueue.mlops/use-case: "true"
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: default-flavor
+          resources:
+            - name: cpu
+              nominalQuota: "4"
+              borrowingLimit: "8"
+            - name: memory
+              nominalQuota: 16Gi
+              borrowingLimit: 32Gi

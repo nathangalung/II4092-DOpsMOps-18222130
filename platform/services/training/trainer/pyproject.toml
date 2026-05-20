@@ -1,0 +1,48 @@
+[project]
+name = "trainer"
+version = "2.0.0"
+description = "FLAML AutoML trainer — automatic model selection with MLflow logging"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    # AutoML — searches across lgbm/xgboost/catboost/rf/linear automatically
+    "flaml[automl]>=2.3.0",
+    # Boosting backends (FLAML uses these as learners)
+    # Versions constrained by FLAML's upper bounds
+    "xgboost>=2.1.0",
+    "lightgbm>=4.5.0",
+    "catboost>=1.2.7",
+    # Core
+    "numpy>=2.4.3",
+    "pandas>=2.2.3",
+    "scikit-learn>=1.8.0",
+    # MLflow + S3 artifact storage (MinIO)
+    "mlflow>=3.10.0",
+    "boto3>=1.42.0",
+    # Data
+    "clickhouse-connect>=0.14.0",
+    # Kubernetes client (for KFP deploy step)
+    "kubernetes>=32.0.0",
+    # Observability
+    "prometheus-client>=0.24.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[dependency-groups]
+dev = ["pytest>=8.3.4", "pytest-cov>=6.0.0", "pytest-mock>=3.14.0", "ruff>=0.8.4"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP", "B", "C4", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=. --cov-report=term-missing"

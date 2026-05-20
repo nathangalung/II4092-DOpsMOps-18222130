@@ -1,0 +1,20 @@
+# =============================================================================
+# metrics-server — pre-apply-only component
+# =============================================================================
+# k3s here is started with `--disable=metrics-server`, so we install upstream
+# components.yaml from the metrics-server release directly via pre-apply.sh.
+# That hook also injects `--kubelet-insecure-tls` so the readiness probe
+# succeeds against k3s's self-signed kubelet cert (otherwise /readyz returns
+# 500 and every HPA across the platform fails to fetch CPU/memory metrics).
+#
+# This kustomization renders empty on purpose. apply-component.sh detects an
+# empty render and skips the main `kubectl apply -k` step — the pre-apply
+# hook owns the entire install.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# kustomize >= v5 rejects an empty kustomization. Stub resources/patches lists
+# satisfy the parser without producing any output.
+resources: []
+patches: []

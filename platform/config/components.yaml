@@ -1,0 +1,269 @@
+# =============================================================================
+# COMPONENT CONFIGURATION — Enable/Disable Infrastructure Tools
+# =============================================================================
+# Controls which platform infrastructure components are installed.
+# Set enabled: false to skip installing a component.
+#
+# Each component lists required_by = services that need it.
+# If all services in required_by are disabled, the component can be disabled.
+#
+# QUICK DEPENDENCY CHAINS:
+#   vector service off       -> can disable qdrant
+#   flink_job service off    -> can disable flink
+#   batch only (no stream)   -> can disable flink
+#   stream only (no batch)   -> can disable spark
+#   no AutoML                -> can disable katib
+#   no KServe                -> can disable knative (if no other serverless)
+#   no Kubeflow              -> can disable mysql, kubeflow_*
+#   no DataHub               -> can disable opensearch
+# =============================================================================
+
+components:
+  # ---------------------------------------------------------------------------
+  # STORAGE — Databases and object storage
+  # ---------------------------------------------------------------------------
+  storage:
+    clickhouse:
+      enabled: true
+      description: "Columnar DB for features/metrics (offline store)"
+      required_by: [analyzer, batch, trainer, drift, dashboard_backend]
+    postgresql:
+      enabled: true
+      description: "Metadata DB for MLflow, Airflow, DataHub, Superset, LakeFS"
+      required_by:
+        [mlflow, airflow, datahub, superset, lakefs]
+    mysql:
+      enabled: true
+      description: "Metadata DB for Kubeflow Pipelines, Katib"
+      required_by: [kubeflow_pipelines, katib]
+    valkey:
+      enabled: true
+      description: "Online feature store + caching (key-value, BSD-3-Clause)"
+      required_by: [feature_cache, feature_engine, flink_job, materialization]
+    minio:
+      enabled: true
+      description: "S3-compatible artifact storage + data lake"
+      required_by: [mlflow, inference_engine, lakefs, iceberg]
+    qdrant:
+      enabled: true
+      description: "Vector DB for similarity search (embeddings)"
+      required_by: [vector]
+      # Disable if vector service is disabled
+    spicedb:
+      enabled: true
+      description: "Fine-grained authorization (Google Zanzibar)"
+      required_by: [apisix]
+    lakefs:
+      enabled: true
+      description: "Git-like data version control on MinIO"
+      required_by: []
+    lakekeeper:
+      enabled: true
+      description: "Lakekeeper — Rust Iceberg REST catalog (replaces Polaris, remote signing for MinIO)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # COMMON — Core platform infrastructure
+  # ---------------------------------------------------------------------------
+  common:
+    cert_manager:
+      enabled: true
+      description: "TLS certificate management"
+      required_by: [istio, apisix]
+    istio:
+      enabled: true
+      description: "Service mesh"
+      required_by: [knative, gateway]
+    knative:
+      enabled: true
+      description: "Serverless (required for KServe)"
+      required_by: [kserve]
+    kueue:
+      enabled: true
+      description: "K8s-native job queueing (priority, quotas, fair sharing)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # DATA INGESTION — Event streaming
+  # ---------------------------------------------------------------------------
+  data_ingestion:
+    kafka:
+      enabled: true
+      description: "Event streaming backbone (KRaft)"
+      required_by:
+        [
+          rest_collector,
+          websocket_collector,
+          validator,
+          batch,
+          flink_job,
+          drift,
+        ]
+      # Core dependency — disabling breaks most pipeline services
+    kafka_connect:
+      enabled: true
+      description: "CDC connectors (Debezium) + sink connectors"
+      required_by: []
+      # Enables Change Data Capture + prediction sinking
+    schema_registry:
+      enabled: true
+      description: "Karapace (Confluent-compatible schema registry)"
+      required_by: [validator, rest_collector, kafka_connect]
+    kafka_ui:
+      enabled: true
+      description: "Kafbat UI for Kafka cluster monitoring"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # DATA PROCESSING — Batch and stream processing engines
+  # ---------------------------------------------------------------------------
+  data_processing:
+    flink:
+      enabled: true
+      description: "Stream processing engine"
+      required_by: [flink_job]
+    spark:
+      enabled: true
+      description: "Batch processing engine"
+      required_by: [batch]
+    airflow:
+      enabled: true
+      description: "Workflow orchestration"
+      required_by: [materialization, retraining]
+    great_expectations:
+      enabled: true
+      description: "Data validation framework"
+      required_by: [analyzer]
+    dbt:
+      enabled: true
+      description: "SQL transformation layer on ClickHouse"
+      required_by: []
+    superset:
+      enabled: true
+      description: "BI dashboard and data visualization"
+      required_by: []
+    trino:
+      enabled: true
+      description: "Federated SQL query engine"
+      required_by: [superset]
+  # ---------------------------------------------------------------------------
+  # OBSERVABILITY — Monitoring, logging, tracing
+  # ---------------------------------------------------------------------------
+  observability:
+    prometheus:
+      enabled: true
+      description: "Metrics collection"
+      required_by: [drift]
+    pushgateway:
+      enabled: true
+      description: "Short-lived job metrics relay"
+      required_by: [trainer, batch]
+    grafana:
+      enabled: true
+      description: "Dashboards, visualization, and alerting"
+      required_by: []
+    tempo:
+      enabled: true
+      description: "Distributed tracing backend (OpenTelemetry-native, MinIO S3) — LGTM stack; replaced Jaeger 2026-04-21 (ADR-010 / ADR-025)"
+      required_by: []
+    loki:
+      enabled: true
+      description: "Log aggregation"
+      required_by: []
+    opencost:
+      enabled: true
+      description: "Kubernetes cost monitoring (CNCF Incubating)"
+      required_by: []
+    evidently:
+      enabled: true
+      description: "ML monitoring and data drift detection"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # MODEL LIFECYCLE — Experiment tracking, feature store, training
+  # ---------------------------------------------------------------------------
+  model_lifecycle:
+    mlflow:
+      enabled: true
+      description: "Experiment tracking + model registry"
+      required_by: [trainer, dashboard_backend, ml_bridge]
+    feast:
+      enabled: true
+      description: "Feature store (online + offline)"
+      required_by: [batch, feature_cache, materialization, ml_bridge]
+    kubeflow_notebooks:
+      enabled: true
+      description: "Interactive Jupyter development"
+      required_by: []
+    kubeflow_trainer:
+      enabled: true
+      description: "Distributed training operator"
+      required_by: []
+    kubeflow_pipelines:
+      enabled: true
+      description: "Pipeline orchestration"
+      required_by: [trainer]
+    katib:
+      enabled: true
+      description: "Hyperparameter tuning (AutoML)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # MODEL SERVING — Inference infrastructure
+  # ---------------------------------------------------------------------------
+  model_serving:
+    kserve:
+      enabled: true
+      description: "Model serving (canary, A/B, autoscaling)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # DATA GOVERNANCE — Metadata and lineage
+  # ---------------------------------------------------------------------------
+  data_governance:
+    datahub:
+      enabled: true
+      description: "Metadata catalog + lineage"
+      required_by: []
+    opensearch:
+      enabled: true
+      description: "Catalog search index (DataHub dependency, Apache-2.0)"
+      required_by: [datahub]
+    openlineage:
+      enabled: true
+      description: "Lineage event standard (native integration → DataHub)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # SECURITY — Authentication, authorization, API gateway
+  # ---------------------------------------------------------------------------
+  security:
+    apisix:
+      enabled: true
+      description: "API gateway + authentication (Apache APISIX, CNCF TLP)"
+      required_by: [gateway]
+    openbao:
+      enabled: true
+      description: "Secret management (OpenBao — MPL-2.0, Vault-API-compatible LF fork)"
+      required_by: []
+
+  # ---------------------------------------------------------------------------
+  # GITOPS — CI/CD and continuous delivery
+  # ---------------------------------------------------------------------------
+  gitops:
+    argocd:
+      enabled: true
+      description: "GitOps CD"
+      required_by: []
+    argo_workflows:
+      enabled: true
+      description: "ML workflow automation"
+      required_by: []
+    gitea:
+      enabled: true
+      description: "Git hosting (self-hosted)"
+      required_by: []
+    tekton:
+      enabled: true
+      description: "CI pipeline engine"
+      required_by: []

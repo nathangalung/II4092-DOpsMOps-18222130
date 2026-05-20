@@ -1,0 +1,239 @@
+# =============================================================================
+# Platform AlertmanagerConfig — team + SLO routing, plus inhibit rules
+# =============================================================================
+# Composition model:
+#   helm-release.yaml's inline `config:` block keeps only two root-level
+#   concerns: page on severity=critical (continue=true so alert continues to
+#   sub-routes) and fall through to default-slack.  Every other routing
+#   decision lives here, so on-call has one file to check when asking
+#   "why did this alert go to <channel>?".
+#
+#   alertmanagerConfigMatcherStrategy is `None` in the helm values, which
+#   disables the operator's auto-namespace-matcher injection on CR routes
+#   and inhibit rules.  Alerts therefore route on their semantic labels
+#   (slo, team, severity, component) rather than on which namespace the
+#   ServiceMonitor happens to live in.
+#
+#   Route-tree shape once the operator composes everything:
+#     root (inline) ────┬─ severity=critical      → pagerduty  (continue)
+#                       ├─ <this CR's route>      ← all team/SLO sub-routes
+#                       └─ default                → default-slack (catch-all)
+#
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: platform-slo-routing
+  namespace: observability
+  labels:
+    # Must match `alertmanager.alertmanagerSpec.alertmanagerConfigSelector`
+    # in helm-release.yaml (matchLabels: { alertmanager: platform }).
+    alertmanager: platform
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  route:
+    # The CR's root catches everything the parent didn't already terminally
+    # route.  Alerts that don't match any sub-route here fall back through
+    # the CR's own `platform-slo-default` receiver → parent's default-slack.
+    receiver: platform-slo-default
+    groupBy: [alertname, slo, component, namespace]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    # Child routes are evaluated top-to-bottom; first match wins unless
+    # `continue: true`.  Order matters:
+    #   1. Storage SLOs (tightest budgets) — dedicated channel + fast cadence
+    #   2. ML SLOs (drift / temporal / serving) — ml channel
+    #   3. Team fallbacks — catches remaining team=platform / team=ml alerts
+    #      that lack an `slo` label (e.g. infra alerts, component alerts)
+    #   4. severity=info dedup — 24h repeat, low-noise digest channel
+    routes:
+      # -----------------------------------------------------------------------
+      # Storage / backup SLOs (KNF-04 RPO<1m, RTO<5m). Tight group_interval
+      # so lag spikes surface quickly; paging still happens via the parent's
+      # severity=critical → pagerduty (continue=true) route.
+      # -----------------------------------------------------------------------
+      - receiver: platform-storage-slack
+        matchers:
+          - name: slo
+            matchType: =~
+            value: "rpo|rto|backup"
+        groupBy: [alertname, component, namespace]
+        groupInterval: 2m
+        repeatInterval: 1h
+
+      # -----------------------------------------------------------------------
+      # ML model-lifecycle SLOs — drift / temporal leakage / training / model
+      # serving / model freshness.  Routed to ml channel regardless of team
+      # label (temporal_leakage alerts carry team=ml already; model_serving
+      # may carry team=ml too).
+      # -----------------------------------------------------------------------
+      - receiver: platform-ml-slo-slack
+        matchers:
+          - name: slo
+            matchType: =~
+            value: "drift|temporal_leakage|model_freshness|training|model_serving"
+        groupBy: [alertname, slo, namespace]
+        groupInterval: 5m
+        repeatInterval: 2h
+
+      # -----------------------------------------------------------------------
+      # Team = ml fallback — ML-team alerts without an `slo` label (e.g. KServe
+      # restart storms, Evidently drift metric issues) go to ml channel.
+      # -----------------------------------------------------------------------
+      - receiver: platform-ml-slo-slack
+        matchers:
+          - name: team
+            matchType: =
+            value: ml
+
+      # -----------------------------------------------------------------------
+      # Team = platform fallback — general platform alerts (infra, security,
+      # data ingestion) go to the platform channel.  Placed AFTER the specific
+      # SLO matchers so storage-SLO alerts that also carry team=platform get
+      # the specialized channel + cadence, not this fallback.
+      # -----------------------------------------------------------------------
+      - receiver: platform-team-slack
+        matchers:
+          - name: team
+            matchType: =
+            value: platform
+
+      # -----------------------------------------------------------------------
+      # severity=info — CPU under-utilisation, model staleness hints, chaos
+      # experiment state. Digest-style delivery so they don't drown signal.
+      # Intentionally last: info alerts with team labels above get the team
+      # channel first; only info alerts WITHOUT a team label (rare) land here.
+      # -----------------------------------------------------------------------
+      - receiver: platform-info-slack
+        matchers:
+          - name: severity
+            matchType: =
+            value: info
+        groupBy: [alertname]
+        groupWait: 5m
+        groupInterval: 30m
+        repeatInterval: 24h
+
+  receivers:
+    # Fallback inside this CR — forwards to the same #platform-alerts channel
+    # as the parent default, so a mis-configured sub-route never silently mutes.
+    - name: platform-slo-default
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: default
+          channel: "#platform-alerts"
+          sendResolved: true
+          title: '{{ template "slack.default.title" . }}'
+          text: '{{ template "slack.default.text" . }}'
+
+    - name: platform-team-slack
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: platform
+          channel: "#platform-alerts"
+          sendResolved: true
+
+    - name: platform-storage-slack
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: platform
+          channel: "#platform-storage"
+          sendResolved: true
+          title: '[{{ .Status | toUpper }}] Storage SLO: {{ .CommonLabels.alertname }}'
+          text: |
+            *SLO:* {{ .CommonLabels.slo }}
+            *Component:* {{ .CommonLabels.component }}
+            *Namespace:* {{ .CommonLabels.namespace }}
+            {{ range .Alerts }}• {{ .Annotations.summary }}
+            {{ end }}
+
+    - name: platform-ml-slo-slack
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: ml
+          channel: "#ml-alerts"
+          sendResolved: true
+          title: '[{{ .Status | toUpper }}] ML: {{ .CommonLabels.alertname }}'
+          text: |
+            *SLO:* {{ .CommonLabels.slo }}
+            *Severity:* {{ .CommonLabels.severity }}
+            {{ range .Alerts }}• {{ .Annotations.summary }}
+              {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+            {{ end }}
+
+    - name: platform-info-slack
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: default
+          channel: "#platform-info"
+          sendResolved: false
+          title: '[INFO digest] {{ .CommonLabels.alertname }}'
+          text: '{{ range .Alerts }}• {{ .Annotations.summary }}{{ "\n" }}{{ end }}'
+
+  inhibitRules:
+    # OpenBao sealed ⇒ every ExternalSecret sync fails.  Suppress the ESO-sync
+    # noise while the root cause (sealed OpenBao) is already on-call's screen.
+    - sourceMatch:
+        - name: alertname
+          matchType: =
+          value: OpenBaoSealed
+      targetMatch:
+        - name: alertname
+          matchType: =
+          value: ExternalSecretSyncFailed
+      equal: []
+
+    # Longhorn volume Faulted/Degraded ⇒ Postgres WAL archiving + replication
+    # alerts are downstream symptoms.  Root cause is storage; resolve there
+    # first, then the downstream alerts clear on their own.
+    - sourceMatch:
+        - name: alertname
+          matchType: =
+          value: LonghornVolumeDegraded
+      targetMatch:
+        - name: alertname
+          matchType: =~
+          value: "CNPGWALArchiveFailing|PostgresReplicationLagHigh|ClickHouseBackupStale"
+      equal: []
+
+    # Availability budget burn ⇒ latency percentiles inevitably also spike.
+    # Suppress the latency warnings for the same service while the availability
+    # critical is firing; resolving availability resolves the latency too.
+    - sourceMatch:
+        - name: alertname
+          matchType: =
+          value: PlatformAvailabilityBudgetBurn
+      targetMatch:
+        - name: alertname
+          matchType: =~
+          value: "FeatureServingLatencyP95High|FeatureServingLatencyP99High"
+      equal: [namespace, destination_service_name]
+
+    # OTel Collector down ⇒ metric ingestion stalls, so downstream components
+    # that depend on scrape data (tempo/loki absent-style alerts) go noisy.
+    # Suppress those while the collector is being recovered.
+    - sourceMatch:
+        - name: alertname
+          matchType: =
+          value: OTelCollectorDown
+      targetMatch:
+        - name: component
+          matchType: =~
+          value: "otel|tempo|loki"
+      equal: []
+
+    # NOTE: a generic `severity=critical ⇒ severity=warning` inhibit rule is
+    # deliberately NOT added. Alertmanager inhibit semantics require source
+    # and target to share every label in `equal:`; a generic rule would need
+    # `equal: [alertname]`, but paired alerts in this platform carry DIFFERENT
+    # alertnames (e.g. FeatureServingLatencyP99High vs P95High), so no generic
+    # label set reliably pairs them. The service-specific rules above
+    # (PlatformAvailabilityBudgetBurn ⇒ FeatureServing*High) handle the real
+    # cascades; a naive severity-only rule either no-ops or silences
+    # unrelated warnings on different services.

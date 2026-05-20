@@ -1,0 +1,296 @@
+# =============================================================================
+# GRAFANA ALLOY — Unified telemetry collector (replaces EOL Promtail)
+# =============================================================================
+# Collects logs from all pods via /var/log/pods and ships to Loki.  In
+# addition, Alloy exposes an OTLP receiver (4317 gRPC / 4318 HTTP) that
+# forwards traces to Tempo and metrics to the kube-prometheus-stack
+# Prometheus — this gives edge workloads that can't reach the OTel gateway
+# a drop-in collector sidecar, and is the migration path to retire the
+# separate OTel Collector agent DaemonSet once every trace producer is
+# repointed (see ADR-010 §Migration).
+# Alloy is the official Grafana successor to Promtail, built on
+# OpenTelemetry Collector with native OTLP support.
+# =============================================================================
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: observability
+  labels:
+    app: alloy
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/component: log-collector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy
+  labels:
+    app: alloy
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+      - events
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "watch", "list"]
+  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy
+  labels:
+    app: alloy
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: observability
+roleRef:
+  kind: ClusterRole
+  name: alloy
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: observability
+  labels:
+    app: alloy
+data:
+  config.alloy: |
+    // ── Log collection from Kubernetes pods ──────────────────────────
+    // Discovers all pods and collects their container logs via CRI format.
+
+    // Kubernetes pod discovery
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    // Relabel to extract namespace, pod, container labels
+    discovery.relabel "pod_logs" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+        separator     = "/"
+        target_label  = "__path__"
+        replacement   = "/var/log/pods/$1_$2_$3/$4/*.log"
+      }
+    }
+
+    // Read log files from discovered targets
+    loki.source.file "pod_logs" {
+      targets    = discovery.relabel.pod_logs.output
+      forward_to = [loki.process.pod_logs.receiver]
+    }
+
+    // Process CRI log format (k3s/containerd)
+    loki.process "pod_logs" {
+      stage.cri {}
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // Ship logs to Loki
+    loki.write "default" {
+      endpoint {
+        url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+      }
+    }
+
+    // ── OTLP receiver ────────────────────────────────────────────────
+    // Accepts OTLP traces + metrics on gRPC 4317 / HTTP 4318 from any
+    // workload that points its exporter here (sidecarless path).  The
+    // OTel Collector gateway handles platform-wide sampling/fan-out; this
+    // receiver is for edge callers that need a node-local collector.
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "0.0.0.0:4317"
+        max_recv_msg_size = "32MiB"
+      }
+      http {
+        endpoint = "0.0.0.0:4318"
+      }
+      output {
+        traces  = [otelcol.processor.batch.default.input]
+        metrics = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    // ── Processing ───────────────────────────────────────────────────
+    // k8sattributes enriches spans/samples with pod/namespace labels;
+    // batch groups them for the downstream exporter.
+    otelcol.processor.k8sattributes "default" {
+      extract {
+        metadata = [
+          "k8s.namespace.name",
+          "k8s.pod.name",
+          "k8s.pod.uid",
+          "k8s.deployment.name",
+          "k8s.statefulset.name",
+          "k8s.node.name",
+        ]
+      }
+      pod_association {
+        source {
+          from = "connection"
+        }
+      }
+      output {
+        traces  = [otelcol.processor.batch.default.input]
+        metrics = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      timeout         = "5s"
+      send_batch_size = 1024
+      output {
+        traces  = [otelcol.exporter.otlp.tempo.input]
+        metrics = [otelcol.exporter.prometheus.kps.input]
+      }
+    }
+
+    // ── Exporters ────────────────────────────────────────────────────
+    // Traces → Tempo (LGTM stack), matches the OTel Collector gateway's
+    // `otlp/tempo` exporter so dashboards work with both paths.
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "tempo.observability.svc.cluster.local:4317"
+        tls {
+          insecure = true
+        }
+      }
+    }
+
+    // Metrics → kube-prometheus-stack Prometheus (remote_write).
+    otelcol.exporter.prometheus "kps" {
+      forward_to = [prometheus.remote_write.kps.receiver]
+    }
+
+    prometheus.remote_write "kps" {
+      endpoint {
+        url = "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  namespace: observability
+  labels:
+    app: alloy
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/component: log-collector
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+        app.kubernetes.io/name: alloy
+        app.kubernetes.io/component: log-collector
+    spec:
+      serviceAccountName: alloy
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.16.0
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --server.http.listen-addr=0.0.0.0:12345
+            - --storage.path=/tmp/alloy
+          ports:
+            - name: http
+              containerPort: 12345
+              protocol: TCP
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["DAC_READ_SEARCH"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: pod-logs
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: run-containerd
+              mountPath: /run/containerd
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp/alloy
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-config
+        - name: pod-logs
+          hostPath:
+            path: /var/log/pods
+        - name: run-containerd
+          hostPath:
+            path: /run/k3s/containerd
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,97 @@
+# =============================================================================
+# VECTOR PROCESSING — Text Embeddings (Python + sentence-transformers)
+# =============================================================================
+# Generates embeddings from text data and stores in Qdrant for vector search.
+#
+# Infrastructure dependencies:
+#   - Qdrant: Vector DB for embedding storage + similarity search
+#   - ClickHouse: Source for text data, archival for aggregated features
+#   - Valkey: Feature cache for online serving (Redis-RESP backend)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector-processing
+  labels:
+    app: vector-processing
+    component: processing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vector-processing
+  template:
+    metadata:
+      labels:
+        app: vector-processing
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: vector-processing
+          image: vector-processing:latest
+          imagePullPolicy: IfNotPresent
+          command: ["uv", "run", "main.py"]
+          args: ["--mode", "embeddings"]
+          ports:
+            - containerPort: 8080
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          env:
+            - name: EMBEDDING_MODEL
+              value: "sentence-transformers/all-mpnet-base-v2"
+            - name: EMBEDDING_DIM
+              value: "768"
+            - name: VECTOR_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: pipeline-config
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-processing
+  labels:
+    app: vector-processing
+spec:
+  selector:
+    app: vector-processing
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: metrics
+  type: ClusterIP

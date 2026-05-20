@@ -1,0 +1,40 @@
+# =============================================================================
+# VerticalPodAutoscaler — recommender + auto-update for resource right-sizing
+# =============================================================================
+# Replace placeholders:
+#   {{COMPONENT}}   target Deployment/StatefulSet name
+#   {{NAMESPACE}}   target namespace
+#   {{KIND}}        Deployment | StatefulSet
+#   {{MODE}}        Off (recommend only) | Initial | Auto (rewrites pods)
+#   {{CPU_MIN}} {{CPU_MAX}}    e.g. 100m / 4
+#   {{MEM_MIN}} {{MEM_MAX}}    e.g. 128Mi / 8Gi
+#
+# Use Mode=Auto with HPA only when HPA scales on memory (avoids both fighting
+# over CPU). Most stateful workloads → Mode=Off (advisory).
+# =============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{COMPONENT}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: {{COMPONENT}}
+    app.kubernetes.io/managed-by: platform-makefile
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: {{KIND}}
+    name: {{COMPONENT}}
+  updatePolicy:
+    updateMode: {{MODE}}
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: {{CPU_MIN}}
+          memory: {{MEM_MIN}}
+        maxAllowed:
+          cpu: {{CPU_MAX}}
+          memory: {{MEM_MAX}}

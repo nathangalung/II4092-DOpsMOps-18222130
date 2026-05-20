@@ -1,0 +1,277 @@
+# =============================================================================
+# Kafka 4.2 — Strimzi KafkaNodePool + Kafka cluster
+# =============================================================================
+# KRaft mode.  3 combined-role brokers (broker+controller) on Longhorn.  For
+# strict HA separate the controller quorum into its own NodePool.  min.insync
+# = 2 ensures acks=all writes survive one node loss.
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  # Single-node bootstrap: 1 combined-role broker. Scale to 3 for HA via
+  # `kubectl patch knp broker -n data-ingestion --type=merge -p
+  #  '{"spec":{"replicas":3}}'` when CPU headroom permits.
+  replicas: 1
+  roles: [controller, broker]
+  # Single-pod bootstrap; bump for production load.
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: 1500m, memory: 2Gi }
+  jvmOptions:
+    -Xms: "1g"
+    -Xmx: "2g"
+  storage:
+    type: persistent-claim
+    size: 5Gi
+    class: local-path
+    deleteClaim: false
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: platform-kafka
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+  annotations:
+    # Strimzi 0.46+: node-pools + KRaft are GA; annotations are no-op but kept
+    # explicit for older operator backwards-compat.
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 4.2.0
+    metadataVersion: 4.2-IV1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false           # in-mesh only (Istio mTLS)
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: scram-sha-512
+      - name: external
+        port: 9094
+        type: nodeport       # k3s has no cluster-route controller; Istio
+                             # IngressGateway fronts the NodePort on 443+mTLS
+                             # via a Gateway resource declared separately.
+        tls: true
+        authentication:
+          type: scram-sha-512
+    authorization:
+      type: simple
+      superUsers:
+        - admin
+    config:
+      # Single-broker safe defaults. Bump back to 3/2 when scaling NodePool.
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      # `inter.broker.protocol.version` is ZK-mode legacy; in KRaft Strimzi
+      # uses `metadataVersion` (set above) and warns
+      # `KafkaInterBrokerProtocolVersionInKRaft` if the property is present.
+      log.retention.hours: 168
+      log.segment.bytes: 1073741824
+      compression.type: zstd
+      # Idempotence + EOS
+      enable.idempotence: true
+      num.partitions: 6
+      # Throughput
+      num.network.threads: 8
+      num.io.threads: 16
+      socket.send.buffer.bytes: 1048576
+      socket.receive.buffer.bytes: 1048576
+      socket.request.max.bytes: 104857600
+      replica.lag.time.max.ms: 30000
+    template:
+      pod:
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9404"
+            # Strimzi binds its own mTLS on 9090 (replication) + 9091 (control
+            # plane) and SCRAM SASL on 9092/9093/9094. Istio sidecar default
+            # intercepts every inbound port (`includeInboundPorts: "*"`) and
+            # tries to terminate TLS on 9090/9091, which makes the Strimzi
+            # operator's AdminClient see "Connection terminated during
+            # authentication" on every reconcile. Excluding the broker ports
+            # leaves Strimzi's protocol untouched while still giving the rest
+            # of the pod a sidecar.
+            traffic.sidecar.istio.io/excludeInboundPorts: "9090,9091,9092,9093,9094,9404"
+  entityOperator:
+    # Kyverno `require-resource-limits` (cluster-wide policy, restricted PSA)
+    # rejects the auto-generated entity-operator Deployment unless every
+    # container declares CPU+memory requests AND limits — Strimzi defaults
+    # leave resources empty.
+    topicOperator:
+      resources:
+        requests: { cpu: 50m, memory: 256Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
+    userOperator:
+      resources:
+        requests: { cpu: 50m, memory: 256Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
+    template:
+      pod:
+        metadata:
+          annotations:
+            # Entity Operator sidecars (TLS sidecar to broker mTLS) hit the
+            # same Istio ↔ Strimzi-mTLS collision as the broker itself.
+            traffic.sidecar.istio.io/excludeOutboundPorts: "9090,9091,9092,9093,9094"
+  # Cruise Control disabled — Strimzi rejects with `InvalidResourceException:
+  # Cruise Control cannot be deployed with a Kafka cluster which has only one
+  # broker. It requires at least two Kafka brokers.` Re-enable when broker
+  # NodePool scales to >=2 (post single-node bootstrap).
+  kafkaExporter:
+    topicRegex: ".*"
+    groupRegex: ".*"
+    # Same Kyverno + Istio constraints as the broker.
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 200m, memory: 128Mi }
+    template:
+      pod:
+        metadata:
+          annotations:
+            traffic.sidecar.istio.io/excludeOutboundPorts: "9090,9091,9092,9093,9094"
+---
+# DestinationRule: disable Istio mTLS for traffic to Kafka broker ports.
+# The broker uses `traffic.sidecar.istio.io/excludeInboundPorts` to bypass
+# its own sidecar on 9090–9094 (Strimzi runs SCRAM/TLS itself). Without
+# this DR, every CLIENT's outbound sidecar still wraps the connection in
+# Istio mTLS, the wrapped TLS bytes arrive at the broker (which expects
+# Kafka protocol) and trigger `InvalidReceive (size = 369295618 ...)`.
+# DISABLE mode tells Envoy to forward as plain TCP so the broker's own
+# protocol/SASL handshake is uninterrupted.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: platform-kafka-bootstrap
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  host: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: platform-kafka-brokers
+  namespace: data-ingestion
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  host: platform-kafka-kafka-brokers.data-ingestion.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+# Admin KafkaUser — Strimzi's User Operator creates a Secret named `admin`
+# with SCRAM password; ESO populates `platform/kafka/admin` in OpenBao from
+# that Secret for consumers (and populates it from the seed on first boot).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: admin
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic,         name: "*", patternType: literal }
+        operations: [All]
+      - resource: { type: group,         name: "*", patternType: literal }
+        operations: [All]
+      - resource: { type: cluster,       name: kafka-cluster }
+        operations: [All]
+      - resource: { type: transactionalId,name: "*", patternType: literal }
+        operations: [All]
+---
+# kafka-connect KafkaUser — Strimzi simple authorization is enabled with only
+# `admin` as a superuser, so anonymous PLAIN-listener access (where Connect
+# previously bound) is rejected as `TopicAuthorizationException: Not
+# authorized to access topics: [_connect-offsets]` and the
+# DistributedHerder thread exits with status 1 → CrashLoopBackOff.
+# This dedicated user grants ALL ops on every topic/group/transactional-id
+# (Connect's framework topics _connect-offsets/-configs/-status PLUS every
+# use-case-defined source/sink topic the operator-deployed Connectors must
+# read/write). Same shape as `admin` minus cluster ops, since Connect does
+# not need cluster admin and must not be a superuser.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: kafka-connect
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+spec:
+  authentication: { type: scram-sha-512 }
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic,          name: "*", patternType: literal }
+        operations: [All]
+      - resource: { type: group,          name: "*", patternType: literal }
+        operations: [All]
+      - resource: { type: transactionalId,name: "*", patternType: literal }
+        operations: [All]
+---
+# Mirror Strimzi's auto-generated `admin` SCRAM Secret into OpenBao so other
+# services authenticate via the platform ClusterSecretStore rather than
+# reading a Strimzi-specific Secret directly.
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: kafka-admin-to-openbao
+  namespace: data-ingestion
+spec:
+  refreshInterval: 1h
+  secretStoreRefs:
+    - name: platform-openbao
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: admin          # Strimzi User Operator creates this
+  data:
+    - match:
+        secretKey: password
+        remoteRef:
+          remoteKey: platform/kafka/admin
+          property: password
+    - match:
+        secretKey: sasl.jaas.config
+        remoteRef:
+          remoteKey: platform/kafka/admin
+          property: sasl_jaas_config
+---
+# Platform topics — declarative (Topic Operator reconciles).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: platform-events
+  namespace: data-ingestion
+  labels: { strimzi.io/cluster: platform-kafka }
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "604800000"
+    cleanup.policy: delete
+    compression.type: zstd

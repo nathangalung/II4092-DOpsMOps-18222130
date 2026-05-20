@@ -1,0 +1,148 @@
+# =============================================================================
+# QDRANT — Vector Database (Apache 2.0, Rust-based)
+# =============================================================================
+# Purpose-built vector similarity search engine for production vector workloads.
+# Provides persistent HNSW indices, quantization, payload filtering, and
+# horizontal scaling.
+#
+# Features:
+#   - Built-in HNSW with quantization (8-bit: 96 bytes/vector vs 3KB float32)
+#   - Advanced filtering during search (payload-based)
+#   - Persistent storage with WAL
+#   - REST (6333) + gRPC (6334) APIs
+#   - Prometheus metrics on :6333/metrics
+#
+# Docs: https://qdrant.tech/documentation/
+# GitHub: https://github.com/qdrant/qdrant (23k+ stars, Apache 2.0)
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: storage
+  labels:
+    app: qdrant
+spec:
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+  selector:
+    app: qdrant
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  namespace: storage
+  labels:
+    app: qdrant
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/component: vector-db
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6333"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.17.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          env:
+            - name: QDRANT__SERVICE__GRPC_PORT
+              value: "6334"
+          # QDRANT__SERVICE__API_KEY is sourced from OpenBao via the qdrant-
+          # admin ExternalSecret. Health probes (/livez /readyz /healthz)
+          # are whitelisted inside Qdrant's actix auth middleware, so they
+          # continue to respond without an `api-key:` header.
+          envFrom:
+            - secretRef:
+                name: qdrant-admin
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+            # Snapshots dir must be writable; root fs is read-only.
+            - name: qdrant-snapshots
+              mountPath: /qdrant/snapshots
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6333
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: qdrant-storage
+          persistentVolumeClaim:
+            claimName: qdrant-data
+        - name: qdrant-snapshots
+          emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-data
+  namespace: storage
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qdrant
+  namespace: storage
+  labels:
+    app: qdrant
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: qdrant

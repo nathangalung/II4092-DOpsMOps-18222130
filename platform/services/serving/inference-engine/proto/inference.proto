@@ -1,0 +1,47 @@
+syntax = "proto3";
+package ml.inference;
+
+option go_package = "github.com/mlops-platform/proto/inference";
+
+import "common.proto";
+
+message InferenceRequest {
+    string symbol = 1;
+    repeated double features = 2;
+    string model_name = 3;
+}
+
+message InferenceResponse {
+    double prediction = 1;
+    double confidence = 2;
+    string direction = 3;
+    int64 latency_us = 4;
+}
+
+message BatchInferenceRequest {
+    repeated InferenceRequest requests = 1;
+}
+
+message BatchInferenceResponse {
+    repeated InferenceResponse responses = 1;
+}
+
+message ModelInfoRequest {
+    string model_name = 1;
+}
+
+message ModelInfoResponse {
+    string name = 1;
+    string version = 2;
+    string framework = 3;
+    int64 loaded_at = 4;
+    int64 inference_count = 5;
+    double avg_latency_us = 6;
+}
+
+service InferenceEngine {
+    rpc Predict(InferenceRequest) returns (InferenceResponse);
+    rpc BatchPredict(BatchInferenceRequest) returns (BatchInferenceResponse);
+    rpc GetModelInfo(ModelInfoRequest) returns (ModelInfoResponse);
+    rpc Health(ml.common.HealthRequest) returns (ml.common.HealthResponse);
+}
