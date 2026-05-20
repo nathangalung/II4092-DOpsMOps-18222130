@@ -1,0 +1,259 @@
+# =============================================================================
+# use-case-crypto :: FlinkDeployment CR (Apache Flink Kubernetes Operator)
+# =============================================================================
+# ADR-023 — canonical path for running the crypto stream-processing job.
+#
+# Replaces the in-pod `flink-job` Deployment (platform/services/base/
+# deployments/flink-job.yaml, patched by use-case-crypto/manifests/base/
+# patches/flink-job.yaml).  That legacy pattern embeds a lightweight Flink
+# runtime in a Kubernetes Deployment and is kept only for platform demos
+# that do not install the Flink Operator; production + thesis §4.4.2 rely
+# on the Operator-owned CR you see here.
+#
+# Why the operator path:
+#   - declarative lifecycle (savepoint-triggered upgrades, reconcile loop)
+#   - first-party support for application-mode job submission
+#   - HA via Kubernetes leases (flink.jobmanager.high-availability.type)
+#   - metrics fan-out through PrometheusReporter (port 9249) → ServiceMonitor
+#   - application-mode image embeds the crypto overlay jar under
+#     /opt/flink/usrlib/ (the operator calls `StandaloneApplicationEntryPoint`
+#     on this classpath)
+#
+# Build order (handled atomically by `make usecase-crypto-build` from repo root):
+#   1. platform-build-services builds flink-job:latest (Mill + JDK 25 → fat JAR)
+#   2. use-case-crypto build-processing builds crypto-flink-job:latest from
+#      services/processing/flink-job/Dockerfile (FROM flink-job:latest, adds
+#      crypto extension JAR to /app/extensions/ classpath).
+#
+# Operator reconciliation:
+#   The operator in flink-operator namespace watches cluster-wide
+#   (watchNamespaces="" in platform/components/data-processing/flink/flink-
+#   operator.yaml). It will pick this CR up on next reconcile (30s window).
+#
+# Secret plumbing:
+#   Re-uses the same `flink-s3-secret` ExternalSecret declared in
+#   platform/components/data-processing/flink/deployment.yaml but
+#   replicated here in the use-case namespace — ExternalSecret is namespace-
+#   scoped so we can't cross-reference.  The `platform-openbao` ClusterSecretStore
+#   returns identical credentials.
+# =============================================================================
+---
+# --- Flink SA + RBAC — operator expects `flink` SA to exist in the namespace
+#     the FlinkDeployment runs in.  We mirror what flink/deployment.yaml
+#     declares for data-processing, but scoped to use-case-crypto.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: use-case-crypto
+  labels:
+    app: flink
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink
+  namespace: use-case-crypto
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink
+  namespace: use-case-crypto
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: flink
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: use-case-crypto
+---
+# --- S3/MinIO credentials for Flink checkpoints + HA (ADR-008 pattern) ---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: flink-s3-secret
+  namespace: use-case-crypto
+  labels:
+    app: flink
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: platform-openbao
+    kind: ClusterSecretStore
+  target:
+    name: flink-s3-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: S3_ACCESS_KEY
+      remoteRef: { key: platform/minio/root, property: username }
+    - secretKey: S3_SECRET_KEY
+      remoteRef: { key: platform/minio/root, property: password }
+---
+# --- The Crypto FlinkDeployment (application mode) ---
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-job
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: stream-processing
+    use-case: crypto
+    adr: "023"
+spec:
+  # Image pinned to the 2026 Flink LTS line matching the platform session
+  # cluster (flink/deployment.yaml).  The crypto overlay image is built on
+  # top of `flink:2.2.0-scala_2.12-java21`, adding the crypto jar under
+  # /opt/flink/usrlib/ and enabling the S3 hadoop + prometheus reporter
+  # plugins at image-build time.
+  image: crypto-flink-job:latest
+  imagePullPolicy: IfNotPresent
+  flinkVersion: v2_2
+  serviceAccount: flink
+
+  flinkConfiguration:
+    # Parallelism is sized to match the broker partition count on the
+    # crypto.validated topic (see manifests/base/kafka-topics/crypto.validated.yaml
+    # — partitions: 6). Each TM slot consumes one partition.
+    parallelism.default: "2"
+    taskmanager.numberOfTaskSlots: "4"
+
+    # State backend + checkpoint/savepoint storage → MinIO
+    state.backend.type: rocksdb
+    state.checkpoints.dir: s3://flink-checkpoints/crypto/
+    state.savepoints.dir: s3://flink-savepoints/crypto/
+    execution.checkpointing.interval: "60000"          # 60s
+    execution.checkpointing.mode: EXACTLY_ONCE
+    execution.checkpointing.timeout: "600000"          # 10m
+    execution.checkpointing.min-pause-between-checkpoints: "30000"
+
+    # Kubernetes-native HA (lease-based leader election).
+    # kubernetes.cluster-id is implicitly set by flink-kubernetes-operator from
+    # FlinkDeployment.metadata.name; its validation webhook (vsessionjob /
+    # vflinkdeployment) explicitly rejects user-provided kubernetes.* keys
+    # with `Forbidden Flink config key: kubernetes.cluster-id`.
+    high-availability.type: kubernetes
+    high-availability.storageDir: s3://flink-ha/crypto/
+
+    # MinIO S3 endpoint + auth-passthrough (envFrom on pod template below)
+    s3.endpoint: http://minio.storage.svc.cluster.local:9000
+    s3.path.style.access: "true"
+
+    # OpenLineage plugin — emits job lineage to DataHub GMS so Iceberg /
+    # ClickHouse tables produced by this job appear as downstream datasets
+    # in the lakehouse catalog (ADR-013 data-governance coupling).
+    execution.attached: "true"
+    pipeline.openlineage.url: http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage
+    pipeline.openlineage.namespace: crypto-flink
+
+    # Metrics — Prometheus reporter so kube-prometheus-stack's
+    # ServiceMonitor can scrape JM + TM uniformly.
+    metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+    metrics.reporter.prom.port: "9249"
+
+  podTemplate:
+    spec:
+      containers:
+        - name: flink-main-container
+          # Declare the Prometheus reporter port (9249) as a named port so
+          # the crypto-flink-job PodMonitor can scrape it. 8081 is the
+          # JobManager REST API port that the operator also binds on JMs.
+          ports:
+            - name: metrics
+              containerPort: 9249
+              protocol: TCP
+            - name: jm-rest
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            # pipeline-config ConfigMap provides KAFKA_BOOTSTRAP_SERVERS,
+            # CLICKHOUSE_HOST, schema-registry URL, feast endpoints, etc.
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: flink-s3-secret
+          env:
+            # Bridge envFrom keys → Flink's hadoop-S3 plugin expects
+            # AWS_* variables.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_ACCESS_KEY } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_SECRET_KEY } }
+            # OTEL auto-instrumentation fan-out (OTel Java agent mounted
+            # into the image at /otel/opentelemetry-javaagent.jar)
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector-gateway.observability.svc.cluster.local:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "crypto-flink-job"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=use-case-crypto,deployment.environment=local"
+          # Container-level securityContext satisfies Kyverno
+          # `require-capability-drop-all` (capabilities is a container-only
+          # field — pod-level securityContext cannot carry it). Also drops
+          # privilege escalation so the JVM cannot setuid post-start.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+      # Pod-level securityContext — UID/GID + seccomp apply to every container
+      # in the pod (Flink JM + TM + any operator-injected sidecars).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 9999
+        fsGroup: 9999
+        seccompProfile: { type: RuntimeDefault }
+
+  jobManager:
+    replicas: 1
+    resource:
+      memory: "1600m"
+      cpu: 0.5
+
+  taskManager:
+    # Single-node platform invariant (CLAUDE.md): one pod per workload at
+    # idle, scale-out only on load. 4 slots per TM gives 4-way intra-pod
+    # parallelism (CPU multiplexing) without breaching the replica ceiling.
+    replicas: 1
+    resource:
+      memory: "2048m"
+      cpu: 1
+
+  # Application-mode job block — operator submits the crypto jar's main
+  # class and manages lifecycle.  The jar is baked into the image at
+  # /opt/flink/usrlib/crypto-flink-job.jar (local:// protocol).
+  job:
+    # Platform fat jar baked at /opt/flink/usrlib/crypto-flink-job.jar by the
+    # crypto-flink-job Dockerfile (FROM flink-job:latest AS platform_jar →
+    # COPY /app/flink-job.jar). The crypto extension jar sits beside it at
+    # /opt/flink/usrlib/crypto-extensions.jar and is auto-picked-up by
+    # StandaloneApplicationClusterEntryPoint's usrlib classpath scan, so the
+    # platform StreamJob can resolve com.usecase.crypto.functions.* via
+    # reflection at job-graph build time.
+    jarURI: local:///opt/flink/usrlib/crypto-flink-job.jar
+    entryClass: com.pipeline.StreamJob
+    args: []
+    parallelism: 2
+    # initialSavepointPath is left unset for the first deploy.  Upgrades
+    # will patch this field via `kubectl patch` in the Tekton pipeline's
+    # savepoint-upgrade task (platform/components/gitops/tekton).
+    upgradeMode: stateless
+    state: running

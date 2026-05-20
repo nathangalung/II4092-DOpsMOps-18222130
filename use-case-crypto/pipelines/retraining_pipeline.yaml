@@ -1,0 +1,345 @@
+# PIPELINE DEFINITION
+# Name: crypto-retraining-pipeline
+# Description: Drift detection → FLAML AutoML → MLflow → KServe. Model selection controlled via FLAML_ESTIMATOR_LIST config.
+# Inputs:
+#    clickhouse_db: str [Default: 'gold']
+#    clickhouse_host: str [Default: 'clickhouse-platform.storage.svc.cluster.local']
+#    clickhouse_port: str [Default: '8123']
+#    drift_features: str [Default: 'close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h']
+#    drift_threshold: float [Default: 0.2]
+#    end_date: str [Default: '']
+#    features_table: str [Default: 'gold.fct_training_data']
+#    flaml_estimator_list: str [Default: 'lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd']
+#    flaml_time_budget: str [Default: '300']
+#    kserve_namespace: str [Default: 'use-case-crypto']
+#    mlflow_experiment: str [Default: 'crypto-default']
+#    mlflow_s3_endpoint_url: str [Default: 'http://minio.storage.svc.cluster.local:9000']
+#    mlflow_tracking_uri: str [Default: 'http://mlflow.model-lifecycle.svc.cluster.local:5000']
+#    s3_access_key_id: str [Default: '']
+#    s3_secret_access_key: str [Default: '']
+#    start_date: str [Default: '']
+#    symbol: str [Default: 'BTC-USD']
+#    target_column: str [Default: 'close']
+#    task_type: str [Default: 'regression']
+#    valkey_host: str [Default: 'valkey.storage.svc.cluster.local']
+components:
+  comp-deploy-to-kserve:
+    executorLabel: exec-deploy-to-kserve
+    inputDefinitions:
+      parameters:
+        mlflow_experiment:
+          parameterType: STRING
+        mlflow_s3_endpoint_url:
+          parameterType: STRING
+        mlflow_tracking_uri:
+          parameterType: STRING
+        model_name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+        s3_access_key_id:
+          parameterType: STRING
+        s3_secret_access_key:
+          parameterType: STRING
+  comp-detect-drift:
+    executorLabel: exec-detect-drift
+    inputDefinitions:
+      parameters:
+        clickhouse_db:
+          parameterType: STRING
+        clickhouse_host:
+          parameterType: STRING
+        clickhouse_port:
+          parameterType: STRING
+        drift_features:
+          parameterType: STRING
+        drift_threshold:
+          parameterType: NUMBER_DOUBLE
+        features_table:
+          parameterType: STRING
+        valkey_host:
+          parameterType: STRING
+  comp-train-and-register:
+    executorLabel: exec-train-and-register
+    inputDefinitions:
+      parameters:
+        clickhouse_db:
+          parameterType: STRING
+        clickhouse_host:
+          parameterType: STRING
+        clickhouse_port:
+          parameterType: STRING
+        end_date:
+          parameterType: STRING
+        features_table:
+          parameterType: STRING
+        flaml_estimator_list:
+          parameterType: STRING
+        flaml_time_budget:
+          parameterType: STRING
+        mlflow_experiment:
+          parameterType: STRING
+        mlflow_s3_endpoint_url:
+          parameterType: STRING
+        mlflow_tracking_uri:
+          parameterType: STRING
+        s3_access_key_id:
+          parameterType: STRING
+        s3_secret_access_key:
+          parameterType: STRING
+        start_date:
+          parameterType: STRING
+        symbol:
+          parameterType: STRING
+        target_column:
+          parameterType: STRING
+        task_type:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-deploy-to-kserve:
+      container:
+        args:
+        - export MLFLOW_TRACKING_URI="$2" MLFLOW_S3_ENDPOINT_URL="$4" AWS_ACCESS_KEY_ID="$5"
+          AWS_SECRET_ACCESS_KEY="$6" && uv run src/deploy_kserve.py --model-name "$0"
+          --namespace "$1" --experiment "$3"
+        - '{{$.inputs.parameters[''model_name'']}}'
+        - '{{$.inputs.parameters[''namespace'']}}'
+        - '{{$.inputs.parameters[''mlflow_tracking_uri'']}}'
+        - '{{$.inputs.parameters[''mlflow_experiment'']}}'
+        - '{{$.inputs.parameters[''mlflow_s3_endpoint_url'']}}'
+        - '{{$.inputs.parameters[''s3_access_key_id'']}}'
+        - '{{$.inputs.parameters[''s3_secret_access_key'']}}'
+        command:
+        - sh
+        - -c
+        image: localhost:5000/crypto-trainer:latest
+    exec-detect-drift:
+      container:
+        args:
+        - export CLICKHOUSE_HOST="$0" CLICKHOUSE_PORT="$1" CLICKHOUSE_DB="$2" CLICKHOUSE_TABLE="$3"
+          VALKEY_HOST="$4" DRIFT_THRESHOLD="$5" DRIFT_FEATURES_TO_MONITOR="$6" &&
+          uv run main.py --scale daily --once
+        - '{{$.inputs.parameters[''clickhouse_host'']}}'
+        - '{{$.inputs.parameters[''clickhouse_port'']}}'
+        - '{{$.inputs.parameters[''clickhouse_db'']}}'
+        - '{{$.inputs.parameters[''features_table'']}}'
+        - '{{$.inputs.parameters[''valkey_host'']}}'
+        - '{{$.inputs.parameters[''drift_threshold'']}}'
+        - '{{$.inputs.parameters[''drift_features'']}}'
+        command:
+        - sh
+        - -c
+        image: localhost:5000/crypto-drift-detector:latest
+    exec-train-and-register:
+      container:
+        args:
+        - export SYMBOL="$0" VALID_SYMBOLS="$0" TASK_TYPE="$1" TARGET_COLUMN="$2"
+          FEATURES_TABLE="$3" START_DATE="$4" END_DATE="$5" FLAML_TIME_BUDGET="$6"
+          FLAML_ESTIMATOR_LIST="$7" CLICKHOUSE_HOST="$8" CLICKHOUSE_PORT="$9" && shift
+          10 && export CLICKHOUSE_DB="$0" MLFLOW_TRACKING_URI="$1" MLFLOW_EXPERIMENT="$2"
+          MLFLOW_S3_ENDPOINT_URL="$3" AWS_ACCESS_KEY_ID="$4" AWS_SECRET_ACCESS_KEY="$5"
+          && uv run main.py --symbol "$SYMBOL"
+        - '{{$.inputs.parameters[''symbol'']}}'
+        - '{{$.inputs.parameters[''task_type'']}}'
+        - '{{$.inputs.parameters[''target_column'']}}'
+        - '{{$.inputs.parameters[''features_table'']}}'
+        - '{{$.inputs.parameters[''start_date'']}}'
+        - '{{$.inputs.parameters[''end_date'']}}'
+        - '{{$.inputs.parameters[''flaml_time_budget'']}}'
+        - '{{$.inputs.parameters[''flaml_estimator_list'']}}'
+        - '{{$.inputs.parameters[''clickhouse_host'']}}'
+        - '{{$.inputs.parameters[''clickhouse_port'']}}'
+        - '{{$.inputs.parameters[''clickhouse_db'']}}'
+        - '{{$.inputs.parameters[''mlflow_tracking_uri'']}}'
+        - '{{$.inputs.parameters[''mlflow_experiment'']}}'
+        - '{{$.inputs.parameters[''mlflow_s3_endpoint_url'']}}'
+        - '{{$.inputs.parameters[''s3_access_key_id'']}}'
+        - '{{$.inputs.parameters[''s3_secret_access_key'']}}'
+        command:
+        - sh
+        - -c
+        image: localhost:5000/crypto-trainer:latest
+pipelineInfo:
+  description: "Drift detection \u2192 FLAML AutoML \u2192 MLflow \u2192 KServe. Model\
+    \ selection controlled via FLAML_ESTIMATOR_LIST config."
+  name: crypto-retraining-pipeline
+root:
+  dag:
+    tasks:
+      deploy-to-kserve:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-deploy-to-kserve
+        dependentTasks:
+        - train-and-register
+        inputs:
+          parameters:
+            mlflow_experiment:
+              componentInputParameter: mlflow_experiment
+            mlflow_s3_endpoint_url:
+              componentInputParameter: mlflow_s3_endpoint_url
+            mlflow_tracking_uri:
+              componentInputParameter: mlflow_tracking_uri
+            model_name:
+              runtimeValue:
+                constant: crypto-predictor
+            namespace:
+              componentInputParameter: kserve_namespace
+            s3_access_key_id:
+              componentInputParameter: s3_access_key_id
+            s3_secret_access_key:
+              componentInputParameter: s3_secret_access_key
+        taskInfo:
+          name: deploy-to-kserve
+      detect-drift:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-detect-drift
+        inputs:
+          parameters:
+            clickhouse_db:
+              componentInputParameter: clickhouse_db
+            clickhouse_host:
+              componentInputParameter: clickhouse_host
+            clickhouse_port:
+              componentInputParameter: clickhouse_port
+            drift_features:
+              componentInputParameter: drift_features
+            drift_threshold:
+              componentInputParameter: drift_threshold
+            features_table:
+              componentInputParameter: features_table
+            valkey_host:
+              componentInputParameter: valkey_host
+        taskInfo:
+          name: detect-drift
+      train-and-register:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-and-register
+        dependentTasks:
+        - detect-drift
+        inputs:
+          parameters:
+            clickhouse_db:
+              componentInputParameter: clickhouse_db
+            clickhouse_host:
+              componentInputParameter: clickhouse_host
+            clickhouse_port:
+              componentInputParameter: clickhouse_port
+            end_date:
+              componentInputParameter: end_date
+            features_table:
+              componentInputParameter: features_table
+            flaml_estimator_list:
+              componentInputParameter: flaml_estimator_list
+            flaml_time_budget:
+              componentInputParameter: flaml_time_budget
+            mlflow_experiment:
+              componentInputParameter: mlflow_experiment
+            mlflow_s3_endpoint_url:
+              componentInputParameter: mlflow_s3_endpoint_url
+            mlflow_tracking_uri:
+              componentInputParameter: mlflow_tracking_uri
+            s3_access_key_id:
+              componentInputParameter: s3_access_key_id
+            s3_secret_access_key:
+              componentInputParameter: s3_secret_access_key
+            start_date:
+              componentInputParameter: start_date
+            symbol:
+              componentInputParameter: symbol
+            target_column:
+              componentInputParameter: target_column
+            task_type:
+              componentInputParameter: task_type
+        taskInfo:
+          name: train-and-register
+  inputDefinitions:
+    parameters:
+      clickhouse_db:
+        defaultValue: gold
+        isOptional: true
+        parameterType: STRING
+      clickhouse_host:
+        defaultValue: clickhouse-platform.storage.svc.cluster.local
+        isOptional: true
+        parameterType: STRING
+      clickhouse_port:
+        defaultValue: '8123'
+        isOptional: true
+        parameterType: STRING
+      drift_features:
+        defaultValue: close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h
+        isOptional: true
+        parameterType: STRING
+      drift_threshold:
+        defaultValue: 0.2
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      end_date:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      features_table:
+        defaultValue: gold.fct_training_data
+        isOptional: true
+        parameterType: STRING
+      flaml_estimator_list:
+        defaultValue: lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd
+        isOptional: true
+        parameterType: STRING
+      flaml_time_budget:
+        defaultValue: '300'
+        isOptional: true
+        parameterType: STRING
+      kserve_namespace:
+        defaultValue: use-case-crypto
+        isOptional: true
+        parameterType: STRING
+      mlflow_experiment:
+        defaultValue: crypto-default
+        isOptional: true
+        parameterType: STRING
+      mlflow_s3_endpoint_url:
+        defaultValue: http://minio.storage.svc.cluster.local:9000
+        isOptional: true
+        parameterType: STRING
+      mlflow_tracking_uri:
+        defaultValue: http://mlflow.model-lifecycle.svc.cluster.local:5000
+        isOptional: true
+        parameterType: STRING
+      s3_access_key_id:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      s3_secret_access_key:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      start_date:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      symbol:
+        defaultValue: BTC-USD
+        isOptional: true
+        parameterType: STRING
+      target_column:
+        defaultValue: close
+        isOptional: true
+        parameterType: STRING
+      task_type:
+        defaultValue: regression
+        isOptional: true
+        parameterType: STRING
+      valkey_host:
+        defaultValue: valkey.storage.svc.cluster.local
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.16.0

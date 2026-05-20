@@ -1,0 +1,278 @@
+# =============================================================================
+# CRYPTO USE-CASE — Kustomize Base (inherits from platform/services/base)
+# =============================================================================
+# Use-case manifests. Generic K8s Deployments, RBAC, and the base pipeline
+# ConfigMap are INHERITED from platform/services/base via the
+# `../../../platform/services/base/...` paths below — nothing is duplicated.
+# Crypto-specific shape (domain config patches, ISVC, Kafka topics, Vault
+# bootstrap, supplementary CronJobs, etc.) is declared locally.
+#
+# DOMAIN-AGNOSTIC SPLIT (ADR-013):
+#   - platform/ knows zero about crypto. It owns Deployments, Services,
+#     base RBAC Roles/RoleBindings, and pipeline-infrastructure ConfigMap.
+#   - use-case-crypto/ owns the ServiceAccount (Vault-bound), domain
+#     ConfigMap patches (schema/topics/features/...), KSERVE_INFERENCE_URL,
+#     the FlinkDeployment CR (crypto stream job), and every crypto-branded CR.
+#
+# TO CREATE A NEW USE CASE:
+#   1. Copy the entire use-case-crypto/ directory
+#   2. Edit config/project.yaml with your domain settings
+#   3. Run: make configure
+#   4. Update configmaps/ with your domain config
+#   5. In overlays/, change namePrefix, namespace, images
+#
+# HOW IT WORKS:
+#   resources:     files inherited from platform + local use-case CRs
+#   patches:       strategic-merge patches on pipeline-config + services
+#   overlays/      environment-specific tweaks (local, cloud)
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# =============================================================================
+# NAMESPACE SETTER
+# =============================================================================
+# Pins every namespaced resource declared below into `use-case-crypto`. This
+# replaces the overlay's prior `namespace: use-case-crypto` setter, which
+# clobbered explicit `namespace:` fields on cross-namespace resources (Kafka
+# CRs in `data-ingestion`, AuthorizationPolicies in `istio-system`, etc.) and
+# corrupted ClusterRoleBinding `subjects[].namespace` for SAs that legitimately
+# live in `model-lifecycle`. Cross-namespace resources now live in
+# `../cross-namespace/kustomization.yaml` which has NO namespace setter.
+namespace: use-case-crypto
+
+resources:
+  # ===========================================================================
+  # INHERITED FROM PLATFORM — infrastructure endpoints, base RBAC, Deployments
+  # ===========================================================================
+  # Base ConfigMap `pipeline-config` with platform service endpoints. Crypto
+  # patches it below (configmaps/*.yaml) to add domain-specific keys and to
+  # override CLICKHOUSE_DB / set KSERVE_INFERENCE_URL (configmaps/serving.yaml).
+  - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
+
+  # Platform RBAC (Roles + RoleBindings). The ServiceAccount itself is
+  # use-case-scoped and declared locally in rbac/service-account.yaml.
+  - ../../../platform/services/base/rbac/roles.yaml
+  - ../../../platform/services/base/rbac/bindings.yaml
+
+  # --- Ingestion (generic Deployments from platform) ---
+  - ../../../platform/services/base/deployments/rest-collector.yaml
+  - ../../../platform/services/base/deployments/websocket-collector.yaml
+
+  # --- Quality (generic Deployments from platform) ---
+  - ../../../platform/services/base/deployments/validator.yaml
+  - ../../../platform/services/base/deployments/analyzer.yaml
+
+  # --- Processing (generic Deployments from platform) ---
+  # ADR-023/025: stream processing is owned by the FlinkDeployment CR in
+  # flink/flinkdeployment.yaml (Flink Kubernetes Operator). No inherited
+  # flink-job Deployment — the crypto overlay jar is embedded in the image
+  # the CR references.
+  - ../../../platform/services/base/deployments/feature-engine.yaml
+
+  # --- Serving (generic Deployments from platform) ---
+  - ../../../platform/services/base/deployments/gateway.yaml
+  - ../../../platform/services/base/deployments/feature-cache.yaml
+
+  # --- Dashboard (generic Deployments from platform) ---
+  - ../../../platform/services/base/deployments/dashboard-backend.yaml
+  - ../../../platform/services/base/deployments/dashboard-frontend.yaml
+  - ../../../platform/services/base/deployments/ml-bridge.yaml
+
+  # ===========================================================================
+  # USE-CASE — Domain-specific resources (stay here, NOT promoted to platform)
+  # ===========================================================================
+  - namespace.yaml
+  - configmap-feast.yaml
+  # Declarative rest-collector config — defines Coinbase data source and
+  # per-endpoint polling (ticker, trades, ...). Mounted by the rest-collector
+  # patch at /etc/rest-collector/config.yaml.
+  - configmaps/rest-collector-config.yaml
+  # ExternalSecrets (ADR-008) replace the prior plain `secrets.yaml` which
+  # contained hardcoded JWT_SECRET / POSTGRES_PASSWORD / S3_* literals.
+  - external-secrets.yaml
+  - schema-registration.yaml
+  - connectors/debezium-postgres.yaml
+  - connectors/iceberg-sink.yaml
+
+  # --- Kafka topics + KafkaUsers (cycle-3 §3.1) ---
+  # Cross-namespace CRs live in `../cross-namespace/`; the TriggerAuthentication
+  # below DOES live in `use-case-crypto` (KEDA reads it from the workload
+  # namespace) so it stays in base.
+  - kafka-users/triggerauth.yaml
+
+  # --- Supplementary data CronJobs (domain-specific sources) ---
+  - cronjobs/supplementary.yaml
+  - cronjobs/supplementary-feargreed.yaml
+  - cronjobs/supplementary-coingecko.yaml
+  - cronjobs/supplementary-defillama.yaml
+
+  # --- Vector embedding (CryptoPanic → Qdrant) ---
+  - cronjobs/vector-embedding.yaml
+
+  # --- Serving (domain-specific InferenceService) ---
+  - inferenceservices/crypto-inference.yaml
+
+  # --- HPO (Katib) ---
+  # Declarative Experiment CR (flaml-automl-hpo) — the canonical HPO
+  # shape lives in Git. The KFP `retraining_pipeline` does NOT mutate
+  # this CR; on drift it calls the Katib SDK with this Experiment as a
+  # template and spawns a run-scoped Experiment (name suffixed with the
+  # pipeline run id). Applying the base creates a one-shot baseline
+  # Experiment that writes the initial best-trial to MLflow. Trial Pods
+  # are admitted through `crypto-training-queue` (see kueue/queues.yaml).
+  - katib/experiment-lightgbm.yaml
+
+  # =========================================================================
+  # ORCHESTRATED BY AIRFLOW + KFP (not CronJobs):
+  #   - Batch features, sentiment, materialization → Airflow: crypto_hourly_features
+  #   - Drift detection, retraining → Airflow: crypto_hourly_features (event-driven)
+  #   - dbt transforms, Evidently reports → Airflow: crypto_lakehouse
+  #   - Daily backfill → Airflow: crypto_daily_backfill
+  #   - Data quality gates → Airflow: crypto_data_quality_gate
+  #   - Scoring → Airflow: crypto_hourly_features (after features computed)
+  #   - Weekly training → KFP recurring run (launches Katib Experiment above)
+  # =========================================================================
+
+  # --- RBAC (use-case-scoped ServiceAccount) ---
+  # OpenBao binds `crypto-pipeline-sa` (= `pipeline-sa` + namePrefix `crypto-`)
+  # to the `crypto-runtime` K8s auth role in openbao/openbao-bootstrap-crypto.yaml.
+  # The `kfp-kserve-deployer-binding` ClusterRoleBinding lives in
+  # `../cross-namespace/` so its subjects (SAs in `model-lifecycle`) are not
+  # rewritten to `use-case-crypto` by the namespace setter above.
+  - rbac/service-account.yaml
+
+  # --- OpenBao (secrets management) ---
+  # Crypto-specific bootstrap MOVED to `../cross-namespace/kustomization.yaml`.
+  # The Job, ServiceAccount, Role, and RoleBinding ALL live in `security`
+  # namespace (where OpenBao lives) — bootstrap reads `openbao-unseal`
+  # Secret there and talks to `openbao.security.svc.cluster.local:8200`.
+  # The base namespace setter (`use-case-crypto`) would clobber those
+  # explicit `metadata.namespace: security` values; cross-namespace has
+  # no setter so the explicit namespace survives. See ADR-013 split.
+
+  # --- Kueue (job queuing) ---
+  - kueue/queues.yaml
+
+  # --- Tekton (CI/CD pipeline + data modeling) ---
+  - tekton/pipeline.yaml
+  - tekton/dbt-pipeline.yaml
+
+  # --- Autoscaling ---
+  - hpa/autoscaling.yaml
+
+  # --- Network Policies (zero-trust) ---
+  - network-policies.yaml
+
+  # --- Observability (alerting routes + SLO PrometheusRules + ServiceMonitors) ---
+  - observability/alertmanagerconfig-crypto.yaml
+  - observability/servicemonitors-crypto.yaml
+  # Sloth PrometheusServiceLevel CRs (prediction-freshness, pipeline-lag,
+  # model-freshness). Compiled into multi-window burn-rate PrometheusRules
+  # by the Sloth operator (see ADR-021).
+  - observability/slos-crypto.yaml
+  # Push-helper ConfigMap (sh + py emitters) mounted by every short-lived
+  # crypto batch surface — CronJobs (supplementary-*, vector-embedding),
+  # Tekton finally tasks (build-pipeline, dbt-gold-build), Airflow DAG
+  # callbacks. Single canonical `crypto_job_*` metric family so SLOs over
+  # batch outcomes share one label key (use_case=crypto).
+  - observability/push-helper-configmap.yaml
+
+  # --- BI / Self-service analytics (Superset crypto bootstrap) ---
+  # Domain-agnostic Superset Deployment lives in platform/. Crypto owns the
+  # bootstrap Job that registers the 3 crypto-relevant databases (ClickHouse
+  # bronze/silver, Trino federated, Postgres feast registry) and the key
+  # crypto datasets via Superset REST API. Idempotent — re-runs are no-ops.
+  - superset/externalsecret.yaml
+  - superset/bootstrap-configmap.yaml
+  - superset/bootstrap-job.yaml
+
+  # --- Autoscaling (KEDA Kafka-lag ScaledObjects) ---
+  # KEDA replaces the feature-engine HPA external-metric path with a native
+  # Kafka trigger (ADR-022). Validator + analyzer scale on Kafka lag too.
+  # Gateway / dashboard-backend keep their HPAs (CPU/RPS-based).
+  - scaling/scaledobjects.yaml
+
+  # --- Stream processing (FlinkDeployment CR, ADR-023) ---
+  # Replaces the in-pod `flink-job` Deployment with an operator-managed
+  # FlinkDeployment running the crypto overlay jar in application mode.
+  - flink/flinkdeployment.yaml
+
+  # --- Progressive delivery (Argo Rollout on ml-bridge, ADR-016/025) ---
+  # Rollout owns ml-bridge pod lifecycle. The inherited platform file
+  # ml-bridge.yaml now ships only the Service (ADR-025); no Deployment
+  # exists to race the Rollout for pods.
+  - rollouts/ml-bridge-rollout.yaml
+
+  # ---------------------------------------------------------------------------
+  # CROSS-NAMESPACE RESOURCES — see `../cross-namespace/kustomization.yaml`
+  # ---------------------------------------------------------------------------
+  # The following used to live here but were moved to a sibling kustomization
+  # with NO `namespace:` setter, so each manifest's explicit
+  # `metadata.namespace` survives the build:
+  #   * kafka-topics/*.yaml             (data-ingestion)
+  #   * kafka-users/scram-users.yaml    (data-ingestion)
+  #   * authorization/edge-authz.yaml   (istio-system)
+  #   * velero-schedule.yaml            (velero)
+  #   * workflows/retrain-on-drift.yaml (model-lifecycle)
+  #   * rbac/kfp-runner.yaml            (cluster-scoped + subjects ref model-lifecycle)
+  #   * chaos/resilience-experiments.yaml (chaos-mesh)
+  # The overlay loads BOTH `../../base` and `../../cross-namespace`.
+  # ---------------------------------------------------------------------------
+
+# =============================================================================
+# PATCHES — Crypto-specific shape applied on top of platform resources
+# =============================================================================
+# Strategic-merge patches layer crypto semantics onto generic platform
+# resources (Deployments + pipeline-config ConfigMap). Patches are applied in
+# file-order, and the `schema.yaml` patch MUST come first because subsequent
+# ConfigMap patches may reference symbols/tables defined there.
+patches:
+  # --- Domain config (merges into the pipeline-config ConfigMap) ---
+  - path: configmaps/schema.yaml
+  - path: configmaps/identity.yaml
+  - path: configmaps/topics.yaml
+  - path: configmaps/sources.yaml
+  - path: configmaps/features.yaml
+  - path: configmaps/models.yaml
+  - path: configmaps/quality.yaml
+  # Overrides CLICKHOUSE_DB to "default" (crypto uses schema-qualified tables)
+  # and adds KSERVE_INFERENCE_URL pointing at the crypto InferenceService.
+  - path: configmaps/serving.yaml
+
+  # --- Service patches (layer domain behavior onto inherited Deployments) ---
+  - path: patches/rest-collector.yaml
+  - path: patches/feature-engine.yaml
+  - path: patches/supplementary-source.yaml
+  - path: patches/websocket-collector.yaml
+  # Wires SCRAM-SHA-512 / TLS Kafka credentials into validator, analyzer,
+  # feature-engine, rest-collector, websocket-collector — adds the
+  # `crypto-app-consumer` Secret as envFrom and mounts the broker CA at
+  # `/etc/kafka/ca/ca.crt` (matches KAFKA_SSL_CA_LOCATION in topics.yaml).
+  # Must come after feature-engine.yaml so its envFrom override composes
+  # with the inline /tmp/config.yaml command without dropping creds.
+  - path: patches/kafka-sasl.yaml
+
+# =============================================================================
+# KUSTOMIZE TRANSFORMER CONFIG
+# =============================================================================
+# Teaches kustomize about KEDA ScaledObject / ScaledJob scaleTargetRef so
+# namePrefix rewrites the Deployment name inside those CRs the same way it
+# already does for the built-in HorizontalPodAutoscaler. Without this, our
+# four ScaledObjects (feature-engine, validator, analyzer, gateway) would
+# render with `scaleTargetRef.name: feature-engine` etc. — targeting a
+# non-existent Deployment after the `crypto-` prefix is applied.
+# See kustomize-config/name-reference.yaml for the transformer contract.
+configurations:
+  - kustomize-config/name-reference.yaml
+
+# =============================================================================
+# COMMON LABELS
+# =============================================================================
+labels:
+  - pairs:
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/part-of: mlops-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: true

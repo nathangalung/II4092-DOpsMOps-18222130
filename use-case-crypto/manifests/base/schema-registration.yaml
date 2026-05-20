@@ -1,0 +1,157 @@
+# =============================================================================
+# SCHEMA REGISTRATION - Register JSON Schemas in Karapace Schema Registry
+# =============================================================================
+# Registers JSON schemas for Kafka topics in Karapace (Confluent-compatible).
+# Services use JSON format — schemas provide governance and validation.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: json-schemas
+  labels:
+    app: schema-registration
+data:
+  ohlcv.json: |
+    {
+      "type": "object",
+      "required": ["symbol", "timestamp", "open", "high", "low", "close", "volume"],
+      "properties": {
+        "symbol": {"type": "string"},
+        "timestamp": {"type": ["string", "integer"]},
+        "open": {"type": "number"},
+        "high": {"type": "number"},
+        "low": {"type": "number"},
+        "close": {"type": "number"},
+        "volume": {"type": "number"},
+        "source": {"type": "string"}
+      }
+    }
+  # Feature names MUST match STREAM_FEATURES_ALL in schema.yaml (single source of truth)
+  features.json: |
+    {
+      "type": "object",
+      "required": ["symbol", "timestamp", "close"],
+      "properties": {
+        "symbol": {"type": "string"},
+        "timestamp": {"type": ["string", "integer"]},
+        "close": {"type": "number"},
+        "volume": {"type": "number"},
+        "sma_20": {"type": "number"},
+        "sma_50": {"type": "number"},
+        "ema_12": {"type": "number"},
+        "ema_26": {"type": "number"},
+        "rsi_14": {"type": "number"},
+        "rsi_7": {"type": "number"},
+        "stoch_k": {"type": "number"},
+        "stoch_d": {"type": "number"},
+        "williams_r": {"type": "number"},
+        "roc_10": {"type": "number"},
+        "macd": {"type": "number"},
+        "macd_signal": {"type": "number"},
+        "bb_upper": {"type": "number"},
+        "bb_lower": {"type": "number"},
+        "bb_width": {"type": "number"},
+        "atr_14": {"type": "number"},
+        "volatility_24h": {"type": "number"},
+        "obv": {"type": "number"},
+        "mfi_14": {"type": "number"},
+        "vwap": {"type": "number"},
+        "return_1h": {"type": "number"},
+        "return_24h": {"type": "number"},
+        "adx": {"type": "number"}
+      }
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: schema-registration
+  labels:
+    app: schema-registration
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: schema-registration
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      initContainers:
+        - name: wait-for-schema-registry
+          image: busybox:1.37
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 50m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Karapace Schema Registry..."
+              until nc -zw2 karapace.data-ingestion.svc.cluster.local 8081 2>/dev/null; do
+                echo "Schema registry not ready - sleeping"
+                sleep 5
+              done
+              echo "Schema Registry is ready!"
+      containers:
+        - name: register-schemas
+          image: curlimages/curl:8.20.0
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              REGISTRY_URL="${SCHEMA_REGISTRY_URL:-http://karapace.data-ingestion.svc.cluster.local:8081}"
+
+              echo "=== Registering JSON schemas in Karapace ==="
+
+              # Register schema for each topic-value subject
+              for TOPIC_SCHEMA in "crypto.ws.raw-value:/schemas/ohlcv.json" "crypto.validated-value:/schemas/ohlcv.json" "crypto.features.v1-value:/schemas/features.json"; do
+                SUBJECT="${TOPIC_SCHEMA%%:*}"
+                SCHEMA_FILE="${TOPIC_SCHEMA##*:}"
+
+                echo ""
+                echo "=== Registering subject: $SUBJECT ==="
+                SCHEMA_CONTENT=$(cat "$SCHEMA_FILE" | tr -d '\n' | sed 's/"/\\"/g')
+
+                HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                  -X POST "$REGISTRY_URL/subjects/$SUBJECT/versions" \
+                  -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+                  -d "{\"schemaType\": \"JSON\", \"schema\": \"$SCHEMA_CONTENT\"}")
+
+                if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "409" ]; then
+                  echo "Subject '$SUBJECT' registered successfully (HTTP $HTTP_CODE)"
+                else
+                  echo "WARNING: Subject '$SUBJECT' returned HTTP $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                fi
+              done
+
+              echo ""
+              echo "=== Listing registered subjects ==="
+              curl -s "$REGISTRY_URL/subjects" | head -200
+
+              echo ""
+              echo "=== Schema registration complete ==="
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+          volumeMounts:
+            - name: schema-files
+              mountPath: /schemas
+      volumes:
+        - name: schema-files
+          configMap:
+            name: json-schemas

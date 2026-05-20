@@ -1,0 +1,110 @@
+# =============================================================================
+# Kustomize name-reference transformer configuration — KEDA ScaledObject
+# =============================================================================
+# Kustomize ships builtin name-reference transformers for core Kubernetes
+# resources (e.g., HorizontalPodAutoscaler.spec.scaleTargetRef.name is
+# automatically rewritten when namePrefix is applied to the referenced
+# Deployment). CRDs are unknown to kustomize by default, so a ScaledObject
+# declaring `scaleTargetRef.name: feature-engine` in the base will render
+# unchanged under `namePrefix: crypto-`, pointing KEDA at a Deployment that
+# no longer exists (rendered name is `crypto-feature-engine`).
+#
+# This file teaches kustomize to treat ScaledObject.spec.scaleTargetRef.name
+# as a Deployment reference so the rewrite happens automatically. Mirrors
+# the kustomize builtin behavior for HPA. Same mechanism works for any CRD
+# that references a Deployment by name — add entries here if we grow more.
+#
+# Applies to both ScaledObject and ScaledJob (the two KEDA CRs that embed
+# a scaleTargetRef). The fieldSpecs list is evaluated against every matching
+# kind; kinds with no such field are silently skipped.
+#
+# Referenced from use-case-crypto/manifests/base/kustomization.yaml via
+# `configurations:`. Also required in the platform base if platform-scope
+# ScaledObjects are ever added — copy this file under platform/.
+# =============================================================================
+nameReference:
+  - kind: Deployment
+    fieldSpecs:
+      - path: spec/scaleTargetRef/name
+        kind: ScaledObject
+      - path: spec/scaleTargetRef/name
+        kind: ScaledJob
+  # Tekton Pipeline.spec.tasks[].taskRef.name and .spec.finally[].taskRef.name
+  # reference a Task.metadata.name in the same namespace. Without this rule,
+  # `namePrefix: crypto-` rewrites Task names but leaves Pipeline taskRefs
+  # dangling, so PipelineRun submit fails with "task not found".
+  # Same pattern for EventListener bindings/template refs.
+  - kind: Task
+    fieldSpecs:
+      - path: spec/tasks/taskRef/name
+        kind: Pipeline
+      - path: spec/finally/taskRef/name
+        kind: Pipeline
+  - kind: TriggerBinding
+    fieldSpecs:
+      - path: spec/triggers/bindings/ref
+        kind: EventListener
+  - kind: TriggerTemplate
+    fieldSpecs:
+      - path: spec/triggers/template/ref
+        kind: EventListener
+  - kind: Pipeline
+    fieldSpecs:
+      - path: spec/resourcetemplates/spec/pipelineRef/name
+        kind: TriggerTemplate
+
+  # Tekton Task.spec.volumes[].configMap.name and .spec.volumes[].secret.secretName
+  # reference cluster-local ConfigMap / Secret resources mounted into the step
+  # container. Kustomize's builtin recognises Pod.spec.volumes paths but treats
+  # Task as opaque, so the `push-helper` ConfigMap reference in
+  # tekton/dbt-pipeline.yaml's `push-pipeline-metrics-task` stays unprefixed
+  # under `namePrefix: crypto-`, causing the step container to fail to mount
+  # (`ConfigMap "push-helper" not found` because the rendered name is
+  # `crypto-push-helper`).
+  - kind: ConfigMap
+    fieldSpecs:
+      - path: spec/volumes/configMap/name
+        kind: Task
+      - path: spec/sidecars/envFrom/configMapRef/name
+        kind: Task
+      - path: spec/steps/envFrom/configMapRef/name
+        kind: Task
+  - kind: Secret
+    fieldSpecs:
+      - path: spec/volumes/secret/secretName
+        kind: Task
+      - path: spec/sidecars/envFrom/secretRef/name
+        kind: Task
+      - path: spec/steps/envFrom/secretRef/name
+        kind: Task
+
+  # FlinkDeployment (flink.apache.org/v1beta1) is opaque to kustomize, so
+  # `namePrefix: crypto-` leaves `spec.serviceAccount` and `spec.podTemplate.
+  # spec.containers[].envFrom.configMapRef.name` unchanged. Without these
+  # rules the CR resolves to a non-existent `flink` SA + `pipeline-config`
+  # ConfigMap once the prefix is applied (the renamed `crypto-flink` SA +
+  # `crypto-pipeline-config` ConfigMap are then unreachable from inside the
+  # CR). Only ServiceAccount + ConfigMap refs are rewritten here — the
+  # `pipeline-secrets` / `flink-s3-secret` envFrom + env entries point at
+  # ExternalSecret `target.name` fields (opaque to kustomize, so the rendered
+  # Secret keeps its literal name) and MUST stay unprefixed.
+  - kind: ServiceAccount
+    fieldSpecs:
+      - path: spec/serviceAccount
+        kind: FlinkDeployment
+      - path: spec/podTemplate/spec/serviceAccountName
+        kind: FlinkDeployment
+      - path: spec/jobManager/podTemplate/spec/serviceAccountName
+        kind: FlinkDeployment
+      - path: spec/taskManager/podTemplate/spec/serviceAccountName
+        kind: FlinkDeployment
+  - kind: ConfigMap
+    fieldSpecs:
+      - path: spec/podTemplate/spec/containers/envFrom/configMapRef/name
+        kind: FlinkDeployment
+      - path: spec/podTemplate/spec/initContainers/envFrom/configMapRef/name
+        kind: FlinkDeployment
+      - path: spec/jobManager/podTemplate/spec/containers/envFrom/configMapRef/name
+        kind: FlinkDeployment
+      - path: spec/taskManager/podTemplate/spec/containers/envFrom/configMapRef/name
+        kind: FlinkDeployment

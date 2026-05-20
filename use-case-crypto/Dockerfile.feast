@@ -1,0 +1,82 @@
+# =============================================================================
+# Feast materialization image — crypto use case
+# =============================================================================
+# Multi-stage: builder installs feast + deps into a venv, runtime copies the
+# venv and the crypto feature definitions.  Replaces the broken
+# `FROM materialization:latest` which resolved to a non-existent Docker Hub
+# image (see platform/DECISIONS.md ADR-001, bug reported in audit).
+# =============================================================================
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
+
+# UV mandate (project policy): no `uv pip install`. We declare deps in a
+# tiny inline pyproject.toml and resolve via `uv sync`, which builds a
+# uv.lock-pinned .venv. UV_PROJECT_ENVIRONMENT pins the venv location to
+# /opt/venv so the runtime stage can `COPY --from=builder /opt/venv`.
+WORKDIR /app
+
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_NO_PROGRESS=1
+
+# Builder-only system deps for C-extension wheels that ship sdist-only on
+# uv's vendored CPython platform tag (notably `hiredis==2.4.0`, a transitive
+# of `feast[redis]`, plus `clickhouse-driver`'s Cython compile path).
+# These layers live in the builder stage and never reach the runtime image.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        g++ \
+        libc-dev \
+        python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN <<'EOF' cat > pyproject.toml
+[project]
+name = "crypto-feast"
+version = "0.62.0"
+description = "Feast materialization image for crypto use case"
+requires-python = "==3.13.*"
+dependencies = [
+    "feast[redis,clickhouse,postgres]==0.62.0",
+    "psycopg2-binary==2.9.10",
+    # NOTE: do NOT pin redis-py here. feast 0.62.x bundles a strict
+    # `redis>=4.2.2,<5` constraint via its [redis] extra; pinning a 5.x
+    # version causes uv resolution to fail with "no solution found".
+    # Valkey 7+ (our actual backing store, openbao-managed) is fully
+    # wire-compatible with the redis-py 4.x client feast pulls in.
+    "clickhouse-driver==0.2.9",
+]
+[tool.uv]
+package = false
+EOF
+
+RUN uv sync --no-dev
+
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    FEAST_REPO_PATH=/app/feature_repo \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN groupadd --gid 1000 feast && \
+    useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash feast && \
+    apt-get update && apt-get install -y --no-install-recommends gettext-base && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app/feature_repo
+COPY services/processing/feature-store/feature_store.yaml /app/feature_repo/feature_store.yaml
+COPY services/processing/feature-store/definitions.py     /app/feature_repo/definitions.py
+COPY --chmod=0755 services/processing/feature-store/entrypoint.sh /usr/local/bin/feast-entrypoint
+
+# Make /app/feature_repo writable so entrypoint can rewrite feature_store.yaml
+# in place at container start (envsubst pass — see entrypoint.sh).
+RUN chown -R feast:feast /app/feature_repo
+
+USER feast
+
+ENTRYPOINT ["/usr/local/bin/feast-entrypoint"]
+CMD ["ui", "--host", "0.0.0.0"]

@@ -1,0 +1,102 @@
+# =============================================================================
+# CRYPTO USE-CASE — Cross-Namespace Subkustomization
+# =============================================================================
+# Resources owned by the crypto use-case that live OUTSIDE the
+# `use-case-crypto` namespace (Strimzi KafkaTopics/KafkaUsers in
+# `data-ingestion`, Istio AuthorizationPolicies in `istio-system`,
+# Velero Schedule in `velero`, Argo CronWorkflow in `model-lifecycle`,
+# Chaos Mesh experiments in `chaos-mesh`, cluster-scoped RBAC whose
+# subjects reference SAs in other namespaces).
+#
+# WHY a separate kustomization?
+#   base/kustomization.yaml sets `namespace: use-case-crypto` so every
+#   Deployment/SA/CM/etc. lands in that namespace without per-file
+#   ceremony. That namespace setter would CLOBBER explicit `namespace:`
+#   fields on these cross-namespace resources, and (via the builtin
+#   FixSubjectsKindNamespace transformer) rewrite ClusterRoleBinding
+#   `subjects[].namespace` from `model-lifecycle` to `use-case-crypto`.
+#
+# This file has NO `namespace:` setter, so explicit metadata.namespace
+# values on each manifest survive. The overlay's `namePrefix: crypto-`
+# still applies, giving us `crypto-validated`, `crypto-keda-consumer`
+# etc. (broker topic names are preserved via `spec.topicName`).
+#
+# CONSUMED BY: overlays/{local,cloud}/kustomization.yaml via
+#   `resources: [..., ../../cross-namespace]`
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # --- Strimzi KafkaTopics (data-ingestion ns) ---
+  # Broker topic names preserved via `spec.topicName: crypto.<topic>`;
+  # K8s `metadata.name` is hyphenated + carries `crypto-` after the
+  # overlay namePrefix is applied.
+  - ../base/kafka-topics/crypto.rest.raw.yaml
+  - ../base/kafka-topics/crypto.ws.raw.yaml
+  - ../base/kafka-topics/crypto.validated.yaml
+  - ../base/kafka-topics/crypto.features.v1.yaml
+  - ../base/kafka-topics/crypto.trades.v1.yaml
+  - ../base/kafka-topics/crypto.orderbook.v1.yaml
+  - ../base/kafka-topics/crypto.predictions.v1.yaml
+  - ../base/kafka-topics/crypto.supplementary.yaml
+  - ../base/kafka-topics/iceberg-dlq.yaml
+
+  # --- Strimzi KafkaUsers (data-ingestion ns) ---
+  # User Operator emits SCRAM Secret of `metadata.name` in data-ingestion;
+  # ESO `external-secrets.yaml` mirrors it back into use-case-crypto as
+  # `crypto-keda-consumer` / `crypto-app-consumer`.
+  - ../base/kafka-users/scram-users.yaml
+
+  # --- Istio AuthorizationPolicies (istio-system ns) ---
+  # Edge L7 AuthZ on ingressgateway — use-case-crypto has injection
+  # disabled (ADR-009) so enforcement lives at the gateway, not in-mesh.
+  - ../base/authorization/edge-authz.yaml
+
+  # --- Velero Schedule (velero ns) ---
+  # Hourly snapshot of use-case-crypto namespace PVCs + CRs.
+  - ../base/velero-schedule.yaml
+
+  # --- Argo CronWorkflow (model-lifecycle ns) ---
+  # Retrain-on-drift (ADR-017) — Workflow controller is in model-lifecycle
+  # and reads Workflows from there.
+  - ../base/workflows/retrain-on-drift.yaml
+
+  # --- Cluster-scoped RBAC with cross-namespace subjects ---
+  # ClusterRoleBinding `kfp-kserve-deployer-binding` references SAs
+  # `default` + `pipeline-runner` in `model-lifecycle`. Setting
+  # `namespace: use-case-crypto` would corrupt those subject refs via
+  # kustomize's FixSubjectsKindNamespace builtin transformer.
+  - ../base/rbac/kfp-runner.yaml
+
+  # --- Chaos Mesh experiments (chaos-mesh ns) ---
+  # Schedules + game-day Workflow. Operator runs in chaos-mesh and
+  # discovers experiments by namespace; placing these in use-case-crypto
+  # makes them invisible to the operator.
+  - ../base/chaos/resilience-experiments.yaml
+
+  # --- OpenBao bootstrap (security ns) ---
+  # Crypto-scoped OpenBao seed Job. SA + Role + RoleBinding + Job all
+  # live in `security` (where OpenBao lives) so the Job can read the
+  # `openbao-unseal` Secret and talk to `openbao.security.svc:8200`.
+  # MUST live here (not in `../base/`) — the base namespace setter
+  # `use-case-crypto` would clobber the explicit `namespace: security`
+  # fields and break RBAC + DNS resolution. namePrefix `crypto-` from
+  # the overlay still applies, so live names are `crypto-openbao-bootstrap-crypto`.
+  - ../base/openbao/openbao-bootstrap-crypto.yaml
+
+# =============================================================================
+# COMMON LABELS
+# =============================================================================
+# `includeSelectors: false` because cross-namespace resources include
+# Istio AuthorizationPolicies whose `spec.selector.matchLabels` MUST
+# match the ingressgateway pods (which do NOT carry our use-case labels).
+# Adding our labels to those selectors would make the AuthZ rules
+# match no pods.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: mlops-platform
+      app.kubernetes.io/managed-by: kustomize
+      usecase: crypto
+    includeSelectors: false

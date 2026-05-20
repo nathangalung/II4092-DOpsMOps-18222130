@@ -1,0 +1,144 @@
+syntax = "proto3";
+package crypto;
+
+// Common OHLCV record
+message OHLCVRecord {
+    string symbol = 1;
+    int64 timestamp = 2;
+    double open = 3;
+    double high = 4;
+    double low = 5;
+    double close = 6;
+    double volume = 7;
+}
+
+// Feature vector
+message FeatureVector {
+    string symbol = 1;
+    int64 timestamp = 2;
+    repeated double values = 3;
+    repeated string names = 4;
+}
+
+// Prediction request
+message PredictRequest {
+    string symbol = 1;
+    int64 timestamp = 2;
+}
+
+// Prediction response
+message PredictResponse {
+    string symbol = 1;
+    double predicted_price = 2;
+    string signal = 3;        // BUY, SELL, HOLD
+    double confidence = 4;
+    int64 timestamp = 5;
+}
+
+// Drift detection result
+message DriftResult {
+    string scale = 1;         // minute, hour, daily, etc.
+    string feature = 2;
+    double psi_value = 3;
+    double ks_statistic = 4;
+    double ks_pvalue = 5;
+    bool drift_detected = 6;
+    string severity = 7;      // warning, severe
+    int64 timestamp = 8;
+}
+
+// Health check
+message HealthRequest {}
+message HealthResponse {
+    string status = 1;
+    string version = 2;
+}
+
+// Feature service
+service FeatureService {
+    rpc GetFeatures(FeatureRequest) returns (FeatureResponse);
+    rpc BatchGetFeatures(BatchFeatureRequest) returns (BatchFeatureResponse);
+}
+
+message FeatureRequest {
+    string symbol = 1;
+}
+
+message FeatureResponse {
+    FeatureVector features = 1;
+}
+
+message BatchFeatureRequest {
+    repeated string symbols = 1;
+}
+
+message BatchFeatureResponse {
+    repeated FeatureVector features = 1;
+}
+
+// Inference service
+service InferenceService {
+    rpc Predict(PredictRequest) returns (PredictResponse);
+    rpc BatchPredict(BatchPredictRequest) returns (BatchPredictResponse);
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message BatchPredictRequest {
+    repeated string symbols = 1;
+}
+
+message BatchPredictResponse {
+    repeated PredictResponse predictions = 1;
+}
+
+// ML Bridge service
+service MLBridgeService {
+    rpc GetPrediction(PredictRequest) returns (PredictResponse);
+    rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+    rpc GetModels(ModelsRequest) returns (ModelsResponse);
+}
+
+message MetricsRequest {
+    string symbol = 1;
+    int64 start_time = 2;
+    int64 end_time = 3;
+}
+
+message MetricsResponse {
+    repeated MetricPoint points = 1;
+}
+
+message MetricPoint {
+    int64 timestamp = 1;
+    string name = 2;
+    double value = 3;
+}
+
+message ModelsRequest {}
+
+message ModelsResponse {
+    repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+    string name = 1;
+    string version = 2;
+    string stage = 3;
+    int64 created_at = 4;
+    map<string, double> metrics = 5;
+}
+
+// Drift service
+service DriftService {
+    rpc CheckDrift(DriftRequest) returns (DriftResponse);
+}
+
+message DriftRequest {
+    string scale = 1;
+    repeated string features = 2;
+}
+
+message DriftResponse {
+    repeated DriftResult results = 1;
+    bool trigger_retrain = 2;
+}

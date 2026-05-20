@@ -1,0 +1,477 @@
+% @Bab_3.tex
+% ==========================================
+% BAB III ANALISIS MASALAH
+% ==========================================
+\chapter{ANALISIS MASALAH}
+\label{chap:analisis_masalah}
+
+% --- Analisis Kondisi Saat Ini ---
+\section{Analisis Kondisi Saat Ini}
+
+Analisis kondisi saat ini dilakukan untuk memetakan adopsi DataOps dan MLOps di institusi finansial yang sudah lebih maju. Mengacu pada kerangka sistem, ekosistem DataOps--MLOps dipandang sebagai himpunan subsistem yang saling berinteraksi, meliputi jalur \textit{data ingestion}, pemrosesan \textit{batch} dan \textit{streaming}, \textit{feature store} dan penyajian fitur, \textit{training pipeline}, \textit{model serving}, serta lapisan \textit{monitoring} dan \textit{governance}. Interaksi antarsubsistem tersebut membentuk model konseptual sistem produksi ML yang menjadi dasar untuk mengidentifikasi titik lemah arsitektural maupun operasional. Hasil analisis ini digunakan untuk mengenali pola praktik industri, kesenjangan yang masih muncul, serta area yang memerlukan penguatan agar rancangan solusi tidak berhenti pada perbaikan parsial. Selain itu, gambaran situasi ini membantu memastikan solusi yang diusulkan tetap realistis untuk diintegrasikan ke ekosistem yang sudah berjalan di organisasi nyata.
+
+Berbagai studi kasus menunjukkan bahwa persoalan data, integrasi, dan operasi merupakan hambatan utama ketika organisasi memindahkan model ML ke produksi. \textcite{paleyes2022challenges} menyoroti bahwa banyak kendala tersebut bersumber dari arsitektur yang terfragmentasi dan ketiadaan pola integrasi yang baku. Di sisi lain, \textcite{vangala2022mlops} menegaskan bahwa MLOps perlu dipandang sebagai kerangka operasional menyeluruh yang mencakup siklus hidup model AI dari awal hingga pensiun. Integrasi \textit{Continuous Integration} (CI), \textit{Continuous Deployment} (CD), dan \textit{Continuous Training} (CT) menjadi pembeda utama dibanding DevOps tradisional yang umumnya hanya berfokus pada perangkat lunak deterministik. Kondisi ini menunjukkan pentingnya pemahaman situasi saat ini sebagai pijakan sebelum merancang arsitektur yang lebih terintegrasi.
+
+\subsection{Implementasi MLOps di Institusi Finansial}
+
+Penerapan DataOps dan MLOps pada aplikasi perdagangan finansial mutakhir menunjukkan tingkat kematangan yang beragam antar organisasi. Dalam praktik, tingkat kematangan tersebut tersebar di berbagai spektrum dan dihadapkan pada hambatan adopsi di level organisasi, di tingkat sistem ML, maupun pada lapisan operasional harian. Akibatnya, banyak \textit{pipeline} yang belum sepenuhnya otomatis dan masih membutuhkan intervensi manual dalam berbagai tahap. Kajian terhadap publikasi industri dan studi kasus memperlihatkan pola umum implementasi yang dapat dijadikan cerminan situasi di lapangan, di mana perbedaan skala organisasi, kemampuan teknis, dan strategi bisnis sangat memengaruhi bentuk akhir platform MLOps \autocite{paleyes2022challenges,kartakis2022aws,vangala2022mlops}.
+
+\textbf{Institusi finansial besar} secara konsisten berinvestasi dalam pengembangan platform ML internal yang dibangun \textit{in-house}. Lembaga-lembaga ini mengembangkan platform untuk \textit{algorithmic trading} yang memanfaatkan \textit{reinforcement learning} dan analitik perdagangan canggih sebagai sumber keunggulan kompetitif. Pembangunan platform biasanya dilakukan melalui investasi multi-tahun dengan dukungan tim rekayasa berskala besar, sehingga dapat mencapai tingkat otomasi dan integrasi yang tinggi. Konsekuensinya, biaya pengembangan dan pemeliharaan menjadi sangat besar, tetapi organisasi memperoleh fleksibilitas dan kontrol hampir penuh atas seluruh rantai teknis. Pendekatan ini hanya realistis bagi institusi dengan kapasitas pendanaan dan sumber daya teknis yang kuat.
+
+Berbeda dengan itu, \textbf{bank menengah dan perusahaan \textit{fintech}} cenderung memilih pendekatan \textit{hybrid} yang menggabungkan layanan \textit{managed cloud} dengan komponen \textit{open-source} untuk kebutuhan yang lebih spesifik. Banyak institusi memanfaatkan Amazon SageMaker atau Google Vertex AI sebagai tulang punggung, lalu menambahkan alat tambahan untuk \textit{feature engineering} atau \textit{monitoring} sesuai kebutuhan strategi perdagangan masing-masing. Pendekatan \textit{hybrid} ini mencoba menyeimbangkan kemudahan operasional yang disediakan layanan terkelola dengan kebutuhan kendali yang lebih besar di area tertentu. Namun, pola ini juga memunculkan tantangan integrasi antara lingkungan yang sepenuhnya \textit{managed} dan komponen yang dikelola sendiri, sejalan dengan hambatan integrasi \textit{open-source stack} yang disorot \textcite{burgueno2025toward}.
+
+Sementara itu, \textbf{\textit{hedge fund}} dan firma perdagangan kuantitatif umumnya memilih pendekatan yang sangat kustom dengan infrastruktur yang hampir seluruhnya dibangun \textit{in-house}. Platform yang digunakan dirancang untuk mencapai latensi serendah mungkin dan \textit{throughput} setinggi mungkin, sehingga menuntut investasi besar pada infrastruktur serta keahlian teknis yang sangat khusus. Karena sifat industrinya yang kompetitif dan bertumpu pada keunggulan algoritmik, rincian implementasi teknis di lingkungan ini jarang dibuka ke publik. Praktik terbaik di sektor tersebut lebih sering disimpulkan secara tidak langsung dari publikasi teknis yang terbatas atau referensi tingkat tinggi \autocite{paleyes2022challenges,munappy2022data}. Kondisi ini memperlebar jarak antara praktik faktual di lapangan dengan dokumentasi akademik yang tersedia dan memperkuat kebutuhan \textit{blueprint} arsitektur yang dapat diakses lebih luas.
+
+\subsection{Arsitektur Umum yang Diterapkan}
+
+Analisis terhadap pola implementasi memperlihatkan sejumlah karakteristik arsitektur yang berulang di berbagai institusi. Pada \textbf{lapisan infrastruktur}, sistem umumnya dijalankan di atas \textit{cloud provider} seperti AWS, GCP, atau Azure, atau di pusat data \textit{on-premise}, dengan tingkat otomasi yang bervariasi. Kubernetes sering dipilih sebagai fondasi platform MLOps dan dipadukan dengan kombinasi alat \textit{open-source} dan solusi \textit{enterprise}. Cara organisasi memanfaatkan Kubernetes sangat beragam, mulai dari sekadar orkestrasi kontainer sampai menjadi landasan platform MLOps terintegrasi. Perbedaan tingkat pemanfaatan ini berpengaruh langsung pada cara tim membangun dan mengoperasikan \textit{pipeline} produksi.
+
+Pada \textbf{lapisan pemrosesan data}, institusi umumnya mengandalkan Apache Spark untuk \textit{batch processing} \autocite{zaharia2016spark}, serta Apache Kafka \autocite{apachekafka2024} dan Apache Flink \autocite{carbone2015apache} untuk \textit{stream processing}. Saat merancang arsitektur, organisasi sering dihadapkan pada pilihan antara \textit{Lambda Architecture} dan \textit{Kappa Architecture}. \textit{Lambda Architecture} \textcite{marz2015lambda} mengusulkan pendekatan dua jalur dengan \textit{batch layer} untuk akurasi dan \textit{speed layer} untuk latensi, tetapi menambah beban operasional karena logika bisnis harus digandakan di dua jalur \autocite{kreps2014kafka}. Sebaliknya, \textit{Kappa Architecture} \textcite{kreps2014kafka} menyederhanakan arsitektur dengan hanya mengandalkan \textit{stream processing}, tetapi menuntut \textit{stream processing framework} yang matang dan mampu menangani \textit{reprocessing} historis dalam skala besar.
+
+\textcite{rodrigues2025architecture} mencatat bahwa integrasi antara \textit{batch pipeline} dan \textit{stream pipeline} kerap tidak mulus karena adanya duplikasi logika dan kesulitan menjaga konsistensi. Di lapangan, \textit{data engineer} merancang \textit{pipeline ingestion} dari berbagai sumber seperti \textit{market data feed}, \textit{news API}, media sosial, dan \textit{alternative data provider}. Namun, \textit{pipeline} tersebut sering belum ditopang oleh pola \textit{deployment} dan \textit{monitoring} yang konsisten, sehingga gangguan operasional baru diketahui setelah dampaknya muncul di hilir. Situasi ini meningkatkan risiko inkonsistensi dan kegagalan yang sulit ditelusuri akar masalahnya, terutama ketika volume dan kecepatan data terus meningkat.
+
+\subsection{Tantangan Fragmentasi dan Kesenjangan Fungsional}
+
+Meskipun banyak institusi telah mengalokasikan sumber daya besar untuk infrastruktur ML, masalah fragmentasi dan kesenjangan fungsional masih sering muncul. \textcite{polyzotis2018data} menunjukkan bahwa ketiadaan repositori fitur terpusat membuat proses rekayasa fitur dan \textit{reuse} fitur cenderung berulang dan tidak efisien. Di sisi lain, keberadaan \textit{model registry} yang berperan sebagai penghubung antara \textit{training pipeline} dan \textit{deployment pipeline} memungkinkan penerapan \textit{continuous training} dan pengelolaan \textit{lifecycle} model yang lebih sistematis. Registry menyediakan satu sumber kebenaran atas versi model sehingga setiap perubahan dapat direkam dan dilacak dengan jelas.
+
+Dari sudut pandang arsitektur, \textit{model registry} membantu memisahkan (\textit{decouple}) \textit{pipeline} pelatihan dari \textit{pipeline} inferensi dan menurunkan \textit{technical debt} tersembunyi yang diidentifikasi \textcite{sculley2015hidden}. Pendekatan ini mengelola \textit{lineage} model dan dependensi sebagai metadata kelas satu, bukan informasi sampingan. Tanpa komponen terpusat seperti ini, perubahan kecil pada data atau kode dapat memengaruhi model produksi tanpa tercatat dengan baik, sehingga risiko kesalahan dan hambatan audit meningkat. Secara ringkas, bentuk fragmentasi dan kesenjangan yang lazim ditemukan dapat dirangkum sebagai berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Fragmentasi \textit{Feature Engineering} dan \textit{Training–Serving Skew}}
+    
+    Di banyak sistem, proses rekayasa fitur masih dijalankan secara \textit{ad hoc} oleh tim yang berbeda, dengan logika komputasi tersebar di Jupyter \textit{Notebook}, skrip Python, atau aplikasi kustom. Tidak adanya \textit{feature store} terpusat menyulitkan \textit{reuse} fitur yang telah dibangun sebelumnya dan mendorong munculnya definisi fitur ganda dengan makna serupa. \textit{Training–serving skew} muncul ketika logika perhitungan fitur pada fase pelatihan tidak identik dengan logika yang digunakan saat \textit{inference} di produksi. Kondisi ini menurunkan kinerja model ketika dijalankan di lingkungan nyata, menyulitkan diagnosis masalah, dan menambah beban pemeliharaan jangka panjang.
+
+    \vspace{0.5em}
+
+    \item \textbf{Keterbatasan \textit{Experiment Tracking} dan Reproduksibilitas}
+    
+    Pada banyak organisasi, \textit{experiment tracking} belum menjadi praktik standar dan sering kali tidak dilakukan secara disiplin. Parameter, konfigurasi, dan hasil eksperimen kerap disimpan pada \textit{spreadsheet}, wiki internal, atau bahkan hanya di \textit{notebook} pribadi pengembang. \textcite{pimentel2019notebooks} menemukan bahwa hanya 24{,}11\% \textit{notebook} publik yang dapat dijalankan ulang tanpa galat dan hanya 4{,}03\% yang benar-benar dapat mereplikasi hasil, yang menggambarkan lemahnya reproduksibilitas ketika eksperimen dan artefak tidak tercatat secara sistematis. Situasi serupa mudah terjadi di lingkungan internal jika \textit{experiment tracking} tidak diperlakukan sebagai bagian inti MLOps.
+
+    \vspace{0.5em}
+
+    \item \textbf{Proses \textit{Deployment} Manual dan Tantangan Skalabilitas}
+    
+    Di banyak arsitektur, proses \textit{deployment} dan \textit{model serving} masih bergantung pada infrastruktur kustom atau kerangka API generik yang dirakit bertahun-tahun sebelumnya. \textcite{shankar2022operationalizing} mencatat bahwa proses \textit{deployment} sering kali masih manual atau hanya semiotomatis dan memerlukan koordinasi intensif lintas peran. Dukungan terhadap pola \textit{canary release}, \textit{A/B testing}, atau \textit{blue--green deployment} umumnya belum tersedia secara \textit{built-in} dan jika pun ada, sering hanya diimplementasikan secara \textit{ad hoc}. Penskalaan layanan juga kerap diatur secara statis, sehingga sistem sulit beradaptasi terhadap perubahan beban dan pemanfaatan sumber daya menjadi kurang efisien.
+
+    \vspace{0.5em}
+
+    \item \textbf{\textit{Monitoring} Reaktif dan Degradasi Model Senyap}
+    
+    Pada banyak sistem, \textit{monitoring} masih berfokus pada metrik infrastruktur seperti CPU, memori, dan latensi, sedangkan visibilitas metrik spesifik ML masih terbatas. Kerangka tiga pilar \textit{Cloud Native Computing Foundation} (CNCF) mencakup \textbf{metrics}, \textbf{logs}, dan \textbf{traces}, tetapi instrumentasi yang secara eksplisit mendukung model ML belum banyak diadopsi. Tanpa dukungan ini, penurunan kualitas prediksi, \textit{data drift}, dan \textit{concept drift} sering terlewat sampai dampaknya dirasakan pada indikator bisnis.
+    
+    Lingkungan finansial yang nonstasioner menuntut \textit{monitoring drift} yang proaktif agar penurunan kinerja dapat terdeteksi sebelum memengaruhi hasil perdagangan secara signifikan. Dalam praktik, degradasi model masih sering diketahui lewat indikator bisnis seperti penurunan \textit{P\&L}, bukan melalui \textit{monitoring} otomatis yang terstruktur. Pola ini membuat respons terhadap masalah menjadi terlambat dan menambah risiko bagi strategi perdagangan.
+
+    \vspace{0.5em}
+
+    \item \textbf{Kesenjangan \textit{Governance} dan Risiko \textit{Compliance}}
+    
+    Pada banyak sistem, praktik tata kelola dan \textit{compliance} masih bergantung pada proses manual dan dokumentasi yang tersebar. \textcite{stoyanovich2020responsible} menekankan pentingnya \textit{lineage} otomatis dan \textit{governance} menyeluruh sepanjang \textit{lifecycle} sistem keputusan otomatis. Tanpa kemampuan ini, organisasi kesulitan menelusuri asal-usul data, transformasi yang dilakukan, dan bagan tanggung jawab atas keputusan yang dihasilkan model. Kontrol akses cenderung \textit{coarse-grained}, \textit{audit trail} tidak lengkap, dan analisis forensik menjadi lambat, sehingga risiko kepatuhan meningkat di lingkungan yang diatur ketat oleh regulator.
+\end{enumerate}
+
+\subsection{Tantangan Spesifik Domain Perdagangan}
+
+Pada domain perdagangan saham dan \textit{cryptocurrency}, terdapat tantangan tambahan yang bersumber dari karakteristik pasar yang sangat dinamis. Data pasar mengalir dengan kecepatan tinggi, dengan \textit{tick data} yang dapat mencapai ratusan ribu hingga jutaan \textit{event} per detik. Dalam konteks ini, arsitektur \textit{event-driven} menjadi pendekatan kunci untuk menangani \textit{real-time data streaming}. Arsitektur ini menggunakan pola komunikasi asinkron berbasis \textit{event} untuk membangun \textit{loose coupling}, skalabilitas horizontal, dan responsivitas tinggi \autocite{aws2024edapatterns,stopford2018designing}. Amazon Web Services (AWS) mendefinisikan arsitektur \textit{event-driven} sebagai arsitektur yang menggunakan \textit{event} untuk memicu dan menghubungkan layanan yang terdekopel, sehingga produksi, deteksi, konsumsi, dan reaksi terhadap \textit{event} dapat dikelola secara terpisah.
+
+Komponen inti arsitektur \textit{event-driven} meliputi \textit{event producer}, \textit{event broker/router} (misalnya Apache Kafka), dan \textit{event consumer} yang memproses \textit{event} secara asinkron untuk mencapai \textit{fault tolerance} dan skalabilitas \autocite{stopford2018designing}. Persyaratan latensi pada domain ini sangat ketat karena proses \textit{inference} sering harus tuntas dalam satu digit milidetik. Isu kualitas data juga sering muncul, misalnya data salah dari bursa, celah data akibat gangguan jaringan, atau \textit{corporate action} yang mengharuskan penyesuaian ulang historis \textcite{chien2022improve}. Di samping itu, regulasi mengharuskan adanya \textit{audit trail} rinci, perlindungan privasi, dan kemampuan menjelaskan \textit{fairness} serta \textit{transparency} model, sehingga tuntutan tata kelola menjadi jauh lebih ketat.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Kompleksitas Integrasi \textit{Alternative Data}}
+    
+    \textit{Alternative data} semakin sering dijadikan sumber \textit{alpha} di pasar yang kompetitif. Analisis sentimen dari artikel berita, unggahan media sosial, \textit{earnings call transcript}, dan sumber tak terstruktur lainnya memberikan sinyal tambahan di luar harga dan volume. Namun, memadukan fitur berbasis \textit{embedding} ke dalam sistem yang sudah beroperasi bukanlah tugas yang sederhana. Karakteristik \textit{embedding} berbeda dari fitur tabular, sehingga memerlukan jalur pemrosesan dan \textit{serving} yang berbeda. Dalam praktik, dibutuhkan \textit{pipeline} khusus untuk ekstraksi, normalisasi, dan penyajian \textit{embedding} agar model dapat memanfaatkannya secara konsisten dan terukur.
+
+    \textit{Vector similarity search} menjadi komponen inti untuk memanfaatkan \textit{alternative data} dalam sistem perdagangan modern. Algoritme HNSW (\textit{Hierarchical Navigable Small World}) banyak digunakan untuk \textit{Approximate Nearest Neighbor} (ANN) search karena mampu menyeimbangkan kecepatan dan akurasi. HNSW membentuk graf berlapis dengan koneksi jarak jauh di lapisan atas untuk navigasi cepat dan struktur rapat di lapisan bawah untuk presisi, sehingga pencarian semantik berlatensi rendah dalam skala besar dapat dicapai. Dengan demikian, dukungan terhadap \textit{vector search} menjadi elemen penting dalam arsitektur target yang ingin memanfaatkan \textit{embeddings} secara sistematis.
+
+    \vspace{0.5em}
+
+    \item \textbf{Tantangan Validitas Temporal}
+    
+    Proses \textit{backtesting} di domain ini menjadi lebih rumit karena kuatnya dependensi temporal dan tingginya risiko \textit{data leakage}. \textcite{polyzotis2018data} menegaskan bahwa validitas temporal, validasi data, dan \textit{provenance} merupakan kunci integritas evaluasi, karena kebocoran temporal dapat merusak keandalan hasil uji. \textcite{wang2021leakage} menunjukkan bahwa penggunaan \textit{random split} pada \textit{time-series} finansial dapat menyebabkan \textit{information leakage} dan menyarankan pemisahan data secara kronologis (\textit{pseudo real-time}). Menjaga \textit{point-in-time correctness} sambil tetap melayani \textit{throughput} tinggi menjadi tantangan teknis besar yang belum sepenuhnya terjawab oleh mayoritas sistem yang ada saat ini.
+\end{enumerate}
+
+\subsection{Kesenjangan Kritis yang Teridentifikasi}
+
+Berdasarkan analisis sistematis terhadap \textit{current state} implementasi di industri, terdapat beberapa celah kritis yang menjadi fokus utama proposal ini \autocite{polyzotis2018data,stoyanovich2020responsible,shankar2022operationalizing}. Celah-celah ini menggambarkan area yang belum tercakup secara menyeluruh oleh praktik dan platform yang ada saat ini dan menjadi sasaran perbaikan arsitektural. Dengan merumuskan kesenjangan secara eksplisit, rancangan arsitektur dapat diarahkan pada masalah yang paling berdampak terhadap keandalan sistem.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item Belum tersedia arsitektur terintegrasi yang secara konsisten menghubungkan \textit{data ingestion}, \textit{feature engineering}, pelatihan model, \textit{deployment}, dan \textit{monitoring} ke dalam satu platform yang koheren dengan \textit{workflow} otomatis dari ujung ke ujung.
+
+    \vspace{0.5em}
+
+    \item Alat untuk menjamin validitas temporal dan mencegah kebocoran data pada konteks \textit{time-series} masih terbatas, padahal aspek ini sangat menentukan validitas model dan sering diabaikan atau hanya diterapkan secara \textit{ad hoc}. 
+    
+    \vspace{0.5em}
+
+    \item Dukungan terhadap tipe data modern seperti \textit{vector embeddings} pada infrastruktur \textit{feature serving} masih kurang, sehingga pemanfaatan \textit{alternative data} yang semakin penting menjadi tidak optimal.
+
+    \vspace{0.5em}
+
+    \item \textit{Monitoring} proaktif untuk mendeteksi \textit{drift} dan memicu remediasi otomatis belum tersedia secara menyeluruh, sehingga degradasi model kerap terjadi secara senyap dan baru terdeteksi melalui indikator bisnis.
+
+    \vspace{0.5em}
+
+    \item Ketiadaan \textit{governance} terpusat dan manajemen metadata yang mendukung \textit{discoverability} serta \textit{compliance} mengakibatkan inefisiensi operasional dan meningkatkan risiko pelanggaran regulasi.
+
+    \vspace{0.5em}
+\end{enumerate}
+
+\textcite{burgueno2025toward} mencatat bahwa meskipun telah tersedia banyak alat \textit{open-source} berkualitas untuk tiap aspek DataOps dan MLOps, integrasi mulus dengan pengalaman pengguna terpadu, manajemen metadata konsisten, \textit{workflow} otomatis dari data hingga model, serta \textit{governance} komprehensif masih sulit dicapai. Menutup celah ini memerlukan pendekatan arsitektural yang holistik dengan mengombinasikan komponen \textit{open-source} yang tepat dan menyusunnya menjadi satu platform terintegrasi. Pendekatan arsitektural tersebut menjadi ruang kontribusi utama proposal tugas akhir ini.
+
+% --- Analisis Kebutuhan ---
+\section{Analisis Kebutuhan}
+
+Analisis kebutuhan dilakukan untuk menerjemahkan masalah yang telah dipetakan menjadi spesifikasi yang konkret dan dapat diimplementasikan dalam bentuk sistem. Proses ini mengikuti kerangka \textit{requirements engineering} yang meliputi identifikasi kebutuhan melalui analisis \textit{user journey}, perumusan kebutuhan fungsional, dan penyusunan kebutuhan nonfungsional \autocite{sommerville2016software}. \textcite{nuseibeh2000requirements} menekankan bahwa kualitas suatu sistem sangat ditentukan oleh pemahaman yang tepat mengenai konteks operasional dan batasan domain. Dalam domain perdagangan finansial, konteks tersebut mencakup kompleksitas teknis, dinamika data, dan regulasi yang ketat.
+
+Pendekatan \textit{goal-oriented requirements engineering} \autocite{lamsweerde2009requirements} digunakan agar setiap kebutuhan selalu terkait dengan tujuan bisnis dan teknis yang jelas. Dengan demikian, setiap kebutuhan yang dirumuskan memiliki alasan keberadaan yang dapat dijelaskan, bukan sekadar daftar fitur terpisah. Seluruh kebutuhan yang dihasilkan kemudian menjadi landasan bagi desain arsitektur yang akan disusun, sekaligus kriteria untuk mengevaluasi keberhasilan implementasi \textit{proof-of-concept} yang direncanakan setelah proposal ini.
+
+\subsection{Identifikasi Masalah Pengguna}
+
+Untuk memperoleh gambaran kebutuhan yang komprehensif, dilakukan analisis terhadap masalah yang dihadapi berbagai \textit{persona} kunci dalam \textit{workflow} ML. Tiga \textit{persona} utama yang dikaji adalah \textit{Data Engineer}, \textit{Data Scientist}, dan \textit{ML Engineer}. Masing-masing peran memiliki tanggung jawab, alur kerja, dan hambatan yang berbeda, sehingga sistem perlu dirancang agar mampu mengakomodasi kebutuhan semua pihak. Sejalan dengan \textcite{amershi2019software}, proposal ini menggunakan pendekatan berbasis \textit{persona} untuk menangkap kebutuhan lintas peran secara tajam dan sistematis.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{\textit{Data Engineer} -- Dian}
+
+    Dian adalah seorang \textit{Senior Data Engineer} di tim \textit{quantitative trading} yang bertanggung jawab membangun dan memelihara \textit{pipeline} data untuk \textit{ingestion}, pemrosesan, dan \textit{serving} data ke proses pelatihan maupun \textit{inference} model. Ia memiliki latar belakang \textit{distributed systems} dan \textit{data engineering}, serta berpengalaman menggunakan Spark, Kafka, dan berbagai basis data SQL. Tugas hariannya mencakup menjaga kualitas dan \textit{freshness} data, mengoptimalkan kinerja \textit{pipeline}, dan memastikan ketersediaan data bagi tim di hilir. Dengan peran tersebut, efisiensi dan keandalan \textit{pipeline} sangat memengaruhi produktivitas keseluruhan tim.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Masalah 1: Kompleksitas Manajemen Sistem}
+        
+        Dian dihadapkan pada kompleksitas tinggi ketika harus mengelola berbagai kerangka pemrosesan data dan sistem penyimpanan secara bersamaan. Setiap tahap dalam \textit{pipeline} mengandalkan alat yang berbeda, misalnya Flink untuk fitur \textit{real-time}, Spark untuk agregasi historis, dan beberapa basis data yang saling terhubung. Upaya menjaga konsistensi dan keseragaman antarsistem menyita banyak waktu dan energi. \textcite{polyzotis2018data} menekankan bahwa tantangan pada \textit{data lifecycle} menjadi salah satu sumber utama kompleksitas dan memerlukan penanganan yang lebih terstruktur. Dalam praktik, Dian sering menghabiskan waktu menelusuri isu kualitas data yang sulit dilacak karena \textit{lineage} dan \textit{distributed tracing} belum lengkap.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 2: Sulitnya Penegakan Validitas Temporal}
+        
+        Karena data finansial memiliki ketergantungan temporal yang kuat, kebocoran informasi masa depan ke data pelatihan dapat terjadi jika tidak dikendalikan dengan hati-hati. Dian harus menulis logika \textit{join} yang kompleks untuk memastikan hanya data yang benar-benar tersedia pada waktu tertentu yang ikut digunakan. Implementasi manual semacam ini memakan waktu dan rentan terhadap kesalahan halus yang sulit terdeteksi. \textcite{polyzotis2018data} menegaskan pentingnya validitas temporal bagi integritas evaluasi, dan \textcite{wang2021leakage} menunjukkan bahwa \textit{random splitting} menyebabkan evaluasi tidak valid pada data finansial yang bersifat \textit{time-series}.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 3: Beban Operasional Pemeliharaan \textit{Pipeline}}
+        
+        Perubahan skema data dari penyedia pasar secara berkala memicu kegagalan \textit{pipeline} dan menuntut perbaikan segera. Ketika ditemukan isu kualitas data, Dian harus menelusuri rangkaian panjang logika transformasi untuk mengidentifikasi sumber masalah. \textit{Monitoring} yang tersedia cenderung reaktif, sehingga \textit{alert} biasanya muncul setelah terjadi kegagalan. \textcite{shankar2022operationalizing} menyoroti bahwa banyak aktivitas pemeliharaan ML di produksi masih dilakukan secara manual atau \textit{ad hoc}, sehingga memperberat beban operasional dan mengurangi ruang untuk perbaikan strategis.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 4: Friksi Kolaborasi}
+        
+        \textit{Data scientist} kerap mengajukan permintaan fitur baru atau transformasi kompleks yang harus direalisasikan oleh Dian di tingkat \textit{pipeline}. Ketiadaan fasilitas \textit{self-service} data membuat \textit{data scientist} sangat bergantung pada tim data engineering untuk mengakses dataset atau fitur tertentu. Ketergantungan ini menciptakan \textit{bottleneck} dan memperlambat iterasi pengembangan model. Berbagai studi mengenai integrasi MLOps--DataOps menyoroti bahwa friksi kolaborasi antara tim data dan tim model merupakan salah satu penghambat utama produktivitas.
+    
+        \vspace{0.5em}
+    \end{enumerate}
+
+    \item \textbf{\textit{Data Scientist} -- Sarah}
+
+    Sarah adalah seorang \textit{Data Scientist} dengan latar belakang \textit{quantitative finance} yang bertugas mengembangkan model prediktif untuk strategi perdagangan. Ia menguasai algoritme ML, pemodelan statistik, dan memahami dinamika pasar, serta sehari-hari bekerja dengan Python dan berbagai \textit{framework} ML. Tanggung jawabnya mencakup \textit{exploratory data analysis}, \textit{feature engineering}, pengembangan model, \textit{hyperparameter tuning}, dan validasi kinerja model. Produktivitas Sarah sangat ditentukan oleh kemudahan mengakses data, mengelola eksperimen, dan berkolaborasi dengan tim lain.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Masalah 1: Sulitnya Penemuan dan Pemanfaatan Fitur}
+        
+        Tim telah membangun ratusan fitur dari berbagai sumber dan periode waktu, tetapi belum tersedia katalog terpusat yang menjelaskan makna fitur, rumus perhitungan, dan detail penggunaannya. Sarah sering kali tidak mengetahui bahwa fitur yang ia butuhkan sebenarnya sudah ada, sehingga banyak pekerjaan rekayasa fitur yang terduplikasi. Ketiadaan \textit{feature store} dan katalog fitur terpusat membuat proses \textit{reuse} sulit dilakukan dan mendorong fragmentasi definisi fitur di seluruh organisasi.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 2: Waktu Berlebih pada Persiapan Data}
+        
+        Sarah menghabiskan porsi besar waktunya untuk \textit{data wrangling} seperti menulis \textit{join}, menangani \textit{missing value}, dan memastikan validitas temporal. Tugas-tugas ini berulang di banyak proyek dan menunda aktivitas bernilai tinggi seperti eksplorasi ide model baru atau analisis performa yang mendalam. \textcite{polyzotis2018data} menyoroti bahwa kompleksitas \textit{data lifecycle} sering menjadi penghalang utama dalam pemanfaatan ML, dan situasi Sarah mencerminkan temuan tersebut secara langsung di konteks perdagangan finansial.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 3: Tantangan \textit{Experiment Tracking} dan Reproduksibilitas}
+        
+        Sarah menjalankan banyak eksperimen secara paralel untuk menguji kombinasi fitur dan konfigurasi model. Tanpa \textit{experiment tracking} yang memadai, ia kesulitan menelusuri eksperimen mana yang menghasilkan model terbaik dan alasan di balik pemilihan model tersebut. \textcite{pimentel2019notebooks} menunjukkan rendahnya kemampuan re-eksekusi \textit{notebook} publik akibat kurangnya pelacakan sistematis terhadap \textit{dependency} dan konfigurasi. Kondisi ini berpotensi terulang dalam lingkungan internal jika \textit{experiment tracking} tidak ditangani sebagai bagian penting dari praktik MLOps.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 4: Sulitnya Integrasi \textit{Alternative Data}}
+        
+        Data tak terstruktur seperti sentimen berita dan media sosial memerlukan \textit{pipeline} tersendiri untuk menghasilkan \textit{embedding} sebagai fitur. Infrastruktur \textit{feature serving} yang ada biasanya dirancang untuk data tabular dan belum menyediakan dukungan bawaan untuk \textit{similarity search}. \textit{Vector similarity search} skala besar menuntut indeks seperti PQ dan sering kali membutuhkan akselerasi GPU \autocite{jegou2011product,johnson2021billion}. Keterbatasan ini menyebabkan Sarah kesulitan memasukkan \textit{alternative data} secara konsisten ke dalam model produksi, meskipun secara teoritis sinyal tersebut memiliki potensi besar.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 5: Visibilitas Kinerja Model Terbatas}
+        
+        Setelah model di-\textit{deploy}, Sarah sering baru menyadari penurunan kinerja melalui indikator bisnis, bukan dari \textit{dashboard} teknis. Fasilitas \textit{monitoring real-time} yang mampu mendeteksi \textit{drift} secara dini masih belum memadai. Idealnya, sistem \textit{real-time analytics} menggabungkan \textit{stream processing}, \textit{real-time inference}, dan arsitektur \textit{event-driven}. Dalam pasar yang nonstasioner, kebutuhan \textit{monitoring drift} proaktif menjadi krusial karena distribusi data berubah dari waktu ke waktu dan dapat berdampak langsung pada hasil perdagangan.
+    
+        \vspace{0.5em}
+    \end{enumerate}
+
+    \item \textbf{\textit{ML Engineer} -- Michael}
+
+    Michael adalah seorang \textit{ML Engineer} yang bertugas mengoperasionalkan model ke sistem perdagangan produksi. Ia memiliki latar belakang rekayasa perangkat lunak dan \textit{distributed systems}, serta terbiasa bekerja dengan kontainerisasi, orkestrasi, dan CI/CD. Tanggung jawab utamanya adalah membangun \textit{deployment pipeline}, memastikan model memenuhi persyaratan kinerja, serta menerapkan \textit{monitoring} dan \textit{alerting} yang memadai. Dengan posisi tersebut, Michael menjadi penghubung utama antara dunia eksperimen dan sistem produksi yang melayani permintaan nyata.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Masalah 1: Besarnya Upaya \textit{Productionization}}
+        
+        Model yang diserahkan oleh \textit{data scientist} biasanya masih berupa Jupyter \textit{Notebook} atau skrip eksperimen yang belum siap produksi. Michael harus melakukan \textit{refactor} menjadi layanan \textit{backend} dengan kemampuan \textit{error handling}, \textit{logging}, instrumentasi \textit{monitoring}, dan optimasi kinerja yang memadai. Proses ini dapat memakan waktu signifikan untuk setiap model baru, sehingga kapasitas tim tersita untuk pekerjaan berulang. \textcite{paleyes2022challenges} mencatat bahwa usaha operasionalisasi model di produksi sering jauh lebih besar dibanding upaya pengembangan awal.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 2: Kompleksitas \textit{Model Deployment Lifecycle Management}}
+        
+        Lingkungan perdagangan menuntut kemampuan menjalankan beberapa versi model secara bersamaan untuk \textit{A/B testing}, \textit{canary deployment}, dan \textit{rollback} cepat jika terjadi masalah. Implementasi manual pola-pola ini di atas infrastruktur generik membutuhkan orkestrasi yang rumit dan rentan kesalahan konfigurasi. Platform MLOps dapat membantu mengotomatisasi sebagian proses, tetapi implementasinya di setiap organisasi masih sangat bervariasi dan tidak selalu terhubung secara rapi dengan sistem yang sudah ada.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 3: Tantangan Persyaratan Kinerja Ketat}
+        
+        Aplikasi perdagangan sering menuntut \textit{prediction latency} pada orde satu digit milidetik di p99, sehingga ruang toleransi untuk overhead sangat sempit. Michael harus melakukan \textit{profiling}, mengoptimalkan serialisasi, mengonfigurasi \textit{thread}, dan menyetel parameter infrastruktur secara detail. \textcite{munappy2022data} menegaskan bahwa sistem \textit{deep learning} produksi memerlukan manajemen \textit{data lifecycle} yang kompleks dan infrastruktur khusus, sehingga upaya untuk mencapai kinerja tinggi menjadi tantangan struktural lintas lapisan.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 4: Sulitnya Implementasi \textit{Monitoring} Komprehensif}
+        
+        Sistem ML membutuhkan \textit{monitoring} yang mencakup metrik umum infrastruktur dan metrik khusus ML seperti distribusi prediksi, distribusi fitur, dan indikator \textit{drift}. Tanpa platform \textit{observability} terintegrasi, Michael harus menggabungkan banyak alat berbeda secara manual, yang menambah kompleksitas operasional dan berpotensi menimbulkan kesenjangan observabilitas. \textit{Distributed tracing} berbasis OpenTelemetry banyak dimanfaatkan untuk memberikan visibilitas \textit{end-to-end}, dan \textcite{shankar2022operationalizing} menekankan pentingnya \textit{observability} yang melampaui metrik infrastruktur semata.
+
+        \vspace{0.5em}
+
+        \item \textbf{Masalah 5: Tantangan \textit{Model Governance} dan Kepastian \textit{Compliance}}
+        
+        Firma perdagangan berada di bawah pengawasan regulator yang menuntut \textit{fairness}, \textit{transparency}, dan \textit{explainability} terhadap model yang digunakan. Michael harus memastikan bahwa setiap prediksi memiliki \textit{audit log} yang memadai dan \textit{lineage} model dapat ditelusuri dari data hingga \textit{deployment}. \textcite{stoyanovich2020responsible} menegaskan perlunya \textit{governance} yang komprehensif, namun banyak sistem produksi yang masih belum memenuhi standar tersebut. Keterbatasan dalam tata kelola berpotensi menimbulkan risiko \textit{compliance} yang signifikan bagi organisasi.
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Sintesis Kebutuhan dari Analisis \textit{Persona}}
+
+Dari analisis terhadap ketiga \textit{persona} di atas, muncul sejumlah tema umum yang dapat digunakan untuk menyarikan kebutuhan sistem secara lintas peran. Tema-tema ini merangkum masalah yang paling sering muncul dan memiliki dampak besar terhadap produktivitas serta keandalan sistem secara keseluruhan. Dengan menyatukan pola-pola ini, perancangan kebutuhan menjadi lebih terarah dan tidak terjebak pada perbaikan yang hanya menguntungkan satu peran saja.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Ketiadaan platform terintegrasi} memaksa pengguna bekerja dengan banyak alat dan layanan yang tidak selalu terhubung secara baik, sehingga menimbulkan friksi dalam \textit{workflow} dan meningkatkan risiko kesalahan integrasi.
+
+    \vspace{0.5em}
+    
+    \item \textbf{Tingkat otomasi yang belum memadai} menyebabkan pengguna menghabiskan waktu signifikan untuk tugas rutin berulang, seperti penyiapan data dan pengelolaan \textit{deployment}, yang seharusnya dapat diotomatisasi.
+
+    \vspace{0.5em}
+
+    \item \textbf{Keterbatasan \textit{observability}} membuat proses \textit{troubleshooting} cenderung reaktif dan memakan waktu karena akar masalah sulit ditelusuri secara \textit{end-to-end}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Ketiadaan kapabilitas \textit{governance} yang kuat} meningkatkan risiko \textit{compliance} dan menghambat kolaborasi, karena informasi mengenai fitur, model, dan \textit{pipeline} tidak terdokumentasi dengan rapi dan sulit dicari kembali.
+
+    \vspace{0.5em}
+\end{enumerate}
+
+Menjawab tema-tema ini memerlukan solusi yang tidak hanya menambal titik masalah tertentu, tetapi menghadirkan platform dengan kapabilitas terintegrasi yang selaras dengan \textit{workflow} ML di konteks perdagangan finansial. Sasaran tersebut menjadi pijakan utama dalam perancangan sistem yang dikembangkan pada proposal tugas akhir ini.
+
+\subsection{Kebutuhan Fungsional}
+
+Berdasarkan analisis masalah pengguna, kebutuhan fungsional dirumuskan untuk menggambarkan perilaku dan kemampuan spesifik yang harus disediakan oleh sistem. Setiap kebutuhan diberi kode dengan \textit{prefix} KF untuk memudahkan \textit{traceability} selama proses perancangan dan implementasi \autocite{sommerville2016software,lamsweerde2009requirements}. Dengan penandaan ini, setiap keputusan desain dapat ditelusuri kembali ke kebutuhan yang ingin dipenuhi.
+
+Kebutuhan fungsional ini juga dipetakan secara langsung terhadap \textit{gap} kritis pada \textit{current state}, khususnya terkait integrasi \textit{end-to-end}, validitas temporal, dukungan \textit{embedding}, otomatisasi \textit{deployment}, dan \textit{governance} terpusat. Pemetaan tersebut membantu memastikan bahwa rancangan arsitektur yang disusun tetap fokus pada permasalahan utama yang telah diidentifikasi dan tidak bergeser ke fitur-fitur yang tidak esensial.
+
+\input{tables/kebutuhan_fungsional}
+
+\vspace{-0.5cm}
+
+\subsection{Kebutuhan Nonfungsional}
+
+Kebutuhan nonfungsional menjabarkan atribut mutu dan batasan yang harus dipenuhi agar sistem beroperasi dengan baik di lingkungan produksi. Kebutuhan ini memastikan sistem tidak hanya berfungsi secara teknis, tetapi juga memenuhi tuntutan kinerja, keandalan, keamanan, dan kemudahan penggunaan yang relevan dengan operasi harian. Dengan demikian, sistem yang dibangun tidak berhenti sebagai prototipe, tetapi memiliki potensi untuk dioperasionalkan secara berkelanjutan.
+
+Setiap kebutuhan nonfungsional diberi kode dengan \textit{prefix} KNF untuk menjaga \textit{traceability} selama siklus pengembangan \autocite{sommerville2016software,lamsweerde2009requirements}. Target metrik pada tabel digunakan sebagai tolok ukur dalam mengevaluasi performa \textit{proof-of-concept}. Hasil pengujian terhadap metrik ini berperan sebagai indikator apakah rancangan arsitektur mendekati tujuan yang diharapkan dan kapan perbaikan lanjutan diperlukan.
+
+\input{tables/kebutuhan_nonfungsional}
+
+\vspace{-0.5cm}
+
+% --- Analisis Pemilihan Solusi ---
+\section{Analisis Pemilihan Solusi}
+
+Setelah kebutuhan fungsional dan nonfungsional dirumuskan, langkah berikutnya adalah menganalisis alternatif solusi yang dapat digunakan untuk memenuhi kebutuhan tersebut. Tahap ini berfungsi sebagai penghubung antara rumusan kebutuhan dan desain arsitektur konkret yang akan dibangun sehingga keputusan yang diambil memiliki dasar yang terukur dan dapat dipertanggungjawabkan secara teknis maupun konseptual.
+
+Proses analisis mengikuti metodologi \textit{Multi-Criteria Decision Analysis} (MCDA) untuk mengevaluasi alternatif arsitektural berdasarkan kriteria yang telah didefinisikan \autocite{saaty2008decision}. \textcite{triantaphyllou2000multi} menegaskan bahwa keputusan arsitektural dengan banyak dimensi memerlukan pendekatan terstruktur yang mampu mengakomodasi berbagai tujuan dan batasan secara simultan. Dengan MCDA, setiap alternatif dinilai melalui kriteria yang sama sehingga hasil perbandingan menjadi lebih transparan dan mudah dijelaskan.
+
+\subsection{Alternatif Solusi}
+
+Sejumlah alternatif pendekatan arsitektural diidentifikasi untuk membangun platform DataOps dan MLOps yang sesuai dengan kebutuhan sistem. Setiap alternatif mencerminkan filosofi yang berbeda mengenai tingkat integrasi, jenis teknologi, dan \textit{trade-off} antara kontrol dan kemudahan pengelolaan. \textcite{burgueno2025toward} menunjukkan bahwa pemilihan pendekatan arsitektur berdampak langsung pada kompleksitas implementasi dan \textit{maintainability} jangka panjang. Di sisi lain, \textcite{najafabadi2024analysis} memetakan 35 komponen arsitektural dan varian desain MLOps, sehingga menyediakan referensi untuk membandingkan alternatif secara sistematis.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Alternatif 1: Solusi \textit{Fully Managed Cloud Provider}}
+
+    Pendekatan ini bertumpu pada platform ML terkelola yang disediakan oleh \textit{cloud provider} seperti Amazon SageMaker, Google Vertex AI, atau Microsoft Azure ML. Platform-platform tersebut umumnya menawarkan rangkaian layanan terintegrasi untuk mendukung siklus hidup ML, mulai dari persiapan data, pelatihan, hingga \textit{deployment} dan \textit{monitoring}. Dengan memanfaatkan solusi \textit{fully managed}, organisasi memindahkan sebagian besar tanggung jawab pengelolaan infrastruktur ke penyedia layanan. Hal ini memungkinkan pembangunan \textit{pipeline} ML dasar dengan lebih cepat tanpa banyak pekerjaan infrastruktur internal.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Karakteristik Utama}
+
+        Solusi \textit{fully managed} relatif mudah diadopsi karena integrasi antarkomponen telah disediakan vendor, sehingga kebutuhan integrasi manual berkurang. Beban operasional infrastruktur turun karena tugas seperti \textit{scaling}, \textit{patching}, dan pemeliharaan dasar ditangani oleh penyedia layanan. \textit{Time-to-value} biasanya lebih singkat karena banyak fitur dapat langsung digunakan sebagai \textit{managed service}. Bagi organisasi yang baru mulai membangun kapabilitas ML, pendekatan ini sering menjadi jalur masuk yang praktis.
+
+        \vspace{0.5em}
+
+        \item \textbf{Keterbatasan}
+
+        Risiko utama pendekatan ini adalah \textit{vendor lock-in}, karena perpindahan ke platform lain akan membutuhkan upaya rekayasa ulang yang besar. \textit{Total cost of ownership} pada skala besar dapat meningkat, sementara ruang kustomisasi dibatasi oleh fitur yang disediakan vendor. Dari perspektif proposal tugas akhir, pendekatan ini kurang ideal karena artefak, konfigurasi, dan \textit{workflow} yang dihasilkan sulit direplikasi oleh pihak lain yang tidak menggunakan \textit{cloud provider} yang sama. Keterbatasan tersebut mengurangi nilai hasil proposal sebagai \textit{blueprint} umum yang dapat diadopsi lintas lingkungan.
+        
+        \vspace{0.5em}    
+    \end{enumerate}
+
+    \item \textbf{Alternatif 2: Komponen \textit{Open-Source Best-of-Breed}}
+
+    Pendekatan ini membangun platform dengan mengintegrasikan komponen \textit{open-source} yang dianggap terbaik di kelasnya untuk setiap fungsi utama. Contohnya, Feast untuk \textit{Feature Store}, Kubeflow untuk orkestrasi dan manajemen \textit{pipeline} ML, MLflow untuk \textit{experiment tracking} dan \textit{model registry}, KServe untuk \textit{model serving}, DataHub untuk \textit{governance}, Apache Spark/Flink/Kafka untuk pemrosesan data, ClickHouse sebagai basis data analitik, Redis Stack sebagai \textit{online store}, serta Prometheus/Grafana untuk \textit{monitoring}, dan ArgoCD untuk GitOps. Kombinasi komponen tersebut mampu membentuk platform DataOps dan MLOps yang kaya fitur sekaligus tetap sepenuhnya berbasis \textit{open-source}.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Karakteristik Utama}
+
+        Pendekatan ini memberikan fleksibilitas dan kontrol tinggi terhadap rancangan arsitektur, karena setiap komponen dapat dipilih dan dikonfigurasi sesuai kebutuhan. Komponen dapat diganti ketika tidak lagi sesuai, sehingga risiko \textit{lock-in} berkurang dan transparansi meningkat karena kode sumber terbuka. Inovasi di ekosistem \textit{open-source} berjalan cepat, sehingga kemampuan baru dapat diadopsi tanpa menunggu siklus rilis vendor. Dalam jangka panjang, struktur biaya cenderung lebih terkendali karena tidak ada biaya lisensi produk tertutup yang besar.
+        
+        \vspace{0.5em}
+
+        \item \textbf{Keterbatasan}
+
+        Tantangan utama pendekatan ini adalah kompleksitas operasional, karena setiap komponen memerlukan pengetahuan khusus untuk instalasi, konfigurasi, dan pemeliharaan. Integrasi antarkomponen agar bekerja sebagai satu platform yang mulus menuntut upaya rekayasa yang signifikan. Namun, dari perspektif proposal tugas akhir, fokus pada pola integrasi, desain \textit{workflow} otomatis, dan praktik operasional justru menjadi kontribusi utama. Dengan demikian, alternatif ini selaras dengan tujuan untuk menyusun \textit{blueprint} arsitektural yang dapat direplikasi.
+    
+        \vspace{0.5em}
+    \end{enumerate}
+
+    \item \textbf{Alternatif 3: Pengembangan Kustom dari Nol}
+
+    Pada pendekatan ini, komponen kunci dibangun secara kustom dari \textit{low-level primitives}, misalnya dengan merancang sendiri \textit{feature store}, orkestrator, dan infrastruktur \textit{serving}. Tim pengembang memikul tanggung jawab penuh atas desain dan implementasi setiap modul. Pendekatan ini kadang dipilih oleh organisasi dengan kebutuhan sangat spesifik yang tidak terlayani oleh solusi umum, dan secara teoretis memberikan kebebasan penuh untuk bereksperimen dengan desain sistem.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Karakteristik Utama}
+
+        Pendekatan ini memberikan kendali dan kustomisasi maksimum, karena seluruh \textit{stack} dirancang khusus untuk kebutuhan organisasi. Optimasi dapat dilakukan secara presisi pada jalur data atau pola \textit{serving} berlatensi sangat rendah, dan organisasi dapat mengembangkan fitur unik yang belum tersedia di produk lain. Untuk tugas akhir yang berfokus pada algoritma atau mekanisme sistem baru di level rendah, pendekatan ini membuka ruang eksplorasi yang luas.
+
+        \vspace{0.5em}
+        \item \textbf{Keterbatasan}
+
+        Biaya pengembangan pendekatan ini sangat tinggi, terutama untuk proyek dengan sumber daya terbatas. Risiko \textit{bug} dan masalah keandalan juga meningkat karena tidak ada basis kode yang telah diuji luas seperti pada proyek \textit{open-source} besar, sehingga \textit{time-to-production} cenderung jauh lebih panjang. \textcite{paleyes2022challenges} menunjukkan bahwa tantangan \textit{deployment} dan operasionalisasi model ML di produksi sudah kompleks, sehingga membebani tim dengan pembangunan seluruh komponen dari awal berpotensi mengalihkan fokus dari kontribusi arsitektural yang ingin dicapai.
+    
+        \vspace{0.5em}
+    \end{enumerate}
+
+    \item \textbf{Alternatif 4: Pendekatan Hibrida dengan Kustomisasi Selektif}
+
+    Pendekatan hibrida menggabungkan layanan terkelola untuk komponen yang dianggap tidak membedakan (\textit{non-differentiating}), misalnya klaster Kubernetes terkelola atau basis data terkelola, sementara komponen yang menjadi fokus riset tetap diimplementasikan dengan solusi \textit{open-source}. Dengan pola ini, sebagian kompleksitas infrastruktur dapat dialihkan ke \textit{cloud provider}, sedangkan area inovasi tetap berada di bawah kendali langsung tim. Pendekatan ini umum digunakan oleh organisasi yang ingin menyeimbangkan kecepatan implementasi dengan kebutuhan kustomisasi.
+
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Karakteristik Utama}
+
+        Pendekatan hibrida menawarkan kompromi antara kemudahan operasional dan tingkat kendali. Kompleksitas pengelolaan infrastruktur berkurang karena layanan seperti kontrol plane Kubernetes, \textit{managed database}, atau solusi jaringan dikelola vendor. Pada saat yang sama, tim tetap dapat mengendalikan dan mengembangkan komponen kunci yang menjadi fokus riset, misalnya \textit{Feature Store}, \textit{model serving}, atau sistem \textit{monitoring}, sehingga pengembangan dapat dipercepat tanpa kehilangan fleksibilitas sepenuhnya.
+
+        \vspace{0.5em}
+        \item \textbf{Keterbatasan}
+
+        Ketergantungan terhadap vendor masih muncul pada lapisan infrastruktur, sehingga risiko \textit{lock-in} belum hilang sepenuhnya. Kompleksitas di perbatasan antara layanan \textit{managed} dan \textit{self-managed} dapat meningkat, terutama terkait \textit{networking}, keamanan, dan konsistensi \textit{observability} di seluruh lapisan. Dari sisi riset, nilai tambah pendekatan ini juga dapat berkurang karena konfigurasi sering kali sangat terkait dengan fitur spesifik vendor, sehingga reproduksibilitas oleh pihak lain menjadi lebih sulit. Hal ini perlu dipertimbangkan jika tujuan utama adalah menghasilkan \textit{blueprint} yang dapat diterapkan di berbagai lingkungan.
+    
+        \vspace{0.5em}
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Evaluasi Kuantitatif Berdasarkan Pemenuhan Kebutuhan}
+
+Untuk memberikan dasar yang lebih objektif dalam memilih alternatif, dilakukan evaluasi kuantitatif terhadap kemampuan setiap pendekatan dalam memenuhi kebutuhan fungsional (KF) dan nonfungsional (KNF). Setiap kebutuhan dinilai menggunakan skala tiga nilai, yaitu 2 (terpenuhi penuh), 1 (terpenuhi sebagian), dan 0 (tidak terpenuhi). Penilaian dilakukan secara konsisten terhadap seluruh alternatif sehingga hasilnya dapat disejajarkan dan dibandingkan. Dengan cara ini, argumentasi kualitatif didukung oleh skor numerik yang transparan dan mudah ditelusuri.
+
+\input{tables/evaluasi_kf}
+
+\vspace{-0.5cm}
+
+\input{tables/evaluasi_knf}
+
+\vspace{-0.5cm}
+
+\subsection{Analisis Penentuan Solusi}
+
+Berdasarkan evaluasi kuantitatif terhadap pemenuhan kebutuhan fungsional dan nonfungsional, pendekatan komponen \textit{open-source best-of-breed} (Alternatif 2) memperoleh skor tertinggi dengan total 49 poin. Nilai ini melampaui pendekatan \textit{cloud managed} dan hibrida yang masing-masing meraih 43 poin, serta pendekatan kustom yang hanya mencapai 30 poin. Perbedaan skor tersebut mengindikasikan bahwa pendekatan \textit{open-source} memberikan keseimbangan terbaik dalam menjawab kebutuhan yang telah dirumuskan, sehingga layak dipilih sebagai dasar arsitektur.
+
+Pada kebutuhan yang menjadi fokus utama proposal, pendekatan \textit{open-source} meraih skor penuh (2) untuk jaminan validitas temporal (KF-03), dukungan \textit{vector embeddings} (KF-04), pemantauan \textit{drift} otomatis (KF-07), serta ekstensibilitas dan modularitas (KNF-08). Kebutuhan ini merupakan aspek pembeda yang ingin ditekankan dalam rancangan arsitektur, terutama terkait penanganan data \textit{time-series} finansial, integrasi \textit{alternative data}, dan kemampuan beradaptasi terhadap perubahan distribusi data. Keunggulan di area tersebut memperkuat alasan pemilihan Alternatif 2, karena arsitektur yang dibangun lebih mudah dieksplorasi dan dikembangkan untuk menambah fitur lanjutan.
+
+Dari perspektif portabilitas dan reproduksibilitas, pendekatan \textit{open-source} juga memperoleh skor penuh pada KNF-11, sementara pendekatan berbasis \textit{cloud} dinilai 0. Hal ini menunjukkan bahwa artefak riset seperti definisi \textit{pipeline}, konfigurasi \textit{Feature Store}, dan skema \textit{deployment} dapat dijalankan di berbagai lingkungan dengan perubahan minimal. Bagi akademik dan praktik industri, kemampuan ini penting karena memungkinkan hasil desain dicoba ulang di organisasi lain tanpa bergantung pada vendor tertentu, sehingga memperluas potensi adopsi dan kontribusi komunitas.
+
+Fleksibilitas kustomisasi tercermin dari skor tinggi pada konsistensi dan kebenaran (KNF-05) serta ekstensibilitas (KNF-08), yang membuka ruang untuk mengimplementasikan mekanisme \textit{point-in-time correctness}, dukungan \textit{vector embedding} dengan \textit{similarity search}, dan \textit{automated drift detection} dengan ambang adaptif. Pendekatan \textit{open-source} memungkinkan perancang sistem mengendalikan desain skema data, mekanisme \textit{indexing}, dan pola \textit{serving} hingga ke level detail, sehingga kebutuhan khusus domain perdagangan finansial dapat difasilitasi secara langsung. Sebaliknya, pendekatan \textit{cloud} umumnya hanya menyediakan kemampuan ini dalam bentuk layanan tertutup yang sulit dikustomisasi di luar batas yang sudah ditentukan.
+
+Dari sisi biaya dan keberlanjutan, berbagai praktik industri menunjukkan bahwa pertimbangan biaya jangka panjang dan fleksibilitas mendorong organisasi untuk mengadopsi solusi \textit{open-source}, khususnya ketika skala sistem terus bertumbuh. Meskipun perbandingan biaya selalu bergantung konteks, pendekatan \textit{open-source} memberikan ruang lebih luas untuk mengoptimalkan pemanfaatan infrastruktur dan menghindari biaya lisensi tinggi. \textcite{kreuzberger2023mlops} menegaskan bahwa arsitektur MLOps berbasis kombinasi \textit{open-source} dan \textit{enterprise} dengan Kubernetes sebagai fondasi telah menjadi pola adopsi yang umum, sehingga memberikan validasi empiris terhadap arah yang dipilih. Kehadiran berbagai proyek pendukung seperti \textit{API gateway}, \textit{secrets management}, \textit{observability} Kubernetes-native, serta ekosistem Raystack juga menunjukkan bahwa \textit{stack} \textit{open-source} dapat diperluas untuk mencakup kebutuhan operasional yang biasanya ditangani produk komersial.
+
+\subsection{Mitigasi Keterbatasan}
+
+Walaupun secara keseluruhan paling unggul, pendekatan \textit{open-source} menunjukkan skor relatif lebih rendah pada kemudahan penggunaan (KNF-09) dan kemudahan pemeliharaan (KNF-12). Hal ini mencerminkan bahwa solusi \textit{open-source} sering menuntut usaha konfigurasi dan perawatan yang lebih besar dibanding layanan \textit{managed}. Agar kelemahan ini tidak menghambat tujuan proposal, dirancang beberapa strategi mitigasi yang berfokus pada pembatasan ruang lingkup implementasi operasional, penyederhanaan lingkungan, dan penguatan dokumentasi.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Pembatasan Cakupan Implementasi}
+    
+    Proposal ini memposisikan implementasi sebagai \textit{proof-of-concept} yang menitikberatkan pada demonstrasi pola arsitektural dan \textit{workflow} utama, bukan sebagai \textit{production deployment} berskala besar. Dengan membatasi cakupan pada skenario yang terkontrol, kompleksitas operasional dapat dikurangi tanpa mengurangi nilai ilmiah dari konsep yang diuji. Pendekatan ini memungkinkan fokus dialihkan pada aspek arsitektural yang paling relevan, sembari tetap membuka ruang pengembangan lanjutan untuk skala produksi.
+
+    \vspace{0.5em}
+
+    \item \textbf{Pemanfaatan Alat \textit{Development} Lokal}
+    
+    Pengembangan dan pengujian dilakukan terutama di lingkungan lokal seperti Minikube atau \textit{kind}, yang menyediakan klaster Kubernetes dengan kompleksitas lebih rendah. Strategi ini mengurangi kebutuhan berinteraksi langsung dengan infrastruktur \textit{cloud} yang lebih rumit pada tahap awal dan memungkinkan iterasi yang cepat. Setelah pola arsitektural stabil, konfigurasi dapat dipindahkan ke lingkungan \textit{cloud} dengan penyesuaian yang terbatas.
+
+    \vspace{0.5em}
+
+    \item \textbf{Adopsi \textit{Best Practices} Komunitas}
+    
+    Proyek \textit{open-source} yang dipilih umumnya memiliki dokumentasi dan \textit{best practices} yang cukup matang. Proposal ini memanfaatkan panduan tersebut untuk merancang \textit{deployment}, konfigurasi, dan integrasi antarkomponen, sehingga risiko kesalahan desain berkurang. Keselarasan dengan praktik yang digunakan di industri juga diperkuat, sehingga hasil rancangan menjadi lebih relevan dan mudah diadopsi.
+
+    \vspace{0.5em}
+
+    \item \textbf{Dokumentasi Komprehensif}
+    
+    Sebagai bagian dari kontribusi, disusun dokumentasi teknis dan \textit{runbook} operasional yang menjelaskan cara menginstal, mengonfigurasi, dan mengoperasikan platform. Dokumentasi ini mencakup pengaturan konfigurasi utama, alur \textit{deployment}, dan panduan \textit{troubleshooting} untuk skenario yang umum terjadi. Dengan adanya dokumentasi tersebut, hambatan adopsi bagi tim lain yang ingin menerapkan arsitektur serupa dapat dikurangi dan hasil rancangan dapat direplikasi dengan lebih konsisten.
+\end{enumerate}
+
+\subsection{Evaluasi dan Pemilihan Komponen Spesifik}
+
+Setelah pendekatan \textit{open-source best-of-breed} dipilih sebagai dasar arsitektur, langkah selanjutnya adalah mengevaluasi alternatif komponen untuk setiap fungsi utama sistem. Evaluasi dilakukan dengan mempertimbangkan beberapa dimensi kritis, yaitu tingkat maturitas, ekstensibilitas, kekuatan komunitas, dan kemampuan integrasi (terutama dengan Kubernetes dan komponen lain di dalam platform). Setiap kandidat komponen diberi skor dengan skala 1--5 (5 = terbaik) pada tiap dimensi, kemudian nilai tersebut dijumlahkan untuk memperoleh skor total. Skor ini berfungsi sebagai indikator kuantitatif yang melengkapi pertimbangan kualitatif \autocite{triantaphyllou2000multi,keeney1993decisions}.
+
+\input{tables/feature_store_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/orchestration_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/tracking_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/serving_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/metadata_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/monitoring_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/offline_storage_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/online_storage_comparison}
+
+\vspace{-0.5cm}
+
+\input{tables/data_processing_comparison}
+
+\vspace{-0.5cm}
+
+Berdasarkan evaluasi kuantitatif tersebut, komponen dengan skor tertinggi dipilih sebagai kandidat utama untuk diimplementasikan, kemudian keputusan tersebut diperkuat dengan analisis kualitatif. Pemilihan ini tidak hanya mencerminkan besaran skor, tetapi juga mempertimbangkan kesesuaian dengan kebutuhan domain dan \textit{use case} yang dikaji. Dengan demikian, setiap komponen yang digunakan memiliki peran jelas dalam pemenuhan kebutuhan fungsional dan nonfungsional yang telah dirumuskan sebelumnya.
+
+Perlu dicatat bahwa evaluasi kuantitatif pada Tabel \ref{tab:feature_store_comparison}--\ref{tab:data_processing_comparison} difokuskan pada komponen inti yang secara langsung merealisasikan kebutuhan fungsional dan nonfungsional (KF dan KNF), seperti \textit{Feature Store}, orkestrasi ML, \textit{model serving}, penyimpanan data, dan \textit{monitoring} dasar. Komponen pendukung lintas fungsi, misalnya \textit{API gateway}, \textit{secrets management}, \textit{alerting}, serta manajemen identitas dan akses tidak diberi skor dengan skema yang sama. Pemilihan komponen pendukung tersebut dilakukan secara kualitatif, berdasarkan kesesuaian dengan kebutuhan keamanan, \textit{observability}, dan operasional, dan akan dijabarkan lebih lanjut pada bab desain arsitektur.
+
+Secara ringkas, \textbf{Feast} dipilih sebagai \textit{Feature Store} utama karena mendukung pemisahan \textit{offline}--\textit{online store} dan menyediakan mekanisme \textit{point-in-time correctness} yang kuat (KF-02, KF-03). \textbf{Kubeflow Pipelines} dipilih sebagai orkestrator ML karena bersifat Kubernetes-\textit{native} dan mendukung pengelolaan \textit{workflow} ML secara deklaratif. \textbf{MLflow} digunakan untuk \textit{experiment tracking} dan \textit{model registry} sehingga kebutuhan KF-09 dan KF-10 dapat dipenuhi secara terpadu. Untuk \textit{model serving}, \textbf{KServe} dipilih karena menyediakan pola \textit{deployment} lanjutan dan integrasi dengan Knative yang mendukung efisiensi sumber daya.
+
+Pada sisi manajemen metadata dan \textit{governance}, \textbf{DataHub} digunakan sebagai katalog pusat dengan dukungan \textit{lineage} dan skema metadata yang ekstensibel. Pengumpulan metadata dari berbagai sistem dapat dibantu oleh alat ekstraksi metadata terotomatisasi, sedangkan antarmuka katalog yang lebih ringan dapat disajikan bagi pengguna akhir. Untuk pilar \textit{observability}, kombinasi \textbf{Prometheus} dan \textbf{Grafana} digunakan untuk metrik, \textbf{Grafana Loki} untuk log, dan \textbf{Jaeger} untuk \textit{distributed tracing}, sementara kerangka \textit{alerting} dimanfaatkan untuk mengorkestrasi pengiriman notifikasi berdasarkan metrik yang dipantau.
+
+Untuk penyimpanan dan pemrosesan data, \textbf{ClickHouse} dipilih sebagai \textit{offline store} karena mendukung kueri analitik berperforma tinggi dan operasi yang relevan untuk menjaga \textit{point-in-time correctness}. \textbf{Redis Stack} digunakan sebagai \textit{online store} berlatensi rendah yang juga mendukung \textit{vector similarity search} bagi \textit{embedding}. \textbf{Apache Spark} digunakan sebagai mesin pemrosesan \textit{batch} utama, sedangkan \textbf{Apache Flink} digunakan untuk \textit{stream processing} yang membutuhkan latensi rendah dan pengelolaan state yang kompleks. \textbf{Apache Kafka} diposisikan sebagai \textit{event backbone} yang menghubungkan berbagai sumber data dan komponen pemrosesan.
+
+Di lapisan keamanan dan manajemen akses, komponen seperti \textbf{Frontier} dan \textbf{Guardian} dimanfaatkan untuk mengelola identitas dan kebijakan akses data, sedangkan \textbf{HashiCorp Vault} menangani rahasia operasional dan kunci enkripsi \autocite{vault2025,raystack2025frontier,raystack2025guardian}. \textbf{Kong Gateway} berperan sebagai API gateway yang menegakkan autentikasi dan kontrol trafik di tepi klaster \autocite{kong2025}. Untuk memastikan konsistensi konfigurasi dan otomatisasi \textit{deployment}, pola GitOps dengan \textbf{ArgoCD} serta \textit{pipeline} CI/CD Kubernetes-native dengan \textbf{Tekton} digunakan untuk membangun, menguji, dan merilis artefak aplikasi serta komponen ML \autocite{tekton2024}. Ekosistem Raystack menyediakan komponen tambahan seperti Raccoon, Firehose, Dagger, Stencil, Optimus, Meteor, Compass, dan Siren yang mendukung pengumpulan dan pemrosesan \textit{event} data, katalog metadata, serta \textit{alerting} terpusat \autocite{raystack2025raccoon,raystack2025firehose,raystack2025dagger,raystack2025stencil,raystack2025optimus,raystack2025meteor,raystack2025compass,raystack2025siren}.
+
+Secara keseluruhan, komponen-komponen Raystack dan platform pendukung lain (Vault, Kong, Loki, Jaeger, Tekton) tidak dimaksudkan untuk menggantikan komponen inti seperti \textit{Feature Store}, orkestrator ML, atau \textit{model serving}, melainkan berperan sebagai lapisan platform pendukung yang memperkuat pemenuhan kebutuhan nonfungsional (KNF-06, KNF-07, KNF-12) dan meningkatkan \textit{operability} serta \textit{governance} platform secara \textit{end-to-end}. Dengan mengadopsi pendekatan \textit{open-source best-of-breed} yang diperkaya dengan komponen tersebut, proposal tugas akhir ini dapat berfokus pada tantangan arsitektural yang paling relevan, yaitu perancangan integrasi antarkomponen, implementasi \textit{proof-of-concept} yang menunjukkan \textit{workflow end-to-end}, serta evaluasi solusi terhadap kebutuhan yang telah dirumuskan. Bab berikutnya akan menguraikan desain arsitektur yang menerjemahkan hasil analisis kebutuhan dan pemilihan solusi ini ke dalam rancangan sistem yang siap diimplementasikan dan dapat berfungsi sebagai \textit{blueprint} bagi platform DataOps dan MLOps modern yang dioptimalkan untuk aplikasi perdagangan finansial.

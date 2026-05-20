@@ -1,0 +1,206 @@
+# =============================================================================
+# CLOUD OVERLAY (GKE Production)
+# =============================================================================
+# Uses base configuration. To disable services, edit base/kustomization.yaml.
+#
+# Usage:
+#   kubectl apply -k manifests/overlays/cloud
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# =============================================================================
+# USE-CASE CONFIGURATION — Change these values for a new use case:
+#   1. namePrefix    → your use-case prefix (e.g., crypto-)
+#   2. namespace     → your use-case namespace (e.g., use-case-crypto)
+#   3. commonLabels  → app.kubernetes.io/name (e.g., crypto-pipeline)
+#   4. images        → newName prefix matches USE_CASE_NAME in Makefile
+# =============================================================================
+namePrefix: crypto-
+namespace: use-case-crypto
+
+resources:
+  - ../../base
+
+# Secrets — kserve-storage-secret and pipeline-secrets are both provisioned
+# by ExternalSecrets from Vault in use-case-crypto/manifests/base/external-
+# secrets.yaml (ADR-008). The previous literal-based `secretGenerator` blocks
+# here collided with those ExternalSecret-owned secrets (duplicate resource
+# ids at kustomize build time) and leaked `REPLACE_VIA_CI` placeholders into
+# the rendered manifest. They were removed as part of ADR-025's audit pass.
+generatorOptions:
+  disableNameSuffixHash: true
+
+# Production labels
+labels:
+  - pairs:
+      app.kubernetes.io/name: crypto-pipeline
+      environment: production
+      platform: gke
+    includeSelectors: true
+
+# Image name mapping: base uses generic `:latest` placeholders. Cloud
+# pins explicit semver tags so a regression rolls back via overlay edit
+# alone — base manifests stay untouched. Bump VERSION in Makefile,
+# rebuild + push, then bump newTag here.
+images:
+  # Only map images for resources actually in base/kustomization.yaml.
+  # Ingestion
+  - name: rest-collector
+    newName: crypto-rest-collector
+    newTag: v1.0.0
+  - name: websocket-collector
+    newName: crypto-websocket-collector
+    newTag: v1.0.0
+  # Quality
+  - name: validator
+    newName: crypto-validator
+    newTag: v1.0.0
+  - name: analyzer
+    newName: crypto-analyzer
+    newTag: v1.0.0
+  # Processing
+  - name: feature-engine
+    newName: crypto-feature-engine
+    newTag: v1.0.0
+  - name: vector-processing
+    newName: crypto-vector-processing
+    newTag: v1.0.0
+  # Training (CronJob in base; production runs via KFP, but the CronJob is
+  # still rendered, so the tag must be pinned here.)
+  - name: trainer
+    newName: crypto-trainer
+    newTag: v1.0.0
+  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-flink-job:latest`;
+  # kustomize image transformer cannot rewrite it because the operator CR is
+  # outside the set kustomize rewrites. Image is published by the build pipeline.
+  # Serving
+  - name: gateway
+    newName: crypto-gateway
+    newTag: v1.0.0
+  - name: feature-cache
+    newName: crypto-feature-cache
+    newTag: v1.0.0
+  - name: inference-engine
+    newName: crypto-inference-engine
+    newTag: v1.0.0
+  # Dashboard
+  - name: dashboard-backend
+    newName: crypto-dashboard-backend
+    newTag: v1.0.0
+  - name: dashboard-frontend
+    newName: crypto-dashboard-frontend
+    newTag: v1.0.0
+  - name: ml-bridge
+    newName: crypto-ml-bridge
+    newTag: v1.0.0
+
+# Higher replicas for production HA
+# Only list Deployments that exist in base/kustomization.yaml resources.
+# batch-processing, vector-processing, inference-engine are NOT in the resource
+# list (orchestrated by Airflow/KFP or replaced by KServe InferenceService).
+replicas:
+  # Ingestion
+  - name: rest-collector
+    count: 3
+  - name: websocket-collector
+    count: 2
+  # Quality
+  - name: validator
+    count: 3
+  - name: analyzer
+    count: 2
+  # Processing
+  - name: feature-engine
+    count: 3
+  # Serving
+  - name: gateway
+    count: 3
+  - name: feature-cache
+    count: 3
+  # Dashboard
+  # ADR-025: ml-bridge has no Deployment/StatefulSet — pod lifecycle is on
+  # the Argo Rollout (rollouts/ml-bridge-rollout.yaml). Kustomize `replicas:`
+  # does not support `Rollout` kind; set replicas on the Rollout spec itself.
+  - name: dashboard-backend
+    count: 2
+  - name: dashboard-frontend
+    count: 2
+
+patches:
+  # =========================================================================
+  # namePrefix cross-reference fixes — Kustomize namePrefix: crypto-
+  # renames metadata.name but NOT string fields inside CRD specs.
+  # These patches correct serviceAccountName and secret references.
+  # =========================================================================
+
+  # Fix KServe InferenceService → ServiceAccount reference.
+  # Patch target is the BASE name (`predictor`); kustomize resolves the
+  # effective target after namePrefix is applied. Rendered IS name is
+  # `crypto-predictor`.
+  - target:
+      group: serving.kserve.io
+      version: v1beta1
+      kind: InferenceService
+      name: predictor
+    patch: |-
+      - op: replace
+        path: /spec/predictor/serviceAccountName
+        value: crypto-kserve-sa
+
+  # Fix KServe ServiceAccount → Secret reference
+  - target:
+      kind: ServiceAccount
+      name: kserve-sa
+    patch: |-
+      - op: replace
+        path: /secrets/0/name
+        value: crypto-kserve-storage-secret
+
+  # Fix Tekton EventListener → ServiceAccount reference
+  - target:
+      group: triggers.tekton.dev
+      version: v1beta1
+      kind: EventListener
+      name: crypto-build-listener
+    patch: |-
+      - op: replace
+        path: /spec/serviceAccountName
+        value: crypto-tekton-triggers-sa
+
+  # Fix Tekton RoleBinding → ServiceAccount subject name
+  - target:
+      kind: RoleBinding
+      name: tekton-triggers-binding
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: crypto-tekton-triggers-sa
+
+  # Fix Tekton ClusterRoleBinding → ServiceAccount subject name
+  - target:
+      kind: ClusterRoleBinding
+      name: tekton-triggers-crypto-binding
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: crypto-tekton-triggers-sa
+
+  # =========================================================================
+  # Image pull policy
+  # =========================================================================
+
+  # Use Always pull policy for cloud (pull from registry)
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+        value: Always

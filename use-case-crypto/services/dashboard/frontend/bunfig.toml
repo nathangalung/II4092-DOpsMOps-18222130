@@ -1,0 +1,6 @@
+# Bun configuration for dashboard-frontend
+# Uses Bun as runtime for Vite/Vitest (faster than Node.js)
+
+[install]
+# Use frozen lockfile in CI
+frozen = true

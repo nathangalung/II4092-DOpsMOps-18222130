@@ -1,0 +1,174 @@
+# =============================================================================
+# use-case-crypto :: Chaos Mesh resilience experiments (thesis §4.5 KNF-11)
+# =============================================================================
+# Platform-level chaos (CNPG kill, Kafka loss, feature-engine stress, OTEL
+# time skew, MinIO pressure) ships in platform/components/security/chaos-
+# mesh/experiments.yaml. That covers INFRASTRUCTURE resilience.
+#
+# The experiments here validate USE-CASE resilience — the crypto-specific
+# pipeline continues serving predictions under:
+#   1. Crypto gateway network loss (edge flakiness)
+#   2. feature-cache pod kill (serving-side cache invalidation)
+#   3. ml-bridge → MLflow API latency (model-registry flakiness)
+#
+# Each experiment is a Schedule (low cadence) + a one-shot manual version
+# included in the `crypto-game-day` Workflow at the bottom.
+#
+# Observability hook: every chaos event emits an `experiment.thesis=`
+# label; Grafana's "Crypto Resilience" dashboard plots SLO burn
+# (observability/slos-crypto.yaml) before/after the experiment window.
+# =============================================================================
+---
+# --- 1. Crypto gateway network loss (edge flakiness, 5m every Tuesday) ------
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: gateway-network-loss
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    experiment.thesis: KNF-11-crypto-gateway-resilience
+spec:
+  schedule: "0 11 * * 2"           # Tue 11:00
+  historyLimit: 6
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    action: loss
+    mode: one
+    selector:
+      namespaces: [use-case-crypto]
+      labelSelectors:
+        app: gateway
+    loss:
+      loss: "10"                   # 10% packet loss
+      correlation: "25"
+    duration: "5m"
+    # No target -> direction must default to `to` (egress from selected pods).
+    # vschedule.kb.io blocks `both` / `from` when targets is empty in netem.
+    direction: to
+---
+# --- 2. Feature-cache pod kill — validates warm-cache rebuild < 60s --------
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: feature-cache-kill
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    experiment.thesis: KNF-11-feature-cache-rebuild
+spec:
+  schedule: "0 12 * * 3"           # Wed 12:00
+  historyLimit: 6
+  concurrencyPolicy: Forbid
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: [use-case-crypto]
+      labelSelectors:
+        app: feature-cache
+    gracePeriod: 0
+---
+# --- 3. ml-bridge ⇢ MLflow network latency: validates the timeout/backoff
+#     path in the Python client and proves the SLO does NOT burn on 250ms
+#     upstream latency spikes.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: mlflow-latency
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    experiment.thesis: KNF-11-mlflow-latency
+spec:
+  schedule: "0 13 * * 4"           # Thu 13:00
+  historyLimit: 6
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    action: delay
+    mode: all
+    selector:
+      namespaces: [model-lifecycle]
+      labelSelectors:
+        app.kubernetes.io/name: mlflow
+    delay:
+      latency: "250ms"
+      jitter: "50ms"
+      correlation: "50"
+    duration: "4m"
+    direction: both
+    # Target only the traffic FROM ml-bridge; other MLflow clients
+    # (KFP, Katib) are unaffected. Uses the `target` selector with a
+    # namespaceSelector + labelSelector.
+    target:
+      mode: all
+      selector:
+        namespaces: [use-case-crypto]
+        labelSelectors:
+          app: ml-bridge
+---
+# --- crypto-game-day Workflow — sequences the 3 experiments for manual
+#     thesis-viva demonstration.  `kubectl apply -f` this file during the
+#     demo to reproduce the failover story end-to-end.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: game-day
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+spec:
+  entry: resilience
+  templates:
+    - name: resilience
+      templateType: Serial
+      children: [gateway-loss, cache-kill, mlflow-latency]
+    - name: gateway-loss
+      templateType: NetworkChaos
+      deadline: "6m"
+      networkChaos:
+        action: loss
+        mode: one
+        selector:
+          namespaces: [use-case-crypto]
+          labelSelectors: { app: gateway }
+        loss: { loss: "15", correlation: "25" }
+        # Inside Workflow templates duration is forbidden (vworkflow.kb.io:
+        # "should not define duration in chaos when using Workflow, use
+        # Template#Deadline instead") — the parent deadline (6m) bounds it.
+        # No target -> direction must be `to` (egress only); webhook rejects
+        # `both`/`from` with empty targets in netem.
+        direction: to
+    - name: cache-kill
+      templateType: PodChaos
+      deadline: "3m"
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces: [use-case-crypto]
+          labelSelectors: { app: feature-cache }
+    - name: mlflow-latency
+      templateType: NetworkChaos
+      deadline: "5m"
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces: [model-lifecycle]
+          labelSelectors: { app.kubernetes.io/name: mlflow }
+        delay: { latency: "300ms", jitter: "50ms", correlation: "50" }
+        # duration omitted in Workflow templates — parent deadline (5m) bounds.
+        direction: both
+        target:
+          mode: all
+          selector:
+            namespaces: [use-case-crypto]
+            labelSelectors: { app: ml-bridge }

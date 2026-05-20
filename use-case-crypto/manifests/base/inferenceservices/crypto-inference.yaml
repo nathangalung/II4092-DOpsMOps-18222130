@@ -1,0 +1,84 @@
+# =============================================================================
+# KSERVE INFERENCESERVICE ��� Model Serving via KServe + Knative
+# =============================================================================
+# Uses MLflow model format. KServe auto-selects the platform's dedicated
+# `kserve-mlflowserver` ClusterServingRuntime (autoSelect on
+# modelFormat=mlflow), which serves ANY model logged via MLflow (LightGBM,
+# XGBoost, H2O, sklearn, etc.). Serving is model-agnostic — switch
+# MODEL_TYPE in ConfigMap, retrain, and the same InferenceService serves
+# the new model.
+#
+# Models stored in MinIO via MLflow experiment tracking.
+# S3 credentials via annotated ServiceAccount (KServe standard).
+# =============================================================================
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  # Generic base name. Overlay applies `namePrefix: crypto-` → rendered
+  # InferenceService is `crypto-predictor`. Do not re-prefix here — that
+  # yielded `crypto-crypto-predictor` and a double-`-predictor-predictor-`
+  # service hostname downstream.
+  name: predictor
+  labels:
+    app: inference-engine
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: model-serving
+spec:
+  predictor:
+    # ADR-025: platform default is scale-to-zero (minReplicas: 0) for
+    # cost-efficiency on idle InferenceServices. The crypto use-case
+    # overrides to minReplicas: 1 so the first defender demo click does
+    # not incur an ~8s cold-start pulling the MLflow artifact from MinIO
+    # and starting mlserver. Max is capped at 3 to bound replay bursts.
+    minReplicas: 1
+    maxReplicas: 3
+    serviceAccountName: kserve-sa
+    model:
+      modelFormat:
+        name: mlflow
+        version: "2"
+      # storageUri is updated at model-promotion time by the MLflow→KServe
+      # bridge (see Phase B.14 Argo CronWorkflow). Format:
+      #   s3://mlflow/artifacts/{experiment_id}/{run_id}/artifacts/model/
+      # The placeholder below matches MLflow experiment "crypto-btc-usd" (id=1).
+      # KServe reports "FailedToLoad" until the bridge promotes a real model.
+      storageUri: "s3://mlflow/artifacts/1/placeholder/artifacts/model"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+---
+# ServiceAccount for KServe to access MinIO S3
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kserve-sa
+  annotations:
+    serving.kserve.io/s3-endpoint: "minio.storage.svc.cluster.local:9000"
+    serving.kserve.io/s3-usehttps: "0"
+    serving.kserve.io/s3-verifyssl: "0"
+    serving.kserve.io/s3-region: "us-east-1"
+secrets:
+  - name: kserve-storage-secret
+---
+# S3 credentials for KServe to pull models from MinIO.
+# ADR-008: populated by ExternalSecret (see base/external-secrets.yaml,
+# ExternalSecret `crypto-kserve-s3`) which reads `platform/minio/root` from Vault.
+# Credentials must match the MinIO access keys used by MLflow.
+# This bare `data: {}` is overwritten by the ESO target.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kserve-storage-secret
+  annotations:
+    serving.kserve.io/s3-endpoint: "minio.storage.svc.cluster.local:9000"
+    serving.kserve.io/s3-usehttps: "0"
+    serving.kserve.io/s3-verifyssl: "0"
+    serving.kserve.io/s3-region: "us-east-1"
+type: Opaque
+# Credentials are provided by the overlay's kustomize secretGenerator
+# or patched in by the deployment pipeline. Do NOT commit real values here.
+data: {}

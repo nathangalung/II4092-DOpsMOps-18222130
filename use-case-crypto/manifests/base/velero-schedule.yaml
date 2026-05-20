@@ -1,0 +1,43 @@
+# =============================================================================
+# Velero Schedule — hourly incremental backup of `use-case-crypto`
+# =============================================================================
+# Replaces the `hourly-data` helm-managed schedule that used to live in
+# `platform/components/security/velero/helm-release.yaml` with a hard-coded
+# `includedNamespaces: [..., use-case-crypto]` line.  Moving it here keeps
+# the platform domain-agnostic (ADR-014 + ADR-013 boundary rule).
+#
+# What it backs up:
+#   - All PVCs in `use-case-crypto` (Kopia file-system backup) — feature
+#     store, dbt state, gateway TLS secrets, Airflow-DAG volume, etc.
+#   - The Vault-seeded platform secrets we imported via ExternalSecrets
+#     (so a disaster-recovery restore re-hydrates without needing Vault).
+# Retention: 168h (7 days) per KNF-09.
+# =============================================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: hourly
+  namespace: velero
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: backup
+    usecase: crypto
+spec:
+  schedule: "0 * * * *"          # top of every hour
+  useOwnerReferencesInBackup: false
+  template:
+    ttl: "168h"                  # 7 days
+    includedNamespaces:
+      - use-case-crypto
+    snapshotVolumes: true
+    defaultVolumesToFsBackup: true
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    # Exclude ephemeral / regenerable artifacts to keep backup small.
+    excludedResources:
+      - events
+      - events.events.k8s.io
+      - pods              # re-created by controllers
+      - replicasets.apps  # re-created by Deployments
+    hooks: {}              # no pre/post freeze; fs-backup uses Kopia.

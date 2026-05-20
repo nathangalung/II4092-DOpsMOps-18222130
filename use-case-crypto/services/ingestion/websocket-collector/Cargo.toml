@@ -1,0 +1,38 @@
+[package]
+name = "crypto-websocket-collector"
+version = "1.0.0"
+edition = "2024"
+authors = ["ML Pipeline Team"]
+license = "MIT"
+rust-version = "1.95"
+
+# -----------------------------------------------------------------------------
+# use-case-crypto :: websocket-collector binary
+# -----------------------------------------------------------------------------
+# Reuses the platform's `websocket-collector` library (connection / dispatch
+# loop, Kafka producer, health server, Record model) and plugs in a
+# Coinbase-specific `MessageParser` that understands `ticker`, `match`,
+# `last_match`, and `l2update` channel messages with multi-topic routing.
+#
+# ADR-013 — platform ships domain-agnostic machinery; use-case ships the
+# exchange-specific parser and binary.
+# -----------------------------------------------------------------------------
+
+[[bin]]
+name = "crypto-websocket-collector"
+path = "src/main.rs"
+
+[dependencies]
+# Platform library — provides GenericCollector, MessageParser trait,
+# Record, Config, KafkaProducer, health server.
+websocket-collector = { path = "../../../../platform/services/ingestion/websocket-collector" }
+
+tokio = { version = "1.49", features = ["full"] }
+simd-json = "0.14"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

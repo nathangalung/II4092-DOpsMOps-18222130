@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  # =========================================================================
+  # DATA QUALITY CONFIGURATION
+  # =========================================================================
+  # Column names reference schema.yaml (single source of truth).
+  # This file configures quality RULES and THRESHOLDS.
+  # =========================================================================
+
+  # --- Raw data quality (references RAW_OHLCV_COLUMNS from schema.yaml) ---
+  # NOTE: DATA_TABLE is defined in topics.yaml. Do NOT redefine here.
+  DATA_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
+  DATA_TYPE: "ohlcv"
+
+  # --- Analyzer checks ---
+  ENTITY_COLUMN: "symbol"
+  REQUIRED_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
+  RANGE_CHECK_COLUMNS: "open,high,low,close"
+  RANGE_CHECK_MIN: "0"
+  RANGE_CHECK_MAX: "1000000"
+  NONNEG_COLUMNS: "volume"
+  PAIR_RULES: "high>low,high>close,close>low"
+  # Must match SYMBOLS in schema.yaml
+  VALID_SYMBOLS: "BTC-USD,ETH-USD"
+  OUTLIER_COLUMNS: "close,volume"
+
+  # --- Stream feature quality (references STREAM features from schema.yaml) ---
+  BOUNDED_FEATURES: "rsi_14:0:100,rsi_7:0:100,mfi_14:0:100,stoch_k:0:100,stoch_d:0:100,williams_r:-100:0"
+  FEATURE_PAIR_RULES: "bb_upper>bb_lower,band_upper>band_lower"
+  NONNEG_FEATURES: "volatility_24h,atr_14,dispersion"
+
+  # --- Drift detection (references DRIFT_FEATURES_TO_MONITOR from schema.yaml) ---
+  # NOTE: DRIFT_FEATURES_TO_MONITOR is defined in schema.yaml as the canonical source.
+  # Services read it from there via envFrom. Do NOT redefine here.

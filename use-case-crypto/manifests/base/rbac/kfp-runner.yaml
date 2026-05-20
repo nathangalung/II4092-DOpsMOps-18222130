@@ -1,0 +1,38 @@
+# =============================================================================
+# RBAC: KFP Pipeline Pods → KServe InferenceService Management
+# =============================================================================
+# KFP pipelines run in model-lifecycle namespace but need to create/update
+# InferenceService resources in the use-case-crypto namespace.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kfp-kserve-deployer
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+rules:
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["inferenceservices"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kfp-kserve-deployer-binding
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+subjects:
+  # KFP pipeline runner service account
+  - kind: ServiceAccount
+    name: default
+    namespace: model-lifecycle
+  - kind: ServiceAccount
+    name: pipeline-runner
+    namespace: model-lifecycle
+roleRef:
+  kind: ClusterRole
+  name: kfp-kserve-deployer
+  apiGroup: rbac.authorization.k8s.io

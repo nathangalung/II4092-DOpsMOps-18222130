@@ -1,0 +1,222 @@
+# =============================================================================
+# NETWORK POLICIES — Zero-Trust for use-case namespace  (ADR-024)
+# =============================================================================
+# ADR-024 — because use-case-crypto has `istio-injection: disabled` (ADR-009
+# allowlist), Istio AuthorizationPolicy is unavailable inside the namespace.
+# NetworkPolicy is therefore the SOLE enforcement layer for service-to-
+# service authorization between crypto pods and external sources.
+#
+# Posture:
+#   1. `default-deny-ingress` denies all ingress to the namespace.
+#   2. `allow-same-namespace` allows crypto-internal east-west traffic
+#      (feature-engine → validator, gateway → feature-cache, etc.).
+#      Crypto is a single trust boundary — intra-namespace IS trusted.
+#   3. Every external source gets a NARROWLY-SCOPED policy that names
+#      the destination pods AND ports.  Any broad `podSelector: {}` from
+#      external namespaces was the prior (too-permissive) pattern and is
+#      removed in this ADR.
+#
+# Green-path preservation (audit §2.3 Stages 1-3+5):
+#   - Stage 1  collectors → Kafka (egress only; no ingress rule needed)
+#   - Stage 2  validator ← Kafka (egress only)
+#   - Stage 3  feature-engine ← Kafka + Airflow batch trigger (see
+#                `allow-airflow-to-processing`; Flink stream processing is
+#                owned by the FlinkDeployment CR, label `app: crypto-flink-job`)
+#   - Stage 5  ml-bridge → MLflow (egress only; ingress needed from
+#                dashboard-frontend + gateway, both intra-ns)
+#
+# The scrape / ingressgateway / tekton / knative rules remain intact.
+# =============================================================================
+
+# Default deny all ingress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow intra-namespace communication (pods in same namespace can talk)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow Prometheus scraping from observability namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8082    # validator
+        - protocol: TCP
+          port: 8084    # feature-cache
+        - protocol: TCP
+          port: 8000    # ml-bridge
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 9249    # Flink JM/TM Prometheus reporter (crypto-flink-job)
+        - protocol: TCP
+          port: 50053   # gRPC metrics
+  policyTypes:
+    - Ingress
+---
+# Allow Istio ingressgateway to reach the crypto gateway on 8080 ONLY.
+# Other pods (feature-cache, dashboard-*, ml-bridge, analyzer,
+# crypto-flink-job) MUST NOT be reachable from istio-system directly —
+# they are accessed via the in-namespace gateway which proxies after
+# AuthorizationPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+      ports:
+        - protocol: TCP
+          port: 8080
+  policyTypes:
+    - Ingress
+---
+# Istio control-plane → namespace access (istiod → pods for CDS/EDS/SDS).
+# Crypto has injection disabled so SDS is not used, but istiod still
+# calls into the ingressgateway on the crypto-side of its route; this
+# policy keeps the control-plane reachable at the gateway port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-istio-control-plane-to-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+  policyTypes:
+    - Ingress
+---
+# Airflow (data-processing) batch orchestration — restricted to the
+# processing-tier apps.  Replaces the prior "allow all pods from data-
+# processing" rule which unnecessarily exposed gateway + dashboard.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-airflow-to-processing
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        # ADR-023/025: `flink-job` removed — stream processing uses the
+        # FlinkDeployment CR (`app: crypto-flink-job`). Airflow DAGs do
+        # not call Flink directly; if that changes, add `crypto-flink-job`
+        # here and bind it to port 8081 (JobManager REST).
+        values: [feature-engine, validator, analyzer]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: data-processing
+  policyTypes:
+    - Ingress
+---
+# KFP (model-lifecycle) launches training / retraining pipelines — only
+# needs to reach feature-engine (to kick feature computation), the
+# FlinkDeployment JobManager (to submit Flink jobs on 8081), and
+# ml-bridge (to register the resulting model).  NO access to gateway /
+# dashboard / cache.  The FlinkDeployment lives in this namespace with
+# `app: crypto-flink-job` (the CR's metadata.name); selectors target that
+# label directly (kustomize namePrefix does not rewrite selector values).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kfp-to-training-targets
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [feature-engine, crypto-flink-job, ml-bridge]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: model-lifecycle
+  policyTypes:
+    - Ingress
+---
+# KServe + Knative — inference routing runs in front of gateway (which
+# hosts the crypto web UI) and can reach ml-bridge (which proxies model
+# metadata).  NO access to feature-engine / validator / crypto-flink-job.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-model-serving-to-serving-tier
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [gateway, ml-bridge]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: model-serving
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knative-serving
+  policyTypes:
+    - Ingress
+---
+# Tekton triggers — unchanged; only EventListener pod accepts webhooks
+# from gitops namespace on port 8080.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tekton-triggers
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: EventListener
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gitops
+      ports:
+        - protocol: TCP
+          port: 8080
+  policyTypes:
+    - Ingress

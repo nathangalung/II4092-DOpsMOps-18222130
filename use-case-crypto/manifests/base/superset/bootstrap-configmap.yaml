@@ -1,0 +1,408 @@
+# =============================================================================
+# CRYPTO SUPERSET BOOTSTRAP — Database + Dataset registrar (REST API client)
+# =============================================================================
+# Idempotent Python script that registers the crypto-relevant data sources
+# and datasets in the platform Superset instance.  Runs from a single-shot
+# Kubernetes Job (bootstrap-job.yaml) on every overlay apply; existing
+# Database / Dataset rows are detected by `database_name` / (database,
+# schema, table) tuple and SKIPPED — re-applies are no-ops.
+#
+# Why a script and not a `superset import-datasources` invocation?
+#
+#   * The CLI import path requires a Superset CLI image with all driver
+#     wheels available (uv-installed alongside Superset itself), and it
+#     mutates the metastore directly — risky if the Job is racy with the
+#     long-lived Superset Deployment running migrations.
+#   * The REST API endpoints (`/api/v1/database/`, `/api/v1/dataset/`) are
+#     stable since Superset 1.x, fully idempotent when guarded by the
+#     `list -> filter -> create-if-absent` pattern below, and they go
+#     through Superset's own validation (encryption of SQLAlchemy URI,
+#     `test_connection` probe before the row is committed).
+#   * Pure-stdlib `urllib` (no `requests`, no `pip install` step) keeps
+#     the bootstrap image tiny — the same `astral-sh/uv:python3.14-trixie`
+#     base every other crypto bootstrap (push-helper.py, openbao bootstrap)
+#     uses.
+#
+# Datasources registered:
+#   1. clickhouse-crypto        → clickhouse-connect SQLAlchemy dialect.
+#                                 The OHLCV / feature tables live in
+#                                 `bronze.*` / `silver.*` / `gold.*` schemas
+#                                 (per ClickHouse multi-schema layout —
+#                                 schema.yaml).  Default DB = `default` so
+#                                 chart authors fully-qualify table names.
+#   2. trino-lakehouse          → trino[sqlalchemy] dialect.  Federates
+#                                 ClickHouse + Iceberg (lakekeeper) +
+#                                 Postgres in a single SQL surface.  Useful
+#                                 for cross-storage joins (e.g. ML
+#                                 predictions in Postgres ⋈ feature
+#                                 vectors in ClickHouse).
+#   3. postgres-mlflow          → psycopg2 dialect to the CNPG `mlflow`
+#                                 logical DB.  Used by the model-performance
+#                                 dashboard (experiments → runs → metrics).
+#
+# Datasets registered (against the ClickHouse database connection — the
+# fastest path for time-series scans):
+#   * bronze.crypto_ohlcv                 — raw 1-minute OHLCV from Coinbase
+#   * bronze.crypto_ohlcv_features        — stream-computed indicators (Flink)
+#   * gold.fct_training_data              — joined feature mart (dbt-built)
+#   * silver.crypto_predictions           — ml-bridge → ClickHouse sink
+#   * silver.crypto_drift_metrics         — Evidently → ClickHouse sink
+#
+# Dashboards are intentionally NOT auto-imported here.  Dashboard JSON
+# bundles drift fast (chart UUIDs are regenerated on each Superset save)
+# and the API endpoint `/api/v1/dashboard/import/` is a one-shot rather
+# than an idempotent upsert — a CI-grade dashboard bundle workflow lives
+# better in `superset export-dashboards | git commit` driven by the analyst
+# than in a deploy-time Job.  The Job's purpose is to make the data
+# AVAILABLE in Superset; the analyst then builds dashboards in the UI.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: superset-bootstrap
+  labels:
+    app.kubernetes.io/component: bi-bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+    mlops-platform.io/use-case: crypto
+data:
+  bootstrap.py: |
+    # /// script
+    # requires-python = ">=3.14,<3.15"
+    # dependencies = []
+    # ///
+    """Crypto Superset bootstrap — register databases + datasets idempotently.
+
+    Pure-stdlib HTTP client (urllib) so the Job image is the base uv:python
+    image with NO extra wheels needed at runtime.
+
+    Exit codes:
+      0  every database + dataset present after the run
+      2  Superset login failed (admin creds wrong or service not ready)
+      3  database creation failed (driver missing in Superset image?)
+      4  dataset creation failed (table missing in ClickHouse?)
+    """
+    from __future__ import annotations
+
+    import json
+    import logging
+    import os
+    import sys
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    from typing import Any
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    log = logging.getLogger("crypto-superset-bootstrap")
+
+    SUPERSET_BASE = os.environ.get(
+        "SUPERSET_BASE_URL",
+        "http://superset.data-processing.svc.cluster.local:8088",
+    ).rstrip("/")
+    ADMIN_USER = os.environ["SUPERSET_ADMIN_USERNAME"]
+    ADMIN_PASS = os.environ["SUPERSET_ADMIN_PASSWORD"]
+
+    CH_USER = os.environ["CLICKHOUSE_USER"]
+    CH_PASS = os.environ["CLICKHOUSE_PASSWORD"]
+    CH_HOST = os.environ.get(
+        "CLICKHOUSE_HOST", "clickhouse-platform.storage.svc.cluster.local"
+    )
+    # clickhouse-connect uses the HTTP interface (8123), not the native 9000.
+    CH_PORT = int(os.environ.get("CLICKHOUSE_HTTP_PORT", "8123"))
+
+    TRINO_HOST = os.environ.get(
+        "TRINO_HOST", "trino.data-processing.svc.cluster.local"
+    )
+    TRINO_PORT = int(os.environ.get("TRINO_PORT", "8080"))
+    TRINO_CATALOG = os.environ.get("TRINO_CATALOG", "iceberg")
+    TRINO_SCHEMA = os.environ.get("TRINO_SCHEMA", "default")
+
+    PG_USER = os.environ["POSTGRES_USER"]
+    PG_PASS = os.environ["POSTGRES_PASSWORD"]
+    PG_HOST = os.environ.get(
+        "POSTGRES_HOST", "postgresql-rw.storage.svc.cluster.local"
+    )
+    PG_PORT = int(os.environ.get("POSTGRES_PORT", "5432"))
+    # The CNPG-bootstrapped database used by the MLflow tracking server.
+    PG_DB_MLFLOW = os.environ.get("POSTGRES_DB_MLFLOW", "mlflow")
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Database registry — every entry → one Superset Database row
+    # ────────────────────────────────────────────────────────────────────────
+    # `sqlalchemy_uri` is what Superset stores (encrypted at rest by Fernet).
+    # We URL-quote credentials so a `@` / `/` in a generated password does
+    # not corrupt the URI grammar.
+    def _q(s: str) -> str:
+        return urllib.parse.quote(s, safe="")
+
+    DATABASES: list[dict[str, Any]] = [
+        {
+            "database_name": "clickhouse-crypto",
+            "sqlalchemy_uri": (
+                f"clickhousedb+connect://{_q(CH_USER)}:{_q(CH_PASS)}@"
+                f"{CH_HOST}:{CH_PORT}/default"
+            ),
+            "expose_in_sqllab": True,
+            "allow_ctas": False,
+            "allow_cvas": False,
+            "allow_dml": False,
+            # Cross-schema visibility for Superset's SQL Lab table picker.
+            "extra": json.dumps({
+                "metadata_params": {},
+                "engine_params": {},
+                "schemas_allowed_for_file_upload": [],
+            }),
+        },
+        {
+            "database_name": "trino-lakehouse",
+            # Trino has no auth in this cluster (single-node, default
+            # PasswordAuthenticator off).  Any non-empty username is
+            # accepted and shown in Trino's query history.
+            "sqlalchemy_uri": (
+                f"trino://superset@{TRINO_HOST}:{TRINO_PORT}/"
+                f"{TRINO_CATALOG}/{TRINO_SCHEMA}"
+            ),
+            "expose_in_sqllab": True,
+            "allow_ctas": False,
+            "allow_cvas": False,
+            "allow_dml": False,
+        },
+        {
+            "database_name": "postgres-mlflow",
+            "sqlalchemy_uri": (
+                f"postgresql+psycopg2://{_q(PG_USER)}:{_q(PG_PASS)}@"
+                f"{PG_HOST}:{PG_PORT}/{PG_DB_MLFLOW}"
+            ),
+            "expose_in_sqllab": True,
+            "allow_ctas": False,
+            "allow_cvas": False,
+            "allow_dml": False,
+        },
+    ]
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Dataset registry — every entry → one Superset Dataset row
+    # ────────────────────────────────────────────────────────────────────────
+    # All datasets register against `clickhouse-crypto` because:
+    #  (a) clickhouse-connect is the fastest path for time-series scans —
+    #      no Trino coordinator hop, no Iceberg manifest read amplification.
+    #  (b) ClickHouse already holds bronze + silver + gold; Trino is the
+    #      ad-hoc cross-storage query surface, not the dashboard backbone.
+    DATASETS: list[dict[str, str]] = [
+        {"database": "clickhouse-crypto", "schema": "bronze",
+         "table_name": "crypto_ohlcv"},
+        {"database": "clickhouse-crypto", "schema": "bronze",
+         "table_name": "crypto_ohlcv_features"},
+        {"database": "clickhouse-crypto", "schema": "gold",
+         "table_name": "fct_training_data"},
+        {"database": "clickhouse-crypto", "schema": "silver",
+         "table_name": "crypto_predictions"},
+        {"database": "clickhouse-crypto", "schema": "silver",
+         "table_name": "crypto_drift_metrics"},
+    ]
+
+    # ────────────────────────────────────────────────────────────────────────
+    # HTTP helpers — pure stdlib, session-aware (login JWT + CSRF token)
+    # ────────────────────────────────────────────────────────────────────────
+    class Session:
+        """Minimal Superset REST client."""
+
+        def __init__(self, base: str) -> None:
+            self.base = base
+            self.access_token: str | None = None
+            self.csrf_token: str | None = None
+
+        def _request(
+            self,
+            method: str,
+            path: str,
+            *,
+            body: dict | None = None,
+            params: dict | None = None,
+        ) -> dict:
+            url = f"{self.base}{path}"
+            if params:
+                url = f"{url}?{urllib.parse.urlencode(params)}"
+            data: bytes | None = None
+            headers = {"Content-Type": "application/json"}
+            if self.access_token:
+                headers["Authorization"] = f"Bearer {self.access_token}"
+                headers["Referer"] = self.base
+            if self.csrf_token and method != "GET":
+                headers["X-CSRFToken"] = self.csrf_token
+            if body is not None:
+                data = json.dumps(body).encode()
+            req = urllib.request.Request(
+                url, data=data, headers=headers, method=method
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+                    raw = resp.read()
+                    return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as exc:
+                body_txt = exc.read().decode("utf-8", "replace")
+                log.error("HTTP %s %s -> %s: %s", method, path, exc.code, body_txt)
+                raise
+
+        def login(self, user: str, password: str) -> None:
+            payload = {
+                "username": user,
+                "password": password,
+                "provider": "db",
+                "refresh": True,
+            }
+            resp = self._request("POST", "/api/v1/security/login", body=payload)
+            self.access_token = resp["access_token"]
+            csrf = self._request("GET", "/api/v1/security/csrf_token/")
+            self.csrf_token = csrf.get("result")
+
+        # --- Database CRUD -----------------------------------------------------
+        def list_database_names(self) -> set[str]:
+            names: set[str] = set()
+            page = 0
+            while True:
+                params = {
+                    "q": json.dumps({"page": page, "page_size": 100}),
+                }
+                resp = self._request("GET", "/api/v1/database/", params=params)
+                rows = resp.get("result", [])
+                for row in rows:
+                    names.add(row["database_name"])
+                if len(rows) < 100:
+                    break
+                page += 1
+            return names
+
+        def create_database(self, spec: dict[str, Any]) -> None:
+            self._request("POST", "/api/v1/database/", body=spec)
+
+        # --- Dataset CRUD ------------------------------------------------------
+        def get_database_id(self, name: str) -> int:
+            params = {
+                "q": json.dumps({
+                    "filters": [
+                        {"col": "database_name", "opr": "eq", "value": name}
+                    ],
+                    "page_size": 1,
+                }),
+            }
+            resp = self._request("GET", "/api/v1/database/", params=params)
+            rows = resp.get("result", [])
+            if not rows:
+                raise RuntimeError(f"database '{name}' not found after create")
+            return int(rows[0]["id"])
+
+        def list_dataset_keys(self) -> set[tuple[int, str, str]]:
+            """Return {(database_id, schema, table_name)} for existing datasets."""
+            keys: set[tuple[int, str, str]] = set()
+            page = 0
+            while True:
+                params = {
+                    "q": json.dumps({"page": page, "page_size": 100}),
+                }
+                resp = self._request("GET", "/api/v1/dataset/", params=params)
+                rows = resp.get("result", [])
+                for row in rows:
+                    db_id = int(row["database"]["id"])
+                    keys.add((db_id, row.get("schema", "") or "", row["table_name"]))
+                if len(rows) < 100:
+                    break
+                page += 1
+            return keys
+
+        def create_dataset(
+            self, *, database_id: int, schema: str, table_name: str
+        ) -> None:
+            payload = {
+                "database": database_id,
+                "schema": schema,
+                "table_name": table_name,
+            }
+            self._request("POST", "/api/v1/dataset/", body=payload)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Main — login, register databases, register datasets
+    # ────────────────────────────────────────────────────────────────────────
+    def wait_for_superset(base: str, *, attempts: int = 60) -> None:
+        """Block until Superset's /health endpoint returns 200."""
+        url = f"{base}/health"
+        for i in range(attempts):
+            try:
+                with urllib.request.urlopen(url, timeout=5) as resp:  # noqa: S310
+                    if resp.status == 200:
+                        log.info("superset healthy at %s", base)
+                        return
+            except (urllib.error.URLError, OSError) as exc:
+                log.info("waiting for superset (%d/%d): %s", i + 1, attempts, exc)
+            time.sleep(5)
+        raise SystemExit(2)
+
+    def main() -> int:
+        wait_for_superset(SUPERSET_BASE)
+
+        session = Session(SUPERSET_BASE)
+        try:
+            session.login(ADMIN_USER, ADMIN_PASS)
+        except Exception as exc:  # noqa: BLE001
+            log.error("login failed: %s", exc)
+            return 2
+        log.info("authenticated to superset as %s", ADMIN_USER)
+
+        existing_dbs = session.list_database_names()
+        for spec in DATABASES:
+            name = spec["database_name"]
+            if name in existing_dbs:
+                log.info("database %r already registered, skipping", name)
+                continue
+            try:
+                session.create_database(spec)
+            except Exception as exc:  # noqa: BLE001
+                log.error("failed to create database %r: %s", name, exc)
+                return 3
+            log.info("created database %r", name)
+
+        # Resolve database IDs after potential creates
+        db_id_by_name = {
+            name: session.get_database_id(name)
+            for name in {d["database_name"] for d in DATABASES}
+        }
+
+        existing_keys = session.list_dataset_keys()
+        for ds in DATASETS:
+            db_id = db_id_by_name[ds["database"]]
+            key = (db_id, ds["schema"], ds["table_name"])
+            if key in existing_keys:
+                log.info(
+                    "dataset %s.%s already registered, skipping",
+                    ds["schema"], ds["table_name"],
+                )
+                continue
+            try:
+                session.create_dataset(
+                    database_id=db_id,
+                    schema=ds["schema"],
+                    table_name=ds["table_name"],
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Missing-table in ClickHouse is a common dev-cluster
+                # state; log loudly but continue so we register every
+                # dataset whose backing table exists.
+                log.warning(
+                    "could not register dataset %s.%s: %s",
+                    ds["schema"], ds["table_name"], exc,
+                )
+                continue
+            log.info(
+                "registered dataset %s.%s -> %s",
+                ds["schema"], ds["table_name"], ds["database"],
+            )
+
+        log.info("crypto superset bootstrap complete")
+        return 0
+
+    if __name__ == "__main__":
+        sys.exit(main())

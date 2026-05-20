@@ -1,0 +1,80 @@
+# =============================================================================
+# Kueue LocalQueues — use-case-crypto scope
+# =============================================================================
+# Cluster-scoped Kueue resources (ResourceFlavor + ClusterQueue) live at the
+# platform layer — see `platform/components/common/kueue/queues.yaml`.
+# Authoring those CRs in two places would break GitOps reconciliation with
+# duplicate cluster-scoped objects.
+#
+# This file only declares the namespace-scoped LocalQueues that land in
+# `use-case-crypto`. Each queue targets the shared cluster queue:
+#
+#   ClusterQueue mlops-cluster-queue  (cohort=mlops, platform)
+#     |
+#     +-- LocalQueue crypto-training-queue  <-- training workloads
+#     +-- LocalQueue crypto-batch-queue     <-- batch processing workloads
+#
+# Usage: add the following label to the Job or CronJob pod template:
+#   kueue.x-k8s.io/queue-name: crypto-training-queue
+#
+# For batch processing jobs (dbt, feature engineering, vector embedding):
+#   kueue.x-k8s.io/queue-name: crypto-batch-queue
+# =============================================================================
+
+---
+# -----------------------------------------------------------------------------
+# LocalQueue: crypto-training-queue
+# -----------------------------------------------------------------------------
+# Namespace-scoped queue for training workloads in the use-case-crypto
+# namespace. Training CronJobs, Katib hyperparameter tuning experiments,
+# and KFP pipeline pods submit work here.
+#
+# Example usage in a CronJob:
+#   apiVersion: batch/v1
+#   kind: CronJob
+#   metadata:
+#     name: crypto-model-training
+#     namespace: use-case-crypto
+#   spec:
+#     jobTemplate:
+#       spec:
+#         template:
+#           metadata:
+#             labels:
+#               kueue.x-k8s.io/queue-name: crypto-training-queue
+# -----------------------------------------------------------------------------
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: training-queue
+  namespace: use-case-crypto
+spec:
+  clusterQueue: mlops-cluster-queue
+
+---
+# -----------------------------------------------------------------------------
+# LocalQueue: crypto-batch-queue
+# -----------------------------------------------------------------------------
+# Namespace-scoped queue for batch processing workloads in the
+# use-case-crypto namespace. Used by dbt transformation jobs, feature
+# engineering pipelines, and vector embedding generation.
+#
+# Example usage in a Job:
+#   apiVersion: batch/v1
+#   kind: Job
+#   metadata:
+#     name: dbt-transform
+#     namespace: use-case-crypto
+#   spec:
+#     template:
+#       metadata:
+#         labels:
+#           kueue.x-k8s.io/queue-name: crypto-batch-queue
+# -----------------------------------------------------------------------------
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: batch-queue
+  namespace: use-case-crypto
+spec:
+  clusterQueue: mlops-cluster-queue

@@ -1,0 +1,258 @@
+# =============================================================================
+# Argo CronWorkflow — retrain-on-drift (crypto use-case)
+# =============================================================================
+# ADR-017.  Closes the MLOps feedback loop:
+#
+#   every 6h  →  query gold.drift_metrics (last 6h window)
+#             →  if PSI or KS score exceeds threshold for any feature,
+#                trigger the KFP retraining_pipeline recurring run.
+#             →  emit a Prometheus exemplar via Pushgateway so the SRE
+#                dashboard records every trigger event.
+#
+# Runs in the `model-lifecycle` namespace (Argo Workflows controller ships
+# with Kubeflow Pipelines there — see platform/components/gitops/
+# kustomization.yaml note about lease contention).  Use-case scope —
+# the drift threshold and KFP pipeline name are crypto-specific, so this
+# CronWorkflow lives under use-case-crypto/.
+#
+# Dependencies (platform-provided):
+#   - ClickHouse `clickhouse-platform.storage.svc` → `gold.drift_metrics` MergeTree.
+#   - KFP API at `ml-pipeline.model-lifecycle.svc:8888`.
+#   - Pushgateway `pushgateway.observability.svc:9091`.
+#   - ExternalSecret `retrain-on-drift` provisions CLICKHOUSE_USER /
+#     CLICKHOUSE_PASSWORD from Vault path `secret/usecases/crypto/clickhouse`.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: retrain-on-drift
+  namespace: model-lifecycle
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: retrain-trigger
+    mlops-platform.io/use-case: crypto
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: retrain-on-drift
+    creationPolicy: Owner
+  data:
+    - secretKey: CLICKHOUSE_USER
+      remoteRef: { key: platform/clickhouse/admin, property: username }
+    - secretKey: CLICKHOUSE_PASSWORD
+      remoteRef: { key: platform/clickhouse/admin, property: password }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: retrain-on-drift
+  namespace: model-lifecycle
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: retrain-trigger
+    mlops-platform.io/use-case: crypto
+spec:
+  schedule: "0 */6 * * *"       # every 6h on the hour
+  concurrencyPolicy: Forbid     # do not overlap; a stuck run stays stuck
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  timezone: UTC
+  workflowSpec:
+    serviceAccountName: pipeline-runner       # KFP's runner SA (can call ml-pipeline)
+    ttlStrategy:
+      secondsAfterCompletion: 86400           # 1d — enough for incident review
+    entrypoint: main
+    arguments:
+      parameters:
+        - name: drift-threshold-psi
+          value: "0.2"                        # PSI > 0.2  => distribution shift
+        - name: drift-threshold-ks
+          value: "0.15"                       # KS  > 0.15 => distribution shift
+        - name: lookback-hours
+          value: "6"
+        - name: kfp-pipeline-id
+          # The retraining_pipeline ID; KFP exposes this via
+          # ml-pipeline:8888/apis/v2beta1/pipelines. Populate the literal here
+          # after `kfp pipeline list` on first bootstrap.
+          value: "retraining_pipeline"
+        - name: kfp-experiment
+          value: "crypto-retraining"
+    templates:
+      - name: main
+        steps:
+          - - name: measure-drift
+              template: measure-drift
+          - - name: decide-and-trigger
+              template: decide-and-trigger
+              arguments:
+                parameters:
+                  - name: psi-max
+                    value: "{{steps.measure-drift.outputs.parameters.psi-max}}"
+                  - name: ks-max
+                    value: "{{steps.measure-drift.outputs.parameters.ks-max}}"
+                  - name: feature-max
+                    value: "{{steps.measure-drift.outputs.parameters.feature-max}}"
+
+      # Query ClickHouse gold.drift_metrics for the highest PSI + KS scores
+      # in the lookback window, and expose them as workflow outputs.
+      - name: measure-drift
+        inputs: {}
+        outputs:
+          parameters:
+            - name: psi-max
+              valueFrom: { path: /tmp/psi-max.txt }
+            - name: ks-max
+              valueFrom: { path: /tmp/ks-max.txt }
+            - name: feature-max
+              valueFrom: { path: /tmp/feature-max.txt }
+        container:
+          image: clickhouse/clickhouse-client:26.3.10.60
+          command: [sh, -ceu]
+          envFrom:
+            - secretRef: { name: retrain-on-drift }
+          args:
+            - |
+              LOOKBACK="{{workflow.parameters.lookback-hours}}"
+              QUERY="
+                SELECT
+                  max(psi) AS psi_max,
+                  max(ks)  AS ks_max,
+                  argMax(feature, psi + ks) AS feature_max
+                FROM gold.drift_metrics
+                WHERE timestamp >= now() - INTERVAL ${LOOKBACK} HOUR
+              "
+              RESULT=$(clickhouse-client \
+                --host clickhouse-platform.storage.svc.cluster.local \
+                --port 9000 \
+                --user "${CLICKHOUSE_USER}" \
+                --password "${CLICKHOUSE_PASSWORD}" \
+                --query "${QUERY}" \
+                --format TSV)
+              echo "drift probe result: ${RESULT}"
+              # RESULT is a single TSV row: psi_max<TAB>ks_max<TAB>feature_max
+              PSI=$(echo "${RESULT}" | awk -F'\t' '{print $1}')
+              KS=$(echo  "${RESULT}" | awk -F'\t' '{print $2}')
+              FEATURE=$(echo "${RESULT}" | awk -F'\t' '{print $3}')
+              # Null-result guard: the query returns empty strings if the
+              # table was empty in the window; default to 0 so the decision
+              # step treats it as "no drift, no retrain".
+              echo "${PSI:-0}"     > /tmp/psi-max.txt
+              echo "${KS:-0}"      > /tmp/ks-max.txt
+              echo "${FEATURE:-none}" > /tmp/feature-max.txt
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 250m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: [ALL] }
+
+      # Compare metrics to thresholds; if either is exceeded, POST to the
+      # KFP API to kick off a recurring run. Always push a Prometheus metric
+      # describing the outcome.
+      - name: decide-and-trigger
+        inputs:
+          parameters:
+            - name: psi-max
+            - name: ks-max
+            - name: feature-max
+        container:
+          # UV mandate: switched base from `python:3.13-alpine` (pulls pip)
+          # to the astral uv image. Driver script is written to /tmp as a
+          # PEP 723 inline-metadata file and launched via `uv run` — uv
+          # resolves `requests==2.32.3` in an ephemeral venv (cached under
+          # /tmp/.uv-cache) with no pip ever invoked.
+          image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+          command: [sh, -ceu]
+          env:
+            - name: KFP_API
+              value: "http://ml-pipeline.model-lifecycle.svc.cluster.local:8888"
+            - name: PUSHGATEWAY
+              value: "http://pushgateway.observability.svc.cluster.local:9091"
+            - name: HOME
+              value: /tmp
+            - name: UV_CACHE_DIR
+              value: /tmp/.uv-cache
+            - name: UV_LINK_MODE
+              value: copy
+          args:
+            - |
+              export PSI="{{inputs.parameters.psi-max}}"
+              export KS="{{inputs.parameters.ks-max}}"
+              export FEATURE="{{inputs.parameters.feature-max}}"
+              export PSI_TH="{{workflow.parameters.drift-threshold-psi}}"
+              export KS_TH="{{workflow.parameters.drift-threshold-ks}}"
+              export PIPELINE="{{workflow.parameters.kfp-pipeline-id}}"
+              export EXPERIMENT="{{workflow.parameters.kfp-experiment}}"
+
+              cat > /tmp/decide.py <<'PYEOF'
+              # /// script
+              # requires-python = ">=3.13,<3.14"
+              # dependencies = ["requests==2.32.3"]
+              # ///
+              import os, time
+              import requests
+
+              psi = float(os.environ["PSI"])
+              ks  = float(os.environ["KS"])
+              psi_th = float(os.environ["PSI_TH"])
+              ks_th  = float(os.environ["KS_TH"])
+              feature = os.environ["FEATURE"]
+              pipeline = os.environ["PIPELINE"]
+              experiment = os.environ["EXPERIMENT"]
+              triggered = 0
+
+              if psi > psi_th or ks > ks_th:
+                  body = {
+                      "display_name": f"crypto-retrain-{int(time.time())}",
+                      "pipeline_version_reference": {"pipeline_id": pipeline},
+                      "runtime_config": {
+                          "parameters": {
+                              "trigger_reason": {"string_value": f"drift({feature})"},
+                              "psi_observed":   {"number_value": psi},
+                              "ks_observed":    {"number_value": ks},
+                          }
+                      },
+                      "experiment_id": experiment,
+                  }
+                  r = requests.post(
+                      f"{os.environ['KFP_API']}/apis/v2beta1/runs",
+                      json=body, timeout=30,
+                  )
+                  r.raise_for_status()
+                  print(f"Triggered KFP run: {r.json().get('run_id')}")
+                  triggered = 1
+              else:
+                  print(f"Drift within tolerance (psi={psi}, ks={ks}); no retrain.")
+
+              # Push exemplar to Prometheus through Pushgateway so the SRE
+              # dashboard gets a point for every probe (triggered or not).
+              metric = (
+                  "# TYPE crypto_retrain_on_drift_psi gauge\n"
+                  f"crypto_retrain_on_drift_psi {psi}\n"
+                  "# TYPE crypto_retrain_on_drift_ks gauge\n"
+                  f"crypto_retrain_on_drift_ks {ks}\n"
+                  "# TYPE crypto_retrain_on_drift_triggered gauge\n"
+                  f"crypto_retrain_on_drift_triggered {triggered}\n"
+              )
+              requests.post(
+                  f"{os.environ['PUSHGATEWAY']}/metrics/job/retrain_on_drift/use_case/crypto",
+                  data=metric,
+                  timeout=10,
+              ).raise_for_status()
+              print("Pushed drift metrics to Pushgateway.")
+              PYEOF
+              uv run /tmp/decide.py
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 250m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false      # uv writes cache to /tmp
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: [ALL] }

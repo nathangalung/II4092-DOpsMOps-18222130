@@ -1,0 +1,35 @@
+syntax = "proto3";
+package crypto.ohlcv;
+
+option go_package = "github.com/use-case-crypto/proto/ohlcv";
+
+message OHLCVRecord {
+    string symbol = 1;
+    int64 timestamp = 2;
+    double open = 3;
+    double high = 4;
+    double low = 5;
+    double close = 6;
+    double volume = 7;
+    string source = 8;
+}
+
+message OHLCVBatch {
+    repeated OHLCVRecord records = 1;
+}
+
+message OHLCVRequest {
+    string symbol = 1;
+    int64 start_time = 2;
+    int64 end_time = 3;
+    int32 limit = 4;
+}
+
+message OHLCVResponse {
+    repeated OHLCVRecord records = 1;
+}
+
+service OHLCVService {
+    rpc GetOHLCV(OHLCVRequest) returns (OHLCVResponse);
+    rpc StreamOHLCV(OHLCVRequest) returns (stream OHLCVRecord);
+}

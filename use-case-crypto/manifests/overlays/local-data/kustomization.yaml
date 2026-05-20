@@ -1,0 +1,148 @@
+# =============================================================================
+# LOCAL PHASE 1 OVERLAY — Only Ingestion + Quality + Processing
+# =============================================================================
+# References base/kustomization-data.yaml instead of base/kustomization.yaml
+# so Train/3/4 resources are never created (no unnecessary image pulls).
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: crypto-
+namespace: use-case-crypto
+
+resources:
+  - ../../base-data
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: crypto-pipeline
+      environment: development
+      platform: k3s
+    includeSelectors: true
+
+# Image name mapping — Data only. Tags pinned to `dev` so base
+# `:latest` placeholder is fully overridden; bumping a phase service
+# is an overlay-edit only.
+images:
+  # Ingestion
+  - name: rest-collector
+    newName: localhost:5000/crypto-rest-collector
+    newTag: latest
+  - name: websocket-collector
+    newName: localhost:5000/crypto-websocket-collector
+    newTag: latest
+  # Quality
+  - name: validator
+    newName: localhost:5000/crypto-validator
+    newTag: latest
+  - name: analyzer
+    newName: localhost:5000/crypto-analyzer
+    newTag: latest
+  # Processing
+  - name: feature-engine
+    newName: localhost:5000/crypto-feature-engine
+    newTag: latest
+  # ADR-023/025: the FlinkDeployment CR hardcodes the image reference
+  # (`image: crypto-flink-job:latest`); kustomize image transformers can't
+  # match it because the operator CR is outside the set they rewrite.
+  # The build pipeline tags/pushes the image, and the CR pulls by name.
+  - name: batch-processing
+    newName: localhost:5000/crypto-batch-processing
+    newTag: latest
+  - name: vector-processing
+    newName: localhost:5000/crypto-vector-processing
+    newTag: latest
+  # dbt
+  - name: dbt-project
+    newName: localhost:5000/crypto-dbt-project
+    newTag: latest
+
+replicas:
+  - name: rest-collector
+    count: 1
+  - name: websocket-collector
+    count: 1
+  - name: validator
+    count: 1
+  - name: analyzer
+    count: 1
+  - name: feature-engine
+    count: 1
+
+patches:
+  # Use IfNotPresent pull policy (works for both minikube and k3s with local registry)
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+
+  # Reduce resources for VPS (limited node resources)
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+
+  # Further reduce memory for heavy services
+  - target:
+      kind: Deployment
+      name: feature-engine
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+  # ADR-023/025: flink-job Deployment is gone. Flink JM/TM resources are
+  # sized on the FlinkDeployment CR directly (see base/flink/flinkdeployment.yaml
+  # → jobManager.resource / taskManager.resource).
+  - target:
+      kind: Deployment
+      name: analyzer
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+  # batch-features CronJob removed — superseded by Airflow DAG crypto_hourly_features
+  - target:
+      kind: CronJob
+      name: vector-embedding
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"

@@ -1,0 +1,16 @@
+name: crypto_pipeline
+version: '1.0.0'
+profile: platform
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+models:
+  crypto_pipeline:
+    staging:
+      +materialized: view
+      +schema: silver
+    marts:
+      +materialized: table
+      +schema: gold

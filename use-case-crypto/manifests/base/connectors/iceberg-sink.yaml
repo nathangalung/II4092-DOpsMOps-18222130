@@ -1,0 +1,177 @@
+# =============================================================================
+# ICEBERG SINK — Stream Kafka Topics to Iceberg Tables (Bronze Archive)
+# =============================================================================
+# Archives raw Kafka data as Iceberg tables on MinIO (S3-compatible).
+# This provides:
+#   - Long-term storage beyond Kafka retention
+#   - Time-travel queries via Iceberg snapshots
+#   - Schema evolution tracking
+#   - Parquet columnar format for efficient analytics
+#
+# Iceberg tables are managed by Lakekeeper REST Catalog (Rust, Apache Licensed).
+# Lakekeeper uses remote signing for MinIO S3 access — no STS required.
+# Trino/Spark/Flink can query these tables directly via the Iceberg REST API.
+#
+# Prerequisites:
+#   - Kafka Connect with Iceberg sink plugin (tabular-io/iceberg-kafka-connect)
+#   - MinIO with 'warehouse' bucket
+#   - Lakekeeper running with PostgreSQL backend
+#   - Lakekeeper 'warehouse' warehouse with 'bronze' namespace created
+#
+# Authentication:
+#   Lakekeeper is deployed without authentication (internal cluster use).
+#   For production, configure OIDC via LAKEKEEPER__OPENID_PROVIDER_URI.
+#   S3 access uses remote signing — Lakekeeper signs S3 requests server-side
+#   using stored credentials, so clients never see the S3 keys.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: iceberg-sink-registration
+  labels:
+    app: iceberg-sink
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: iceberg-sink
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      initContainers:
+        # Wait for Kafka Connect and Lakekeeper to be ready
+        - name: wait-for-dependencies
+          image: curlimages/curl:8.20.0
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 50m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Kafka Connect..."
+              until curl -sf http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors; do
+                sleep 5
+              done
+              echo "Kafka Connect ready"
+              echo "Waiting for Lakekeeper..."
+              until curl -sf http://lakekeeper.storage.svc.cluster.local:8181/health; do
+                sleep 5
+              done
+              echo "Lakekeeper ready"
+      containers:
+        - name: register
+          image: curlimages/curl:8.20.0
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          env:
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: S3_SECRET_ACCESS_KEY
+          args:
+            - |
+              set -euo pipefail
+              : "${S3_ACCESS_KEY:?S3_ACCESS_KEY_ID missing from pipeline-secrets}"
+              : "${S3_SECRET_KEY:?S3_SECRET_ACCESS_KEY missing from pipeline-secrets}"
+              S3_AK="$S3_ACCESS_KEY"
+              S3_SK="$S3_SECRET_KEY"
+              LK="http://lakekeeper.storage.svc.cluster.local:8181"
+
+              echo "=== Step 1: Create Lakekeeper warehouse (idempotent) ==="
+              HTTP=$(curl -sf -o /tmp/r.txt -w "%{http_code}" \
+                -X POST "$LK/management/v1/warehouse" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"warehouse-name\": \"warehouse\",
+                  \"project-id\": \"00000000-0000-0000-0000-000000000000\",
+                  \"storage-profile\": {
+                    \"type\": \"s3\",
+                    \"bucket\": \"warehouse\",
+                    \"region\": \"us-east-1\",
+                    \"sts-enabled\": false,
+                    \"flavor\": \"s3-compat\",
+                    \"endpoint\": \"http://minio.storage.svc.cluster.local:9000\",
+                    \"path-style-access\": true,
+                    \"remote-signing-enabled\": true
+                  },
+                  \"storage-credential\": {
+                    \"type\": \"s3\",
+                    \"credential-type\": \"access-key\",
+                    \"aws-access-key-id\": \"${S3_AK}\",
+                    \"aws-secret-access-key\": \"${S3_SK}\"
+                  }
+                }")
+              echo "Create warehouse: HTTP $HTTP (201=created, 400=exists)"
+
+              # Get warehouse UUID for namespace creation
+              WH_ID=$(curl -sf "$LK/management/v1/warehouse" | sed -n 's/.*"warehouse-id":"\([^"]*\)".*/\1/p' | head -1)
+              echo "Warehouse ID: $WH_ID"
+
+              echo "=== Step 2: Create bronze namespace (idempotent) ==="
+              HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+                -X POST "$LK/catalog/v1/${WH_ID}/namespaces" \
+                -H "Content-Type: application/json" \
+                -d '{"namespace":["bronze"],"properties":{}}')
+              echo "Create namespace: HTTP $HTTP (200=created, 409=exists)"
+
+              echo ""
+              echo "=== Step 3: Register Iceberg sink connector ==="
+              HTTP_CODE=$(curl -sf -o /tmp/response.txt -w "%{http_code}" \
+                -X PUT \
+                http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/crypto-iceberg-sink/config \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"connector.class\": \"io.tabular.iceberg.connect.IcebergSinkConnector\",
+                  \"tasks.max\": \"1\",
+                  \"topics\": \"crypto.validated,crypto.trades.v1,crypto.supplementary\",
+                  \"iceberg.catalog.type\": \"rest\",
+                  \"iceberg.catalog.uri\": \"http://lakekeeper.storage.svc.cluster.local:8181/catalog\",
+                  \"iceberg.catalog.warehouse\": \"warehouse\",
+                  \"iceberg.catalog.s3.endpoint\": \"http://minio.storage.svc.cluster.local:9000\",
+                  \"iceberg.catalog.s3.access-key-id\": \"${S3_AK}\",
+                  \"iceberg.catalog.s3.secret-access-key\": \"${S3_SK}\",
+                  \"iceberg.catalog.s3.path-style-access\": \"true\",
+                  \"iceberg.catalog.s3.region\": \"us-east-1\",
+                  \"iceberg.tables\": \"bronze.crypto_validated,bronze.crypto_trades,bronze.crypto_sentiment\",
+                  \"iceberg.tables.route-field\": \"topic\",
+                  \"iceberg.tables.auto-create-enabled\": \"true\",
+                  \"iceberg.control.commit.interval-ms\": \"60000\",
+                  \"key.converter\": \"org.apache.kafka.connect.storage.StringConverter\",
+                  \"value.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
+                  \"value.converter.schemas.enable\": \"false\",
+                  \"errors.tolerance\": \"all\",
+                  \"errors.deadletterqueue.topic.name\": \"iceberg-dlq\",
+                  \"errors.deadletterqueue.topic.replication.factor\": \"1\",
+                  \"errors.deadletterqueue.context.headers.enable\": \"true\"
+                }")
+
+              echo "Connector registration: HTTP $HTTP_CODE"
+
+              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                echo "=== Iceberg sink registered successfully ==="
+                sleep 5
+                curl -sf http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/crypto-iceberg-sink/status
+                echo ""
+              else
+                echo "ERROR: Registration failed"
+                cat /tmp/response.txt
+                exit 1
+              fi
+      restartPolicy: OnFailure

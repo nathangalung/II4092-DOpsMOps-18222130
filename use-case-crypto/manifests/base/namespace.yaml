@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    # Tenant label consumed by platform NetworkPolicies in
+    # platform/components/common/network-policies.yaml — any namespace
+    # carrying this label is allowed to talk to platform services through
+    # the `allow-consumers` / `allow-vault-clients` / `allow-emitters`
+    # rules.  Keeps the platform tree free of use-case names.
+    mlops-platform.io/use-case: "true"
+    mlops-platform.io/istio-exempt: "true"
+    istio-injection: disabled

@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  # --- Kafka security (use-case-crypto override on platform default) ---
+  # Platform default in pipeline-infrastructure.yaml points at the plain
+  # listener (:9092). cycle-3 §3.1: the broker enforces ACLs even on the
+  # plain listener and rejects anonymous KEDA scalers, so this use case
+  # flips ALL Kafka traffic onto the SCRAM listener (:9093).  When stocks
+  # migrates, it sets the same keys in its own pipeline-config patch — the
+  # platform default stays on :9092 until every use case is on SCRAM.
+  KAFKA_BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+  KAFKA_SECURITY_PROTOCOL: "SASL_SSL"
+  KAFKA_SASL_MECHANISM: "SCRAM-SHA-512"
+  # librdkafka / confluent-kafka clients read this path; the kafka-sasl
+  # patch mounts the broker CA there from the crypto-app-consumer Secret.
+  KAFKA_SSL_CA_LOCATION: "/etc/kafka/ca/ca.crt"
+
+  # --- Kafka topics ---
+  KAFKA_TOPIC: "crypto.ws.raw"
+  KAFKA_OUTPUT_TOPIC: "crypto.validated"
+
+  # --- Service topic aliases ---
+  INPUT_TOPIC: "crypto.validated"
+  OUTPUT_TOPIC: "crypto.features.v1"
+
+  # --- Validator (flat env vars — config crate has no separator set) ---
+  # Uses oneOf to accept both OHLCV candles and ticker data (price/bid/ask)
+  VALIDATOR_SCHEMA: '{"type":"object","required":["symbol","timestamp"],"oneOf":[{"required":["open","high","low","close","volume"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"open":{"type":"number"},"high":{"type":"number"},"low":{"type":"number"},"close":{"type":"number"},"volume":{"type":"number"}}},{"required":["price"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"price":{"type":"number"},"bid":{"type":"number"},"ask":{"type":"number"},"volume":{"type":"number"},"spread":{"type":"number"}}}]}'
+
+  # --- Feature engine (FEATURE prefix with __ separator) ---
+  FEATURE_KAFKA__INPUT_TOPIC: "crypto.validated"
+  FEATURE_KAFKA__OUTPUT_TOPIC: "crypto.features.v1"
+  FEATURE_KAFKA__GROUP_ID: "feature-engine"
+  FEATURE_KAFKA__BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+  FEATURE_KAFKA__SECURITY_PROTOCOL: "SASL_SSL"
+  FEATURE_KAFKA__SASL_MECHANISM: "SCRAM-SHA-512"
+  FEATURE_KAFKA__SSL_CA_LOCATION: "/etc/kafka/ca/ca.crt"
+  FEATURE_VALKEY__URL: "redis://valkey.storage.svc.cluster.local:6379"
+  FEATURE_REDIS__TTL_SECONDS: "3600"
+
+  # --- ClickHouse sink (writable — points to actual tables, not views) ---
+  CLICKHOUSE_SINK_TABLE: "bronze.crypto_ohlcv_features"
+  DATA_TABLE: "bronze.crypto_ohlcv"
+  # NOTE: FEATURES_TABLE is defined in schema.yaml (single source of truth)
+  # as gold.fct_training_data. Do NOT redefine it here.
+
+  # --- Supplementary topics (consumed by batch jobs) ---
+  KAFKA_SUPPLEMENTARY_TOPIC: "crypto.supplementary"
+  # Trade / orderbook topic names are declared on the consumers that need them
+  # (crypto-websocket-collector sets COINBASE_{TRADES,ORDERBOOK}_TOPIC via the
+  # deployment patch; Flink StreamJob reads STREAM_{TRADES,ORDERBOOK}_TOPIC
+  # below). No shared KAFKA_TRADES_TOPIC / KAFKA_ORDERBOOK_TOPIC env is
+  # needed — the convention is per-consumer.
+
+  # --- Flink stream wiring (consumed by platform StreamJob via reflection) ---
+  # Platform ships com.pipeline.functions.FeatureFunction (time-series primitive).
+  # Use-case-crypto ships Trade/Orderbook microstructure functions through the
+  # crypto-flink-job overlay image — see use-case-crypto/services/processing/flink-job.
+  ENABLED_STREAMS: "time_series,trades,orderbook"
+  STREAM_TIME_SERIES_TOPIC: "crypto.validated"
+  STREAM_TIME_SERIES_FUNCTION: "com.pipeline.functions.FeatureFunction"
+  STREAM_TIME_SERIES_GROUP: "flink-time-series"
+  STREAM_TRADES_TOPIC: "crypto.trades.v1"
+  STREAM_TRADES_FUNCTION: "com.usecase.crypto.functions.TradeFeatureFunction"
+  STREAM_TRADES_GROUP: "flink-trades"
+  STREAM_ORDERBOOK_TOPIC: "crypto.orderbook.v1"
+  STREAM_ORDERBOOK_FUNCTION: "com.usecase.crypto.functions.OrderbookFeatureFunction"
+  STREAM_ORDERBOOK_GROUP: "flink-orderbook"
+
+  # --- Sentiment batch processing (writable targets → gold layer) ---
+  SENTIMENT_RAW_TABLE: "bronze.crypto_sentiment"
+  # Table names aligned with dbt mart models (gold schema)
+  SENTIMENT_FEATURES_TABLE: "gold.fct_sentiment_agg"
+  FEAR_GREED_TABLE: "gold.dim_fear_greed"
+  SENTIMENT_BATCH_WINDOW_MINUTES: "30"

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  SYMBOL: "BTC-USD"
+  ACTIVE_HOURS_START: "0"
+  ACTIVE_HOURS_END: "23"

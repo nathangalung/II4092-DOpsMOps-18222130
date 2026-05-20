@@ -1,0 +1,40 @@
+syntax = "proto3";
+package crypto.common;
+
+option go_package = "github.com/use-case-crypto/proto/common";
+
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+    string status = 1;
+    string version = 2;
+    int64 uptime_seconds = 3;
+}
+
+message ErrorResponse {
+    int32 code = 1;
+    string message = 2;
+    string details = 3;
+}
+
+enum Symbol {
+    UNKNOWN = 0;
+    BTC_USD = 1;
+    ETH_USD = 2;
+}
+
+enum TimeScale {
+    MINUTE = 0;
+    HOUR = 1;
+    SIX_HOUR = 2;
+    TWELVE_HOUR = 3;
+    DAILY = 4;
+    WEEKLY = 5;
+    MONTHLY = 6;
+    QUARTERLY = 7;
+}

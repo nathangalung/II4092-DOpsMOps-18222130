@@ -1,0 +1,126 @@
+# =============================================================================
+# SERVICE CONFIGURATION — Enable/Disable Pipeline Services
+# =============================================================================
+# Controls which microservices are built, deployed, and tested.
+# Set enabled: false to disable a service entirely.
+#
+# Full pipeline: ingestion -> quality -> processing -> training -> serving -> dashboard
+# All services enabled by default. Disable what you don't need.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # INGESTION — Data collection from external sources
+  # ---------------------------------------------------------------------------
+  ingestion:
+    rest_collector:
+      enabled: true
+      language: go
+      description: "REST API polling for time-series data"
+    websocket_collector:
+      enabled: true
+      language: rust
+      description: "Real-time WebSocket stream ingestion"
+    backfill:
+      enabled: true
+      description: "Historical data backfill job"
+    supplementary:
+      enabled: true
+      description: "Supplementary/alternative data collection"
+
+  # ---------------------------------------------------------------------------
+  # QUALITY — Data validation and analysis
+  # ---------------------------------------------------------------------------
+  quality:
+    validator:
+      enabled: true
+      language: rust
+      description: "Schema validation + dedup (<50us/record)"
+    analyzer:
+      enabled: true
+      language: python
+      description: "Data quality checks"
+
+  # ---------------------------------------------------------------------------
+  # PROCESSING — Feature engineering
+  # ---------------------------------------------------------------------------
+  processing:
+    batch:
+      enabled: true
+      language: python
+      description: "Batch feature computation (technical indicators, lag, returns)"
+    feature_engine:
+      enabled: true
+      language: rust
+      description: "Real-time streaming feature computation"
+    flink_job:
+      enabled: true
+      language: java
+      description: "Apache Flink stream processing"
+    vector:
+      enabled: true
+      language: python
+      description: "Vector embedding generation + Qdrant storage"
+    firehose_sink:
+      enabled: true
+      description: "No-code Kafka-to-ClickHouse sink (gotocompany/firehose)"
+
+  # ---------------------------------------------------------------------------
+  # TRAINING — Model training and drift detection
+  # ---------------------------------------------------------------------------
+  training:
+    trainer:
+      enabled: true
+      language: python
+      description: "Model training with ONNX export"
+    drift:
+      enabled: true
+      language: python
+      description: "Multi-scale drift detection (PSI, K-S tests)"
+
+  # ---------------------------------------------------------------------------
+  # SERVING — Model inference API
+  # ---------------------------------------------------------------------------
+  serving:
+    gateway:
+      enabled: true
+      language: rust
+      description: "REST/gRPC API gateway"
+    feature_cache:
+      enabled: true
+      language: rust
+      description: "Redis-backed online feature serving"
+    inference_engine:
+      enabled: true
+      language: cpp
+      description: "ONNX Runtime inference (<5ms p99)"
+
+  # ---------------------------------------------------------------------------
+  # AUTOMATION — Pipeline orchestration
+  # ---------------------------------------------------------------------------
+  automation:
+    materialization:
+      enabled: true
+      language: python
+      description: "Feast feature materialization"
+    retraining:
+      enabled: true
+      language: python
+      description: "Automatic model retraining orchestration"
+
+  # ---------------------------------------------------------------------------
+  # DASHBOARD — Web UI for monitoring
+  # ---------------------------------------------------------------------------
+  dashboard:
+    backend:
+      enabled: true
+      language: go
+      description: "Dashboard REST API"
+    frontend:
+      enabled: true
+      language: typescript
+      description: "React dashboard UI"
+    ml_bridge:
+      enabled: true
+      language: python
+      description: "FastAPI bridge to ML services"

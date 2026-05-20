@@ -1,0 +1,227 @@
+# Horizontal Pod Autoscaler for pipeline services
+# Scales based on CPU, memory, and custom metrics
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rest-collector-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rest-collector
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+---
+# -----------------------------------------------------------------------------
+# feature-engine autoscaling is OWNED BY KEDA (ADR-022).
+# -----------------------------------------------------------------------------
+# Prior to ADR-022 this file shipped a HorizontalPodAutoscaler on feature-
+# engine with CPU + memory + an `External kafka_consumer_lag` metric routed
+# through kafka-exporter + prometheus-adapter. That path was replaced by a
+# KEDA ScaledObject at scaling/scaledobjects.yaml :: feature-engine-kafka-lag,
+# which talks to the broker directly and avoids the metrics-adapter label-
+# match bug (R7 in AUDIT_FINAL_2026-04-20). KEDA generates its own HPA on
+# admission; declaring one here would collide.
+# Do NOT re-add a feature-engine-hpa resource to this file.
+# -----------------------------------------------------------------------------
+---
+# -----------------------------------------------------------------------------
+# gateway autoscaling is OWNED BY KEDA (ADR-026).
+# -----------------------------------------------------------------------------
+# Prior to ADR-026 this file shipped a gateway-hpa that combined CPU + memory
+# Resource metrics with a Pods-type custom metric `http_requests_per_second`.
+# The custom metric was served by prometheus-adapter translating
+# `http_requests_total` into a per-replica rate. prometheus-adapter v0.12.0
+# is the upstream HEAD (May 2024) and fails the 2026-minimum-release rule,
+# so the adapter has been retired cluster-wide. The gateway is now scaled
+# via scaling/scaledobjects.yaml :: gateway-http-rps (prometheus + cpu +
+# memory triggers). KEDA emits its own HPA; declaring one here would collide.
+# Do NOT re-add a gateway-hpa resource to this file.
+# -----------------------------------------------------------------------------
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dashboard-backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dashboard-backend
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+# NOTE: vector-processing is a CronJob, not a Deployment — no HPA or PDB needed.
+---
+# =============================================================================
+# PodDisruptionBudgets — one per long-running Deployment inherited from
+# the platform base (namePrefix `crypto-` is applied by overlays).
+# =============================================================================
+# Convention: every Deployment that backs a Service gets `minAvailable: 1`.
+# The local overlay's `patch-pdb-relax.yaml` rewrites all PDBs to
+# `maxUnavailable: 100%` on single-node k3s so drains still succeed.
+# Use `matchExpressions: [type DoesNotExist]` anywhere a CronJob shares
+# the same `app:` label (currently rest-collector/supplementary).
+# =============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rest-collector-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: rest-collector
+    matchExpressions:
+      # Exclude CronJob pods which carry type=supplementary.
+      # Only match the long-running Deployment pods.
+      - key: type
+        operator: DoesNotExist
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: websocket-collector-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: websocket-collector
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: validator-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: validator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analyzer-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: analyzer
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feature-engine-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: feature-engine
+---
+# ADR-023/025: targets the JobManager pod created by the Flink Operator
+# for the crypto-flink-job FlinkDeployment. Operator-managed pods carry
+# `app: <deployment-name>` + `component: jobmanager|taskmanager`; selector
+# labels are NOT rewritten by kustomize namePrefix, so the app value is
+# the hard-coded FlinkDeployment name.  The PDB resource name picks up
+# the `crypto-` prefix in each overlay (→ crypto-flink-job-jobmanager-pdb).
+# minAvailable: 1 keeps the single JM up during drains; TaskManagers are
+# replaceable and do not need PDB protection.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: flink-job-jobmanager-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: crypto-flink-job
+      component: jobmanager
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feature-cache-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: feature-cache
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-backend-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-frontend-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dashboard-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ml-bridge-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ml-bridge

@@ -1,0 +1,175 @@
+# =============================================================================
+# use-case-crypto :: Argo Rollout — progressive delivery for ml-bridge
+# =============================================================================
+# ADR-016 — Argo Rollouts owns progressive delivery of long-lived Deployments
+# in crypto.  KServe InferenceServices already canary via Knative Revisions
+# (`canaryTrafficPercent`), so this Rollout deliberately targets ml-bridge
+# (the MLflow proxy) — not the `crypto-predictor` InferenceService — to
+# avoid two progressive-delivery controllers racing on one resource.
+#
+# What this file does:
+#   1. OWNS the `ml-bridge` pod lifecycle. Per ADR-025 the platform base no
+#      longer ships an `ml-bridge` Deployment — only a Service (selector
+#      `app: ml-bridge`) that this Rollout's ReplicaSets feed into. The
+#      previous scale-to-0 overlay patch (`patches/ml-bridge-disable-
+#      deployment.yaml`) was deleted along with the Deployment.
+#   2. Declares a canary strategy:
+#        20% → analyze → 50% → analyze → 100%
+#      Each analyze step runs the `success-rate-p99` AnalysisTemplate
+#      (platform/components/gitops/argo-rollouts/helm-release.yaml) against
+#      Prometheus to gate promotion on SLO burn.
+#   3. Points at the local Service `ml-bridge` (ClusterIP) — Rollouts
+#      manipulates the Service selector to route percentage-split traffic
+#      between the stable and canary ReplicaSets.  use-case-crypto is
+#      out-of-mesh (`istio-injection: disabled`, ADR-009), so traffic
+#      routing uses the stock Kubernetes "weight via selector" scheme
+#      rather than the Istio VirtualService mode.
+#
+# Coexistence note:
+#   The platform-level AnalysisTemplate `success-rate-p99` lives in the
+#   `argo-rollouts` namespace and queries `istio_requests_total`. Because
+#   crypto is out-of-mesh, those metrics come from Istio's ingressgateway
+#   side (edge traffic hitting crypto via the VirtualService), NOT from
+#   sidecars inside the namespace.  Success rate is still measurable at
+#   the edge; that is exactly the user-visible SLO we want to gate on.
+# =============================================================================
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ml-bridge
+  namespace: use-case-crypto
+  labels:
+    app: ml-bridge
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: dashboard
+    use-case: crypto
+    adr: "016"
+spec:
+  # Replicas are kept minimal on single-node; overlays/cloud bumps this
+  # via a patch.
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: ml-bridge
+  strategy:
+    canary:
+      # The canary Service carries the `-canary` suffix; Argo Rollouts
+      # creates it automatically when this field is unset. The controller
+      # manipulates the stable Service selector (`app: ml-bridge`) to
+      # shift traffic between ReplicaSets.
+      maxSurge: "25%"
+      maxUnavailable: 0
+      steps:
+        # 20% canary → wait 2m → analyze SLO over the next 2.5m
+        - setWeight: 20
+        - pause: { duration: 2m }
+        - analysis:
+            templates:
+              - templateName: success-rate-p99
+                clusterScope: false
+            args:
+              - name: service-name
+                value: ml-bridge
+              - name: namespace
+                value: use-case-crypto
+        # 50% canary → wait 5m → analyze again
+        - setWeight: 50
+        - pause: { duration: 5m }
+        - analysis:
+            templates:
+              - templateName: success-rate-p99
+                clusterScope: false
+            args:
+              - name: service-name
+                value: ml-bridge
+              - name: namespace
+                value: use-case-crypto
+        # 100% promotion is implicit at end of steps
+  template:
+    metadata:
+      labels:
+        app: ml-bridge
+        component: dashboard
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+        - name: ml-bridge
+          image: ml-bridge:latest
+          imagePullPolicy: IfNotPresent
+          command: ["uv", "run", "main.py"]
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Local AnalysisTemplate alias — mirrors the platform one from argo-rollouts
+# namespace so Rollout `templateName` lookup resolves in-namespace (Argo
+# Rollouts 1.9+ prefers in-namespace templates over cluster ones by default).
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate-p99
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: progressive-delivery
+    use-case: crypto
+spec:
+  args:
+    - name: service-name
+    - name: namespace
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 5
+      successCondition: result[0] >= 0.99
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+          # Edge traffic hits crypto through the Istio ingressgateway —
+          # istio_requests_total is available on that side even though
+          # crypto itself is out-of-mesh.
+          query: |
+            sum(rate(istio_requests_total{
+              destination_service_name="{{args.service-name}}",
+              destination_service_namespace="{{args.namespace}}",
+              response_code!~"5.."
+            }[1m])) /
+            sum(rate(istio_requests_total{
+              destination_service_name="{{args.service-name}}",
+              destination_service_namespace="{{args.namespace}}"
+            }[1m]))
+    - name: p99-latency-ms
+      interval: 30s
+      count: 5
+      successCondition: result[0] <= 500
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(istio_request_duration_milliseconds_bucket{
+                destination_service_name="{{args.service-name}}",
+                destination_service_namespace="{{args.namespace}}"
+              }[1m])) by (le))

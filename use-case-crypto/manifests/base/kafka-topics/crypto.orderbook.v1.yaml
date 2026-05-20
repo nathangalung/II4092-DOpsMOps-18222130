@@ -1,0 +1,42 @@
+# =============================================================================
+# KafkaTopic: crypto.orderbook.v1
+# =============================================================================
+# Bronze-tier — order book snapshots/deltas from the websocket collector
+# (Coinbase WebSocket feed, level2 channel). Consumed by Flink for spread
+# and depth feature calculation.
+#
+# Order book messages are larger than trades (full depth map), so
+# max.message.bytes is set higher. Retention is short — only needed for
+# streaming; Iceberg persists historical snapshots.
+#
+# Sizing:
+#   partitions        : 12
+#   replicas          : 3
+#   retention.ms      : 3d    — streaming-only, short TTL
+#   min.insync.replicas : 2
+#   compression.type  : zstd
+#   cleanup.policy    : delete
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: orderbook-v1
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: bronze
+    schema-version: v1
+spec:
+  topicName: crypto.orderbook.v1
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 259200000              # 3d
+    segment.ms: 43200000                 # 12h
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete
+    max.message.bytes: 1048576           # 1 MiB — depth snapshots can be wide
+    message.timestamp.type: CreateTime

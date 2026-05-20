@@ -1,0 +1,220 @@
+# =============================================================================
+# Crypto use-case alert routing + receivers
+# =============================================================================
+# AlertmanagerConfig CR (Prometheus Operator) — discovered by the platform
+# Alertmanager because its `alertmanagerConfigSelector.matchLabels:
+# alertmanager=platform` matches our label below. Namespace-scoped routes
+# and receivers merge into the top-level Alertmanager config at reload.
+#
+# This file is crypto-domain-specific. The platform does not know that
+# `use-case-crypto` exists; it discovers our routes via the selector.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-slack
+  namespace: use-case-crypto
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target: { name: crypto-alertmanager-slack, creationPolicy: Owner }
+  data:
+    - secretKey: webhook
+      remoteRef: { key: usecases/crypto/slack, property: webhook }
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: routing
+  namespace: use-case-crypto
+  labels:
+    alertmanager: platform               # picked up by cluster Alertmanager
+    usecase: crypto
+    app.kubernetes.io/part-of: use-case-crypto
+spec:
+  route:
+    receiver: crypto-team-slack
+    groupBy: [alertname, severity, namespace]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    matchers:
+      - name: namespace
+        value: use-case-crypto
+    # Subroutes for crypto-specific severity handling
+    routes:
+      - receiver: crypto-team-slack
+        matchers:
+          - name: slo
+            value: temporal_leakage
+        groupWait: 0s              # page immediately on temporal leakage
+  receivers:
+    - name: crypto-team-slack
+      slackConfigs:
+        - apiURL:
+            name: crypto-alertmanager-slack
+            key: webhook
+          channel: "#crypto-alerts"
+          sendResolved: true
+          title: '{{ template "slack.default.title" . }}'
+          text: '{{ template "slack.default.text" . }}'
+---
+# Crypto-specific SLOs in addition to the platform ones.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pipeline-slo
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: crypto.pipeline.recording
+      interval: 30s
+      rules:
+        # Feature freshness: max interval between last event and now, per
+        # symbol. Sentiment should be sub-minute per Ch1 Background.
+        - record: crypto:feature_freshness_seconds
+          expr: |
+            time() - max by (symbol) (crypto_feature_ingested_timestamp_seconds)
+
+        # Prediction accuracy window (1h rolling) — ground truth comes
+        # from the ClickHouse `crypto_predictions` vs `crypto_ohlcv` join
+        # written by the Airflow DAG `crypto_hourly_features`.
+        - record: crypto:prediction_accuracy:1h
+          expr: |
+            avg_over_time(crypto_prediction_correct_ratio[1h])
+
+    - name: crypto.pipeline.alerts
+      rules:
+        - alert: CryptoFeatureFreshnessStale
+          expr: crypto:feature_freshness_seconds > 60
+          for: 2m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Crypto sentiment feature freshness {{ $value }}s (target < 60s)"
+
+        - alert: CryptoPredictionAccuracyDegraded
+          expr: crypto:prediction_accuracy:1h < 0.55
+          for: 30m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Crypto prediction accuracy {{ $value | humanizePercentage }} below 55% for 30m"
+            description: "Model quality has regressed. Trigger drift detector + retraining pipeline."
+
+        - alert: CryptoIngestorStalled
+          # If websocket-collector stops producing messages for 5m, alert.
+          expr: |
+            rate(crypto_ingestor_messages_total{service="websocket-collector"}[5m]) == 0
+          for: 5m
+          labels: { severity: critical, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Websocket ingestor produced 0 messages in the last 5m"
+
+    # =========================================================================
+    # Service-health alerts driven by the ServiceMonitors in
+    # observability/servicemonitors-crypto.yaml. These five mirror the
+    # audit expectation (ingest lag, validator error rate, ml-bridge
+    # latency, Katib experiment status, drift threshold).
+    # =========================================================================
+    - name: crypto.services.alerts
+      rules:
+        # ---- Ingest lag (Kafka consumer lag for the validator group).
+        # Complements CryptoIngestorStalled (no messages produced) by
+        # catching the back-pressure case: messages ARE produced but
+        # consumers fall behind.
+        - alert: CryptoIngestLagHigh
+          expr: |
+            sum by (topic, consumergroup) (
+              kafka_consumergroup_lag{topic=~"crypto\\..*", consumergroup="validator"}
+            ) > 10000
+          for: 10m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Kafka lag on {{ $labels.topic }} = {{ $value }} (group=validator)"
+            description: "Validator is lagging — check validator pod CPU / Flink back-pressure."
+
+        # ---- Validator error rate (failed-schema / drop ratio over 10m).
+        # Metric emitted by platform/services/base/deployments/validator.yaml.
+        - alert: CryptoValidatorErrorRateHigh
+          expr: |
+            (
+              sum(rate(validator_records_dropped_total{namespace="use-case-crypto"}[10m]))
+              /
+              clamp_min(sum(rate(validator_records_total{namespace="use-case-crypto"}[10m])), 1)
+            ) > 0.05
+          for: 10m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Validator drop-rate {{ $value | humanizePercentage }} > 5% for 10m"
+            description: "Schema violations or Great Expectations failures are elevated. Check analyzer /reports."
+
+        # ---- ml-bridge latency (p95 request latency > 500ms for 5m).
+        # ml-bridge is the MLflow+Model Registry proxy consumed by the
+        # dashboard; slow responses degrade UX.
+        - alert: CryptoMLBridgeLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (
+                rate(http_server_duration_seconds_bucket{
+                  job=~".*ml-bridge.*",
+                  namespace="use-case-crypto"
+                }[5m])
+              )
+            ) > 0.5
+          for: 5m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "ml-bridge p95 latency {{ $value | humanizeDuration }} > 500ms"
+            description: "Check MLflow Postgres / S3 latency; consider scaling ml-bridge replicas."
+
+        # ---- Katib experiment stuck (running > 2h OR failed trials > 30%).
+        # Emitted by katib-controller via kube-state-metrics custom
+        # resource collector (katib_experiment_condition_status).
+        - alert: CryptoKatibExperimentStuck
+          expr: |
+            (
+              max by (experiment, namespace) (
+                time() - katib_experiment_created_time{namespace="use-case-crypto"}
+              ) > 7200
+              unless
+              max by (experiment, namespace) (
+                katib_experiment_condition_status{
+                  namespace="use-case-crypto",
+                  condition=~"Succeeded|Failed"
+                } == 1
+              )
+            )
+            or
+            (
+              sum by (experiment, namespace) (
+                katib_trials_failed{namespace="use-case-crypto"}
+              )
+              /
+              clamp_min(
+                sum by (experiment, namespace) (
+                  katib_trials_total{namespace="use-case-crypto"}
+                ), 1
+              )
+            ) > 0.3
+          for: 15m
+          labels: { severity: warning, team: crypto, usecase: crypto }
+          annotations:
+            summary: "Katib experiment {{ $labels.experiment }} stuck or >30% failing"
+            description: "HPO run is not converging; inspect trial logs via katib-ui."
+
+        # ---- Drift threshold (Evidently drift score > 0.3 for any feature).
+        # Metric emitted by the inline drift_check step in the Airflow DAG
+        # `crypto_hourly_features` (see dags/crypto_data_pipeline.py).
+        - alert: CryptoFeatureDriftHigh
+          expr: |
+            max by (feature) (
+              crypto_evidently_drift_score{namespace="use-case-crypto"}
+            ) > 0.3
+          for: 30m
+          labels: { severity: warning, team: crypto, usecase: crypto, slo: drift }
+          annotations:
+            summary: "Feature '{{ $labels.feature }}' drift score {{ $value }} > 0.3"
+            description: "Data drift exceeds retrain threshold. Verify trigger_retrain fired in the DAG."

@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  # =========================================================================
+  # FEATURE ENGINEERING CONFIGURATION
+  # =========================================================================
+  # Feature NAMES are defined in schema.yaml (single source of truth).
+  # This file configures HOW features are computed (parameters, thresholds).
+  # =========================================================================
+
+  # --- Feature columns (derived from schema.yaml STREAM_FEATURES_ALL) ---
+  # NOTE: This must match STREAM_FEATURES_ALL in schema.yaml.
+  # Services that need the full column list read FEATURES_COLUMNS.
+  FEATURES_COLUMNS: "symbol,timestamp,close,volume,sma_20,sma_50,ema_12,ema_26,rsi_14,rsi_7,macd,macd_signal,stoch_k,stoch_d,williams_r,roc_10,bb_upper,bb_lower,bb_width,atr_14,adx,obv,mfi_14,vwap,return_1h,return_24h,volatility_24h,rolling_mean_7,rolling_mean_14,rolling_ema_12,rolling_ema_26,momentum_14,trend_convergence,trend_signal,band_upper,band_lower,dispersion,value_change,secondary_avg"
+
+  # --- Feast online features (subset for real-time serving) ---
+  # Must be a subset of GOLD_OHLCV_FEATURES in schema.yaml
+  FEAST_LATEST_FEATURES: "close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
+
+  # --- Vector similarity ---
+  SIMILARITY_RETURN_FIELD: "return_24h"
+
+  # --- Flink stream processing parameters ---
+  PRIMARY_VALUE_FIELD: "close"
+  SECONDARY_VALUE_FIELD: "volume"
+  FLINK_ROLLING_MEAN_PERIODS: "7,14"
+  FLINK_EXP_AVG_PERIODS: "12,26"
+  FLINK_MOMENTUM_PERIOD: "14"
+
+  # --- Rust feature engine indicator parameters ---
+  FEATURE_INDICATORS__ROLLING_MEAN_PERIODS: "7,14"
+  FEATURE_INDICATORS__EXP_AVG_PERIODS: "12,26"
+  FEATURE_INDICATORS__MOMENTUM_PERIOD: "14"
+  FEATURE_INDICATORS__TREND_CONVERGENCE_ENABLED: "true"
+  FEATURE_INDICATORS__DEVIATION_BANDS_ENABLED: "true"
+  FEATURE_INDICATORS__DEVIATION_BANDS_PERIOD: "20"
+  FEATURE_INDICATORS__DISPERSION_PERIOD: "14"
+  FEATURE_INDICATORS__WINDOW_SIZE: "200"

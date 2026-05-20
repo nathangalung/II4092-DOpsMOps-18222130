@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  # =========================================================================
+  # FLAML AutoML CONFIGURATION
+  #
+  # FLAML automatically searches across the models listed in FLAML_ESTIMATOR_LIST,
+  # tunes hyperparameters for each, and picks the best one. To change which
+  # models are searched, just edit FLAML_ESTIMATOR_LIST below — no code changes.
+  #
+  # ── Available estimators (pick any combination) ──────────────────────
+  #
+  #   Gradient Boosting:
+  #     lgbm            — LightGBM                    (reg + cls)
+  #     xgboost         — XGBoost native API           (reg + cls)
+  #     xgb_limitdepth  — XGBoost depth-limited        (reg + cls)
+  #     catboost        — CatBoost                     (reg + cls)
+  #
+  #   Tree Ensembles:
+  #     rf              — RandomForest (sklearn)       (reg + cls)
+  #     extra_tree      — ExtraTrees (sklearn)         (reg + cls)
+  #
+  #   Linear / Regularized:
+  #     elastic_net     — ElasticNet L1+L2 (sklearn)   (regression only)
+  #     lasso_lars      — LassoLars L1 (sklearn)       (regression only)
+  #     sgd             — SGD Classifier/Regressor     (reg + cls)
+  #
+  #   Other:
+  #     kneighbor       — K-Nearest Neighbors          (reg + cls)
+  #     svc             — SVM (SVC/SVR)                (classification only)
+  #
+  # ── Examples ─────────────────────────────────────────────────────────
+  #
+  #   Search all models:
+  #     "lgbm,xgboost,catboost,rf,extra_tree,kneighbor,elastic_net,lasso_lars,sgd,svc"
+  #
+  #   Only boosting (fast, usually best for tabular):
+  #     "lgbm,xgboost,catboost"
+  #
+  #   Only XGBoost (skip search, just tune XGBoost hyperparameters):
+  #     "xgboost"
+  #
+  #   Only linear models (lightweight):
+  #     "elastic_net,lasso_lars,sgd"
+  #
+  # =========================================================================
+
+  # --- Task type: "regression" or "classification" ---
+  TASK_TYPE: "regression"
+  MLFLOW_EXPERIMENT: "crypto-btc-usd"
+
+  # --- Which models to search (comma-separated, see list above) ---
+  FLAML_ESTIMATOR_LIST: "lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd"
+
+  # --- FLAML search config ---
+  FLAML_TIME_BUDGET: "300"
+  FLAML_MAX_ITER: "0"
+  FLAML_METRIC: "auto"
+  FLAML_N_SPLITS: "5"
+  FLAML_SEED: "42"
+  FLAML_EARLY_STOP: "true"
+  FLAML_ENSEMBLE: "false"
+  FLAML_LOG_LEVEL: "1"
+
+  # --- Target ---
+  # TARGET_COLUMN is defined in schema.yaml (single source of truth).
+  # Do NOT redefine here.
+  # EXCLUDE_COLUMNS is defined in schema.yaml (single source of truth).
+  # Do NOT redefine here — schema.yaml includes join-artifact columns
+  # (o.symbol, o.timestamp, o.date) and leakage labels (fear_greed_label)
+  # that must be excluded from training features.
+  CLASSIFICATION_THRESHOLD: "0.01"
+  NUM_CLASSES: "3"
+  # FEATURES_TABLE is defined in schema.yaml (single source of truth).
+  # Do NOT redefine here — duplicates cause drift when one gets updated
+  # and the other doesn't.
+
+  # --- Training window ---
+  # Expanding window: start is fixed, end grows as new data arrives.
+  # Empty END_DATE = use current timestamp (no manual updates needed).
+  START_DATE: "2026-03-01"
+  END_DATE: ""

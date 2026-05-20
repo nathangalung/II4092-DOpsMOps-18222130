@@ -1,0 +1,130 @@
+# =============================================================================
+# DEBEZIUM CDC — Register PostgreSQL Connector with Kafka Connect
+# =============================================================================
+# Registers a Debezium PostgreSQL CDC connector that captures changes from
+# the pipeline.* schema and streams them to Kafka topics (cdc.pipeline.*).
+#
+# ClickHouse Kafka engines consume these CDC topics into the gold layer
+# for analytical queries and dashboard access.
+#
+# Prerequisites:
+#   - Kafka Connect running (data-ingestion namespace)
+#   - PostgreSQL with wal_level=logical (storage namespace)
+#   - Pipeline database + publication created (make init-postgres)
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: debezium-registration
+  labels:
+    app: debezium-cdc
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: debezium-cdc
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      initContainers:
+        - name: wait-for-kafka-connect
+          image: curlimages/curl:8.20.0
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 50m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Kafka Connect readiness..."
+              until curl -sf http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors; do
+                sleep 5
+              done
+              echo "Kafka Connect is ready"
+        - name: wait-for-pipeline-db
+          image: busybox:1.37
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 50m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for PostgreSQL pipeline database (CNPG primary -rw)..."
+              until nc -z postgresql-rw.storage.svc.cluster.local 5432; do
+                sleep 3
+              done
+              echo "PostgreSQL is ready"
+      containers:
+        - name: register
+          image: curlimages/curl:8.20.0
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["sh", "-c"]
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: POSTGRES_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: POSTGRES_PASSWORD
+          args:
+            - |
+              set -euo pipefail
+              : "${DB_USERNAME:?POSTGRES_USERNAME missing from pipeline-secrets}"
+              : "${DB_PASSWORD:?POSTGRES_PASSWORD missing from pipeline-secrets}"
+              echo "Registering Debezium PostgreSQL CDC connector..."
+              HTTP_CODE=$(curl -sf -o /tmp/response.txt -w "%{http_code}" \
+                -X PUT \
+                http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/pipeline-postgres-cdc/config \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"connector.class\": \"io.debezium.connector.postgresql.PostgresConnector\",
+                  \"database.hostname\": \"postgresql-rw.storage.svc.cluster.local\",
+                  \"database.port\": \"5432\",
+                  \"database.user\": \"${DB_USERNAME}\",
+                  \"database.password\": \"${DB_PASSWORD}\",
+                  \"database.dbname\": \"pipeline\",
+                  \"topic.prefix\": \"cdc\",
+                  \"schema.include.list\": \"pipeline\",
+                  \"plugin.name\": \"pgoutput\",
+                  \"slot.name\": \"pipeline_cdc_slot\",
+                  \"publication.name\": \"pipeline_pub\",
+                  \"key.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
+                  \"value.converter\": \"org.apache.kafka.connect.json.JsonConverter\",
+                  \"key.converter.schemas.enable\": \"false\",
+                  \"value.converter.schemas.enable\": \"false\",
+                  \"tombstones.on.delete\": \"false\",
+                  \"decimal.handling.mode\": \"double\"
+                }")
+
+              echo "Response code: $HTTP_CODE"
+              cat /tmp/response.txt
+              echo ""
+
+              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                echo "Connector registered successfully!"
+                echo ""
+                echo "Verifying connector status..."
+                sleep 5
+                curl -sf http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/pipeline-postgres-cdc/status | head -200
+              else
+                echo "ERROR: Connector registration failed (HTTP $HTTP_CODE)"
+                exit 1
+              fi
+      restartPolicy: OnFailure

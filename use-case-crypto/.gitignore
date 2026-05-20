@@ -1,0 +1,10 @@
+**/target/
+**/out/
+**/__pycache__/
+**/.venv/
+**/.ruff_cache/
+**/site-packages/
+**/node_modules/
+.serena/
+.env
+*.env.local

@@ -1,0 +1,38 @@
+# =============================================================================
+# use-case-crypto :: websocket-collector overlay patch
+# =============================================================================
+# Swaps the platform default image (`websocket-collector:latest`, which ships
+# the generic DefaultTickerParser) for the Coinbase binary produced by
+# use-case-crypto/services/ingestion/websocket-collector. The overlay binary
+# reuses the platform library for config/producer/health and adds a Coinbase
+# MessageParser that understands ticker / match / l2update channels.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: websocket-collector
+          image: websocket-collector:latest
+          env:
+            - name: WS_NAME
+              value: "coinbase"
+            - name: WS_URL
+              value: "wss://ws-feed.exchange.coinbase.com"
+            - name: WS_SYMBOLS
+              value: "BTC-USD,ETH-USD"
+            - name: WS_ENABLED
+              value: "true"
+            - name: WS_SUBSCRIBE_MSG
+              value: '{"type":"subscribe","product_ids":["BTC-USD","ETH-USD"],"channels":["ticker","matches","level2_batch"]}'
+            - name: KAFKA_TOPIC
+              value: "crypto.ws.raw"
+            # Coinbase parser routes `match` / `last_match` to this topic.
+            - name: COINBASE_TRADES_TOPIC
+              value: "crypto.trades.v1"
+            # Coinbase parser routes `l2update` to this topic.
+            - name: COINBASE_ORDERBOOK_TOPIC
+              value: "crypto.orderbook.v1"

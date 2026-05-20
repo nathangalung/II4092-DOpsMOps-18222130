@@ -1,0 +1,80 @@
+# DeFi Llama — completely free, no API key needed
+# Runs every 6 hours, fetches protocol TVL and DeFi metrics
+# Emits run outcome to platform Pushgateway via push-helper ConfigMap.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supplementary-defillama
+  labels:
+    app: supplementary-defillama
+    component: ingestion
+    mlops-platform.io/use-case: crypto
+spec:
+  schedule: "30 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: supplementary-defillama
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: push-helper
+              configMap:
+                name: push-helper
+                defaultMode: 0555
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -u
+                  . /scripts/push_job_metrics.sh
+                  run_and_push /app/rest-collector --once
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: HISTORY_BACKFILL_ON_START
+                  value: "false"
+                - name: POLLING_ENABLED
+                  value: "false"
+                - name: SUPPLEMENTARY_SOURCE_NAME
+                  value: "defillama"
+                - name: SUPPLEMENTARY_SOURCE_URL
+                  value: "https://api.llama.fi/protocols"
+                - name: SUPPLEMENTARY_SOURCE_ENABLED
+                  value: "true"
+                - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL
+                  value: "0s"
+                - name: SUPPLEMENTARY_BACKFILL_ENABLED
+                  value: "true"
+                - name: SUPPLEMENTARY_BACKFILL_START_DATE
+                  value: "2026-03-01T00:00:00Z"
+                - name: KAFKA_SUPPLEMENTARY_TOPIC
+                  value: "crypto.supplementary"
+                - name: JOB_NAME
+                  value: "supplementary_defillama"
+                - name: USE_CASE
+                  value: "crypto"
+              volumeMounts:
+                - name: push-helper
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"

@@ -1,0 +1,71 @@
+# =============================================================================
+# SUPPLEMENTARY DATA — Alternative & External Data Collection
+# =============================================================================
+# Generic CronJob for collecting supplementary/alternative data from HTTP APIs.
+# Use-cases configure which APIs to poll via pipeline-config env vars.
+#
+# supplementary-source: External source polling (every 5 min, e.g. CryptoPanic)
+# Dedicated CronJobs for Fear & Greed, CoinGecko, DeFi Llama are separate files.
+# Emits run outcome to platform Pushgateway via push-helper ConfigMap.
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supplementary-source
+  labels:
+    app: rest-collector
+    type: supplementary
+    mlops-platform.io/use-case: crypto
+spec:
+  schedule: "*/5 * * * *" # Every 5 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 240
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: rest-collector
+            type: supplementary
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: push-helper
+              configMap:
+                name: push-helper
+                defaultMode: 0555
+          containers:
+            - name: rest-collector
+              image: rest-collector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -u
+                  . /scripts/push_job_metrics.sh
+                  run_and_push /app/rest-collector --once
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: JOB_NAME
+                  value: "supplementary_source"
+                - name: USE_CASE
+                  value: "crypto"
+              volumeMounts:
+                - name: push-helper
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "512Mi"

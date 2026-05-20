@@ -1,0 +1,10 @@
+# Cargo configuration for use-case-crypto Rust services
+# Uses mold linker for significantly faster linking (30s -> 0.5s)
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-unknown-linux-musl]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

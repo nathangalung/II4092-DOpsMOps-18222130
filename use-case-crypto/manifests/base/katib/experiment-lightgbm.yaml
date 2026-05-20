@@ -1,0 +1,131 @@
+# =============================================================================
+# KATIB EXPERIMENT — FLAML AutoML Meta-Parameter Optimization
+# =============================================================================
+# Tunes FLAML's search strategy — time budget, estimator list, and CV folds.
+# FLAML internally selects and tunes the best algorithm (LightGBM, XGBoost,
+# CatBoost, RF, etc.). Katib optimizes HOW FLAML searches.
+#
+# Data flow:
+#   Katib Controller → spawns Trial pods (each runs FLAML AutoML)
+#     → Metrics collected from stdout (StdOut collector)
+#     → Best FLAML config logged to MLflow
+# =============================================================================
+apiVersion: kubeflow.org/v1beta1
+kind: Experiment
+metadata:
+  name: flaml-automl-hpo
+  labels:
+    app: katib
+    model: flaml
+spec:
+  objective:
+    type: minimize
+    goal: 500
+    objectiveMetricName: rmse
+    additionalMetricNames:
+      - mae
+      - r2
+  algorithm:
+    algorithmName: bayesianoptimization
+    algorithmSettings:
+      - name: random_state
+        value: "42"
+  parallelTrialCount: 1
+  maxTrialCount: 5
+  maxFailedTrialCount: 2
+  metricsCollectorSpec:
+    collector:
+      kind: StdOut
+  parameters:
+    - name: time_budget
+      parameterType: int
+      feasibleSpace:
+        min: "120"
+        max: "600"
+    - name: n_splits
+      parameterType: int
+      feasibleSpace:
+        min: "3"
+        max: "10"
+  trialTemplate:
+    primaryContainerName: trainer
+    trialParameters:
+      - name: timeBudget
+        description: FLAML AutoML time budget in seconds
+        reference: time_budget
+      - name: nSplits
+        description: Cross-validation folds
+        reference: n_splits
+    trialSpec:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        template:
+          metadata:
+            labels:
+              app: katib-trial
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: trainer
+                image: trainer:latest
+                imagePullPolicy: IfNotPresent
+                command: ["uv", "run", "main.py"]
+                args:
+                  - "--symbol=BTC-USD"
+                env:
+                  - name: TASK_TYPE
+                    value: "regression"
+                  - name: TARGET_COLUMN
+                    value: "close"
+                  - name: FEATURES_TABLE
+                    value: "gold.fct_training_data"
+                  - name: START_DATE
+                    value: "2026-03-01"
+                  # END_DATE follows thesis-viva demo window. Bumped
+                  # 2026-04-20 to keep the HPO baseline trial writing a
+                  # fresh best-trial into MLflow; drift-triggered retrain
+                  # runs (ADR-017) clone this Experiment with END_DATE
+                  # overridden to `now` at spawn time.
+                  - name: END_DATE
+                    value: "2026-04-20"
+                  - name: CLICKHOUSE_HOST
+                    value: "clickhouse-platform.storage.svc.cluster.local"
+                  - name: CLICKHOUSE_PORT
+                    value: "8123"
+                  - name: CLICKHOUSE_DB
+                    value: "gold"
+                  - name: MLFLOW_TRACKING_URI
+                    value: "http://mlflow.model-lifecycle.svc.cluster.local:5000"
+                  - name: MLFLOW_EXPERIMENT
+                    value: "crypto-katib-flaml"
+                  - name: MLFLOW_S3_ENDPOINT_URL
+                    value: "http://minio.storage.svc.cluster.local:9000"
+                  - name: AWS_ACCESS_KEY_ID
+                    valueFrom:
+                      secretKeyRef:
+                        name: pipeline-secrets
+                        key: AWS_ACCESS_KEY_ID
+                  - name: AWS_SECRET_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: pipeline-secrets
+                        key: AWS_SECRET_ACCESS_KEY
+                  - name: VALID_SYMBOLS
+                    value: "BTC-USD"
+                  - name: EXCLUDE_COLUMNS
+                    value: "symbol,timestamp,date,hour,data_type,created_at,computed_at,o.symbol,o.timestamp,o.date,fear_greed_label"
+                  # Katib-injected FLAML meta-parameters
+                  - name: FLAML_TIME_BUDGET
+                    value: "${trialParameters.timeBudget}"
+                  - name: FLAML_N_SPLITS
+                    value: "${trialParameters.nSplits}"
+                  - name: FLAML_ESTIMATOR_LIST
+                    value: "lgbm,xgboost,catboost,rf,extra_tree"
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"

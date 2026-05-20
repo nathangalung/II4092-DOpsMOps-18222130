@@ -1,0 +1,31 @@
+# =============================================================================
+# KafkaTopic: iceberg-dlq
+# =============================================================================
+# Dead-letter queue for the Iceberg sink connector. Records that fail
+# deserialization or schema mapping land here for triage instead of
+# blocking the main connector pipeline.
+#
+# Sizing:
+#   partitions        : 1     — low volume by design
+#   replicas          : 3
+#   retention.ms      : 7d
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: iceberg-dlq
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: dlq
+spec:
+  topicName: iceberg-dlq
+  partitions: 1
+  replicas: 3
+  config:
+    retention.ms: 604800000              # 7d
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete

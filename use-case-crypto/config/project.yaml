@@ -1,0 +1,13 @@
+# =============================================================================
+# PROJECT METADATA
+# =============================================================================
+# Core identity for this use case. The namespace field is used by
+# `make configure` to propagate naming across all manifests.
+# =============================================================================
+
+project:
+  name: "crypto-ml-pipeline"
+  version: "1.0.0"
+  description: "Cryptocurrency price prediction with ML"
+  namespace: "use-case-crypto"
+  timezone: "Asia/Jakarta"

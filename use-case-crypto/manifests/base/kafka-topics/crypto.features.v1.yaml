@@ -1,0 +1,41 @@
+# =============================================================================
+# KafkaTopic: crypto.features.v1
+# =============================================================================
+# Gold-tier — engineered features emitted by Flink / feature-engine for online
+# serving (read by Feast online store loader + KServe Transformer).
+#
+# The `.v1` suffix is the schema-version contract: breaking Avro changes bump
+# to `.v2` and consumers migrate deliberately (see
+# `use-case-crypto/manifests/base/schema-registration.yaml`).
+#
+# Sizing:
+#   partitions        : 12
+#   replicas          : 3
+#   retention.ms      : 90d   — matches Feast offline TTL + model back-test window
+#   min.insync.replicas : 2
+#   compression.type  : zstd
+#   cleanup.policy    : delete
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: features-v1
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: gold
+    schema-version: v1
+spec:
+  topicName: crypto.features.v1
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 7776000000           # 90d
+    segment.ms: 604800000              # 7d
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete
+    max.message.bytes: 2097152         # 2 MiB — feature vectors can be wide
+    message.timestamp.type: CreateTime

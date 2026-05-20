@@ -1,0 +1,113 @@
+# =============================================================================
+# REST Collector — Declarative config for Coinbase endpoints
+# =============================================================================
+# This ConfigMap carries the full rest-collector config.yaml, including
+# per-endpoint polling definitions (ticker, trades, ...). It is mounted at
+# /etc/rest-collector/config.yaml inside the rest-collector pod and
+# selected via CONFIG_PATH.
+#
+# Domain-specific knowledge (Coinbase URL paths, response shapes, cursor
+# fields, value transforms) lives here — NOT in the platform Go code.
+# Adding a new endpoint or a new provider means editing this file only.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rest-collector-config
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: ingestion
+    usecase: crypto
+data:
+  config.yaml: |
+    server:
+      port: 8080
+
+    kafka:
+      brokers:
+        - platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092
+      topic: crypto.rest.raw
+      supplementary_topic: crypto.supplementary
+      batch_size: 100
+      flush_timeout_ms: 1000
+
+    history:
+      start_date: "2026-03-01T00:00:00Z"
+      end_date: ""
+      backfill_on_start: true
+      batch_days: 1
+      concurrent_fetches: 4
+      clickhouse_url: http://clickhouse-platform.storage.svc.cluster.local:8123
+      clickhouse_table: bronze.crypto_ohlcv
+
+    polling:
+      enabled: true
+      historical_refresh_interval: 60s
+
+    data_sources:
+      - name: coinbase
+        enabled: true
+        # Historical (candles) endpoint — consumed by FetchHistorical
+        base_url: https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={granularity}&start={start}&end={end}
+        # Prefix for EndpointConfig.Path resolution
+        api_base_url: https://api.exchange.coinbase.com
+        symbols:
+          - BTC-USD
+          - ETH-USD
+        granularity: 3600
+        max_records: 300
+        rate_limit_ms: 150
+
+        endpoints:
+          # -----------------------------------------------------------------
+          # Ticker snapshot — single object
+          # https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductticker
+          # -----------------------------------------------------------------
+          - name: ticker
+            enabled: true
+            path: /products/{symbol}/ticker
+            method: GET
+            poll_interval: 30s
+            kafka_topic: crypto.rest.raw
+            source_suffix: "_ticker"
+            response:
+              kind: object
+              field_mapping:
+                price: price
+                bid: bid
+                ask: ask
+                volume: volume
+              timestamp_field: time
+              timestamp_unit: rfc3339
+            cursor:
+              type: after_id
+              field: trade_id
+              query_param: ""   # ticker never sends cursor back; field only promotes trade_id into values
+
+          # -----------------------------------------------------------------
+          # Trades list — array of objects with numeric-id cursor pagination
+          # https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproducttrades
+          # -----------------------------------------------------------------
+          - name: trades
+            enabled: true
+            path: /products/{symbol}/trades
+            method: GET
+            query_params:
+              limit: "100"
+            poll_interval: 30s
+            kafka_topic: crypto.rest.raw
+            source_suffix: "_trade"
+            response:
+              kind: array_of_objects
+              field_mapping:
+                price: price
+                size: size
+                side: side
+              timestamp_field: time
+              timestamp_unit: rfc3339
+            cursor:
+              type: after_id
+              field: trade_id
+              query_param: after
+            value_transforms:
+              side: buy_sell_binary

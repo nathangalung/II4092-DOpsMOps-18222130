@@ -1,0 +1,118 @@
+{
+\footnotesize
+\begin{longtable}{|m{2cm}|m{2.5cm}|m{2.5cm}|m{3cm}|m{2cm}|}
+\caption{\raggedright Perbandingan Detail Arsitektur Saat Ini dengan yang Diusulkan}
+\label{tab:architecture_comparison} \\
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Keuntungan Terukur}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
+\hline
+\endfirsthead
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Keuntungan Terukur}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
+\hline
+\endhead
+\hline
+\endfoot
+\hline
+\endlastfoot
+
+Orkestrasi &
+\textit{Compute} heterogen dengan \textit{provisioning} manual, waktu tunggu \textit{scaling} panjang, dan tingkat standardisasi rendah. &
+Platform Kubernetes terpadu dengan manajemen deklaratif dan alokasi sumber daya otomatis, sejalan dengan komponen arsitektur MLOps yang diidentifikasi \textcite{kreuzberger2023mlops}. GitOps dengan ArgoCD memastikan perubahan infrastruktur dan aplikasi (termasuk komponen Raystack) mengikuti \textit{single source of truth} di Git. &
+Studi yang dirangkum \textcite{lakka2025kubernetes} menunjukkan bahwa organisasi \textit{high-performing} yang menerapkan praktik DevOps berbasis Kubernetes dapat meningkatkan \textit{deployment frequency} hingga 973$\times$ dan memperbaiki MTTR hingga 6570$\times$; arsitektur yang diusulkan menargetkan karakteristik performa yang serupa. &
+\autocite{kreuzberger2023mlops,lakka2025kubernetes} \\
+\hline
+Manajemen Fitur &
+Logika fitur tersebar di \textit{notebook} dan skrip dengan duplikasi tinggi dan banyak fungsi yang saling tumpang tindih. &
+Feast dengan \textit{feature registry} terpusat, \textit{dual serving} \textit{offline/online}, serta dukungan \textit{point-in-time correctness}. &
+Duplikasi fitur dapat ditekan, \textit{training--serving skew} berkurang melalui pemisahan \textit{offline/online} dan \textit{point-in-time retrieval}, dan \textit{feature reuse} berpotensi meningkat signifikan. &
+\autocite{munappy2022data,polyzotis2018data} \\
+\hline
+\textit{Vector Embeddings} &
+Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
+Redis Stack dengan dukungan HNSW \textit{vector search} berlatensi rendah. &
+\textcite{johnson2021billion} menunjukkan bahwa penggunaan FAISS pada GPU dapat memberikan percepatan hingga 8{,}5 kali pada dataset YFCC100M; desain ini memanfaatkan prinsip serupa untuk \textit{similarity search} berperforma tinggi. &
+\autocite{johnson2021billion} \\
+\hline
+Validitas Temporal &
+\textit{Point-in-time} \textit{join} dilakukan manual dan rentan kesalahan, sehingga banyak tim mengalami \textit{data leakage}. &
+\textit{Point-in-time join} otomatis dari Feast dengan pola verifikasi yang lebih sistematis. &
+Pendekatan ini mencegah kebocoran data temporal yang dapat menghasilkan estimasi performa \textit{backtest} yang terlalu optimistis dan tidak realistis di produksi. &
+\autocite{polyzotis2018data} \\
+\hline
+Pemrosesan Data &
+\textit{Batch} dan \textit{stream} diproses oleh \textit{pipeline} terpisah tanpa arsitektur yang koheren, sehingga hasil pemrosesan tidak konsisten. &
+Spark sebagai mesin \textit{batch processing} dan Flink sebagai mesin \textit{stream processing} yang hasilnya dimaterialisasikan langsung ke \textit{Feature Store}. Optimus dan Dagger memfasilitasi definisi \textit{pipeline} berbasis konfigurasi sehingga pengembangan dan pengelolaan jadwal transformasi menjadi lebih sistematis. &
+Waktu pengembangan \textit{pipeline} dapat menurun dan \textit{freshness} data meningkat berkat pemrosesan \textit{streaming} yang lebih efisien dan terintegrasi. &
+\autocite{rodrigues2025architecture} \\
+\hline
+Pelatihan Model &
+\textit{Workflow} pelatihan berbasis \textit{notebook} dengan \textit{tracking} eksperimen informal dan \textit{artifact} tidak terkelola. &
+Kubeflow \textit{Pipelines} untuk orkestrasi pelatihan dan MLflow untuk \textit{tracking} eksperimen. &
+Reprodusibilitas meningkat melalui kontainerisasi dan pengelolaan eksperimen terpusat, sementara siklus pengembangan \textit{pipeline} menjadi lebih terstruktur. &
+\autocite{amershi2019software,pimentel2019notebooks} \\
+\hline
+\textit{Deployment} Model &
+Proses \textit{deployment} manual dengan \textit{refactoring} besar dan sering terjadi \textit{bug} pasca-\textit{deploy}. &
+KServe dengan \textit{InferenceService} deklaratif dan \textit{deployment} otomatis melalui GitOps. Firehose dapat digunakan untuk menyalurkan log \textit{inference} ke data store secara konsisten sebagai dasar \textit{monitoring} dan analitik lanjutan. &
+Waktu \textit{deployment} berpotensi turun secara signifikan, dan insiden terkait kesalahan konfigurasi \textit{deployment} dapat dikurangi lewat otomasi. &
+\autocite{paleyes2022challenges} \\
+\hline
+Pola \textit{Deployment} Lanjut &
+Pola seperti \textit{canary release} jarang digunakan, organisasi umumnya mengandalkan \textit{binary switchover}. &
+Dukungan \textit{canary release}, A/B \textit{testing}, dan \textit{automatic rollback} prediktif. &
+\textit{Rollout} dapat dilakukan secara bertahap dan aman, sehingga MTTR menurun karena kegagalan dapat dibatasi pada \textit{canary traffic}. &
+\autocite{shankar2022operationalizing} \\
+\hline
+Deteksi \textit{Drift} &
+Deteksi \textit{drift} bersifat reaktif dengan jeda deteksi yang panjang terhadap isu penting dan perubahan gradual. &
+\textit{Monitoring} proaktif dengan uji statistik, \textit{alert real-time}, dan penetapan ambang adaptif. &
+Jeda deteksi \textit{drift} dapat dipersingkat sehingga \textit{retraining} dapat dijadwalkan lebih tepat waktu untuk menjaga kinerja model. &
+\autocite{cespedes2024efficient,bayram2022concept} \\
+\hline
+\textit{Governance} \& \textit{Lineage} &
+Dokumentasi dilakukan secara manual dan \textit{audit trail} sering tidak lengkap atau tersebar. &
+DataHub dengan \textit{metadata ingestion} otomatis (dibantu Meteor) dan \textit{lineage} yang dapat ditelusuri dari \textit{source} hingga model; Compass dapat melengkapi sebagai katalog ringan untuk aset tertentu. &
+Waktu persiapan audit dapat berkurang dan cakupan metadata meningkat melalui proses \textit{ingestion} dan \textit{lineage} otomatis. &
+\autocite{stoyanovich2020responsible,lamer2024data} \\
+\hline
+\textit{Observability} &
+Fokus \textit{monitoring} pada metrik infrastruktur, tanpa cakupan metrik ML spesifik di sebagian besar organisasi. &
+\textit{Observability} mencakup metrik ML, \textit{dashboard} kinerja model, dan \textit{alert} berbasis indikator \textit{drift}. Prometheus dan Grafana menjadi inti, sementara Siren mengonsolidasikan \textit{alert} ke berbagai kanal notifikasi. &
+Proses \textit{debugging} dan \textit{root cause analysis} menjadi lebih efektif sehingga MTTR dapat diturunkan. &
+\autocite{shankar2022operationalizing} \\
+\hline
+Integrasi CI/CD &
+CI/CD untuk \textit{pipeline} dan model dilakukan secara manual atau semiotomatis, dengan \textit{workflow} yang tidak seragam. &
+GitOps dengan ArgoCD sebagai mekanisme CI/CD deklaratif dengan Git sebagai sumber kebenaran tunggal, mencakup konfigurasi komponen MLOps dan komponen Raystack. &
+Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{deployment} dapat ditekan melalui otomasi dan \textit{peer review} pada \textit{pull request}. &
+\autocite{kreuzberger2023mlops} \\
+\hline
+Pengalaman \textit{Developer} &
+\textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan alat yang terpisah. &
+Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses; Frontier dan Guardian membantu menyederhanakan proses permohonan hak akses. &
+\textit{Onboarding} dapat dipercepat dan produktivitas \textit{data scientist} meningkat karena hambatan akses infrastruktur berkurang. &
+\autocite{paleyes2022challenges,rella2022mlops} \\
+\hline
+Efisiensi Biaya &
+Utilisasi sumber daya tidak optimal dan tidak ada atribusi biaya yang jelas ke \textit{workload}. &
+\textit{Auto-scaling}, pemantauan biaya, dan alokasi sumber daya yang lebih terukur pada klaster Kubernetes. Seluruh komponen inti, termasuk ekosistem Raystack, berbasis \textit{open source} sehingga biaya lisensi dapat ditekan. &
+Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber daya dan \textit{auto-scaling}, sebagaimana ditunjukkan dalam berbagai studi kasus adopsi Kubernetes \autocite{lakka2025kubernetes}; desain ini mengadopsi prinsip yang sama untuk mengoptimalkan pemakaian sumber daya. &
+\autocite{lakka2025kubernetes} \\
+\hline
+Keamanan \& \textit{Compliance} &
+Kontrol akses beragam di tiap sistem, dan \textit{audit} tersebar tanpa pandangan terpadu. &
+RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Frontier memusatkan identitas, Guardian menangani \textit{access workflow} ke sistem data, sementara kebijakan jaringan dan \textit{secrets management} dikelola pada tingkat klaster. &
+Risiko insiden keamanan dapat berkurang melalui kontrol terpusat dan proses audit menjadi lebih ringkas. &
+\autocite{ahmad2024mlops} \\
+\hline
+\end{longtable}
+}

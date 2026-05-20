@@ -1,0 +1,357 @@
+# =============================================================================
+# LOCAL OVERLAY (k3s Development)
+# =============================================================================
+# Uses base configuration. To disable services, edit base/kustomization.yaml.
+#
+# Usage:
+#   kubectl apply -k manifests/overlays/local
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# =============================================================================
+# USE-CASE CONFIGURATION — Change these values for a new use case:
+#   1. namePrefix    → your use-case prefix (e.g., crypto-)
+#   2. commonLabels  → app.kubernetes.io/name (e.g., crypto-pipeline)
+#   3. images        → newName prefix matches USE_CASE_NAME in Makefile
+# =============================================================================
+# `namespace:` MOVED to base/kustomization.yaml so cross-namespace resources
+# (`../../cross-namespace/`) keep their explicit `metadata.namespace` values
+# (data-ingestion, istio-system, velero, model-lifecycle, chaos-mesh).
+namePrefix: crypto-
+
+resources:
+  - ../../base
+  - ../../cross-namespace
+
+# Secret generator for KServe storage credentials.
+# Reads from .env file so credentials are never committed to Git.
+# The generated secret name is crypto-kserve-storage-secret (after namePrefix).
+# Secrets are provisioned by ExternalSecrets from Vault (ADR-008).  See
+# manifests/base/external-secrets.yaml for the ExternalSecret CRs that
+# replace the previous inline-literal `secretGenerator`.
+#
+# Why: storing JWT_SECRET, POSTGRES_PASSWORD, S3_*, MLFLOW_TRACKING_PASSWORD
+# as plaintext literals leaked production-like values into Git — violates
+# KNF-07 (secrets management).  Each rotation required a Git commit.
+#
+# For developer-loop convenience, `.env` at repo root is mounted into the
+# Vault-init Job as the seed when the Vault is first bootstrapped; after
+# that, Vault is the source of truth.
+generatorOptions:
+  disableNameSuffixHash: true
+
+# Local development labels
+labels:
+  - pairs:
+      app.kubernetes.io/name: crypto-pipeline
+      environment: development
+      platform: k3s
+    includeSelectors: true
+
+# Image name mapping: base uses generic names with a `:latest` placeholder
+# tag. Overlay sets newName + newTag — production-pin semver here in cloud,
+# `dev` (or any rolling tag) in local. Bumping a version means editing this
+# block only; base manifests are not touched. Matches Makefile USE_CASE_PREFIX
+# / VERSION conventions.
+images:
+  # Ingestion
+  - name: rest-collector
+    newName: localhost:5000/crypto-rest-collector
+    newTag: latest
+  - name: websocket-collector
+    newName: localhost:5000/crypto-websocket-collector
+    newTag: latest
+  # Quality
+  - name: validator
+    newName: localhost:5000/crypto-validator
+    newTag: latest
+  - name: analyzer
+    newName: localhost:5000/crypto-analyzer
+    newTag: latest
+  # Processing
+  - name: feature-engine
+    newName: localhost:5000/crypto-feature-engine
+    newTag: latest
+  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-flink-job:latest`;
+  # kustomize image transformer cannot rewrite it because the operator CR is
+  # outside the set kustomize rewrites. Image is published by the build pipeline.
+  # Batch/Vector — no standing Deployments. `batch-processing` runs as a
+  # KubernetesPodOperator in Airflow DAG crypto_hourly_features (the DAG
+  # sets the full image ref inline, so no Kustomize mapping is needed).
+  # `vector-processing` is consumed by the CronJob `vector-embedding`,
+  # which still needs its image rewritten for single-node registry.
+  - name: vector-processing
+    newName: localhost:5000/crypto-vector-processing
+    newTag: latest
+  # Training
+  - name: trainer
+    newName: localhost:5000/crypto-trainer
+    newTag: latest
+  - name: drift-detector
+    newName: localhost:5000/crypto-drift-detector
+    newTag: latest
+  # Serving
+  - name: gateway
+    newName: localhost:5000/crypto-gateway
+    newTag: latest
+  - name: feature-cache
+    newName: localhost:5000/crypto-feature-cache
+    newTag: latest
+  - name: inference-engine
+    newName: localhost:5000/crypto-inference-engine
+    newTag: latest
+  # inference-engine replaced by KServe InferenceService (crypto-predictor)
+  # scoring replaced by gateway's built-in scoring endpoint
+  # Observability
+  - name: evidently-reporter
+    newName: localhost:5000/crypto-evidently-reporter
+    newTag: latest
+  # Automation
+  - name: materialization
+    newName: localhost:5000/crypto-materialization
+    newTag: latest
+  - name: retraining
+    newName: localhost:5000/crypto-retraining
+    newTag: latest
+  # Dashboard
+  - name: dashboard-backend
+    newName: localhost:5000/crypto-dashboard-backend
+    newTag: latest
+  - name: dashboard-frontend
+    newName: localhost:5000/crypto-dashboard-frontend
+    newTag: latest
+  - name: ml-bridge
+    newName: localhost:5000/crypto-ml-bridge
+    newTag: latest
+  # dbt
+  - name: dbt-project
+    newName: localhost:5000/crypto-dbt-project
+    newTag: latest
+
+# Single replicas for local development
+replicas:
+  # Ingestion
+  - name: rest-collector
+    count: 1
+  - name: websocket-collector
+    count: 1
+  # Quality
+  - name: validator
+    count: 1
+  - name: analyzer
+    count: 1
+  # Processing
+  - name: feature-engine
+    count: 1
+  # Serving
+  - name: gateway
+    count: 1
+  - name: feature-cache
+    count: 1
+  # inference-engine replaced by KServe InferenceService
+  # Dashboard
+  - name: dashboard-backend
+    count: 1
+  - name: dashboard-frontend
+    count: 1
+  # ADR-025: ml-bridge has no Deployment/StatefulSet — pod lifecycle is on
+  # the Argo Rollout (rollouts/ml-bridge-rollout.yaml). Kustomize `replicas:`
+  # does not support `Rollout` kind; set replicas on the Rollout spec itself.
+
+patches:
+  # =========================================================================
+  # namePrefix cross-reference fixes — Kustomize namePrefix: crypto-
+  # renames metadata.name but NOT string fields inside CRD specs.
+  # These patches correct serviceAccountName and secret references.
+  # =========================================================================
+
+  # Fix KServe InferenceService → ServiceAccount reference.
+  # Patch target is the BASE name (`predictor`); kustomize resolves the
+  # effective target after namePrefix is applied. Rendered IS name is
+  # `crypto-predictor`.
+  - target:
+      group: serving.kserve.io
+      version: v1beta1
+      kind: InferenceService
+      name: predictor
+    patch: |-
+      - op: replace
+        path: /spec/predictor/serviceAccountName
+        value: crypto-kserve-sa
+
+  # Fix KServe ServiceAccount → Secret reference
+  - target:
+      kind: ServiceAccount
+      name: kserve-sa
+    patch: |-
+      - op: replace
+        path: /secrets/0/name
+        value: crypto-kserve-storage-secret
+
+  # Fix Tekton EventListener → ServiceAccount reference
+  - target:
+      group: triggers.tekton.dev
+      version: v1beta1
+      kind: EventListener
+      name: crypto-build-listener
+    patch: |-
+      - op: replace
+        path: /spec/serviceAccountName
+        value: crypto-tekton-triggers-sa
+
+  # Fix Tekton RoleBinding → ServiceAccount subject name
+  - target:
+      kind: RoleBinding
+      name: tekton-triggers-binding
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: crypto-tekton-triggers-sa
+
+  # Fix Tekton ClusterRoleBinding → ServiceAccount subject name
+  - target:
+      kind: ClusterRoleBinding
+      name: tekton-triggers-binding
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: crypto-tekton-triggers-sa
+
+  # =========================================================================
+  # Image pull policy
+  # =========================================================================
+
+  # Use IfNotPresent pull policy (works for both minikube and k3s with local registry)
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: CronJob
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+
+  # =========================================================================
+  # Reduce memory requests for minikube (limited node resources)
+  # Base values are for production; local dev needs smaller footprint
+  # =========================================================================
+
+  # Processing - heavy services reduced
+  - target:
+      kind: Deployment
+      name: feature-engine
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+  # ADR-023/025: flink-job Deployment is gone. Flink JM/TM sizing is on the
+  # FlinkDeployment CR (see base/flink/flinkdeployment.yaml → jobManager.resource
+  # / taskManager.resource). This overlay does not override those values.
+  # Quality - reduce analyzer
+  - target:
+      kind: Deployment
+      name: analyzer
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+
+  # Serving - gateway base requests 500m/1Gi, too heavy for single-node
+  - target:
+      kind: Deployment
+      name: gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+
+  # CronJobs - reduce heavy jobs
+  # batch-features CronJob removed — superseded by Airflow DAG crypto_hourly_features
+  - target:
+      kind: CronJob
+      name: vector-embedding
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+
+  # =========================================================================
+  # KafkaTopic replicas — base defines RF=3 for HA; single-broker needs RF=1.
+  # The platform overlay patches `platform-events` only; these target all
+  # use-case topics via labelSelector. min.insync.replicas must also drop to 1.
+  # =========================================================================
+  - target:
+      group: kafka.strimzi.io
+      version: v1beta2
+      kind: KafkaTopic
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/config/min.insync.replicas
+        value: "1"
+
+  # =========================================================================
+  # FlinkDeployment — kustomize image transformer cannot rewrite operator CRs,
+  # so we patch the image field directly to add the local registry prefix.
+  # =========================================================================
+  - target:
+      group: flink.apache.org
+      version: v1beta1
+      kind: FlinkDeployment
+      name: flink-job
+    patch: |-
+      - op: replace
+        path: /spec/image
+        value: "localhost:5000/crypto-flink-job:latest"
+
+  # =========================================================================
+  # HPA caps for VPS (single node — cap maxReplicas to 3)
+  # Production values are higher in base; VPS must fit on 16 CPU / 64 GB
+  # =========================================================================
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+      - op: replace
+        path: /spec/minReplicas
+        value: 1

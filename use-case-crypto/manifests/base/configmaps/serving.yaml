@@ -1,0 +1,38 @@
+# =============================================================================
+# use-case-crypto :: serving config patch on pipeline-config
+# =============================================================================
+# Adds crypto-specific serving endpoints to the platform base ConfigMap.
+#
+# KSERVE_INFERENCE_URL naming:
+#   The InferenceService is declared in inferenceservices/crypto-inference.yaml
+#   with the base name `predictor`. The overlay applies `namePrefix: crypto-`
+#   so the rendered IS is `crypto-predictor`. KServe then creates a Service
+#   named `<isvc>-predictor` for the predictor component, which is why the
+#   host below is `crypto-predictor-predictor.<ns>.svc.cluster.local`. The
+#   doubled `-predictor-` is the convention (IS-name + KServe component
+#   suffix), not a duplicated prefix.
+#
+# CLICKHOUSE_DB override:
+#   Platform default is "features". Crypto uses schema-qualified tables
+#   (bronze.crypto_ohlcv, gold.fct_training_data) so we point the default
+#   DB at ClickHouse's built-in `default` and let individual services
+#   resolve the schema at the table name level.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  KSERVE_INFERENCE_URL: "http://crypto-predictor-predictor.use-case-crypto.svc.cluster.local"
+  # ml-bridge (use-case-crypto/services/dashboard/ml-bridge/services/prediction.py)
+  # reads INFERENCE_URL via envFrom: pipeline-config. We alias it to the same
+  # cluster-local KServe predictor URL above so the dashboard's /predict route
+  # resolves to the crypto InferenceService without hardcoding the hostname
+  # in the Go / Python source. (B.13)
+  INFERENCE_URL: "http://crypto-predictor-predictor.use-case-crypto.svc.cluster.local"
+  CLICKHOUSE_DB: "default"
+  # DBT_SCHEMA — namespace dbt models inside the shared ClickHouse instance.
+  # Read by use-case-crypto/dbt/profiles.yml via env_var(). Setting this per
+  # use-case prevents schema collisions when multiple use-cases share the
+  # same ClickHouse server (e.g. crypto + stock).
+  DBT_SCHEMA: "crypto"

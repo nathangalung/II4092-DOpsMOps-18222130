@@ -1,0 +1,41 @@
+# =============================================================================
+# KafkaTopic: crypto.trades.v1
+# =============================================================================
+# Bronze-tier — individual trade events from the websocket collector (Coinbase
+# WebSocket feed, trade channel). Consumed by Flink stream processing and
+# Iceberg sink for lakehouse persistence.
+#
+# Distinct from crypto.ws.raw which carries the full tick/quote stream;
+# this topic isolates executed trades only.
+#
+# Sizing:
+#   partitions        : 12
+#   replicas          : 3
+#   retention.ms      : 7d    — enough for replay; Iceberg persists long-term
+#   min.insync.replicas : 2
+#   compression.type  : zstd
+#   cleanup.policy    : delete
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: trades-v1
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: bronze
+    schema-version: v1
+spec:
+  topicName: crypto.trades.v1
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000              # 7d
+    segment.ms: 86400000                 # 1d
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete
+    max.message.bytes: 524288            # 512 KiB
+    message.timestamp.type: CreateTime

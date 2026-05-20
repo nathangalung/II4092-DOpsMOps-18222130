@@ -1,0 +1,451 @@
+% @Bab_5.tex
+% ==========================================
+% BAB V RENCANA SELANJUTNYA
+% ==========================================
+\chapter{RENCANA SELANJUTNYA}
+\label{chap:rencana_selanjutnya}
+
+% --- Tahapan Implementasi ---
+\section{Tahapan Implementasi}
+
+Implementasi arsitektur DataOps dan MLOps terintegrasi pada proposal tugas akhir ini direncanakan berlangsung secara bertahap dengan mengacu pada prinsip \textit{incremental development}. Setiap tahap diusahakan menghasilkan komponen yang cukup utuh sehingga dapat diuji dan divalidasi sebelum menjadi dasar bagi tahap berikutnya. Pendekatan bertahap ini membuat dampak perubahan lebih mudah dikendalikan karena pengaruhnya terlebih dahulu diamati pada lingkup terbatas. Jain dan Das (2025) menunjukkan bahwa integrasi \textit{data engineering} dan MLOps yang dibangun secara gradual cenderung menghasilkan \textit{pipeline} ML yang lebih skalabel dan tahan gangguan, sehingga pola tersebut relevan dengan konteks tugas akhir ini. Dengan cara ini, risiko kegagalan implementasi dapat ditekan dan keputusan desain yang diambil di setiap fase dapat dievaluasi secara sistematis.
+
+Setiap tahap implementasi disertai \textit{deliverables} dan kriteria keberhasilan yang dapat diukur (\textit{measurable success criteria}). Keberadaan kriteria yang eksplisit membantu penilaian kemajuan secara objektif, bukan hanya berdasarkan persepsi peneliti. Metodologi yang digunakan mengadopsi praktik \textit{agile development} dengan siklus iterasi pendek untuk memfasilitasi umpan balik cepat dan penyesuaian prioritas bila diperlukan. Pola ini membuka ruang penyesuaian ruang lingkup ketika ditemukan kendala teknis atau perubahan kebutuhan, tanpa harus mengubah tujuan utama tugas akhir. Dengan demikian, arsitektur yang dibangun diharapkan stabil secara teknis, dapat direproduksi, dan siap dikembangkan menuju skenario produksi yang lebih luas pada tugas akhir lanjutan \parencite{paleyes2022challenges}.
+
+\subsection{Tahap 1: Persiapan Infrastruktur dan Platform Dasar}
+
+Tahap pertama berfokus pada penyediaan infrastruktur dasar yang menjadi pijakan bagi seluruh komponen arsitektur yang dirancang pada Bab~\ref{chap:desain_konsep_solusi}. Tahap ini diawali dengan penyiapan klaster Kubernetes sebagai platform orkestrasi terpadu untuk menjalankan \textit{workload} sistem. Kajian alternatif dilakukan antara layanan Kubernetes terkelola seperti Google Kubernetes Engine, Amazon Elastic Kubernetes Service, dan Azure Kubernetes Service, dibandingkan dengan opsi klaster yang dikelola sendiri menggunakan \textit{kubeadm}, K3s, atau Minikube. Layanan terkelola memberikan kenyamanan operasional dan dukungan \textit{managed}, sedangkan opsi \textit{self-managed} lebih fleksibel untuk eksperimen dan berpotensi lebih ekonomis untuk skenario \textit{proof-of-concept}. Kombinasi kebutuhan eksperimen, tujuan pembelajaran teknis, dan batasan biaya menjadi dasar penentuan konfigurasi akhir klaster yang dipilih.
+
+Arsitektur keandalan tinggi dirancang dengan mengadopsi pola \textit{multi-availability zone} (Multi-AZ) untuk meningkatkan toleransi kesalahan dan ketersediaan layanan. \textcite{lakka2025kubernetes} menekankan bahwa distribusi \textit{workload} dan redundansi pada beberapa zona merupakan praktik penting untuk sistem Kubernetes berskala \textit{enterprise}. Dalam konteks proposal tugas akhir ini, konfigurasi minimum yang direncanakan terdiri atas tiga \textit{node} dengan spesifikasi memadai untuk mendukung distribusi \textit{workload} dan redundansi dasar. Setiap \textit{node} ditempatkan pada zona ketersediaan yang berbeda sehingga klaster tetap dapat beroperasi ketika salah satu zona mengalami gangguan. Pendekatan ini membuat hasil pengujian lebih dapat diproyeksikan ke skenario produksi, meskipun implementasi dilakukan pada skala \textit{proof-of-concept}.
+
+Desain keamanan infrastruktur mengikuti prinsip \textit{defense-in-depth} sebagaimana disarankan \textcite{ahmad2024mlops}. Arsitektur jaringan memanfaatkan Virtual Private Cloud yang dibagi ke dalam beberapa \textit{subnet} lintas zona ketersediaan untuk memisahkan lapisan aplikasi, data, dan akses publik. \textit{Security group} dikonfigurasi sebagai \textit{stateful firewall} pada tingkat instans untuk mengatur trafik masuk dan keluar, sedangkan \textit{network access control list} memberikan lapisan proteksi tambahan pada tingkat \textit{subnet}. Integrasi pengelola rahasia seperti \textit{Secrets Manager} atau Vault digunakan untuk mengelola kredensial tanpa \textit{hardcoding} di \textit{manifest}. Pada lapisan aplikasi dan data, \textit{API gateway} seperti Kong mengatur eksposur layanan, sementara Frontier dan Guardian diposisikan sebagai kandidat pusat autentikasi dan \textit{data access governance} ketika platform berkembang.
+
+Platform \textit{GitOps} diterapkan menggunakan ArgoCD agar pengelolaan sumber daya Kubernetes bersifat deklaratif, terdokumentasi, dan mudah direproduksi. ArgoCD dikonfigurasi untuk memantau \textit{repository} Git yang berisi \textit{manifest} komponen dan melakukan sinkronisasi otomatis ke klaster, termasuk dukungan \textit{rollback} bila konfigurasi gagal. Pendekatan deklaratif ini mengurangi risiko kesalahan konfigurasi manual dan meningkatkan konsistensi antar lingkungan. Temuan \textcite{polyzotis2018data} dan \textcite{paleyes2022challenges} menegaskan bahwa mekanisme serupa penting untuk menjaga kualitas dan \textit{reproducibility} sistem ML yang kompleks dan sering berubah. Dengan fondasi ini, tahap-tahap berikutnya dapat berfokus pada logika data dan model tanpa terbebani masalah dasar lingkungan eksekusi.
+
+Penyiapan komponen infrastruktur fundamental meliputi \textit{container registry} untuk menyimpan dan melakukan \textit{versioning} \textit{image}, konfigurasi penyimpanan persisten melalui \textit{storage class}, serta rancangan jaringan seperti \textit{ingress controller} dan \textit{network policy}. Praktik keamanan yang diadopsi mencakup penggunaan \textit{private subnet} untuk komponen internal, penerapan prinsip \textit{least privilege} pada \textit{security group}, serta integrasi pengelolaan rahasia terpusat. Langkah ini konsisten dengan penekanan \textcite{ahmad2024mlops} mengenai pentingnya penguatan infrastruktur sebagai fondasi keberhasilan MLOps. Dengan infrastruktur yang stabil, \textit{stack} di atasnya dapat diuji tanpa dibayangi risiko kegagalan lingkungan.
+
+Penyiapan \textit{stack observability} dasar dilakukan dengan tiga pilar utama, yaitu \textit{logging}, \textit{tracing}, dan \textit{metrics}. Prometheus digunakan sebagai pengumpul metrik, Grafana dikonfigurasi dengan \textit{dashboard} awal untuk memantau kesehatan klaster, dan AlertManager menangani pengiriman notifikasi insiden. Untuk \textit{logging}, sistem seperti Loki digunakan sebagai \textit{log aggregation layer} yang terintegrasi dengan Grafana sehingga log dan metrik dapat dianalisis pada satu antarmuka. OpenTelemetry diintegrasikan untuk \textit{distributed tracing}, dengan Jaeger sebagai backend visualisasi jejak \textit{request} lintas layanan. Pada tahap berikutnya, kerangka manajemen notifikasi seperti Siren dapat ditempatkan di atas AlertManager untuk mengonsolidasikan notifikasi ke berbagai kanal. \textcite{shankar2022operationalizing} menegaskan bahwa \textit{observability} sejak awal membantu mempercepat \textit{troubleshooting} dan meningkatkan kesiapan operasional.
+
+Validasi tahap pertama dilakukan melalui pengujian fungsi dan keandalan infrastruktur. Aplikasi contoh di-\textit{deploy} untuk memverifikasi bahwa \textit{workload} berbasis kontainer dapat berjalan stabil di atas klaster. Pengujian penyimpanan persisten memastikan data tetap konsisten ketika \textit{pod} berpindah \textit{node} atau saat salah satu \textit{node} gagal. Pengujian jaringan memverifikasi \textit{routing}, \textit{ingress}, dan kebijakan akses berjalan sesuai rancangan. Selain itu, alur GitOps diuji untuk memastikan perubahan di Git terefleksi di klaster melalui ArgoCD. Tahap ini dinyatakan berhasil apabila klaster Kubernetes berfungsi penuh, alur \textit{deployment} berbasis GitOps stabil, dan cakupan \textit{observability} memadai untuk kebutuhan operasi dasar.
+
+\subsection{Tahap 2: Implementasi Lapisan Ingesti dan Penyimpanan Data}
+
+Tahap kedua berfokus pada pembangunan infrastruktur ingesti dan penyimpanan data yang menjadi dasar \textit{pipeline} DataOps. Implementasi dimulai dengan penyiapan klaster Apache Kafka sebagai platform \textit{event streaming} utama \parencite{apachekafka2024}. Kafka berperan sebagai jalur transportasi data dari berbagai sumber menuju komponen pemrosesan di hilir secara terpusat dan terukur. Untuk mengumpulkan \textit{event} dari aplikasi dan layanan pendukung dengan \textit{throughput} tinggi dan latensi rendah, komponen pengumpul seperti Raccoon dimanfaatkan sebagai \textit{HTTP/gRPC event collector} yang menulis langsung ke topik Kafka. \textit{Schema registry} seperti Stencil digunakan untuk mengelola \textit{schema} pesan sehingga kontrak data antar komponen tetap konsisten ketika terjadi perubahan.
+
+Sumber data \textit{proof-of-concept} disiapkan melalui Kafka Connect dengan mengonfigurasi \textit{connector} untuk mengingest data pasar historis publik dan \textit{alternative data} seperti sentimen berita atau media sosial. Di sisi hilir, komponen \textit{sink} generik seperti Firehose digunakan untuk mengalirkan data dari Kafka menuju berbagai target penyimpanan, misalnya ClickHouse, PostgreSQL, atau MinIO, secara deklaratif sehingga kode konsumsi data tidak perlu ditulis ulang saat tujuan baru ditambahkan. \textcite{rodrigues2025architecture} mengusulkan arsitektur MLOps \textit{near real-time} yang memadukan \textit{inference}, pembaruan model, \textit{versioning}, dan \textit{monitoring}. Dengan mengacu pada pendekatan tersebut, aliran data pada tugas akhir ini dirancang untuk diproses kontinu dan siap mendukung pembaruan model yang cepat ketika kondisi pasar berubah.
+
+Arsitektur \textit{streaming} menerapkan \textit{real-time ingestion pipeline} berbasis Kafka dan komponen pemrosesan seperti Apache Flink. Flink dimanfaatkan untuk \textit{stream processing}, termasuk \textit{windowed aggregations} dan transformasi yang diperlukan untuk konstruksi fitur \textit{real-time}. Pada skenario tertentu, kerangka konfigurasi seperti Dagger dapat digunakan untuk menyusun \textit{job} Flink berbasis konfigurasi sehingga perubahan logika pemrosesan tidak selalu memerlukan perubahan kode program. Di sisi \textit{batch}, aliran data yang sama disalurkan ke penyimpanan untuk mendukung pemrosesan historis dan pelatihan model, sehingga jalur data \textit{online} dan \textit{offline} tetap konsisten.
+
+Lapisan penyimpanan dibangun secara bertahap agar setiap komponen dapat diuji baik secara mandiri maupun terintegrasi. ClickHouse dipilih sebagai \textit{offline store} untuk \textit{feature store} karena kemampuannya menangani kueri analitik kolumnar. Redis Stack dimanfaatkan sebagai \textit{online store} dengan latensi rendah dan dukungan \textit{vector similarity search} yang relevan untuk fitur embedding. MinIO berperan sebagai penyimpanan objek kompatibel S3 untuk menyimpan artefak model, data pelatihan, dan \textit{log}. Kombinasi ini membentuk fondasi penyimpanan yang fleksibel dan konsisten dengan desain arsitektur pada Bab~\ref{chap:desain_konsep_solusi}.
+
+Validasi lapisan ingesti dan penyimpanan meliputi pengujian Kafka \textit{end-to-end} untuk memastikan tidak terjadi kehilangan pesan dalam skenario normal maupun saat gangguan terbatas. Kinerja ClickHouse diuji menggunakan \textit{dataset} sampel untuk menilai latensi dan kemampuan pemrosesan kueri analitik. Latensi Redis diuji untuk memastikan target internal pengambilan fitur \textit{online} tercapai, sedangkan operasi unggah dan unduh ke MinIO diuji guna menjamin integritas serta ketersediaan artefak. Tahap ini dianggap berhasil bila alur ingesti berjalan stabil, target latensi \textit{online} terpenuhi, dan kueri \textit{offline} mencapai standar minimal yang ditetapkan.
+
+\subsection{Tahap 3: Implementasi Lapisan Layanan Fitur dengan Feast}
+
+Tahap ketiga diarahkan pada penerapan Feast sebagai platform manajemen fitur terpusat \parencite{feast2024}. Registri Feast disusun berbasis Git sehingga definisi fitur dikelola sebagai kode dan memperoleh keuntungan \textit{version control}. Definisi fitur disusun untuk skenario perdagangan sampel dan mencakup fitur tabular seperti harga, volume, dan indikator teknikal. Selain itu, dikembangkan fitur \textit{vector embedding} yang merepresentasikan sentimen berita dengan mengacu pada pendekatan pemodelan bahasa modern \parencite{devlin2019bert,munappy2022data}. Dengan demikian, lapisan fitur dapat mengakomodasi kombinasi sinyal numerik dan tekstual dalam satu kerangka yang konsisten.
+
+Proposal tugas akhir ini menekankan demonstrasi kapabilitas \textit{point-in-time correctness} untuk mencegah kebocoran temporal pada proses pelatihan dan evaluasi. Mekanisme tersebut memastikan bahwa setiap contoh data pada \textit{training dataset} hanya memanfaatkan informasi yang tersedia hingga waktu referensi tertentu, sesuai kondisi yang akan ditemui model saat produksi. \textcite{polyzotis2018data} menyoroti bahwa kebocoran temporal dapat menyebabkan evaluasi \textit{offline} terlihat terlalu optimistis dan tidak mencerminkan kinerja aktual di produksi. Oleh karena itu, fitur \textit{point-in-time correctness} diimplementasikan dan diuji secara sistematis agar manfaatnya terhadap reliabilitas evaluasi dapat diamati secara eksplisit dan dikaitkan dengan kebutuhan domain perdagangan.
+
+Feast \textit{serving} dikonfigurasi untuk menyediakan API gRPC yang melayani pengambilan fitur dari \textit{online store} maupun \textit{offline store}. Feast dihubungkan dengan ClickHouse sebagai \textit{offline store} dan Redis sebagai \textit{online store} sehingga satu definisi fitur dapat dimanfaatkan di dua konteks berbeda tanpa menduplikasi logika. \textit{Pipeline} materialisasi dibangun untuk mendemonstrasikan \textit{offline-to-online materialization} bagi fitur \textit{batch} dan pola \textit{stream-to-online} bagi fitur \textit{real-time} yang dihitung oleh Flink. Pendekatan hibrid ini meniru praktik di lingkungan produksi yang menggabungkan data historis dan sinyal \textit{real-time} dalam satu kerangka fitur yang konsisten dengan arsitektur Bab~\ref{chap:desain_konsep_solusi}.
+
+Pengujian integrasi Feast mencakup pembuatan \textit{training dataset} menggunakan \textit{point-in-time join} untuk memverifikasi validitas temporal dan mencegah \textit{data leakage}. Selain itu, dilakukan pengukuran latensi pengambilan fitur \textit{online} untuk memastikan permintaan dari layanan \textit{inference} dilayani dalam batas yang wajar. Proses materialisasi diperiksa untuk memastikan konsistensi antara sumber data, ClickHouse, dan Redis, baik dari sisi isi maupun waktu pembaruan. Tahap ini dinyatakan berhasil apabila \textit{point-in-time correctness} terbukti berjalan dengan benar, latensi \textit{online} memenuhi target internal, dan proses materialisasi berjalan stabil tanpa indikasi inkonsistensi data.
+
+\subsection{Tahap 4: Implementasi Lapisan Layanan Model dan Siklus Hidup}
+
+Tahap keempat berfokus pada penerapan komponen yang mendukung pengembangan, pelatihan, dan pengelolaan siklus hidup model. Instalasi Kubeflow dilakukan dengan mengaktifkan komponen utama seperti Kubeflow \textit{Pipelines}, Kubeflow \textit{Notebooks}, dan \textit{training operators} \parencite{kubeflow2024}. Kubeflow dipilih karena bersifat \textit{Kubernetes-native} sehingga mendukung portabilitas, skalabilitas, dan integrasi erat dengan infrastruktur yang telah disiapkan pada tahap pertama. Konfigurasi ini mengurangi perbedaan antara lingkungan eksperimen dan lingkungan operasi, serta menjembatani praktik pengembangan dan produksi \parencite{kreuzberger2023mlops}. Dengan demikian, alur kerja \textit{data scientist} dan \textit{ML engineer} menjadi lebih dekat dengan arsitektur operasional yang dirancang di Bab~\ref{chap:desain_konsep_solusi}.
+
+Kubeflow \textit{Pipelines} memanfaatkan Argo Workflows sebagai \textit{execution engine}, basis data relasional sebagai penyimpan metadata, dan MinIO sebagai penyimpan artefak. \textit{Pipeline} contoh dibangun untuk menunjukkan alur ML \textit{end-to-end}, dimulai dari pengambilan fitur melalui Feast, proses pelatihan, evaluasi, hingga pendaftaran model ke MLflow \textit{Model Registry} \parencite{mlflow2024}. Dengan alur ini, setiap langkah proses terekam dan dapat diulang apabila diperlukan, baik untuk keperluan reproduksi eksperimen maupun penyesuaian konfigurasi model. Pendekatan ini sekaligus memperlihatkan penerapan konsep \textit{pipeline as code} pada siklus hidup model yang akan dinilai pada tahap evaluasi.
+
+MLflow diterapkan melalui \textit{tracking server} untuk pencatatan eksperimen dan \textit{model registry} untuk mengelola status model, seperti \textit{None}, \textit{Staging}, \textit{Production}, dan \textit{Archived}. Alur pelatihan sampel menggunakan \textit{dataset} publik terkait perdagangan, misalnya harga saham atau data kripto dari sumber terbuka, sehingga contoh yang digunakan memiliki konteks realistis. Setiap eksperimen mencatat parameter, metrik, dan artefak agar perbandingan performa antar model menjadi terstruktur dan transparan. \textcite{munappy2022data} menegaskan bahwa \textit{experiment tracking} yang konsisten merupakan prasyarat \textit{reproducibility} pada pengembangan model produksi, sehingga implementasi MLflow di tahap ini langsung dikaitkan dengan kebutuhan tersebut.
+
+Validasi lapisan layanan model dilakukan melalui uji fungsional \textit{pipeline end-to-end}, verifikasi pencatatan eksperimen di MLflow, dan pengujian perpindahan model antar status di \textit{model registry} sesuai aturan yang ditetapkan. Pengalaman pengguna juga diuji melalui sesi pengembangan interaktif menggunakan Kubeflow \textit{Notebooks} untuk menilai kemudahan penggunaan dan integrasi dengan komponen lain. Tahap ini dianggap berhasil apabila eksekusi \textit{pipeline} berjalan stabil dalam waktu yang wajar, pencatatan eksperimen dan pengelolaan versi model lengkap, serta lingkungan terintegrasi dinilai praktis digunakan untuk iterasi pengembangan model pada domain perdagangan.
+
+\subsection{Tahap 5: Implementasi Penyajian Model dan Pola \textit{Deployment}}
+
+Tahap kelima memusatkan kegiatan pada penyajian model di lingkungan produksi menggunakan KServe \parencite{kserve2024}. Instalasi KServe dilakukan pada klaster Kubernetes dan memanfaatkan Knative \textit{Serving} sebagai dependensi untuk mendukung arsitektur \textit{serverless} dan mekanisme penskalaan otomatis. Adusumilli (2025) membahas pergeseran orkestrasi kontainer menuju pola \textit{serverless} di atas Kubernetes dengan dukungan \textit{scale-to-zero} dan \textit{auto-scaling}. \textcite{shankar2022operationalizing} menekankan pentingnya otomatisasi \textit{serving}, \textit{staging}, dan \textit{rollout} bertahap untuk menurunkan risiko saat model dibawa ke produksi, sehingga kemampuan ini menjadi fokus pada tahap implementasi.
+
+Model sampel dari tahap sebelumnya digunakan untuk mendemonstrasikan rangkaian \textit{deployment}. Sumber daya \texttt{InferenceService} didefinisikan untuk mengacu pada artefak model di MLflow \textit{Model Registry}, memilih \textit{runtime} penyajian yang sesuai, serta menetapkan pengaturan \textit{autoscaling} berbasis metrik seperti \textit{request rate} atau latensi. Integrasi Feast ditunjukkan melalui \textit{transformer} kustom yang mengambil fitur \textit{online} dari Redis sebelum proses inferensi, sehingga logika fitur tidak digandakan di dalam layanan. Dengan pola tersebut, risiko \textit{training--serving skew} dapat ditekan karena definisi fitur pada pelatihan dan produksi berasal dari sumber yang sama \parencite{munappy2022data}.
+
+Pola \textit{deployment} tingkat lanjut diimplementasikan untuk mendemonstrasikan kemampuan MLOps Level 2. \textit{Canary deployment} digunakan dengan membagi trafik secara bertahap dari model lama ke model baru sehingga risiko terhadap pengguna dapat dikendalikan bila terjadi regresi performa. \textit{A/B testing} dijalankan dengan mengeksekusi dua versi model secara paralel untuk membandingkan kinerja berdasarkan metrik yang relevan. Selain itu, \textit{feature toggle} digunakan untuk mengaktifkan atau menonaktifkan fitur tertentu secara fleksibel dan mendukung \textit{rollback} cepat bila diperlukan. Perilaku \textit{autoscaling} divalidasi melalui uji beban yang mensimulasikan variasi trafik agar respons sistem terhadap lonjakan permintaan dapat diamati secara terukur.
+
+Pengujian lapisan penyajian mencakup validasi fungsional API inferensi, uji integrasi Feast untuk memastikan konsistensi fitur \textit{online}, serta pengukuran latensi dan \textit{throughput}. Simulasi skenario \textit{canary} dengan \textit{rollback} otomatis dilakukan untuk menilai ketahanan alur rilis ketika model baru tidak memenuhi ekspektasi. Tahap ini dinyatakan berhasil apabila latensi prediksi berada dalam kisaran yang ditargetkan, integrasi fitur tidak mengakibatkan \textit{skew} signifikan, dan pola \textit{deployment} dapat dijalankan dengan pemantauan metrik yang memadai.
+
+\subsection{Tahap 6: Implementasi Pemrosesan Data dan Deteksi \textit{Drift}}
+
+Tahap keenam memperluas infrastruktur dengan kemampuan pemrosesan data historis dan pemantauan \textit{drift} secara otomatis. Apache Spark diterapkan untuk pemrosesan \textit{batch} dengan memanfaatkan Spark \textit{operator} di atas Kubernetes \parencite{apachespark2024}. \textit{Job} Spark sampel dikembangkan untuk menghitung fitur kompleks dalam skala besar, misalnya agregasi harian, indikator teknikal, atau \textit{feature engineering} khusus \textit{time-series} \parencite{zaharia2016spark}. Orkestrasi \textit{job} dilakukan oleh Apache Airflow, sementara Optimus digunakan untuk mengelola transformasi data terstruktur, dependensi, dan \textit{data quality check} secara deklaratif. Kerangka validasi data seperti Great Expectations dimanfaatkan untuk mendefinisikan dan menegakkan \textit{expectation} terhadap kualitas data sebelum data dipakai dalam pelatihan atau inferensi.
+
+\textit{Pipeline} deteksi \textit{drift} dikembangkan untuk memantau \textit{data drift} dan \textit{concept drift} secara berkala. \textcite{lu2019learning} menyajikan kerangka komprehensif mengenai deteksi dan adaptasi terhadap perubahan distribusi data. Dalam proposal tugas akhir ini, deteksi \textit{drift} diimplementasikan sebagai Kubeflow \textit{pipeline} terjadwal yang mengambil prediksi produksi beserta fitur terkait, kemudian membandingkannya dengan statistik pelatihan historis. Uji statistik seperti Population Stability Index (PSI) untuk fitur kategorikal dan Kolmogorov--Smirnov untuk fitur kontinu digunakan untuk mengukur tingkat \textit{drift} \parencite{bayram2022concept,cespedes2024efficient}. Dengan cara ini, degradasi performa model dapat diidentifikasi secara kuantitatif, bukan hanya berdasarkan keluhan pengguna.
+
+Jika \textit{drift} signifikan terdeteksi dan nilai uji melampaui ambang batas yang ditetapkan, AlertManager memicu peringatan dan panel Grafana menampilkan perubahan tersebut pada \textit{dashboard}. Pada tahap lanjutan, lapisan orkestrasi peringatan seperti Siren dapat digunakan untuk mengalirkan notifikasi ke berbagai kanal komunikasi. Integrasi deteksi \textit{drift} dengan \textit{continuous training} ditunjukkan dengan konfigurasi \textit{pipeline} yang secara opsional melakukan pelatihan ulang otomatis ketika pola \textit{drift} tertentu teridentifikasi. Dengan cara ini, kinerja model dapat dipulihkan lebih cepat sehingga dampak degradasi terhadap indikator bisnis dapat diminimalkan dan hasilnya dapat dievaluasi secara sistematis pada tahap pengujian platform.
+
+Validasi tahap ini mencakup pengujian eksekusi \textit{job} Spark untuk memastikan pemrosesan \textit{batch} berjalan sesuai jadwal, pengujian deteksi \textit{drift} menggunakan skenario sintetis untuk menilai sensitivitas dan stabilitas, serta pengujian pemicu \textit{continuous training}. Tahap ini dianggap berhasil apabila pemrosesan \textit{batch} dan \textit{stream} terintegrasi, deteksi \textit{drift} dapat disetel sensitivitasnya, dan \textit{proof-of-concept} \textit{retraining} otomatis berjalan sesuai rancangan tanpa mengganggu layanan produksi.
+
+\subsection{Tahap 7: Implementasi Tata Kelola Data dan Integrasi Final}
+
+Tahap ketujuh melengkapi platform dengan lapisan tata kelola data serta integrasi menyeluruh seluruh komponen. DataHub diterapkan untuk manajemen metadata dan pelacakan \textit{lineage} \parencite{datahub2024}. Konfigurasi \textit{metadata ingestion} disiapkan agar metadata dari komponen platform seperti Feast, MLflow, Kubeflow, ClickHouse, Redis, dan Kafka dapat dikumpulkan secara otomatis. Untuk menyederhanakan proses integrasi, alat kolektor metadata seperti Meteor dimanfaatkan untuk mengekstrak metadata dari berbagai sumber dan mengirimkannya ke DataHub. Pada skenario yang memerlukan katalog lebih ringan, Compass dapat dipertimbangkan sebagai lapisan \textit{data discovery} tambahan yang memanfaatkan metadata yang sama. Lamer (2024) menekankan bahwa metadata memiliki peran sentral dalam sistem DataOps modern karena menjadi penghubung antar komponen.
+
+Dengan integrasi DataHub dan alat kolektor metadata, pengguna dapat melakukan \textit{discovery} fitur dan model melalui antarmuka pencarian, menelusuri \textit{lineage} dari data mentah hingga prediksi produksi, dan mengakses dokumentasi yang memuat konteks teknis dan bisnis. Fasilitas ini mendukung kebutuhan \textit{compliance} dan \textit{debugging} karena alur data dan model dapat dilacak kembali secara sistematis. Stoyanovich dkk. (2020) menegaskan bahwa \textit{responsible data management} mensyaratkan akuntabilitas, transparansi, dan kepatuhan regulasi, sehingga lapisan tata kelola ini menjadi jembatan antara aspek teknis dan mandat organisasi. Dalam konteks proposal tugas akhir, lapisan ini juga memperjelas bagaimana artefak yang dibangun dapat diaudit dan disampaikan kepada pemangku kepentingan.
+
+Pengujian integrasi menyeluruh dilakukan untuk memvalidasi alur kerja \textit{end-to-end}, mulai dari ingesti data pasar, perhitungan fitur, pelatihan model, penyajian di produksi, inferensi dengan fitur \textit{online}, deteksi \textit{drift}, hingga pelatihan ulang otomatis. Pengujian dirancang untuk mensimulasikan skenario realistis di domain perdagangan sehingga konsistensi dan kolaborasi antar komponen dapat dinilai secara objektif. \textit{User acceptance testing} melibatkan pengguna representatif, idealnya \textit{data scientist} atau \textit{ML engineer} yang memahami domain perdagangan, untuk menilai kemudahan penggunaan, kelengkapan fungsi, dan kualitas dokumentasi. Rella dkk. (2022) menunjukkan bahwa integrasi DataOps dan MLOps yang baik dapat meningkatkan efisiensi operasional melalui \textit{continuous integration/continuous delivery} (CI/CD) yang cepat dan kolaborasi lintas tim yang lebih efektif.
+
+Kriteria keberhasilan akhir mencakup demonstrasi alur kerja \textit{end-to-end} yang berjalan konsisten, metadata dan \textit{lineage} yang komprehensif di DataHub, terpenuhinya kebutuhan fungsional (KF-01 hingga KF-14), serta diperolehnya umpan balik pengguna yang positif terhadap platform. Luaran utama tahap ini adalah platform DataOps dan MLOps terintegrasi yang dapat didemonstrasikan, diuji, dan dievaluasi secara objektif berdasarkan indikator keberhasilan yang telah dirumuskan pada bab sebelumnya. Platform ini juga diharapkan menjadi dasar yang kuat bagi tugas akhir lanjutan maupun pengembangan di lingkungan produksi.
+
+% --- Jadwal Pengerjaan ---
+\section{Jadwal Pengerjaan}
+
+Jadwal pengerjaan disusun untuk memastikan seluruh tahapan implementasi dapat dilaksanakan secara sistematis dan terukur. Total durasi tugas akhir direncanakan selama delapan bulan, dari Oktober 2025 hingga Mei 2026, dan dibagi ke dalam beberapa fase. Fase 1 berfokus pada persiapan dan analisis yang memperkuat landasan teoritis, pemahaman masalah, serta perancangan arsitektur pada bab-bab sebelumnya. Fase 2 hingga Fase 6 disejajarkan dengan tahapan implementasi teknis pada bagian sebelumnya, mulai dari penyiapan infrastruktur, layanan fitur, siklus hidup model, penyajian dan fitur lanjutan, hingga integrasi dan pengujian menyeluruh. Fase 7 diarahkan khusus untuk dokumentasi, evaluasi, serta finalisasi tesis dan persiapan presentasi sehingga seluruh hasil implementasi terdokumentasi secara utuh. Dengan pembagian fase yang jelas, peneliti dapat memonitor kemajuan dan menyesuaikan rencana ketika terjadi perubahan kondisi. Jadwal tersebut juga membantu mencegah penumpukan beban kerja di akhir periode tugas akhir.
+
+Paleyes, Urma, dan Lawrence (2022) menekankan bahwa perencanaan terstruktur dengan \textit{milestone} yang jelas penting untuk menurunkan risiko keterlambatan pada proyek ML yang kompleks dan melibatkan banyak komponen. Dengan jadwal yang dirumuskan secara eksplisit, pemantauan kemajuan dapat dilakukan sejak dini dan memberikan sinyal ketika terjadi deviasi dari rencana. Penyesuaian prioritas dan ruang lingkup dapat dilakukan lebih cepat tanpa mengganggu tujuan akhir tugas akhir. Selain itu, jadwal yang terdokumentasi memudahkan pembimbing maupun pihak lain meninjau realisme rencana kerja dan memberikan masukan yang konstruktif.
+
+\subsection{Tinjauan Linimasa}
+
+Tabel~\ref{tab:timeline_overview} menyajikan ringkasan linimasa pengerjaan beserta alokasi waktu untuk setiap fase utama. Pembagian waktu mempertimbangkan tingkat kompleksitas relatif tiap fase, dependensi antar fase yang memerlukan urutan tertentu, serta kebutuhan waktu untuk validasi dan dokumentasi. Fase 1 mengakomodasi aktivitas persiapan seperti kajian pustaka, identifikasi masalah, perancangan arsitektur, dan penyusunan proposal. Fase 2 hingga Fase 6 mengakomodasi implementasi dan pengujian tahapan teknis yang telah diuraikan, sedangkan Fase 7 memusatkan kegiatan pada dokumentasi tesis dan finalisasi. Fase yang berisi integrasi banyak komponen memperoleh alokasi waktu lebih panjang dibanding fase dengan lingkup lebih sempit. Jadwal juga disusun dengan sedikit kelonggaran sehingga masih dapat mengakomodasi dinamika implementasi tanpa harus mengubah target utama.
+
+Pendekatan penjadwalan ini sejalan dengan prinsip \textit{agile} yang umum digunakan dalam proyek rekayasa kompleks, yaitu menyediakan kerangka terstruktur sambil tetap membuka ruang penyesuaian \autocite{kreuzberger2023mlops}. Dengan linimasa yang jelas, pengendalian ruang lingkup dan prioritas aktivitas dapat dilakukan secara lebih disiplin hingga akhir tugas akhir. Selain itu, linimasa yang terdokumentasi mempermudah komunikasi status proyek kepada pembimbing dan pemangku kepentingan lain.
+
+\input{tables/timeline_overview}
+
+\vspace{-0.5cm}
+
+\subsection{Rincian Jadwal Detil}
+
+Rincian jadwal per bulan memberikan gambaran lebih spesifik mengenai kegiatan yang akan dilakukan dan waktu pelaksanaannya. Pengaturan jadwal hingga tingkat mingguan memungkinkan pemantauan kemajuan yang lebih dekat dan memudahkan penyesuaian ketika terjadi perubahan prioritas. Struktur tersebut dijaga cukup fleksibel untuk mengakomodasi dinamika implementasi, namun tetap cukup ketat agar penundaan tidak dibiarkan meluas. Dengan adanya rincian ini, pekerjaan besar dapat dipecah menjadi langkah-langkah yang lebih kecil dan mudah dikelola.
+
+Pendekatan tersebut membantu mengurangi risiko penumpukan tugas di akhir periode dan membuat beban kerja terdistribusi lebih merata sepanjang durasi tugas akhir. Peneliti juga dapat mengidentifikasi lebih awal bila ada minggu tertentu yang berpotensi terlalu padat dan melakukan penyesuaian sebelum hal tersebut mengganggu fase lain. Rincian pada Tabel~\ref{tab:schedule_oct_nov} hingga Tabel~\ref{tab:schedule_apr_may} menyajikan aktivitas per minggu selama periode tugas akhir, sehingga hubungan antara tahapan implementasi dan jadwal pelaksanaannya terlihat secara eksplisit.
+
+\input{tables/schedule_oct_nov}
+
+\vspace{-0.5cm}
+
+\input{tables/schedule_dec_jan}
+
+\vspace{-0.5cm}
+
+\input{tables/schedule_feb_mar}
+
+\vspace{-0.5cm}
+
+\input{tables/schedule_apr_may}
+
+\vspace{-0.5cm}
+
+\subsection{Analisis Jalur Kritis}
+
+Analisis jalur kritis dilakukan untuk mengidentifikasi rangkaian kegiatan yang harus diselesaikan tepat waktu agar tugas akhir selesai sesuai jadwal. Kegiatan-kegiatan pada jalur ini memiliki tingkat dependensi tinggi dan keterlambatan pada salah satunya dapat menggeser keseluruhan linimasa. Dengan memahami jalur kritis sejak awal, peneliti dapat memfokuskan pengelolaan risiko dan alokasi sumber daya pada bagian yang paling sensitif terhadap keterlambatan. Pendekatan ini selaras dengan rekomendasi Paleyes, Urma, dan Lawrence (2022) mengenai pentingnya manajemen risiko disiplin pada proyek ML berskala besar.
+
+Dependensi utama yang memengaruhi jalur kritis dapat diringkas sebagai berikut. Pertama, penyiapan klaster Kubernetes menjadi prasyarat penerapan komponen berikutnya karena seluruh layanan utama berjalan di atas klaster ini. Kedua, penerapan lapisan penyimpanan (ClickHouse, Redis, MinIO) harus selesai sebelum Feast dapat diuji secara menyeluruh. Ketiga, penerapan Feast menjadi prasyarat alur pelatihan model \textit{end-to-end} karena model membutuhkan fitur yang dikelola melalui \textit{feature store}. Keempat, penyajian model dengan KServe baru dapat dilakukan setelah model terlatih tersedia di MLflow \textit{Model Registry}. Kelima, integrasi DataHub ditempatkan di tahap akhir karena memerlukan metadata dari seluruh komponen utama sebagai input. Komponen tambahan seperti Raccoon, Stencil, Firehose, Optimus, Meteor, dan Siren terhubung ke jalur kritis melalui ketergantungan pada klaster inti, namun cakupan fungsinya dapat dikurangi jika jadwal tertekan tanpa mengganggu inti \textit{pipeline}.
+
+Waktu penyangga eksplisit disisipkan pada jadwal untuk mengantisipasi masalah tak terduga dan memberi ruang cukup bagi pengujian serta validasi pada setiap fase. Penyangga ini mencegah efek domino jika terjadi keterlambatan kecil sehingga jadwal keseluruhan masih dapat dipertahankan. Selain itu, penyangga memberi fleksibilitas bagi peneliti untuk memperdalam bagian tertentu tanpa menabrak tenggat akhir. Pendekatan ini sejalan dengan praktik yang disarankan Paleyes, Urma, dan Lawrence (2022) untuk proyek ML yang melibatkan banyak komponen dan dependensi.
+
+% --- Kebutuhan Sumber Daya ---
+\section{Kebutuhan Sumber Daya}
+
+Kebutuhan sumber daya untuk merealisasikan arsitektur DataOps dan MLOps terintegrasi mencakup infrastruktur komputasi, perangkat lunak, sumber daya manusia, serta kemungkinan kebutuhan anggaran. Setiap kategori sumber daya memberikan kontribusi langsung terhadap kelancaran implementasi dan kualitas hasil akhir sistem. Perencanaan kapasitas, ketersediaan, dan keterbatasan sumber daya sejak awal diperlukan agar proses implementasi dapat dikendalikan dan tidak terhambat di tengah jalan. Selain itu, pemetaan kebutuhan yang jelas membantu peneliti dan pembimbing menilai kelayakan rencana teknis terhadap kondisi nyata.
+
+Seluruh komponen perangkat lunak utama yang digunakan dalam arsitektur ini berasal dari ekosistem \textit{open-source} atau memiliki \textit{free tier}, sehingga biaya lisensi dapat diasumsikan sangat kecil atau mendekati nol. Konsekuensinya, struktur biaya tugas akhir terutama akan didominasi oleh konsumsi infrastruktur (baik lokal maupun \textit{cloud}) dan alokasi waktu sumber daya manusia, bukan oleh biaya lisensi perangkat lunak. Dengan demikian, penekanan perencanaan anggaran bergeser ke pengelolaan kapasitas komputasi dan strategi pemakaian \textit{cloud} secara hemat.
+
+\subsection{Infrastruktur dan Sumber Daya Komputasi}
+
+Lapisan infrastruktur dan sumber daya komputasi berfungsi sebagai fondasi fisik dan logis bagi seluruh komponen arsitektur. Penentuan kapasitas minimal dan bentuk orkestrasi mempertimbangkan tujuan tugas akhir sebagai \textit{proof-of-concept}, namun tetap dijaga agar relevan dengan kebutuhan produksi. Rancangan ini juga menyediakan ruang bagi eksperimen lanjutan sehingga konfigurasi yang dipilih dapat beradaptasi ketika kompleksitas beban kerja meningkat. Dengan demikian, infrastruktur tidak hanya memadai untuk proposal tugas akhir, tetapi juga memiliki jalur perkembangan yang jelas.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Perangkat keras lokal (laptop pengembangan)}
+    
+    Perangkat keras lokal berupa laptop pribadi digunakan sebagai lingkungan pengembangan utama. Spesifikasi yang direncanakan mencakup RAM 32 GB (sekitar 26 GB \textit{usable}), penyimpanan SSD 1--2 TB, GPU kelas menengah dengan memori sekitar 8 GB, dan sistem operasi Linux (native) atau Windows dengan WSL2. Dengan konfigurasi tersebut, sekitar 70--80\% komponen arsitektur---seperti distribusi Kubernetes ringan, MinIO, Redis Stack, ClickHouse skala pengembangan, Kafka \textit{single broker}, Kubeflow Notebooks, MLflow, Feast, dan \textit{stack observability} dasar---dapat dijalankan secara lokal. Hal ini mengurangi ketergantungan pada \textit{cloud} untuk aktivitas eksplorasi harian dan mempercepat siklus coba-gagal selama fase pengembangan awal.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Klaster Kubernetes}
+    
+    Untuk mendukung skenario yang lebih mendekati produksi, klaster Kubernetes direncanakan terdiri atas minimum tiga \textit{node} agar mendukung \textit{high availability} dan distribusi \textit{workload}. Setiap \textit{node} diperkirakan memiliki sedikitnya empat inti CPU dan 16 GB RAM. Konfigurasi ini dinilai memadai untuk kebutuhan \textit{proof-of-concept} yang dijalankan secara berkala di \textit{cloud} maupun lingkungan komputasi bersama, sekaligus menyediakan ruang peningkatan kapasitas bila beban kerja bertambah \parencite{lakka2025kubernetes}. Dalam praktik tugas akhir, klaster Kubernetes penuh hanya akan diaktifkan untuk pengujian terintegrasi dan uji beban, sementara eksplorasi awal dan \textit{debugging} rutin tetap dilakukan di klaster ringan pada laptop pengembangan.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Penyimpanan}
+    
+    Kapasitas penyimpanan minimal yang direncanakan adalah sekitar 200 GB untuk menampung \textit{dataset} sampel, artefak model, serta data operasional seperti log dan metadata. Untuk skenario tugas akhir yang mempertimbangkan \textit{dataset} historis yang lebih besar, kapasitas tersebut dapat ditingkatkan bertahap hingga 500 GB atau 1 TB. Penyimpanan berbasis SSD diprioritaskan untuk komponen berlatensi rendah seperti Redis dan ClickHouse agar waktu respons tetap konsisten pada beban yang lebih tinggi. Pemisahan media penyimpanan untuk data kritis dan nonkritis juga dapat dipertimbangkan jika sumber daya memungkinkan sehingga risiko gangguan dapat ditekan.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Sumber daya GPU}
+    
+    Ketersediaan GPU bersifat opsional tetapi bermanfaat untuk mendemonstrasikan pelatihan \textit{deep learning}. Satu unit GPU pada lingkungan lokal atau \textit{cloud} dinilai cukup untuk \textit{proof-of-concept} model berukuran menengah. Apabila GPU tidak tersedia, tugas akhir tetap dapat berjalan dengan berfokus pada model yang lebih ringan sehingga pelatihan di CPU masih berada dalam rentang waktu yang wajar. Keputusan penggunaan GPU akan disesuaikan dengan kebutuhan skenario dan ketersediaan anggaran tanpa mengubah struktur utama arsitektur.
+    
+    \vspace{0.5em}
+\end{enumerate}
+
+Secara keseluruhan, kebutuhan infrastruktur dirancang agar realistis untuk konteks mahasiswa namun tetap representatif terhadap pola operasional di produksi. Konfigurasi minimal dipastikan mampu menjalankan \textit{pipeline} DataOps dan MLOps secara \textit{end-to-end} tanpa mengharuskan penggunaan sumber daya berlebihan. Di sisi lain, rancangan ini masih menyisakan ruang untuk eksperimen teknis lanjutan jika infrastruktur tambahan tersedia, misalnya ketika proyek diadaptasi ke lingkungan perusahaan.
+
+\subsection{Perangkat Lunak dan Alat}
+
+Pemilihan perangkat lunak dalam tugas akhir ini berfokus pada pemanfaatan ekosistem \textit{open-source} yang matang, terdokumentasi dengan baik, dan banyak digunakan di industri. Pendekatan tersebut menjaga relevansi hasil tugas akhir dan menghindari ketergantungan pada lisensi komersial tertentu. Setiap komponen dipilih untuk mengisi peran yang jelas dalam arsitektur sehingga implementasi dapat direplikasi dan diverifikasi oleh pihak lain. Penambahan komponen ekosistem Raystack (seperti Frontier, Guardian, Raccoon, Stencil, Optimus, Dagger, Firehose, Siren, Meteor, dan Compass) tetap berada dalam ranah lisensi permisif sehingga tidak menambah biaya lisensi dan terutama berpengaruh pada kompleksitas operasional.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Platform orkestrasi}
+    
+    Platform orkestrasi utama terdiri atas Kubernetes, Docker, dan ArgoCD. Kubernetes berfungsi sebagai \textit{control plane} yang mengelola \textit{workload} berbasis kontainer, Docker menyediakan mekanisme pembuatan dan distribusi \textit{container image}, sedangkan ArgoCD menambahkan kemampuan GitOps untuk menerapkan konfigurasi secara deklaratif dari \textit{repository} Git ke klaster. Kombinasi ketiganya membentuk fondasi pengelolaan aplikasi yang konsisten dan dapat diaudit, serta mendukung pola \textit{continuous delivery} untuk komponen arsitektur.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Ingesti dan pemrosesan data}
+    
+    Lapisan ingesti dan pemrosesan data memanfaatkan Apache Kafka sebagai \textit{event streaming backbone}, Kafka Connect untuk integrasi dengan sumber dan tujuan eksternal, serta Raccoon untuk menerima \textit{event} dari aplikasi dan meneruskannya ke Kafka. Stencil digunakan sebagai \textit{schema registry} untuk pengelolaan \textit{schema} berbasis Protobuf. Apache Spark dimanfaatkan untuk pemrosesan \textit{batch}, sedangkan Apache Flink digunakan untuk pemrosesan \textit{stream} berstatus. Dagger dapat digunakan sebagai kerangka konfigurasi untuk membangun \textit{job} Flink tanpa banyak kode tambahan. Orkestrasi \textit{workflow} pemrosesan dilakukan menggunakan Apache Airflow, dan Optimus memperkaya eksekusi transformasi data dengan pengelolaan dependensi dan pemeriksaan kualitas. Kerangka \textit{data validation} seperti Great Expectations dimanfaatkan untuk mendefinisikan dan mengevaluasi \textit{expectation} terhadap kualitas data pada titik-titik kritis \textit{pipeline}.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Layanan fitur}
+    
+    Layanan fitur dibangun menggunakan Feast, ClickHouse, dan Redis Stack. Feast menyediakan \textit{feature store} terpusat dengan dukungan \textit{offline} dan \textit{online serving}. ClickHouse bertindak sebagai \textit{offline store} berorientasi kolom untuk menyimpan fitur historis, sedangkan Redis Stack digunakan sebagai \textit{online store} berlatensi rendah yang cocok untuk \textit{real-time inference}. Kombinasi ini selaras dengan arsitektur yang dijelaskan pada Bab~\ref{chap:desain_konsep_solusi} dan mendukung penerapan \textit{point-in-time correctness} yang dibahas pada tahapan sebelumnya.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Penyimpanan}
+    
+    Lapisan penyimpanan memanfaatkan MinIO sebagai \textit{object storage} kompatibel S3 untuk menyimpan \textit{dataset}, artefak model, dan log. ClickHouse dan Redis menggunakan \textit{persistent volume} Kubernetes dengan kelas penyimpanan berbasis SSD untuk memenuhi kebutuhan latensi. PostgreSQL dimanfaatkan sebagai \textit{relational database} untuk menampung metadata sistem, khususnya pada DataHub dan MLflow, sehingga data konfigurasi dan metadata tersimpan terstruktur dan mudah diakses.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Siklus hidup model}
+    
+    Pengelolaan siklus hidup model didukung oleh Kubeflow, MLflow, dan KServe. Kubeflow menyediakan lingkungan \textit{pipeline} dan \textit{notebook} di atas Kubernetes, MLflow menangani \textit{experiment tracking} serta \textit{model registry}, dan KServe berperan di sisi \textit{serving}. Integrasi ketiganya membentuk \textit{pipeline} eksperimen ke produksi yang konsisten dan mengurangi jurang antara lingkungan pengembangan dan lingkungan operasional.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{\textit{Observability}}
+    
+    Tumpukan \textit{observability} terdiri atas Prometheus, Grafana, AlertManager, Loki, Jaeger, dan OpenTelemetry. Prometheus mengumpulkan metrik melalui mekanisme \textit{scraping}, Grafana menyajikan \textit{dashboard}, dan AlertManager mengelola notifikasi peringatan. Loki digunakan sebagai sistem agregasi log yang terintegrasi dengan Grafana, sedangkan Jaeger menjadi backend \textit{tracing} yang menerima data dari OpenTelemetry. Siren dapat dimanfaatkan sebagai kerangka manajemen notifikasi yang mengatur aliran \textit{alert} ke berbagai kanal tanpa mengubah konfigurasi dasar AlertManager.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Tata kelola}
+    
+    DataHub digunakan untuk mengelola katalog aset data, fitur, model, dan \textit{pipeline} beserta \textit{lineage}-nya. Meteor dimanfaatkan sebagai \textit{metadata collector} untuk mengekstrak metadata dari berbagai sistem (misalnya ClickHouse, Kafka, Feast, MLflow) dan mengirimkannya ke DataHub atau katalog alternatif seperti Compass. Dengan cara ini, pandangan lintas komponen dapat disatukan pada satu platform metadata dan mempermudah aktivitas \textit{data discovery} maupun audit.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Bahasa dan \textit{framework} pemrograman}
+    
+    Bahasa utama yang digunakan adalah Python dengan pustaka ML seperti \textit{scikit-learn}, TensorFlow, dan PyTorch. Pustaka data seperti \textit{pandas} dan \textit{numpy} dimanfaatkan untuk analisis dan manipulasi data dalam tahap eksplorasi maupun pelatihan model. Klien Feast dan MLflow digunakan untuk berinteraksi dengan \textit{feature store} dan \textit{tracking server} secara terprogram sehingga \textit{pipeline} dapat ditulis sebagai kode yang dapat diulang. Integrasi dengan Kafka, ClickHouse, dan Redis menggunakan pustaka klien resmi maupun komunitas sehingga interaksi dengan sistem terdistribusi tetap konsisten dan terdokumentasi.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Alat pengembangan}
+    
+    Alat pengembangan mencakup Git (dengan layanan Git terpusat seperti Gitea), IDE seperti VS Code, PyCharm, atau Jupyter, serta alat CLI seperti \textit{kubectl}, \textit{helm}, dan \textit{docker}. Alat pengujian beban seperti Locust atau k6 digunakan untuk menguji kinerja layanan secara sintetis pada berbagai skenario trafik. Kombinasi alat ini mendukung siklus pengembangan, pengujian, dan \textit{deployment} harian serta mempermudah kolaborasi dan \textit{code review}.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Lapisan keamanan dan akses}
+    
+    Untuk mendukung autentikasi dan otorisasi yang terstruktur, Frontier dan Guardian dari ekosistem Raystack dipertimbangkan sebagai lapisan di atas penyimpanan data dan antarmuka administrasi. API gateway seperti Kong digunakan untuk memusatkan kontrol akses, \textit{rate limiting}, dan \textit{request validation} pada \textit{endpoint} layanan. Pengelolaan rahasia dan kunci layanan dapat diperkuat dengan Vault jika dibutuhkan kemampuan di luar \textit{secrets manager} bawaan penyedia \textit{cloud}, sehingga kredensial dan kunci enkripsi tidak tersebar di konfigurasi aplikasi.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{CI/CD dan automasi}
+    
+    Lapisan \textit{continuous integration/continuous delivery} (CI/CD) dan automasi dapat memanfaatkan Tekton sebagai \textit{pipeline engine} berbasis Kubernetes untuk menjalankan \textit{build}, \textit{test}, dan \textit{deployment pipeline}. Firehose digunakan untuk \textit{streaming} data \textit{real-time} dari Kafka ke berbagai \textit{sink} seperti penyimpanan objek atau basis data analitik, sekaligus mendukung pola \textit{batch} dan \textit{streaming ingestion} dengan konfigurasi yang fleksibel. Dengan kombinasi ini, proses rilis dan pengelolaan aliran data dapat diotomasi secara konsisten dan terintegrasi dengan klaster Kubernetes yang sama.
+    
+    \vspace{0.5em}
+\end{enumerate}
+
+Penggunaan perangkat lunak \textit{open-source} membuat tugas akhir lebih mudah direplikasi dan diverifikasi oleh pihak lain. Dukungan dokumentasi komunitas dan forum diskusi juga membantu mempercepat \textit{troubleshooting} ketika muncul kendala teknis. Dengan demikian, peneliti dapat memfokuskan usaha pada penyusunan arsitektur dan integrasi alih-alih membangun komponen dasar dari awal.
+
+\subsection{Layanan \textit{Cloud} dan Pertimbangan Anggaran}
+
+Pemanfaatan layanan \textit{cloud} menjadi opsi penting untuk menyediakan infrastruktur komputasi dan penyimpanan yang fleksibel selama tugas akhir berlangsung. Jika arsitektur dijalankan sepenuhnya di \textit{cloud} dengan konfigurasi minimal tiga \textit{node} dan penyimpanan persisten untuk ClickHouse, Redis, dan MinIO, biaya bulanan dapat berada pada kisaran ratusan dolar Amerika, bergantung pada penyedia, kelas instans, dan wilayah. Komponen biaya utama meliputi instans \textit{compute} untuk \textit{node} Kubernetes, penyimpanan persisten, dan biaya transfer data keluar. Penambahan komponen ekosistem Raystack tidak mengubah profil biaya lisensi karena semuanya berbasis \textit{open-source}, sehingga struktur biaya tetap menitikberatkan konsumsi komputasi dan penyimpanan.
+
+Dalam konteks proposal tugas akhir ini, digunakan strategi pemanfaatan \textit{cloud} secara \textbf{hibrida} untuk menekan biaya aktual. Mayoritas aktivitas pengembangan, eksplorasi, dan \textit{debugging} dijalankan pada klaster Kubernetes lokal di laptop pengembangan yang memiliki kapasitas memori, penyimpanan SSD, dan GPU yang memadai. Klaster \textit{cloud} berukuran kecil hanya diaktifkan ketika diperlukan pengujian terintegrasi dan uji beban yang lebih mendekati skenario produksi, misalnya untuk menguji skala Kafka, ClickHouse, atau KServe pada beban yang lebih tinggi. Setelah pengujian selesai, klaster dapat di-\textit{scale down} atau dimatikan agar tidak menimbulkan biaya berjalan. Pendekatan ini mengurangi biaya berkelanjutan sekaligus tetap memberikan kesempatan menguji arsitektur dalam lingkungan yang menyerupai produksi.
+
+Strategi hibrida tersebut dikombinasikan dengan pemanfaatan \textbf{kredit gratis} dari penyedia \textit{cloud}. Akun baru dari penyedia besar umumnya memperoleh kredit yang dapat dimanfaatkan untuk eksperimen dalam periode tertentu. Dengan disiplin dalam mengaktifkan dan mematikan klaster, tugas akhir menargetkan konsumsi biaya \textit{cloud} kotor pada rentang yang masih dapat ditutup sepenuhnya oleh kredit gratis selama pemakaian dikendalikan. Selama konsumsi kumulatif berada di bawah plafon kredit yang tersedia, biaya \textit{cloud} aktual yang perlu dibayar peneliti diharapkan mendekati nol. Ringkasan estimasi biaya layanan \textit{cloud} untuk cakupan tugas akhir ditampilkan pada Tabel~\ref{tab:development_cost}. Tabel tersebut secara eksplisit hanya memuat komponen biaya \textit{cloud}, karena seluruh perangkat lunak utama yang digunakan bersifat \textit{open-source} atau memiliki \textit{free tier}, dan biaya kelistrikan perangkat keras lokal tidak dihitung sebagai biaya langsung tugas akhir.
+
+\input{tables/development_cost}
+
+\vspace{-0.5cm}
+
+\subsection{Sumber Daya Manusia dan Keahlian}
+
+Keberhasilan implementasi arsitektur DataOps dan MLOps terintegrasi tidak hanya ditentukan oleh infrastruktur dan alat, tetapi juga oleh kompetensi teknis peneliti dan pemangku kepentingan yang terlibat. Berbagai keterampilan dibutuhkan untuk mengonfigurasi, mengoperasikan, dan memelihara platform, mulai dari administrasi Kubernetes hingga pengembangan \textit{pipeline} ML. Walaupun tidak semua kemampuan harus dikuasai secara mendalam sejak awal, pemahaman dasar di setiap area mempercepat proses belajar dan mengurangi risiko kebuntuan teknis. Dengan pemetaan keahlian yang jelas, peneliti dapat mengenali area yang memerlukan dukungan tambahan dan menyesuaikan fokus belajar.
+
+Secara garis besar, peran dan alokasi waktu yang diasumsikan pada tugas akhir ini adalah sebagai berikut. Mahasiswa atau peneliti utama berperan sebagai perancang arsitektur, penanggung jawab \textit{deployment} \textit{stack} lokal dan \textit{cloud}, pengembang \textit{pipeline} DataOps dan MLOps, serta penyusun eksperimen, evaluasi, dan dokumentasi, dengan durasi kerja intensif sekitar beberapa bulan. Pembimbing akademik atau mentor industri berperan melakukan \textit{review} desain, membantu mengelola ruang lingkup dan prioritas, serta mengkaji hasil eksperimen dan klaim ilmiah, dengan keterlibatan berkala yang biasanya diwujudkan dalam pertemuan bimbingan mingguan. Engineer atau DevOps internal bersifat opsional dan dapat dilibatkan jika \textit{proof-of-concept} ini nantinya ingin diintegrasikan lebih dalam ke infrastruktur perusahaan dan diperkuat untuk kebutuhan keamanan serta \textit{compliance} produksi.
+
+Dalam konteks tugas akhir di lingkungan akademik, biaya sumber daya manusia biasanya tidak dihitung sebagai biaya langsung, namun pemetaan peran dan alokasi waktu tetap relevan untuk menunjukkan bahwa rancangan arsitektur realistis diimplementasikan oleh satu orang mahasiswa dengan dukungan terbatas. Selain alokasi peran, sejumlah keterampilan teknis menjadi prasyarat agar tugas akhir dapat berjalan dan seluruh tahapan di Bab~\ref{chap:rencana_selanjutnya} dapat direalisasikan.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Administrasi Kubernetes} dan orkestrasi kontainer diperlukan untuk mengelola klaster, men-\textit{deploy} aplikasi, dan melakukan \textit{troubleshooting}. Pemahaman tentang \textit{manifest}, \textit{kubectl}, \textit{ingress}, \textit{service}, dan \textit{config map} menjadi prasyarat untuk pengelolaan klaster yang andal. Keterampilan ini juga membantu dalam menafsirkan metrik dan log ketika muncul kendala pada \textit{workload}.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Kemahiran pemrograman Python} dibutuhkan untuk mengembangkan \textit{pipeline} data, menulis definisi fitur di Feast, menyusun alur pelatihan model, dan membuat skrip pengujian. Penguasaan pustaka \textit{pandas}, \textit{numpy}, dan \textit{scikit-learn} akan mempercepat pengembangan dan eksplorasi. Keterampilan ini juga relevan untuk mengintegrasikan berbagai klien layanan seperti Kafka, ClickHouse, dan Redis dalam satu alur eksperimen.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Konsep sistem terdistribusi} penting untuk memahami \textit{messaging}, pemrosesan \textit{stream}, konsistensi data, dan toleransi kesalahan. Bekal ini membantu merancang layanan yang tangguh dan dapat diskalakan seiring pertumbuhan beban kerja. Pemahaman tersebut juga berkontribusi pada pengambilan keputusan ketika terjadi insiden yang melibatkan beberapa komponen sekaligus.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Dasar-dasar \textit{machine learning}} diperlukan untuk memahami alur kerja ML, metrik evaluasi, dan isu seperti \textit{overfitting} serta \textit{data leakage}. Pengetahuan ini membantu menafsirkan hasil eksperimen dan menentukan langkah perbaikan model yang tepat. Dengan dasar yang kuat, peneliti dapat menghubungkan indikator teknis yang muncul di platform dengan implikasi pada kualitas prediksi.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Praktik DevOps} yang mencakup GitOps, \textit{continuous integration/continuous delivery} (CI/CD), \textit{monitoring}, dan \textit{observability} diperlukan untuk merancang proses perubahan yang terkontrol dan terdokumentasi. Keterampilan ini juga mendukung integrasi komponen yang mulus dan mengurangi risiko kesalahan konfigurasi. Penerapan praktik tersebut memperkuat klaim bahwa platform yang dibangun bukan hanya berfungsi, tetapi juga siap dioperasikan secara berkelanjutan.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Bimbingan pembimbing dan dukungan komunitas} menjadi elemen penting untuk mengatasi kurva pembelajaran. Dokumentasi, tutorial, dan forum komunitas untuk proyek seperti Feast, Kubeflow, MLflow, KServe, DataHub, serta komponen Raystack menyediakan referensi praktis yang dapat dimanfaatkan ketika menemui hambatan teknis. Dukungan ini melengkapi upaya mandiri peneliti dalam memahami dan mengintegrasikan berbagai komponen.
+    
+    \vspace{0.5em}
+\end{enumerate}
+
+Dengan kombinasi keahlian teknis, bimbingan akademik, dan dukungan komunitas, peneliti diharapkan dapat membangun kapasitas yang memadai untuk menyelesaikan proposal tugas akhir ini. Fokus utama bukan pada penguasaan penuh semua teknologi yang terlibat, tetapi pada kemampuan memilih dan mengadaptasi alat yang relevan secara efektif. Pendekatan ini sejalan dengan tujuan tugas akhir yang menekankan pemahaman arsitektural dan integrasi, bukan sekadar penguasaan spesifik satu produk.
+
+% --- Analisis Risiko dan Mitigasi ---
+\section{Analisis Risiko dan Mitigasi}
+
+Pendekatan sistematis terhadap identifikasi dan mitigasi risiko menjadi salah satu faktor kunci keberhasilan tugas akhir ini. Proyek yang menggabungkan banyak komponen \textit{open-source} rentan terhadap berbagai kendala teknis, penundaan jadwal, dan masalah koordinasi. \textcite{paleyes2022challenges} mencatat bahwa proyek ML sering menghadapi tantangan pada aspek organisasi, teknis, dan operasional, termasuk kualitas data, integrasi sistem, dan kompleksitas \textit{deployment}. Oleh karena itu, analisis risiko disusun sejak awal agar strategi mitigasi dapat diterapkan secara proaktif, bukan hanya reaktif ketika masalah sudah muncul. Pendekatan ini membantu menjaga stabilitas dan kualitas selama siklus tugas akhir.
+
+\subsection{Risiko Teknis}
+
+Risiko teknis berkaitan dengan tantangan yang muncul dari sisi teknologi dan integrasi antarkomponen. Kompleksitas arsitektur terdistribusi, perbedaan versi perangkat lunak, dan keterbatasan sumber daya perangkat keras dapat memunculkan masalah yang sulit diprediksi. Dengan mengidentifikasi risiko tersebut sejak awal, peneliti dapat menyiapkan waktu cadangan, alat bantu, dan strategi penyelesaian yang sesuai. Upaya ini diharapkan mengurangi kemungkinan hambatan teknis yang mengganggu jadwal utama.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Risiko 1: Kompleksitas integrasi antarkomponen.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Integrasi beberapa komponen \textit{open-source} dalam satu platform dapat lebih rumit daripada perkiraan awal. Perbedaan versi, perilaku yang kurang terdokumentasi, dan asumsi implisit terhadap lingkungan \textit{deployment} sering memicu masalah yang sulit dilacak. Ekosistem yang akan diintegrasikan mencakup Feast, Kubeflow, MLflow, KServe, DataHub, Kafka, Spark, Flink, serta berbagai komponen tambahan dari ekosistem Raystack. \textcite{burgueno2025toward} mencatat bahwa tantangan integrasi merupakan salah satu hambatan utama dalam membangun arsitektur MLOps berbasis \textit{open-source}.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Mitigasi dilakukan dengan menyusun \textit{proof-of-concept} awal untuk integrasi yang dinilai paling kritis, seperti Feast--ClickHouse/Redis, MLflow--Kubeflow, KServe--Feast, dan alur Kafka--Flink--Firehose. Versi komponen dipilih dari rilis yang stabil dan, bila memungkinkan, mengacu pada kombinasi yang telah banyak diadopsi komunitas. Waktu cadangan dialokasikan secara eksplisit untuk \textit{debugging} dan penyesuaian konfigurasi. Dokumentasi resmi, contoh integrasi, dan diskusi komunitas dimanfaatkan sebagai rujukan utama untuk mengurangi risiko mencoba konfigurasi yang belum teruji.
+        
+        \vspace{0.5em}
+    \end{enumerate}
+    
+    \item \textbf{Risiko 2: Keterbatasan sumber daya dan kinerja.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Menjalankan platform MLOps yang relatif lengkap pada sumber daya terbatas berpotensi memicu perebutan sumber daya sehingga kinerja menurun atau terjadi \textit{out-of-memory}. \textcite{lakka2025kubernetes} menegaskan bahwa manajemen sumber daya dan desain skalabilitas yang tepat merupakan faktor penting pada lingkungan Kubernetes, terutama ketika banyak komponen ditempatkan dalam satu klaster.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Mitigasi dilakukan dengan menyesuaikan ukuran \textit{deployment} dengan kapasitas nyata yang tersedia. Layanan nonkritis dijalankan menggunakan konfigurasi \textit{lightweight}, dan \textit{resource requests} serta \textit{limits} diterapkan di setiap \textit{pod} untuk mencegah satu komponen menghabiskan seluruh sumber daya. Pemantauan CPU, memori, dan I/O melalui Prometheus dan Grafana digunakan untuk mendeteksi \textit{bottleneck} lebih awal. Ukuran \textit{dataset} sampel disesuaikan agar tetap representatif tanpa terlalu membebani sistem, dan bila diperlukan dimanfaatkan kredit \textit{cloud} gratis atau infrastruktur tambahan untuk uji beban tertentu.
+        
+        \vspace{0.5em}
+    \end{enumerate}
+    
+    \item \textbf{Risiko 3: Kompatibilitas versi dan konflik dependensi.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Proyek \textit{open-source} berkembang secara independen dan cukup cepat. Dalam praktik, versi tertentu dapat menghadirkan \textit{breaking changes} atau konflik dependensi. Hal ini khususnya terasa di ekosistem Python yang memiliki ketergantungan antarpustaka yang kompleks. Kondisi tersebut dapat memicu kegagalan \textit{deployment} atau perilaku tidak terduga jika tidak dikendalikan sejak awal.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Peneliti menelusuri kombinasi versi yang telah diketahui kompatibel melalui dokumentasi resmi, \textit{compatibility matrix}, atau referensi dari komunitas. \textit{Version pinning} diterapkan pada berkas konfigurasi dependensi dan \textit{container image}. Pembaruan versi diuji terlebih dahulu di lingkungan terpisah sebelum diterapkan ke klaster utama, dan penggunaan \textit{virtual environment} atau kontainer memastikan dependensi Python tetap terisolasi antar layanan. Dengan cara ini, risiko konflik versi dapat dikurangi tanpa menghambat kebutuhan pembaruan keamanan.
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Risiko Operasional}
+
+Risiko operasional berkaitan dengan pengelolaan jadwal, ruang lingkup, dan dokumentasi selama tugas akhir berlangsung. Proyek tugas akhir rentan terhadap keterlambatan, perubahan cakupan, dan penumpukan dokumentasi pada tahap akhir. Tanpa mekanisme pengendalian linimasa dan ruang lingkup, kualitas hasil dapat menurun meskipun rancangan teknis sudah baik. Strategi pengelolaan operasional disusun untuk menjaga keseimbangan antara ambisi teknis dan realitas waktu.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Risiko 4: Keterlambatan linimasa dan \textit{scope creep}.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Setiap fase implementasi berpotensi memerlukan waktu lebih lama daripada yang direncanakan karena kendala teknis atau kurva pembelajaran yang lebih curam. \textit{Scope creep} dapat muncul ketika fitur tambahan dimasukkan di luar kebutuhan inti yang telah didefinisikan. Paleyes, Urma, dan Lawrence (2022) menegaskan bahwa faktor-faktor tersebut sering menjadi sumber keterlambatan pada proyek ML yang kompleks. Jika tidak dikendalikan, penumpukan pekerjaan di akhir periode dapat mengurangi kualitas pengujian maupun dokumentasi.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Mitigasi dilakukan dengan menyediakan waktu cadangan pada tiap fase dan meninjau kemajuan secara berkala bersama pembimbing. Peneliti menyusun prioritas fitur menggunakan kerangka Must-have, Should-have, Could-have, Won't-have (MoSCoW) sehingga kebutuhan inti didahulukan. Fitur tambahan yang bersifat \textit{nice-to-have} dapat ditunda atau dikeluarkan apabila jadwal mulai tertekan. Dengan demikian, keterlambatan pada bagian nonesensial tidak mengganggu penyelesaian komponen utama dan tenggat akhir tetap realistis.
+        
+        \vspace{0.5em}
+    \end{enumerate}
+    
+    \item \textbf{Risiko 5: Dokumentasi dan transfer pengetahuan yang tidak cukup.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Kompleksitas sistem menimbulkan kebutuhan dokumentasi yang besar, baik dari sisi arsitektur maupun operasional. Jika dokumentasi kurang, \textit{reproducibility} menjadi sulit, penanganan masalah lambat, dan nilai jangka panjang platform berkurang. \textcite{munappy2022data} menekankan bahwa dokumentasi dan \textit{version control} yang sistematis merupakan prasyarat penting bagi sistem ML produksi. Dalam konteks tugas akhir, dokumentasi yang lemah juga dapat menyulitkan proses penilaian dan tindak lanjut tugas akhir.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Dokumentasi dikembangkan secara paralel dengan implementasi menggunakan pola \textit{documentation-as-code}. Templat dokumentasi terstruktur digunakan untuk menutupi aspek arsitektur, konfigurasi, panduan penggunaan, dan \textit{troubleshooting}. Sebagian waktu tiap fase dialokasikan khusus untuk dokumentasi agar tidak tertunda hingga akhir. README yang jelas, \textit{runbook} operasional, contoh alur \textit{end-to-end}, dan diagram arsitektur dijadikan keluaran standar untuk memudahkan transfer pengetahuan dan penilaian oleh pembimbing.
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Risiko Personal dan Organisasi}
+
+Risiko personal dan organisasi berkaitan dengan kondisi individu peneliti dan lingkungan akademik, termasuk beban studi lain dan faktor motivasi. Proyek dengan durasi beberapa bulan membutuhkan konsistensi upaya dan manajemen waktu yang baik. Tanpa perhatian pada aspek nonteknis ini, kualitas dan ketercapaian hasil dapat terpengaruh walaupun rancangan teknis sudah tepat. Strategi mitigasi pada bagian ini bertujuan menjaga keberlanjutan tugas akhir hingga selesai.
+
+\vspace{0.5em}
+
+\begin{enumerate}
+    \item \textbf{Risiko 6: Tuntutan waktu yang bersaing dan manajemen beban kerja.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Tugas akhir dijalankan bersamaan dengan mata kuliah, ujian, atau tanggung jawab pribadi lainnya. Akumulasi tugas dapat memicu \textit{burnout}, menurunkan kualitas pekerjaan, atau menyebabkan keterlambatan signifikan jika tidak dikelola. Ketidakseimbangan ini dapat menghambat penyelesaian fase penting dan menurunkan kualitas pengujian. Dalam jangka panjang, tekanan berlebih juga dapat memengaruhi kesehatan dan motivasi peneliti.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Peneliti melakukan penilaian realistis terhadap ketersediaan waktu sejak awal dan menyesuaikan jadwal tugas akhir jika diperlukan. Teknik \textit{time blocking} digunakan untuk mengalokasikan waktu khusus tugas akhir yang relatif bebas dari gangguan aktivitas lain. Komunikasi proaktif dengan pembimbing dilakukan ketika kendala waktu muncul sehingga ruang lingkup atau prioritas dapat disesuaikan. Dengan cara ini, beban kerja dapat diseimbangkan tanpa mengorbankan kualitas atau tenggat utama.
+        
+        \vspace{0.5em}
+    \end{enumerate}
+    
+    \item \textbf{Risiko 7: Kehilangan motivasi atau minat.}
+    
+    \vspace{0.5em}
+    \begin{enumerate}[label=\alph*)]
+        \item \textbf{Deskripsi}
+        
+        Linimasa yang panjang dan pekerjaan teknis yang rumit dapat menurunkan motivasi, terutama ketika peneliti menghadapi masalah berulang atau progres terasa lambat. Kondisi ini berpotensi menurunkan konsistensi dan kualitas hasil akhir jika tidak diantisipasi. Dalam konteks tugas akhir, hilangnya motivasi juga dapat menghambat komunikasi dengan pembimbing dan mengurangi frekuensi iterasi desain maupun eksperimen.
+        
+        \vspace{0.5em}
+        
+        \item \textbf{Strategi mitigasi}
+        
+        Peneliti menjaga fokus pada tujuan jangka panjang dan kontribusi tugas akhir terhadap praktik DataOps dan MLOps. Setiap \textit{milestone} yang tercapai didokumentasikan sebagai bukti kemajuan dan sumber motivasi baru. Berbagi perkembangan dengan rekan dan pembimbing membantu memperoleh umpan balik serta dukungan ketika menghadapi hambatan. Dengan pendekatan tersebut, peneliti diharapkan dapat mempertahankan ritme kerja hingga akhir proyek dan menyelesaikan seluruh tahapan implementasi yang direncanakan.
+        
+        \vspace{0.5em}
+    \end{enumerate}
+\end{enumerate}
+
+Dengan mengenali berbagai risiko tersebut dan menyiapkan strategi mitigasi yang konkret, proposal tugas akhir ini memiliki landasan yang lebih kuat untuk mencapai tujuannya. Fleksibilitas dalam perencanaan, komunikasi terbuka dengan pembimbing, dan fokus pada \textit{deliverables} inti menjadi faktor utama dalam menghadapi tantangan selama implementasi. Pendekatan ini diharapkan menjaga kualitas hasil akhir sekaligus memastikan bahwa platform DataOps dan MLOps yang dibangun dapat dipertanggungjawabkan baik dari sisi teknis maupun metodologis.

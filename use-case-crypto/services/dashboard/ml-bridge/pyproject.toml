@@ -1,0 +1,39 @@
+[project]
+name = "ml-bridge"
+version = "1.0.0"
+description = "ML Bridge API service for features and predictions"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi>=0.129.0",
+    "uvicorn[standard]>=0.30.6",
+    "httpx>=0.28.1",
+    "feast[redis]>=0.59.0",
+    "clickhouse-connect>=0.11.0",
+    "redis>=4.2.2",
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.13.0",
+    "prometheus-client>=0.24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[dependency-groups]
+dev = ["pytest>=8.3.4", "pytest-cov>=6.0.0", "pytest-mock>=3.14.0", "pytest-asyncio>=0.25.0", "httpx>=0.28.1", "ruff>=0.8.4"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP", "ANN", "B", "C4", "SIM"]
+ignore = ["ANN401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=. --cov-report=term-missing"
+asyncio_mode = "auto"

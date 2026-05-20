@@ -1,0 +1,62 @@
+syntax = "proto3";
+package crypto.features;
+
+option go_package = "github.com/use-case-crypto/proto/features";
+
+message FeatureVector {
+    string symbol = 1;
+    int64 timestamp = 2;
+    double close = 3;
+    double volume = 4;
+    // Moving averages (match schema.yaml STREAM_FEATURES_ALL)
+    double sma_20 = 5;
+    double sma_50 = 6;
+    double ema_12 = 7;
+    double ema_26 = 8;
+    // Momentum indicators
+    double rsi_14 = 9;
+    double macd = 10;
+    double macd_signal = 11;
+    double macd_hist = 12;
+    // Bollinger Bands
+    double bb_upper = 13;
+    double bb_middle = 14;
+    double bb_lower = 15;
+    // Volume indicators
+    double obv = 16;
+    double mfi_14 = 17;
+    double vwap = 18;
+    // Returns and volatility
+    double return_1h = 19;
+    double return_24h = 20;
+    double volatility_24h = 21;
+    // ATR
+    double atr_14 = 22;
+}
+
+message FeatureRequest {
+    string symbol = 1;
+}
+
+message FeatureResponse {
+    FeatureVector features = 1;
+}
+
+message BatchFeatureRequest {
+    repeated string symbols = 1;
+}
+
+message BatchFeatureResponse {
+    repeated FeatureVector features = 1;
+}
+
+service FeatureService {
+    rpc GetFeatures(FeatureRequest) returns (FeatureResponse);
+    rpc GetBatchFeatures(BatchFeatureRequest) returns (BatchFeatureResponse);
+    rpc StreamFeatures(FeatureRequest) returns (stream FeatureVector);
+}
+
+service FeatureCacheService {
+    rpc Get(FeatureRequest) returns (FeatureResponse);
+    rpc GetBatch(BatchFeatureRequest) returns (BatchFeatureResponse);
+}

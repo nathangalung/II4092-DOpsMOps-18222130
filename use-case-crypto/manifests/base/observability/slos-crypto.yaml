@@ -1,0 +1,171 @@
+# =============================================================================
+# use-case-crypto :: Service-Level Objectives (Sloth v1 CRs)
+# =============================================================================
+# DOMAIN-SPECIFIC SLOs — ownership boundary per ADR-013.
+#
+#   - platform/ ships infra SLOs only (Kafka broker availability, Postgres
+#     connection success, MinIO p99 latency). See
+#     platform/components/observability/sloth/platform-slos.yaml.
+#   - This file ships the CRYPTO SLOs. Each USE-CASE ships its OWN SLOs in
+#     its own repo — the platform does not know the service semantics.
+#
+# Sloth compiles each `PrometheusServiceLevel` CR into:
+#   - ~6 recording rules per SLO (multi-window, multi-burn-rate)
+#   - ~2 alerting rules per SLO (page_alert + ticket_alert)
+# Rules carry the `release: kube-prometheus-stack` label (set via
+# sloth.extraLabels in platform/components/observability/sloth/helm-release.yaml)
+# so they are picked up by the kube-prometheus-stack PrometheusRule selector.
+#
+# The three SLOs here cover the three user-visible promises the platform makes
+# in its thesis (§4.3 Performance Evaluation):
+#   1. prediction-freshness — "the model serves fresh predictions"
+#   2. pipeline-lag         — "the feature pipeline keeps up with the market"
+#   3. model-freshness      — "retrain-on-drift is timely"
+# =============================================================================
+---
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: prediction-freshness
+  # Co-located with the use-case, not the platform observability namespace.
+  # The prometheus-operator scrapes PrometheusRule CRs cluster-wide so this
+  # lands in the same kube-prometheus-stack rule group.
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: use-case
+    use-case: crypto
+spec:
+  service: crypto-ml-bridge
+  labels:
+    tier: use-case
+    use-case: crypto
+    component: ml-bridge
+  slos:
+    - name: prediction-freshness
+      objective: 99.5
+      description: >-
+        99.5% of 1-minute windows over 30 days must see at least one successful
+        prediction written to the `crypto.predictions.v1` Kafka topic.  A
+        break means the pipeline stalled (upstream collector outage, feature-
+        engine lag blown out, or inference service down) — user-visible
+        freshness is the thesis's first SLO (§4.3.1).
+      sli:
+        # `good` events = 1m windows where >=1 prediction was emitted.
+        # Total events = all 1m windows.
+        events:
+          errorQuery: >-
+            sum(increase(kafka_topic_partition_current_offset{
+              topic="crypto.predictions.v1"}[1m])) <= bool 0
+          totalQuery: >-
+            vector(1)
+      alerting:
+        name: CryptoPredictionFreshnessSLOBurn
+        labels:
+          severity: critical
+          router: crypto-team
+          use-case: crypto
+        annotations:
+          summary: crypto ml-bridge is not emitting predictions
+          runbook_url: https://runbooks/crypto/prediction-freshness
+        pageAlert:
+          labels: { severity: critical, routing_key: pagerduty }
+        ticketAlert:
+          labels: { severity: warning,  routing_key: jira }
+---
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: pipeline-lag
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: use-case
+    use-case: crypto
+spec:
+  service: crypto-feature-engine
+  labels:
+    tier: use-case
+    use-case: crypto
+    component: feature-engine
+  slos:
+    - name: feature-engine-lag-under-10k
+      objective: 99.0
+      description: >-
+        99% of 1-minute windows over 7 days must see consumer-group
+        `feature-engine` reporting a lag of <10,000 events against the
+        `crypto.validated` topic (thesis §4.3.2 — the pipeline keeps up
+        with market tick velocity).  Burn threshold aligns with the KEDA
+        ScaledObject's scale-up threshold (1,000 per replica × up to
+        10 replicas).
+      sli:
+        events:
+          errorQuery: >-
+            sum(kafka_consumergroup_lag{
+              consumergroup="feature-engine",
+              topic="crypto.validated"}) > bool 10000
+          totalQuery: >-
+            vector(1)
+      alerting:
+        name: CryptoPipelineLagSLOBurn
+        labels:
+          severity: warning
+          router: crypto-team
+          use-case: crypto
+        annotations:
+          summary: feature-engine consumer lag on crypto.validated is breaching budget
+          runbook_url: https://runbooks/crypto/pipeline-lag
+        pageAlert:
+          labels: { severity: warning, routing_key: jira }
+        ticketAlert:
+          labels: { severity: info,    routing_key: jira }
+---
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: model-freshness
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: sloth
+    tier: use-case
+    use-case: crypto
+spec:
+  service: crypto-kfp-retraining
+  labels:
+    tier: use-case
+    use-case: crypto
+    component: retraining-pipeline
+  slos:
+    - name: model-promoted-within-24h
+      objective: 99.0
+      description: >-
+        When the `crypto-drift-detector` CronWorkflow (ADR-017) fires a
+        retrain trigger, the resulting KFP run MUST complete and promote a
+        new MLflow model version within 24 hours 99% of the time (thesis
+        §4.3.3 — the retrain-on-drift loop is timely).  SLI is based on a
+        Pushgateway metric `crypto_retrain_last_promotion_age_hours`
+        emitted by the retraining_pipeline's final "register-and-promote"
+        step; the drift-detector sets the denominator by incrementing
+        `crypto_drift_detector_triggered_total` every time it launches a run.
+      sli:
+        events:
+          errorQuery: >-
+            sum(crypto_retrain_last_promotion_age_hours) > bool 24
+          totalQuery: >-
+            vector(1)
+      alerting:
+        name: CryptoModelFreshnessSLOBurn
+        labels:
+          severity: warning
+          router: crypto-team
+          use-case: crypto
+        annotations:
+          summary: Crypto model has not been promoted within 24h after drift trigger
+          runbook_url: https://runbooks/crypto/model-freshness
+        pageAlert:
+          labels: { severity: warning, routing_key: jira }
+        ticketAlert:
+          labels: { severity: info,    routing_key: jira }

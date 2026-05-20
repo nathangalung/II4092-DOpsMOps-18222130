@@ -1,0 +1,85 @@
+# =============================================================================
+# PHASE 1 BASE — Ingestion + Quality + Processing ONLY
+# =============================================================================
+# Pulls the Data subset of the platform Deployments + crypto CRs that are
+# needed to run ingestion → quality → processing. Train/3/4 resources are
+# NOT included — no unnecessary image pulls.
+#
+# Paths: `../../../platform/...` cross-repo references REQUIRE
+# `kubectl kustomize --load-restrictor LoadRestrictionsNone` (see Makefile
+# data-apply target).
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
+  - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
+  - ../base/namespace.yaml
+  - ../base/configmap-feast.yaml
+  - ../base/configmaps/rest-collector-config.yaml
+  - ../base/external-secrets.yaml
+  - ../base/schema-registration.yaml
+  - ../base/connectors/debezium-postgres.yaml
+  - ../base/connectors/iceberg-sink.yaml
+  # KafkaUsers + KEDA TriggerAuthentication (cycle-3 §3.1). Required for
+  # data because validator + feature-engine + analyzer all consume Kafka
+  # over SCRAM-SHA-512 once the broker enforces ACLs on the plain listener.
+  - ../base/kafka-users/scram-users.yaml
+  - ../base/kafka-users/triggerauth.yaml
+
+  # --- Data: Ingestion (platform Deployments + crypto CronJobs) ---
+  - ../../../platform/services/base/deployments/rest-collector.yaml
+  - ../../../platform/services/base/deployments/websocket-collector.yaml
+  - ../base/cronjobs/supplementary.yaml
+  - ../base/cronjobs/supplementary-feargreed.yaml
+  - ../base/cronjobs/supplementary-coingecko.yaml
+  - ../base/cronjobs/supplementary-defillama.yaml
+
+  # --- Data: Quality ---
+  - ../../../platform/services/base/deployments/validator.yaml
+  - ../../../platform/services/base/deployments/analyzer.yaml
+
+  # --- Data: Processing ---
+  # ADR-023/025: stream processing = FlinkDeployment CR (Flink Operator).
+  # The CR file also declares the flink ServiceAccount/Role/RoleBinding and
+  # the flink-s3-secret ExternalSecret needed for checkpoints + HA.
+  - ../../../platform/services/base/deployments/feature-engine.yaml
+  - ../base/flink/flinkdeployment.yaml
+  - ../base/cronjobs/vector-embedding.yaml
+  # batch-features, batch-sentiment, dbt-run, backfill → Airflow DAGs
+
+  # --- RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount) ---
+  - ../../../platform/services/base/rbac/roles.yaml
+  - ../../../platform/services/base/rbac/bindings.yaml
+  - ../base/rbac/service-account.yaml
+
+patches:
+  # schema.yaml is the SINGLE SOURCE OF TRUTH for feature names, symbols,
+  # table names, and data sources. Must be first so other patches can override.
+  - path: ../base/configmaps/schema.yaml
+  - path: ../base/configmaps/identity.yaml
+  - path: ../base/configmaps/topics.yaml
+  - path: ../base/configmaps/sources.yaml
+  - path: ../base/configmaps/features.yaml
+  - path: ../base/configmaps/models.yaml
+  - path: ../base/configmaps/quality.yaml
+  - path: ../base/configmaps/serving.yaml
+  - path: ../base/patches/rest-collector.yaml
+  - path: ../base/patches/feature-engine.yaml
+  - path: ../base/patches/supplementary-source.yaml
+  # backfill.yaml removed: targeted nonexistent CronJob "incremental-backfill".
+  # Backfill is handled by rest-collector's built-in HISTORY_BACKFILL_ON_START.
+  - path: ../base/patches/websocket-collector.yaml
+  # SCRAM/TLS Kafka credentials for validator + analyzer + feature-engine +
+  # rest-collector + websocket-collector. Must come last so it composes with
+  # the per-service patches above (kustomize merges by container name).
+  - path: ../base/patches/kafka-sasl.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/part-of: mlops-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: true

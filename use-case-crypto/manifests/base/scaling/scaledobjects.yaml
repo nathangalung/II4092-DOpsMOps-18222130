@@ -1,0 +1,275 @@
+# =============================================================================
+# use-case-crypto :: KEDA ScaledObjects — event-driven + custom-metrics autoscaling
+# =============================================================================
+# Why KEDA (ADR-022 / ADR-026):
+#   The HPA + prometheus-adapter + kafka-exporter chain we had before
+#   (autoscaling.yaml :: feature-engine-hpa) worked but was brittle —
+#   label-mismatch on the `topic` field silently broke scaling for weeks (R7
+#   in AUDIT_FINAL_2026-04-20). KEDA's first-party Kafka scaler talks to the
+#   broker directly via `kafka_consumer_group_offset`, so there is no
+#   external-metrics-adapter in the critical path.
+#
+#   ADR-026 extends the same reasoning to the HTTP-RPS scaler on the
+#   gateway: prometheus-adapter v0.12.0 is the upstream HEAD (May 2024) and
+#   fails the 2026-minimum-release rule. Migrating the gateway's sole custom-
+#   metric HPA to a KEDA prometheus trigger lets us retire prometheus-adapter
+#   entirely (fewer APIServices, fewer moving parts, one autoscaler control
+#   plane instead of two).
+#
+# KEDA now owns four workloads in this use case:
+#   - feature-engine   kafka trigger   (crypto.validated → crypto.features.v1)
+#   - validator        kafka triggers  (crypto.rest.raw + crypto.ws.raw)
+#   - analyzer         kafka trigger   (crypto.predictions.v1)
+#   - gateway          prometheus + cpu + memory triggers (HTTP request serving)
+# dashboard-backend + rest-collector keep their plain CPU-metric HPAs in
+# hpa/autoscaling.yaml — no custom metric, no adapter dependency, no value in
+# moving them to KEDA.
+#
+# Listener choice: platform-kafka publishes three listeners
+#   - 9092 `plain`  — in-cluster clients, no auth (used here)
+#   - 9093 `tls`    — TLS+SCRAM (external clients or strict-mode namespaces)
+#   - 9094 `mtls`   — in-mesh mTLS (Istio-injected namespaces only)
+# use-case-crypto has `istio-injection: disabled` (ADR-009), so it uses
+# the plain in-cluster listener.  The thesis runbook (§11.7) documents how
+# to flip to SCRAM when promoting to a multi-tenant production cluster.
+#
+# Coexistence with HPAs: KEDA GENERATES an HPA for each ScaledObject. It
+# REFUSES to reconcile if an operator-owned HPA already targets the same
+# Deployment. This file therefore REMOVES `feature-engine-hpa` AND
+# `gateway-hpa` from hpa/autoscaling.yaml — do NOT re-add either.
+# =============================================================================
+---
+# ------------------------- FEATURE-ENGINE -----------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: feature-engine-kafka-lag
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+    use-case: crypto
+    scaled-resource: feature-engine
+  annotations:
+    # Match the platform convention: KEDA-managed HPAs carry the
+    # `keda.sh/managed-by` label so AlertManager can suppress the stock
+    # HPA-external-metric-stale alerts (which do not apply here).
+    scaledobject.keda.sh/transfer-hpa-ownership: "true"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: feature-engine
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  pollingInterval: 15      # seconds between lag polls
+  cooldownPeriod: 180      # seconds of low lag before scale-to-min
+  idleReplicaCount: 0      # keep at least minReplicas; never scale to zero
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 4
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 120
+  triggers:
+    - type: kafka
+      authenticationRef:
+        name: crypto-keda-kafka-auth
+      metadata:
+        # 9093 = `tls` listener (SCRAM-SHA-512 + TLS). Plain 9092 worked
+        # at the socket level but the broker enforces ACLs regardless of
+        # listener and rejected anonymous connections (cycle-3 §3.1).
+        bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
+        sasl: scram_sha512
+        tls: enable
+        consumerGroup: feature-engine
+        topic: crypto.validated
+        # Scale up when any partition's lag exceeds 1,000 messages.
+        # Target is lag per replica; at 10 replicas the group can
+        # buffer up to ~10k before we hit the SLO-burn alert
+        # (crypto-pipeline-lag, observability/slos-crypto.yaml).
+        lagThreshold: "1000"
+        offsetResetPolicy: latest
+---
+# ------------------------- VALIDATOR ----------------------------------------
+# Validator has TWO ingress topics (REST-polled + WebSocket-streamed) so we
+# declare two triggers — KEDA OR-combines them and scales to whichever is
+# hotter.  Single consumer group on the Deployment (validator) joins both.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: validator-kafka-lag
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+    use-case: crypto
+    scaled-resource: validator
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: validator
+  minReplicaCount: 1
+  maxReplicaCount: 8
+  pollingInterval: 15
+  cooldownPeriod: 180
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 240
+  triggers:
+    - type: kafka
+      authenticationRef:
+        name: crypto-keda-kafka-auth
+      metadata:
+        bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
+        sasl: scram_sha512
+        tls: enable
+        consumerGroup: validator
+        topic: crypto.rest.raw
+        lagThreshold: "2000"
+        offsetResetPolicy: latest
+    - type: kafka
+      authenticationRef:
+        name: crypto-keda-kafka-auth
+      metadata:
+        bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
+        sasl: scram_sha512
+        tls: enable
+        consumerGroup: validator
+        topic: crypto.ws.raw
+        lagThreshold: "2000"
+        offsetResetPolicy: latest
+---
+# ------------------------- ANALYZER -----------------------------------------
+# Analyzer runs the data-quality check on every prediction written by
+# ml-bridge. Lag here is bursty (driven by model inference rate), so the
+# threshold is aggressive to keep it responsive and the max is modest
+# because GE checks are relatively cheap.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: analyzer-kafka-lag
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+    use-case: crypto
+    scaled-resource: analyzer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: analyzer
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  pollingInterval: 15
+  cooldownPeriod: 180
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    - type: kafka
+      authenticationRef:
+        name: crypto-keda-kafka-auth
+      metadata:
+        bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
+        sasl: scram_sha512
+        tls: enable
+        consumerGroup: analyzer
+        topic: crypto.predictions.v1
+        lagThreshold: "500"
+        offsetResetPolicy: latest
+---
+# ------------------------- GATEWAY (HTTP RPS + CPU + MEMORY) ----------------
+# ADR-026: the gateway HPA was previously a `kind: HorizontalPodAutoscaler`
+# that combined CPU + memory Resource metrics with a Pods-type custom metric
+# `http_requests_per_second`. That custom metric was served by
+# prometheus-adapter translating `http_requests_total` (Prometheus, gateway
+# ServiceMonitor) through a naming rule. prometheus-adapter v0.12.0 is the
+# upstream HEAD (May 2024) and does not satisfy the 2026-minimum-release rule
+# in VERSION.MD. Because the only cluster-wide consumer of the adapter is
+# this single HPA, we retire the adapter and replace it with three KEDA
+# triggers on the same Deployment: a `prometheus` trigger (RPS) plus the
+# built-in `cpu` and `memory` triggers (Utilization). KEDA OR-combines them
+# and emits a single HPA — `keda-hpa-gateway-http-rps` — preserving the old
+# behaviour while removing the APIService + extra controller.
+# Query note: `sum(rate(http_requests_total{app="gateway"}[2m]))` matches the
+# old prometheus-adapter `metricsQuery` exactly. metricType: AverageValue at
+# threshold 100 preserves the old HPA's per-replica semantics (the HPA Pods
+# type divides by replica count); KEDA does the same arithmetic.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gateway-http-rps
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+    use-case: crypto
+    scaled-resource: gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 4
+              periodSeconds: 15
+          selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    - type: prometheus
+      metricType: AverageValue
+      metadata:
+        # kube-prometheus-stack ships Prometheus at this in-cluster hostname.
+        serverAddress: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+        metricName: gateway_http_rps
+        # Selector matches the gateway ServiceMonitor's label on the series.
+        # The 2m rate window matches the prior prometheus-adapter config
+        # (metricsQuery used [2m]); shorter windows are noisy on low traffic.
+        query: sum(rate(http_requests_total{app="gateway"}[2m]))
+        threshold: "100"
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "60"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "75"

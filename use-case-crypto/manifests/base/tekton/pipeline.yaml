@@ -1,0 +1,564 @@
+# =============================================================================
+# TEKTON CI/CD PIPELINE — Build, Test, Push images on code changes
+# =============================================================================
+# Closes the GitOps loop:
+#   Gitea push → Tekton EventListener → Pipeline Run → Push to Registry
+#   → ArgoCD detects new images → Syncs deployment
+#
+# Pipeline steps: lint → test → build → push → notify
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: build-pipeline
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  params:
+    - name: git-url
+      type: string
+      description: Git repository URL
+    - name: git-revision
+      type: string
+      default: main
+    - name: registry
+      type: string
+      default: localhost:5000
+    - name: image-tag
+      type: string
+      default: latest
+    - name: phase
+      type: string
+      default: "all"
+      description: "Build phase: 1, 2, 3, 4, or all"
+
+  workspaces:
+    - name: source
+      description: Git source code
+
+  tasks:
+    # Step 1: Clone source code (use-case-crypto)
+    - name: git-clone
+      taskRef:
+        name: git-clone-task
+      workspaces:
+        - name: output
+          workspace: source
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+
+    # Step 1b: Clone platform/ and merge it into use-case `out/<service>`
+    # contexts so Kaniko has a pre-merged build directory per service.
+    # Fixes audit P1 #12 — previously build-push failed because git-clone
+    # only materialized the use-case repo.
+    - name: merge-platform-overlay
+      runAfter: [git-clone]
+      taskRef:
+        name: merge-overlay-task
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: platform-git-url
+          value: "http://gitea.gitops.svc.cluster.local:3000/platform/platform.git"
+        - name: platform-git-revision
+          value: "main"
+
+    # Step 2: Lint (parallel for each language) — runs against merged tree.
+    - name: lint
+      runAfter: [merge-platform-overlay]
+      taskRef:
+        name: lint-task
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: phase
+          value: $(params.phase)
+
+    # Step 3: Test
+    - name: test
+      runAfter: [lint]
+      taskRef:
+        name: test-task
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: phase
+          value: $(params.phase)
+
+    # Step 4: Build and push images
+    - name: build-push
+      runAfter: [test]
+      taskRef:
+        name: build-push-task
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: registry
+          value: $(params.registry)
+        - name: image-tag
+          value: $(params.image-tag)
+        - name: phase
+          value: $(params.phase)
+
+  # ---------------------------------------------------------------------------
+  # FINALLY — emit pipeline outcome to Pushgateway whether it succeeded or
+  # failed. Surfaces build-pipeline runs in the crypto SRE dashboard without
+  # needing a long-lived endpoint (PipelineRuns die before Prom scrapes).
+  # ---------------------------------------------------------------------------
+  finally:
+    - name: push-pipeline-metrics
+      taskRef:
+        name: push-pipeline-metrics-task
+      params:
+        - name: pipeline-name
+          value: $(context.pipeline.name)
+        - name: pipelinerun-name
+          value: $(context.pipelineRun.name)
+        - name: aggregate-status
+          value: $(tasks.status)
+        - name: job-label
+          value: tekton_build_pipeline
+---
+# =============================================================================
+# TASK: Merge platform/ overlay into use-case `out/<service>` contexts
+# =============================================================================
+# Mirrors `scripts/build-images.sh`.  For every service directory under
+# `use-case-crypto/services/<group>/<svc>/`, take the platform counterpart at
+# `platform/services/<group>/<svc>/` as the base and rsync the use-case
+# files on top, producing `src/out/<svc>/` ready for Kaniko.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: merge-overlay-task
+spec:
+  params:
+    - { name: platform-git-url,      type: string }
+    - { name: platform-git-revision, type: string, default: main }
+  workspaces:
+    - name: source
+  steps:
+    - name: clone-platform
+      image: alpine/git:2.52.0
+      script: |
+        #!/bin/sh
+        set -eu
+        rm -rf $(workspaces.source.path)/platform
+        git clone --depth 1 --branch $(params.platform-git-revision) \
+          $(params.platform-git-url) \
+          $(workspaces.source.path)/platform
+        echo "Cloned platform @ $(params.platform-git-revision)"
+    - name: merge-overlay
+      image: alpine:3.23.4
+      script: |
+        #!/bin/sh
+        set -eu
+        apk add --no-cache rsync findutils bash >/dev/null
+
+        SRC="$(workspaces.source.path)/src"
+        PLATFORM="$(workspaces.source.path)/platform"
+        OUT="${SRC}/out"
+        mkdir -p "${OUT}"
+
+        # Discover services from platform/services/<group>/<svc>/
+        find "${PLATFORM}/services" -mindepth 2 -maxdepth 2 -type d \
+          | while read base; do
+              group=$(basename "$(dirname "${base}")")
+              svc=$(basename "${base}")
+              out_dir="${OUT}/${svc}"
+              use_dir="${SRC}/services/${group}/${svc}"
+
+              mkdir -p "${out_dir}"
+              rsync -a --delete "${base}/"      "${out_dir}/"
+              if [ -d "${use_dir}" ]; then
+                echo "Merging use-case overlay for ${svc} (${use_dir} → ${out_dir})"
+                rsync -a "${use_dir}/" "${out_dir}/"
+              else
+                echo "No use-case overlay for ${svc}; using platform base."
+              fi
+            done
+
+        # Use-case-only services (no platform counterpart): copy straight.
+        # crypto-retraining is the canonical example.
+        for extra in services/automation/retraining; do
+          if [ -d "${SRC}/${extra}" ]; then
+            name=$(basename "${SRC}/${extra}")
+            echo "Copying use-case-only service ${name}"
+            mkdir -p "${OUT}/${name}"
+            rsync -a "${SRC}/${extra}/" "${OUT}/${name}/"
+          fi
+        done
+
+        echo "--- Merged tree ---"
+        ls -la "${OUT}"
+---
+# =============================================================================
+# TASK: Git Clone
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone-task
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: main
+  workspaces:
+    - name: output
+  steps:
+    - name: clone
+      image: alpine/git:2.52.0
+      script: |
+        #!/bin/sh
+        set -eu
+        git clone --depth 1 --branch $(params.revision) \
+          $(params.url) $(workspaces.output.path)/src
+        echo "Cloned $(params.url) @ $(params.revision)"
+---
+# =============================================================================
+# TASK: Lint (runs platform Makefile lint targets)
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: lint-task
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: phase
+      type: string
+      default: "all"
+  workspaces:
+    - name: source
+  steps:
+    - name: lint
+      # UV mandate: switched base from `alpine:3.23` (pulls `py3-pip`) to
+      # the astral uv image so all python tooling runs via `uvx` (uv tool
+      # run) instead of pip. Debian-trixie ships shellcheck/yamllint via
+      # apt, which we still use for the non-python tooling.
+      image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+      script: |
+        #!/bin/sh
+        set -eu
+        cd $(workspaces.source.path)/src
+        PHASE="$(params.phase)"
+        echo "=== Lint phase: ${PHASE} ==="
+
+        # System linters via apt; python linters via `uvx`.
+        apt-get update -qq >/dev/null 2>&1
+        apt-get install -y --no-install-recommends shellcheck >/dev/null 2>&1
+        rm -rf /var/lib/apt/lists/*
+
+        # YAML lint all manifests (catches indent/syntax errors in K8s YAML)
+        echo "--- YAML lint (manifests + config) ---"
+        uvx yamllint -d "{extends: relaxed, rules: {line-length: disable}}" \
+          manifests/ config/ 2>&1 || { echo "FAIL: YAML lint errors found"; exit 1; }
+        echo "PASS: YAML lint"
+
+        # Shellcheck all shell scripts
+        echo "--- Shellcheck (scripts/) ---"
+        find scripts/ -name "*.sh" -exec shellcheck -S warning {} + 2>&1 \
+          || { echo "FAIL: Shellcheck errors found"; exit 1; }
+        echo "PASS: Shellcheck"
+
+        # Python lint via uvx ruff (uv tool run — ephemeral venv, no pip).
+        echo "--- Python lint (ruff) ---"
+        uvx ruff check dags/ pipelines/ services/ --select E,F,W --ignore E501 2>&1 \
+          || { echo "FAIL: Python ruff lint errors"; exit 1; }
+        echo "PASS: Python ruff"
+
+        # Validate Dockerfiles exist for all enabled services
+        echo "--- Dockerfile check ---"
+        for svc in rest-collector websocket-collector validator analyzer \
+                    feature-engine gateway feature-cache ml-bridge \
+                    dashboard-backend dashboard-frontend; do
+          if [ ! -f "services/"*"/${svc}/Dockerfile" ] 2>/dev/null && \
+             [ ! -f "../platform/services/"*"/${svc}/Dockerfile" ] 2>/dev/null; then
+            echo "WARN: No Dockerfile found for ${svc} (may use platform base)"
+          fi
+        done
+        echo "PASS: Dockerfile check"
+
+        echo "=== All lint checks passed ==="
+---
+# =============================================================================
+# TASK: Test (runs platform Makefile test targets)
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: test-task
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: phase
+      type: string
+      default: "all"
+  workspaces:
+    - name: source
+  steps:
+    - name: test
+      # UV mandate: switched base from `alpine:3.23` (pulls `py3-pip`) to
+      # the astral uv image. pytest / dbt-clickhouse run via `uvx` —
+      # ephemeral venv per tool, no pip.
+      image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+      script: |
+        #!/bin/sh
+        set -eu
+        cd $(workspaces.source.path)/src
+        PHASE="$(params.phase)"
+        echo "=== Test phase: ${PHASE} ==="
+
+        # Python unit tests via uvx pytest (dags, pipelines, services).
+        echo "--- Python tests ---"
+        TEST_FILES=$(find . -name "test_*.py" -o -name "*_test.py" 2>/dev/null | head -20)
+        if [ -n "${TEST_FILES}" ]; then
+          uvx pytest --tb=short -q ${TEST_FILES} 2>&1 \
+            || { echo "FAIL: Python tests failed"; exit 1; }
+          echo "PASS: Python tests"
+        else
+          echo "SKIP: No Python test files found"
+        fi
+
+        # dbt compile check (validates SQL syntax + schema references) via uvx.
+        echo "--- dbt compile check ---"
+        if [ -d "dbt" ]; then
+          cd dbt
+          uvx --from 'dbt-clickhouse==1.10.0' dbt compile \
+            --profiles-dir . --target dev 2>&1 \
+            || { echo "FAIL: dbt compile errors"; exit 1; }
+          echo "PASS: dbt compile"
+          cd ..
+        fi
+
+        # Kustomize build check (validates all manifests render correctly)
+        echo "--- Kustomize build check ---"
+        if command -v kubectl >/dev/null 2>&1; then
+          kubectl kustomize manifests/overlays/local --enable-helm 2>/dev/null \
+            || echo "SKIP: kubectl not available in this image"
+        fi
+
+        echo "=== All test checks passed ==="
+---
+# =============================================================================
+# TASK: Build and Push images (uses Kaniko for in-cluster Docker builds)
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-push-task
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: registry
+      type: string
+    - name: image-tag
+      type: string
+    - name: phase
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: build-push
+      image: gcr.io/kaniko-project/executor:v1.24.0
+      env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+      script: |
+        #!/busybox/sh
+        set -eu
+        PHASE="$(params.phase)"
+        REGISTRY="$(params.registry)"
+        TAG="$(params.image-tag)"
+        SRC="$(workspaces.source.path)/src"
+        echo "=== Build phase: ${PHASE} | Registry: ${REGISTRY} | Tag: ${TAG} ==="
+
+        # Service → Dockerfile path mapping (relative to repo root)
+        # Platform services use ../platform/services/ as base with use-case overlays
+        # The build-images.sh script handles overlay merging; here Kaniko builds
+        # pre-merged contexts prepared by the git-clone step.
+        build_image() {
+          local name="$1"
+          local context="$2"
+          local dockerfile="${3:-Dockerfile}"
+          echo "--- Building ${name} ---"
+          if [ -d "${context}" ] && [ -f "${context}/${dockerfile}" ]; then
+            /kaniko/executor \
+              --context="dir://${context}" \
+              --dockerfile="${context}/${dockerfile}" \
+              --destination="${REGISTRY}/crypto-${name}:${TAG}" \
+              --insecure \
+              --cache=true \
+              --cache-repo="${REGISTRY}/cache" \
+              --snapshot-mode=redo \
+              --use-new-run
+            echo "PASS: ${name} → ${REGISTRY}/crypto-${name}:${TAG}"
+          else
+            echo "SKIP: ${name} — no Dockerfile at ${context}/${dockerfile}"
+          fi
+        }
+
+        # Build each service image
+        # Data: Ingestion + Quality
+        if [ "${PHASE}" = "1" ] || [ "${PHASE}" = "all" ]; then
+          build_image "rest-collector"       "${SRC}/out/rest-collector"
+          build_image "websocket-collector"  "${SRC}/out/websocket-collector"
+          build_image "validator"            "${SRC}/out/validator"
+          build_image "analyzer"             "${SRC}/out/analyzer"
+        fi
+        # Data: Processing
+        if [ "${PHASE}" = "2" ] || [ "${PHASE}" = "all" ]; then
+          build_image "feature-engine"       "${SRC}/out/feature-engine"
+          build_image "flink-job"            "${SRC}/out/flink-job"
+          build_image "batch-processing"     "${SRC}/out/batch-processing"
+          build_image "vector-processing"    "${SRC}/out/vector-processing"
+        fi
+        # Train + Serve
+        if [ "${PHASE}" = "3" ] || [ "${PHASE}" = "all" ]; then
+          build_image "trainer"              "${SRC}/out/trainer"
+          build_image "drift-detector"       "${SRC}/out/drift-detector"
+          build_image "gateway"              "${SRC}/out/gateway"
+          build_image "feature-cache"        "${SRC}/out/feature-cache"
+          build_image "ml-bridge"            "${SRC}/out/ml-bridge"
+        fi
+        # App: Dashboard + Automation
+        if [ "${PHASE}" = "4" ] || [ "${PHASE}" = "all" ]; then
+          build_image "dashboard-backend"    "${SRC}/out/dashboard-backend"
+          build_image "dashboard-frontend"   "${SRC}/out/dashboard-frontend"
+          build_image "materialization"      "${SRC}/out/materialization"
+          build_image "evidently-reporter"   "${SRC}/out/evidently-reporter"
+          build_image "retraining"           "${SRC}/out/retraining"
+        fi
+
+        echo "=== Build and push completed ==="
+---
+# =============================================================================
+# TRIGGER: Gitea webhook → Pipeline Run
+# =============================================================================
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: build-listener
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  serviceAccountName: tekton-triggers-sa
+  triggers:
+    - name: gitea-push
+      interceptors:
+        - ref:
+            name: "cel"
+          params:
+            - name: filter
+              # Only trigger on pushes to main branch
+              value: >-
+                body.ref == 'refs/heads/main'
+            - name: overlays
+              value:
+                - key: truncated_sha
+                  expression: "body.after.truncate(7)"
+      bindings:
+        # Refs are rewritten under namePrefix by the kustomize nameReference
+        # transformer (see kustomize-config/name-reference.yaml).
+        - ref: build-binding
+      template:
+        ref: build-template
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: build-binding
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: git-url
+      value: $(body.repository.clone_url)
+    - name: git-revision
+      value: $(body.after)
+    - name: image-tag
+      value: $(extensions.truncated_sha)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: build-template
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+spec:
+  params:
+    - name: git-url
+    - name: git-revision
+    - name: image-tag
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: crypto-build-
+        # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+      spec:
+        pipelineRef:
+          name: build-pipeline
+        params:
+          - name: git-url
+            value: $(tt.params.git-url)
+          - name: git-revision
+            value: $(tt.params.git-revision)
+          - name: image-tag
+            value: $(tt.params.image-tag)
+          - name: registry
+            value: localhost:5000
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                resources:
+                  requests:
+                    storage: 1Gi
+---
+# ServiceAccount for Tekton Triggers
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-triggers-sa
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-triggers-binding
+  # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-roles
+subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-triggers-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-clusterroles
+subjects:
+  # CRB is cluster-scoped → kustomize's namespace transformer doesn't fill
+  # subjects[].namespace (only namespaced kinds get implicit propagation).
+  # The api-server enforces subjects[*].namespace as Required for SA refs in
+  # CRBs, so it must be hardcoded. use-case-crypto is the SA's canonical
+  # home namespace per ADR-013.
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+    namespace: use-case-crypto

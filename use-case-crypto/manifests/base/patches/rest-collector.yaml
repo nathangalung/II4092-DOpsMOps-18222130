@@ -1,0 +1,34 @@
+# =============================================================================
+# Crypto rest-collector patch
+# =============================================================================
+# Mounts the crypto-specific `crypto-rest-collector-config` ConfigMap at
+# /etc/rest-collector/config.yaml and points viper at it via CONFIG_PATH.
+#
+# Also disables in-deployment sentiment collection (handled by dedicated
+# supplementary CronJobs) and routes supplementary output to
+# `crypto.supplementary`.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-collector
+spec:
+  template:
+    spec:
+      volumes:
+        - name: rest-collector-config
+          configMap:
+            name: crypto-rest-collector-config
+      containers:
+        - name: rest-collector
+          volumeMounts:
+            - name: rest-collector-config
+              mountPath: /etc/rest-collector
+              readOnly: true
+          env:
+            - name: SENTIMENT_CRYPTOPANIC_ENABLED
+              value: "false"
+            - name: SENTIMENT_FEARGREED_ENABLED
+              value: "false"
+            - name: KAFKA_SUPPLEMENTARY_TOPIC
+              value: "crypto.supplementary"

@@ -1,0 +1,115 @@
+# =============================================================================
+# use-case-crypto :: Edge AuthorizationPolicies (Istio, istio-system scope)
+# =============================================================================
+# ADR-009 — use-case-crypto has `istio-injection: disabled`, so crypto pods
+# do NOT run Istio sidecars and AuthorizationPolicy cannot be applied to
+# them directly.  The ONLY place Istio's L7 enforcement reaches crypto
+# traffic is the ingressgateway in `istio-system` — every external request
+# to `crypto.*.example.com` is proxied through that gateway.
+#
+# This file declares two AuthorizationPolicies on the gateway:
+#   1. Deny-by-path — blocks `/admin/*` before the request ever reaches
+#      the use-case-crypto gateway Deployment. (Defense in depth: the app
+#      itself rejects admin endpoints via FastAPI middleware, but we
+#      block at the edge too.)
+#   2. Rate-limit-friendly allow — permits standard REST methods on
+#      `/api/v1/*` from the public internet (source.notIpBlocks empty =
+#      everyone), and allows `/dashboard/*` only from an allow-list of
+#      CIDR ranges that represents the university / lab network during
+#      the thesis-viva demo.  The CIDR list is env-dependent and should
+#      be patched in overlays/{local,cloud}/ per-environment.
+#
+# The two policies stack — Istio evaluates DENY before ALLOW, and no
+# match at all means implicit DENY on gateway if ANY ALLOW exists for
+# the same workload selector (ADR-009).
+# =============================================================================
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-deny-admin-path
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    adr: "009"
+spec:
+  selector:
+    matchLabels:
+      # Chart-default label on the Istio ingress gateway Deployment.
+      # If overlays rename the gateway workload, this must be patched.
+      istio: ingressgateway
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            hosts:
+              # Host names advertised by the crypto VirtualService. The
+              # ingress is owned by platform (platform/components/common/
+              # istio/); use-case-crypto only adds the VS for its hosts.
+              - "crypto.*"
+              - "crypto-gateway.use-case-crypto.*"
+            paths:
+              - "/admin/*"
+              - "/internal/*"
+              - "/_debug/*"
+      when:
+        # Only apply the path deny to external callers; internal health
+        # probes from istiod must still reach /healthz/ready on the
+        # ingressgateway itself (which this selector already covers).
+        - key: source.namespace
+          notValues: ["istio-system"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: gateway-allow-api-and-dashboard
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    adr: "009"
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+    # API surface — public, any source.
+    - to:
+        - operation:
+            hosts: ["crypto.*", "crypto-gateway.use-case-crypto.*"]
+            methods: ["GET", "POST", "OPTIONS"]
+            paths:
+              - "/api/v1/*"
+              - "/healthz"
+              - "/metrics"
+    # Dashboard surface — internal network only.  CIDR list is
+    # deliberately left conservative; the `overlays/` layer patches in
+    # environment-specific CIDRs (e.g. 10.0.0.0/8 for cluster-internal,
+    # the lab VLAN subnet during thesis viva).
+    - to:
+        - operation:
+            hosts: ["crypto.*"]
+            methods: ["GET"]
+            paths: ["/dashboard/*", "/static/*"]
+      from:
+        - source:
+            ipBlocks:
+              - 10.0.0.0/8          # default cluster CIDR
+              - 172.16.0.0/12       # pod CIDR (k3s default overlay)
+              - 192.168.0.0/16      # lab LAN
+---
+# ---------------------------------------------------------------------------
+# Sidecar-aware AuthorizationPolicy on ml-bridge → MLflow
+# ---------------------------------------------------------------------------
+# ml-bridge lives in use-case-crypto (sidecar disabled), but MLflow lives in
+# model-lifecycle which IS in the mesh (ADR-009 opt-out allowlist includes
+# model-lifecycle, so sidecars are disabled there too — re-check ADR-009
+# before changing).  The MLflow-side check we CAN do is on the istiod
+# control-plane: restrict who may CALL the MLflow Service via its
+# cluster-local ClusterIP.  That enforcement is via NetworkPolicy in
+# model-lifecycle, not AuthorizationPolicy, because neither side is in the
+# mesh. This stub documents the limitation so future operators who flip
+# model-lifecycle INTO the mesh know to revisit.
+# ---------------------------------------------------------------------------

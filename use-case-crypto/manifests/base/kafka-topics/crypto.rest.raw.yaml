@@ -1,0 +1,37 @@
+# =============================================================================
+# KafkaTopic: crypto.rest.raw
+# =============================================================================
+# Raw, unvalidated records from the REST collector (ticker / trades / candles).
+# One message = one tick as received from the exchange REST API, pre-validation.
+# Downstream: validator → crypto.validated.
+#
+# Sizing (KNF-05 / KNF-08):
+#   partitions        : 12    — 1 per symbol-shard, allows 12-way parallel consumers
+#   replicas          : 3     — matches platform-kafka replication.factor=3
+#   retention.ms      : 7d    — raw stream replay window for incident triage
+#   min.insync.replicas : 2   — quorum-write durability
+#   compression.type  : zstd  — better ratio than snappy on JSON payloads
+#   cleanup.policy    : delete — time-based only; compaction would drop intra-second ticks
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: rest-raw
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: bronze
+spec:
+  topicName: crypto.rest.raw
+  partitions: 12
+  replicas: 3
+  config:
+    retention.ms: 604800000            # 7d
+    segment.ms: 86400000               # 1d
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete
+    max.message.bytes: 1048576         # 1 MiB
+    message.timestamp.type: CreateTime

@@ -1,0 +1,107 @@
+# =============================================================================
+# ArgoCD ApplicationSet — crypto use-case overlay generator
+# =============================================================================
+# ADR-013 + audit §5.1 / §9.3 (P0-2). The platform repo's `app-of-apps.yaml`
+# carries the platform-side ApplicationSet (`platform-components`); this file
+# is the use-case-side counterpart. Together they satisfy the audit's "≥ 2
+# ApplicationSets in cluster" check (§9.6).
+#
+# Generator design (per cycle-7 advisor):
+#   - `list:` with a SINGLE element pointing at `manifests/overlays/local`.
+#   - Honest about single-cluster reality. Multi-environment (cloud /
+#     local-data) is a FUTURE extension: either add elements to the list
+#     (deploy multiple at once, only useful across clusters) or swap to a
+#     `clusters:` generator with cluster-label-driven overlay selection.
+#   - Rejected at design time: multi-overlay list (overlays are mutually
+#     exclusive on one cluster), cluster-generator (pays infra cost we
+#     haven't paid), matrix-generator (over-engineered).
+#
+# The generated Application is a drop-in replacement for the previous
+# `crypto-use-case` Application that lived in `application.yaml`. Same
+# project, same destination, same syncPolicy, same ignoreDifferences.
+#
+# Apply order (one-time bootstrap):
+#   kubectl apply -f use-case-crypto/argocd/application.yaml      # AppProject
+#   kubectl apply -f use-case-crypto/argocd/applicationset.yaml   # ApplicationSet
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: crypto-use-case
+  namespace: gitops
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: usecase
+    usecase: crypto
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: local
+            # Path inside the gitea repo `platform/use-case-crypto.git`.
+            # seed-gitea.sh preserves the working-tree top-level dir name
+            # (`use-case-crypto/`) so paths remain `<top>/manifests/...`
+            # — same convention as `platform/components/<x>`.
+            overlay: use-case-crypto/manifests/overlays/local
+            wave: "0"
+  template:
+    metadata:
+      name: "crypto-use-case-{{.env}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{.wave}}"
+      labels:
+        app.kubernetes.io/part-of: mlops-platform
+        app.kubernetes.io/component: usecase
+        usecase: crypto
+        env: "{{.env}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: use-case-crypto
+      source:
+        repoURL: "http://gitea.gitops.svc.cluster.local:3000/platform/use-case-crypto.git"
+        path: "{{.overlay}}"
+        targetRevision: main
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: use-case-crypto
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - ApplyOutOfSyncOnly=true
+          - PruneLast=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 5
+          backoff: { duration: 15s, factor: 2, maxDuration: 10m }
+      revisionHistoryLimit: 10
+      ignoreDifferences:
+        # Kustomize labels on ExternalSecret.spec.target.template are rewritten by ESO at sync.
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jsonPointers:
+            - /spec/target/template/metadata/labels
+        # storageUri on the InferenceService is owned by the retraining pipeline
+        # (platform/services/training/trainer/src/deploy_kserve.py), which patches
+        # it with the latest MLflow run's artifact path after each successful
+        # training. The committed manifest only carries a placeholder; ArgoCD must
+        # leave the live value alone so model promotions aren't reverted on sync.
+        - group: serving.kserve.io
+          kind: InferenceService
+          jsonPointers:
+            - /spec/predictor/model/storageUri
+        # KServe's admission webhook re-materialises the full predictor block
+        # (runtime, container image, canary rollout state, etc.) and the
+        # controller back-fills many defaults after create. Pinning status is
+        # always drift, so ignore it wholesale.
+        - group: serving.kserve.io
+          kind: InferenceService
+          jsonPointers:
+            - /status

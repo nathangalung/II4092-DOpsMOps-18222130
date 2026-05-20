@@ -1,0 +1,34 @@
+# dbt is pinned to Python 3.13 even though the rest of the platform now runs on
+# 3.14.  Reason: dbt-common ≤ 1.x bundles mashumaro 3.x whose dataclass-unpacker
+# code generator cannot resolve `Optional[str]` annotations under Python 3.14's
+# PEP 749/757 deferred-evaluation rules.  Concretely the import chain
+# `dbt-core → dbt-common → mashumaro.jsonschema.models.JSONObjectSchema`
+# raises `UnserializableField: Field "schema" of type Optional[str] ... is not
+# serializable` at import time on 3.14 (verified against dbt-core 1.10.x +
+# dbt-clickhouse 1.10.0 + mashumaro 3.x on 2026-05).  dbt-labs has not yet
+# published a 3.14-supported dbt-common; until they do this image stays on
+# the 3.13 interpreter while still using uv for reproducible installs.
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
+
+WORKDIR /dbt
+
+# Pre-install dbt to cache the layer
+RUN uvx --from dbt-core --with dbt-clickhouse==1.10.0 dbt --version
+
+# Copy project files
+COPY dbt/dbt_project.yml dbt/profiles.yml ./
+COPY dbt/packages.yml ./
+COPY dbt/macros/ ./macros/
+COPY dbt/models/ ./models/
+COPY dbt/tests/ ./tests/
+
+# Install dbt packages (dbt-utils for unique_combination_of_columns etc)
+RUN uvx --from dbt-core --with dbt-clickhouse==1.10.0 dbt deps --profiles-dir /dbt --project-dir /dbt
+
+RUN useradd -u 1000 -m -s /usr/sbin/nologin app \
+    && chown -R 1000:1000 /dbt /root
+
+USER 1000:1000
+
+ENTRYPOINT ["uvx", "--from", "dbt-core", "--with", "dbt-clickhouse", "dbt"]
+CMD ["run", "--profiles-dir", "/dbt", "--project-dir", "/dbt"]

@@ -1,0 +1,310 @@
+# =============================================================================
+# TEKTON PIPELINE — dbt-clickhouse build for gold.fct_training_data
+# =============================================================================
+# Materializes the gold-layer fact table that downstream KFP runs consume as
+# its training input. Two tasks:
+#   1. karapace-compat-check  — guards the upstream Kafka topic schema. The
+#      mart joins `bronze.crypto_ohlcv` (sunk from `crypto.validated`) and
+#      `bronze.crypto_ohlcv_features` (sunk from `crypto.features.v1`); if
+#      the producer's schema diverges in a non-backward-compatible way, the
+#      mart compile breaks at runtime. Fail fast against Karapace before
+#      shelling out to dbt.
+#   2. dbt-run                — installs the project's deps, runs the gold
+#      mart selector, then runs the generic + custom dbt tests. Logs are
+#      written to the workspace so the next PipelineRun keeps target/ warm.
+#
+# Trigger surfaces:
+#   * KFP "data prep" step calls this Pipeline via `kubectl create -f` of a
+#     PipelineRun (no Tekton Triggers wiring — KFP is the upstream
+#     orchestrator; Airflow's `crypto_hourly_features` DAG can also kick it).
+#   * Manually: `kubectl create -n use-case-crypto -f - <<<EOF
+#       PipelineRun spec ... EOF`.
+# =============================================================================
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: dbt-gold-build
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: data-modeling
+spec:
+  params:
+    - name: git-url
+      type: string
+      description: Git URL of use-case-crypto (contains dbt/ project)
+    - name: git-revision
+      type: string
+      default: main
+    - name: dbt-target
+      type: string
+      default: prod
+      description: Target name in dbt/profiles.yml
+    - name: dbt-select
+      type: string
+      default: "marts.gold.fct_training_data+"
+      description: dbt selector (graph operator `+` runs downstream models)
+    - name: karapace-url
+      type: string
+      default: http://karapace-schema-registry.data-ingestion.svc.cluster.local:8081
+    - name: schema-subjects
+      type: string
+      default: "crypto.validated-value,crypto.features.v1-value"
+      description: Comma-separated Karapace subjects guarding the upstream contracts
+
+  workspaces:
+    - name: source
+      description: Use-case repo workspace (cloned by git-clone-task)
+
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone-task
+      workspaces:
+        - { name: output, workspace: source }
+      params:
+        - { name: url,      value: $(params.git-url) }
+        - { name: revision, value: $(params.git-revision) }
+
+    - name: karapace-compat-check
+      runAfter: [git-clone]
+      taskRef:
+        name: karapace-compat-task
+      workspaces:
+        - { name: source, workspace: source }
+      params:
+        - { name: karapace-url,    value: $(params.karapace-url) }
+        - { name: schema-subjects, value: $(params.schema-subjects) }
+
+    - name: dbt-run
+      runAfter: [karapace-compat-check]
+      taskRef:
+        name: dbt-clickhouse-task
+      workspaces:
+        - { name: source, workspace: source }
+      params:
+        - { name: dbt-target, value: $(params.dbt-target) }
+        - { name: dbt-select, value: $(params.dbt-select) }
+
+  # ---------------------------------------------------------------------------
+  # FINALLY — emit dbt-gold-build outcome to Pushgateway. Captures both the
+  # aggregate pipeline status and the dbt-run task status so a failure in
+  # karapace-compat-check vs dbt-run shows up as a distinct label set.
+  # ---------------------------------------------------------------------------
+  finally:
+    - name: push-pipeline-metrics
+      taskRef:
+        name: push-pipeline-metrics-task
+      params:
+        - name: pipeline-name
+          value: $(context.pipeline.name)
+        - name: pipelinerun-name
+          value: $(context.pipelineRun.name)
+        - name: aggregate-status
+          value: $(tasks.status)
+        - name: job-label
+          value: tekton_dbt_gold_build
+
+  results:
+    - name: dbt-run-id
+      description: dbt invocation_id captured from target/run_results.json
+      value: $(tasks.dbt-run.results.invocation-id)
+---
+# =============================================================================
+# TASK: Karapace compatibility gate
+# =============================================================================
+# Fetches the latest registered schema for each subject and asserts that
+# Karapace's compatibility level for the subject is >= BACKWARD. Refuses to
+# proceed on a missing subject — better to fail the dbt build than to publish
+# a mart that silently drifts from the producer contract.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: karapace-compat-task
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  params:
+    - { name: karapace-url,    type: string }
+    - { name: schema-subjects, type: string }
+  workspaces:
+    - name: source
+  steps:
+    - name: check
+      image: curlimages/curl:8.20.0
+      script: |
+        #!/bin/sh
+        set -eu
+        URL="$(params.karapace-url)"
+        SUBJECTS="$(params.schema-subjects)"
+        ALLOWED="BACKWARD BACKWARD_TRANSITIVE FULL FULL_TRANSITIVE"
+
+        echo "$SUBJECTS" | tr ',' '\n' | while IFS= read -r subj; do
+          [ -z "$subj" ] && continue
+          echo "--- $subj ---"
+          # Latest schema must exist
+          curl -fsS "${URL}/subjects/${subj}/versions/latest" >/dev/null \
+            || { echo "FAIL: subject ${subj} not registered"; exit 1; }
+          # Compatibility level (falls back to global if not subject-scoped)
+          level=$(curl -fsS "${URL}/config/${subj}" 2>/dev/null \
+                  | sed -n 's/.*"compatibilityLevel":"\([A-Z_]*\)".*/\1/p')
+          if [ -z "$level" ]; then
+            level=$(curl -fsS "${URL}/config" \
+                    | sed -n 's/.*"compatibilityLevel":"\([A-Z_]*\)".*/\1/p')
+          fi
+          echo "${subj}: compatibility=${level}"
+          echo " ${ALLOWED} " | grep -q " ${level} " \
+            || { echo "FAIL: ${subj} compatibility ${level} weaker than BACKWARD"; exit 1; }
+        done
+        echo "PASS: all subjects gated by BACKWARD or stronger"
+---
+# =============================================================================
+# TASK: dbt run + test
+# =============================================================================
+# Uses the use-case Dockerfile.dbt image (pinned dbt-clickhouse 1.10.0 +
+# project deps already installed). The `dbt deps` step is cheap on a clean
+# workspace and idempotent on a warm one; we always run it so a fresh
+# packages.yml change lands without manual intervention.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: dbt-clickhouse-task
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  params:
+    - { name: dbt-target, type: string }
+    - { name: dbt-select, type: string }
+  workspaces:
+    - name: source
+  results:
+    - name: invocation-id
+      description: dbt invocation_id (matches target/run_results.json)
+  steps:
+    - name: dbt-build
+      # The use-case overlay produces this image via the platform Tekton CI
+      # pipeline (Dockerfile.dbt at repo root). Tag is overridden by the
+      # PipelineRun caller; `latest` is acceptable for in-cluster development
+      # but Kyverno policy (P2-11) will block it in non-dev clusters.
+      image: localhost:5000/crypto-dbt:latest
+      # envFrom pulls every key from pipeline-config (CLICKHOUSE_HOST,
+      # CLICKHOUSE_PORT, CLICKHOUSE_DB, DBT_SCHEMA, …) so adding new env
+      # for dbt no longer requires editing this Tekton Task. Secrets stay
+      # explicit because Tekton steps cannot envFrom Secrets safely with
+      # `optional: true` semantics.
+      envFrom:
+        - configMapRef:
+            name: pipeline-config
+      env:
+        - name: CLICKHOUSE_USER
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: CLICKHOUSE_USER
+              optional: true
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pipeline-secrets
+              key: CLICKHOUSE_PASSWORD
+              optional: true
+      script: |
+        #!/bin/sh
+        set -eu
+        cd $(workspaces.source.path)/src/dbt
+        echo "=== dbt deps ==="
+        dbt deps --profiles-dir .
+        echo "=== dbt run [target=$(params.dbt-target)] [select=$(params.dbt-select)] ==="
+        dbt run \
+          --profiles-dir . \
+          --target "$(params.dbt-target)" \
+          --select "$(params.dbt-select)" \
+          --fail-fast
+        echo "=== dbt test (same selector + downstream tests) ==="
+        dbt test \
+          --profiles-dir . \
+          --target "$(params.dbt-target)" \
+          --select "$(params.dbt-select)" \
+          --fail-fast
+        # Surface the invocation_id so the Pipeline result can be linked
+        # against MLflow / KFP traces.
+        if [ -f target/run_results.json ]; then
+          inv=$(sed -n 's/.*"invocation_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                target/run_results.json | head -1)
+          printf '%s' "${inv}" > $(results.invocation-id.path)
+        fi
+---
+# =============================================================================
+# TASK: push-pipeline-metrics — Pushgateway emitter for Tekton `finally` hooks
+# =============================================================================
+# Referenced by the `finally:` block of every crypto Pipeline (build-pipeline,
+# dbt-gold-build). Translates Tekton's aggregate-status string into the same
+# `crypto_job_*` metric family the CronJobs publish, so SLOs over batch +
+# pipeline outcomes share one label key.
+#
+# The push-helper ConfigMap (push_metrics.py) does the actual HTTP call so we
+# never depend on `curl` being in the alpine task image and we keep one
+# canonical metric shape across cronjobs, dbt, and Tekton.
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: push-pipeline-metrics-task
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+    mlops-platform.io/use-case: crypto
+spec:
+  params:
+    - { name: pipeline-name,    type: string }
+    - { name: pipelinerun-name, type: string }
+    - { name: aggregate-status, type: string,
+        description: "Tekton $(tasks.status): Succeeded | Failed | Completed | None" }
+    - { name: job-label,        type: string,
+        description: "pushgateway job label (e.g. tekton_build_pipeline)" }
+  steps:
+    - name: emit
+      image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+      env:
+        - { name: PUSHGATEWAY_URL, value: "http://pushgateway.observability.svc.cluster.local:9091" }
+        - { name: USE_CASE,        value: "crypto" }
+        - { name: HOME,            value: "/tmp" }
+        - { name: UV_CACHE_DIR,    value: "/tmp/.uv-cache" }
+        - { name: UV_LINK_MODE,    value: "copy" }
+        - { name: PIPELINE_NAME,   value: "$(params.pipeline-name)" }
+        - { name: PIPELINERUN,     value: "$(params.pipelinerun-name)" }
+        - { name: AGG_STATUS,      value: "$(params.aggregate-status)" }
+        - { name: JOB_LABEL,       value: "$(params.job-label)" }
+      volumeMounts:
+        - { name: push-helper, mountPath: /scripts, readOnly: true }
+      script: |
+        #!/bin/sh
+        set -u
+        # Tekton aggregate-status string → numeric rc:
+        #   Succeeded | Completed → 0
+        #   Failed                → 1
+        #   None                  → 2 (no tasks ran — startup-time abort)
+        case "${AGG_STATUS}" in
+          Succeeded|Completed) RC=0 ;;
+          Failed)              RC=1 ;;
+          *)                   RC=2 ;;
+        esac
+        INSTANCE="${PIPELINERUN}"
+        export INSTANCE
+        echo "[finally] pipeline=${PIPELINE_NAME} run=${PIPELINERUN} status=${AGG_STATUS} rc=${RC}"
+        uv run /scripts/push_metrics.py \
+          --job "${JOB_LABEL}" \
+          --rc "${RC}" \
+          --instance "${INSTANCE}" \
+          --use-case "${USE_CASE}"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        capabilities: { drop: [ALL] }
+  volumes:
+    - name: push-helper
+      configMap:
+        name: push-helper
+        defaultMode: 0555

@@ -1,0 +1,163 @@
+# =============================================================================
+# Kafka SASL_SSL wiring for use-case-crypto workloads (cycle-3 §3.1)
+# =============================================================================
+# Adds the `crypto-app-consumer` Secret as envFrom (KAFKA_SASL_USERNAME /
+# KAFKA_SASL_PASSWORD / sasl.jaas.config / ca.crt) and mounts the broker CA
+# at `/etc/kafka/ca/ca.crt` (matches `KAFKA_SSL_CA_LOCATION` in topics.yaml)
+# on every Kafka-touching workload in this use case:
+#   - validator             (Rust, librdkafka)
+#   - analyzer              (Python, confluent-kafka)
+#   - feature-engine        (Rust, librdkafka)
+#   - rest-collector        (Python producer)
+#   - websocket-collector   (Python producer)
+#
+# Strategic merge replaces the `envFrom` list, so each stanza re-declares the
+# platform's `pipeline-config` + `pipeline-secrets` refs alongside the new
+# `crypto-app-consumer` secretRef.  Volume + volumeMount append cleanly via
+# the `name` mergeKey.
+#
+# Flink, dashboard-backend, gateway, and ml-bridge are NOT covered here —
+# follow-up tasks will migrate them once the streaming workloads are stable
+# (each has its own credential surface: Flink reads via the FlinkDeployment
+# CR's kafkaConfig stanza, dashboard via Spring Kafka properties, etc.).
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validator
+spec:
+  template:
+    spec:
+      containers:
+        - name: validator
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer
+spec:
+  template:
+    spec:
+      containers:
+        - name: analyzer
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-engine
+spec:
+  template:
+    spec:
+      containers:
+        - name: feature-engine
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: rest-collector
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: websocket-collector
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt

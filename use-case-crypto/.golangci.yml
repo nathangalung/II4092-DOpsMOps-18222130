@@ -1,0 +1,51 @@
+# golangci-lint configuration
+# Runs dozens of linters in parallel (much faster than sequential go vet)
+
+run:
+  timeout: 5m
+  go: "1.22"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - revive
+    - misspell
+    - prealloc
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment # Struct field reordering — micro-optimization, not bugs
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+  errcheck:
+    exclude-functions:
+      - (net/http.ResponseWriter).Write
+      - (*encoding/json.Encoder).Encode
+      - (*encoding/json.Decoder).Decode
+      - (*go.uber.org/zap.Logger).Sync
+
+issues:
+  exclude-use-default: true
+  max-issues-per-linter: 50
+  max-same-issues: 5
+  exclude-rules:
+    # Allow unchecked errors in test files
+    - path: _test\.go
+      linters:
+        - errcheck
+    # Allow unused writes in test files
+    - path: _test\.go
+      text: "unusedwrite"
+    # Allow impossible nil checks in test files
+    - path: _test\.go
+      text: "nilness"

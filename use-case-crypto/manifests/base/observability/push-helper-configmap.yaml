@@ -1,0 +1,250 @@
+# =============================================================================
+# PUSH-HELPER ConfigMap — Prometheus Pushgateway emitter for crypto batch jobs
+# =============================================================================
+# Reusable scripts mounted by every short-lived crypto job (CronJob, Tekton
+# task, Airflow KubernetesPodOperator, dbt run-operation) so each one emits
+# its outcome to the platform Pushgateway when it exits.
+#
+# Why Pushgateway?
+#   Prometheus scrape model assumes long-running endpoints. Short-lived
+#   crypto batch work (cronjobs every 5 min / dbt mart compile / Tekton
+#   finally hook) dies before the next scrape window — without an
+#   intermediate push, those runs are invisible to alerting / SLOs.
+#   Pushgateway buffers metrics until the next scrape reaches it.
+#
+# What it exposes:
+#   push_job_metrics.sh   POSIX-sh wrapper. Captures exit-rc + duration +
+#                         optional `rows_ingested` from the wrapped command
+#                         and posts to the platform Pushgateway. Designed
+#                         to run in the same container as the workload
+#                         (alpine / debian / uv:trixie all ship curl or
+#                         can install via apk/apt in seconds).
+#
+#   push_metrics.py       PEP 723 inline-script for callers that already
+#                         have python + uv (Airflow KubernetesPodOperator,
+#                         retrain-on-drift, vector-embedding). Pure stdlib
+#                         (urllib) — no pip / no requests dependency.
+#
+# Domain-agnostic shape: every metric is labelled
+#   {use_case="crypto", job="<job>", instance="<pod>"}
+# so SLOs / alert routes in alertmanagerconfig-crypto.yaml can target the
+# `use_case` label and a single dashboard panel renders ALL crypto batch
+# runs without per-script wiring.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: push-helper
+  labels:
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: mlops-platform
+    mlops-platform.io/use-case: crypto
+data:
+  # ---------------------------------------------------------------------------
+  # POSIX-sh helper. Works in alpine (curl preinstalled in most platform
+  # images; falls back to wget) and debian-trixie (curl preinstalled in
+  # the astral uv image used by retrain-on-drift).
+  #
+  # Usage in a CronJob:
+  #   command: ["/bin/sh", "-c"]
+  #   args:
+  #     - |
+  #       . /scripts/push_job_metrics.sh
+  #       run_and_push /app/rest-collector --once
+  #
+  # Env-var contract (set by the workload):
+  #   PUSHGATEWAY_URL     default http://pushgateway.observability.svc.cluster.local:9091
+  #   JOB_NAME            REQUIRED — pushgateway job label
+  #   INSTANCE            default $HOSTNAME (pod name)
+  #   USE_CASE            default "crypto"
+  #   ROWS_FILE           optional — path to a file the workload writes
+  #                       with `rows_ingested=N` lines; sourced into the
+  #                       payload to expose ingestion counts.
+  # ---------------------------------------------------------------------------
+  push_job_metrics.sh: |
+    #!/bin/sh
+    # shellcheck shell=sh
+    set -u
+
+    : "${PUSHGATEWAY_URL:=http://pushgateway.observability.svc.cluster.local:9091}"
+    : "${JOB_NAME:?JOB_NAME is required for pushgateway emit}"
+    : "${INSTANCE:=${HOSTNAME:-unknown}}"
+    : "${USE_CASE:=crypto}"
+    : "${ROWS_FILE:=/tmp/push_rows}"
+
+    _emit_metrics() {
+      # $1=rc  $2=duration_seconds  $3=rows_ingested  $4=now_unix
+      cat <<EOF
+    # TYPE crypto_job_last_run_timestamp gauge
+    crypto_job_last_run_timestamp ${4}
+    # TYPE crypto_job_last_duration_seconds gauge
+    crypto_job_last_duration_seconds ${2}
+    # TYPE crypto_job_last_exit_code gauge
+    crypto_job_last_exit_code ${1}
+    # TYPE crypto_job_last_success gauge
+    crypto_job_last_success $([ "${1}" -eq 0 ] && echo 1 || echo 0)
+    # TYPE crypto_job_rows_ingested gauge
+    crypto_job_rows_ingested ${3}
+    EOF
+    }
+
+    _post_pushgateway() {
+      _payload="$1"
+      _url="${PUSHGATEWAY_URL}/metrics/job/${JOB_NAME}/use_case/${USE_CASE}/instance/${INSTANCE}"
+      if command -v curl >/dev/null 2>&1; then
+        printf '%s' "${_payload}" | curl -fsS --max-time 10 \
+          --data-binary @- "${_url}" \
+          && echo "[push-helper] pushed metrics to ${_url}" \
+          || echo "[push-helper] WARN: curl push failed; metrics dropped" >&2
+      elif command -v wget >/dev/null 2>&1; then
+        # busybox wget supports stdin via `--post-data=-`? No — use a tmpfile.
+        _tmp=$(mktemp 2>/dev/null || echo /tmp/_pgw_$$)
+        printf '%s' "${_payload}" > "${_tmp}"
+        wget -q --method=POST --body-file="${_tmp}" --header="Content-Type: text/plain" \
+             -O - "${_url}" >/dev/null \
+          && echo "[push-helper] pushed metrics to ${_url} (wget)" \
+          || echo "[push-helper] WARN: wget push failed; metrics dropped" >&2
+        rm -f "${_tmp}"
+      else
+        echo "[push-helper] ERROR: neither curl nor wget available; cannot push" >&2
+      fi
+    }
+
+    # run_and_push <cmd> [args ...]
+    #   Runs the command, captures its exit code + wall-clock duration, then
+    #   posts metrics. Forwards stdout/stderr unchanged. Re-exits with the
+    #   captured rc so the K8s Job records the underlying outcome.
+    run_and_push() {
+      _start=$(date +%s)
+      "$@"
+      _rc=$?
+      _end=$(date +%s)
+      _dur=$((_end - _start))
+      _rows=0
+      if [ -f "${ROWS_FILE}" ]; then
+        # File format: lines of `key=value` — pick rows_ingested. Falls back
+        # to 0 if absent.
+        _rows=$(grep -E '^rows_ingested=' "${ROWS_FILE}" 2>/dev/null \
+                | tail -1 | cut -d= -f2 | tr -dc '0-9')
+        _rows=${_rows:-0}
+      fi
+      _payload=$(_emit_metrics "${_rc}" "${_dur}" "${_rows}" "${_end}")
+      _post_pushgateway "${_payload}"
+      return ${_rc}
+    }
+
+    # push_only <rc> [rows] — for callers that have already run the work and
+    # only need to emit. Duration is the time since this script was sourced.
+    : "${PUSH_HELPER_START:=$(date +%s)}"
+    export PUSH_HELPER_START
+    push_only() {
+      _rc="${1:-0}"
+      _rows="${2:-0}"
+      _now=$(date +%s)
+      _dur=$((_now - PUSH_HELPER_START))
+      _payload=$(_emit_metrics "${_rc}" "${_dur}" "${_rows}" "${_now}")
+      _post_pushgateway "${_payload}"
+    }
+
+  # ---------------------------------------------------------------------------
+  # Python PEP 723 inline-script — same shape, used by callers that already
+  # have python+uv (DAG tasks, retrain-on-drift). Pure stdlib.
+  #
+  # Invocation:
+  #   uv run /scripts/push_metrics.py --job <name> --rc <rc> [--rows N]
+  # ---------------------------------------------------------------------------
+  push_metrics.py: |
+    # /// script
+    # requires-python = ">=3.13"
+    # dependencies = []
+    # ///
+    """Pushgateway emitter for crypto batch jobs (no third-party deps)."""
+    from __future__ import annotations
+
+    import argparse
+    import os
+    import socket
+    import sys
+    import time
+    import urllib.error
+    import urllib.request
+
+
+    def build_payload(rc: int, duration_s: int, rows: int, now: int) -> bytes:
+        success = 1 if rc == 0 else 0
+        lines = [
+            "# TYPE crypto_job_last_run_timestamp gauge",
+            f"crypto_job_last_run_timestamp {now}",
+            "# TYPE crypto_job_last_duration_seconds gauge",
+            f"crypto_job_last_duration_seconds {duration_s}",
+            "# TYPE crypto_job_last_exit_code gauge",
+            f"crypto_job_last_exit_code {rc}",
+            "# TYPE crypto_job_last_success gauge",
+            f"crypto_job_last_success {success}",
+            "# TYPE crypto_job_rows_ingested gauge",
+            f"crypto_job_rows_ingested {rows}",
+            "",  # trailing newline — pushgateway is strict about it
+        ]
+        return "\n".join(lines).encode("utf-8")
+
+
+    def push(url: str, payload: bytes, timeout: float = 10.0) -> None:
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "text/plain; version=0.0.4"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+            if resp.status >= 300:
+                raise RuntimeError(f"pushgateway returned HTTP {resp.status}")
+
+
+    def main() -> int:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--job", required=True, help="pushgateway job label")
+        parser.add_argument("--rc", type=int, default=0, help="exit code of the work")
+        parser.add_argument("--rows", type=int, default=0, help="rows ingested")
+        parser.add_argument(
+            "--duration",
+            type=int,
+            default=0,
+            help="wall-clock duration seconds (0 = use START env)",
+        )
+        parser.add_argument(
+            "--instance",
+            default=os.environ.get("INSTANCE", socket.gethostname()),
+        )
+        parser.add_argument("--use-case", default=os.environ.get("USE_CASE", "crypto"))
+        parser.add_argument(
+            "--url",
+            default=os.environ.get(
+                "PUSHGATEWAY_URL",
+                "http://pushgateway.observability.svc.cluster.local:9091",
+            ),
+        )
+        args = parser.parse_args()
+
+        now = int(time.time())
+        duration = args.duration
+        if duration == 0:
+            start_env = os.environ.get("PUSH_HELPER_START")
+            if start_env and start_env.isdigit():
+                duration = now - int(start_env)
+
+        payload = build_payload(args.rc, duration, args.rows, now)
+        full_url = (
+            f"{args.url.rstrip('/')}/metrics/job/{args.job}"
+            f"/use_case/{args.use_case}/instance/{args.instance}"
+        )
+        try:
+            push(full_url, payload)
+        except (urllib.error.URLError, RuntimeError) as exc:
+            print(f"[push-helper] WARN: push to {full_url} failed: {exc}", file=sys.stderr)
+            return 0  # never fail the parent job on metrics push
+        print(f"[push-helper] pushed metrics to {full_url}")
+        return 0
+
+
+    if __name__ == "__main__":
+        raise SystemExit(main())

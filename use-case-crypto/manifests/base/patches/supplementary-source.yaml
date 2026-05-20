@@ -1,0 +1,33 @@
+# Crypto-specific: CryptoPanic API keys + supplementary source overrides
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: supplementary-source
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: rest-collector
+              env:
+                - name: HISTORY_BACKFILL_ON_START
+                  value: "false"
+                - name: POLLING_ENABLED
+                  value: "false"
+                - name: SUPPLEMENTARY_CRYPTOPANIC_ENABLED
+                  value: "true"
+                - name: SUPPLEMENTARY_FEARGREED_ENABLED
+                  value: "false"
+                - name: CRYPTOPANIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: pipeline-secrets
+                      key: CRYPTOPANIC_API_KEY
+                      optional: true
+                - name: NEWSAPI_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: pipeline-secrets
+                      key: NEWSAPI_KEY
+                      optional: true

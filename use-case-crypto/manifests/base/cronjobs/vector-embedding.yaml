@@ -1,0 +1,93 @@
+# =============================================================================
+# VECTOR EMBEDDING — Sentiment Embedding Generation (Python + BERT)
+# =============================================================================
+# Generates BERT embeddings for news/sentiment and stores in Qdrant.
+#
+# Infrastructure dependencies:
+#   - Qdrant (v1.13.2): Vector DB for embedding storage + similarity search
+#     qdrant.storage.svc.cluster.local:6333 (REST) / 6334 (gRPC)
+#   - ClickHouse: Sentiment data source, archival for aggregated features
+#   - Redis: Feature cache for online serving (aggregated sentiment scores)
+#   - Stencil (Raystack): Schema for embedding records
+#
+# Emits run outcome to platform Pushgateway via push-helper ConfigMap.
+# =============================================================================
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vector-embedding
+  labels:
+    app: vector-processing
+    type: embedding
+    mlops-platform.io/use-case: crypto
+spec:
+  schedule: "*/5 * * * *" # Every 5 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      activeDeadlineSeconds: 240
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: vector-processing
+            job-type: embedding-generation
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: embedding
+              image: vector-processing:latest
+              imagePullPolicy: IfNotPresent
+              # Wrap `uv run main.py` in shell that emits the run outcome
+              # to Pushgateway via the same push-helper ConfigMap that
+              # rest-collector CronJobs use. Image already has /bin/sh.
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -u
+                  . /scripts/push_job_metrics.sh
+                  run_and_push uv run main.py --mode embeddings
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              env:
+                - name: EMBEDDING_MODEL
+                  value: "sentence-transformers/all-mpnet-base-v2"
+                - name: EMBEDDING_DIM
+                  value: "768"
+                - name: JOB_NAME
+                  value: "vector_embedding"
+                - name: USE_CASE
+                  value: "crypto"
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "2Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config
+                - name: model-cache
+                  mountPath: /root/.cache/huggingface
+                - name: push-helper
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: config
+              configMap:
+                name: pipeline-config
+            - name: model-cache
+              emptyDir:
+                sizeLimit: 2Gi
+            - name: push-helper
+              configMap:
+                name: push-helper
+                defaultMode: 0555

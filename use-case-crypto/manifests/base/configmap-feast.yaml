@@ -1,0 +1,260 @@
+# =============================================================================
+# Feast feature repository — templated at runtime from Vault
+# =============================================================================
+# The Feast `registry.path` embeds the PostgreSQL password; storing it in a
+# ConfigMap would leak.  Instead:
+#
+#   1. `feast-feature-repo-template` ConfigMap holds `feature_store.yaml.tmpl`
+#      (with `${POSTGRES_PASSWORD}` and `${VALKEY_PASSWORD}` placeholders) and
+#      `definitions.py` (no secrets).
+#   2. The consuming Deployment (ml-bridge / gateway / trainer) injects an
+#      init container `render-feature-store` that runs `envsubst` on the
+#      template, writing the real `feature_store.yaml` to an emptyDir mount.
+#   3. The password is exposed via envFrom: feast-postgres-secret (sourced
+#      from Vault by ExternalSecret via feast-valkey-secret).
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: feast-postgres-secret
+  labels:
+    app: ml-pipeline
+    component: feast
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
+  target:
+    name: feast-postgres-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: POSTGRES_USER
+      remoteRef: { key: platform/postgres/feast, property: username }
+    - secretKey: POSTGRES_PASSWORD
+      remoteRef: { key: platform/postgres/feast, property: password }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-feature-repo
+  labels:
+    app: ml-pipeline
+    component: feast
+data:
+  feature_store.yaml.tmpl: |
+    # Templated by the `render-feature-store` init container at pod start.
+    project: crypto
+    registry:
+      registry_type: sql
+      path: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/feast
+      cache_ttl_seconds: 600
+    provider: local
+    online_store:
+      type: redis
+      # Feast 0.62 accepts `host:port,key=value` pairs in connection_string;
+      # `password=XXX` is passed straight through to the underlying redis-py
+      # client. The `${VALKEY_PASSWORD}` placeholder is resolved by the
+      # render-feature-store init container (envsubst) at pod start, driven
+      # by the feast-valkey-secret envFrom.
+      connection_string: valkey.storage.svc.cluster.local:6379,password=${VALKEY_PASSWORD}
+    offline_store:
+      type: clickhouse
+      host: clickhouse-platform.storage.svc.cluster.local
+      port: 8123
+      database: features
+      user: default
+      password: ""
+    entity_key_serialization_version: 3
+    auth:
+      type: oidc
+      client_id: feast
+      client_secret: "${FEAST_OIDC_CLIENT_SECRET}"
+      auth_discovery_url: http://dex.common.svc.cluster.local:5556/dex/.well-known/openid-configuration
+  # Render script (copy template to mounted volume with envsubst).
+  render-feast-config.sh: |
+    #!/bin/sh
+    set -e
+    envsubst < /opt/feast-template/feature_store.yaml.tmpl > /opt/feast-repo/feature_store.yaml
+    cp /opt/feast-template/definitions.py /opt/feast-repo/definitions.py
+    echo "Feast feature_store.yaml rendered."
+  definitions.py: |
+    """Feast feature definitions — see platform/DECISIONS.md ADR-013."""
+    from datetime import timedelta
+    from feast import Entity, FeatureView, Field, PushSource, FeatureService
+    from feast.types import Float64, Int32
+    from feast.infra.offline_stores.contrib.clickhouse_offline_store.clickhouse_source import (
+        ClickhouseSource,
+    )
+
+    crypto_entity = Entity(
+        name="symbol",
+        join_keys=["symbol"],
+        description="Cryptocurrency trading pair (e.g., BTC-USD, ETH-USD)",
+    )
+
+    ohlcv_source = ClickhouseSource(
+        name="ohlcv_source",
+        table="crypto_ohlcv",
+        timestamp_field="timestamp",
+        created_timestamp_column="created_at",
+    )
+    features_source = ClickhouseSource(
+        name="features_source",
+        table="crypto_ohlcv_features",
+        timestamp_field="timestamp",
+        created_timestamp_column="created_at",
+    )
+    sentiment_source = ClickhouseSource(
+        name="sentiment_source",
+        table="crypto_sentiment_features",
+        timestamp_field="timestamp",
+        created_timestamp_column="created_at",
+    )
+    realtime_push_source = PushSource(
+        name="crypto_realtime_push",
+        batch_source=ohlcv_source,
+    )
+
+    ohlcv_fv = FeatureView(
+        name="ohlcv",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="open",   dtype=Float64),
+            Field(name="high",   dtype=Float64),
+            Field(name="low",    dtype=Float64),
+            Field(name="close",  dtype=Float64),
+            Field(name="volume", dtype=Float64),
+        ],
+        source=ohlcv_source,
+        online=True,
+        tags={"layer": "raw", "data_type": "ohlcv"},
+    )
+
+    moving_averages_fv = FeatureView(
+        name="moving_averages",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="sma_20", dtype=Float64),
+            Field(name="sma_50", dtype=Float64),
+            Field(name="ema_12", dtype=Float64),
+            Field(name="ema_26", dtype=Float64),
+        ],
+        source=features_source,
+        online=True,
+        tags={"layer": "feature", "indicator_type": "trend"},
+    )
+
+    momentum_indicators_fv = FeatureView(
+        name="momentum_indicators",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="rsi_14",      dtype=Float64),
+            Field(name="rsi_7",       dtype=Float64),
+            Field(name="macd",        dtype=Float64),
+            Field(name="macd_signal", dtype=Float64),
+            Field(name="stoch_k",     dtype=Float64),
+            Field(name="stoch_d",     dtype=Float64),
+            Field(name="williams_r",  dtype=Float64),
+            Field(name="roc_10",      dtype=Float64),
+        ],
+        source=features_source,
+        online=True,
+        tags={"layer": "feature", "indicator_type": "momentum"},
+    )
+
+    volatility_indicators_fv = FeatureView(
+        name="volatility_indicators",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="bb_upper",       dtype=Float64),
+            Field(name="bb_lower",       dtype=Float64),
+            Field(name="bb_width",       dtype=Float64),
+            Field(name="atr_14",         dtype=Float64),
+            Field(name="volatility_24h", dtype=Float64),
+        ],
+        source=features_source,
+        online=True,
+        tags={"layer": "feature", "indicator_type": "volatility"},
+    )
+
+    volume_indicators_fv = FeatureView(
+        name="volume_indicators",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="obv",    dtype=Float64),
+            Field(name="mfi_14", dtype=Float64),
+            Field(name="vwap",   dtype=Float64),
+        ],
+        source=features_source,
+        online=True,
+        tags={"layer": "feature", "indicator_type": "volume"},
+    )
+
+    returns_fv = FeatureView(
+        name="returns",
+        entities=[crypto_entity],
+        ttl=timedelta(days=1),
+        schema=[
+            Field(name="return_1h",  dtype=Float64),
+            Field(name="return_24h", dtype=Float64),
+            Field(name="adx",        dtype=Float64),
+        ],
+        source=features_source,
+        online=True,
+        tags={"layer": "feature", "indicator_type": "trend"},
+    )
+
+    def _sentiment_view(name: str, ttl: timedelta, window: str) -> FeatureView:
+        return FeatureView(
+            name=name,
+            entities=[crypto_entity],
+            ttl=ttl,
+            schema=[
+                Field(name="news_count",         dtype=Int32),
+                Field(name="avg_sentiment",      dtype=Float64),
+                Field(name="sentiment_std",      dtype=Float64),
+                Field(name="positive_ratio",     dtype=Float64),
+                Field(name="sentiment_momentum", dtype=Float64),
+            ],
+            source=sentiment_source,
+            online=True,
+            tags={"layer": "feature", "indicator_type": "sentiment", "window": window},
+        )
+
+    sentiment_1h_fv  = _sentiment_view("sentiment_1h",  timedelta(hours=2),  "1h")
+    sentiment_6h_fv  = _sentiment_view("sentiment_6h",  timedelta(hours=8),  "6h")
+    sentiment_24h_fv = _sentiment_view("sentiment_24h", timedelta(days=1),   "24h")
+
+    training_feature_service = FeatureService(
+        name="crypto_training_features",
+        features=[
+            ohlcv_fv, moving_averages_fv, momentum_indicators_fv,
+            volatility_indicators_fv, volume_indicators_fv, returns_fv,
+            sentiment_1h_fv, sentiment_6h_fv, sentiment_24h_fv,
+        ],
+        tags={"purpose": "training", "includes_sentiment": "true"},
+    )
+    inference_feature_service = FeatureService(
+        name="crypto_inference_features",
+        features=[
+            ohlcv_fv[["close", "volume"]],
+            momentum_indicators_fv[["rsi_14", "macd"]],
+            volatility_indicators_fv[["bb_upper", "bb_lower", "atr_14"]],
+            returns_fv[["return_1h"]],
+            sentiment_1h_fv[["avg_sentiment", "news_count"]],
+            sentiment_24h_fv[["avg_sentiment", "sentiment_momentum"]],
+        ],
+        tags={"purpose": "inference", "latency_optimized": "true"},
+    )
+    technical_feature_service = FeatureService(
+        name="crypto_technical_features",
+        features=[
+            ohlcv_fv, moving_averages_fv, momentum_indicators_fv,
+            volatility_indicators_fv, volume_indicators_fv, returns_fv,
+        ],
+        tags={"purpose": "training", "includes_sentiment": "false"},
+    )

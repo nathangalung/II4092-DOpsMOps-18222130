@@ -1,0 +1,174 @@
+# =============================================================================
+# KafkaUsers — SCRAM-SHA-512 + ACLs for crypto use-case
+# =============================================================================
+# Why this file exists (cycle-3 finding §3.1):
+#   `platform-kafka` is reconciled with `authorization: { type: simple }` and
+#   only `admin` in `superUsers`. The plain listener (9092) accepts anonymous
+#   connections at the socket level, but the broker still applies ACLs — so
+#   anonymous KEDA scalers and use-case consumers fail with "client is not
+#   authorized to access this topic" the moment they try to describe a
+#   consumer group or fetch offsets.
+#
+# Best-proper fix (per ADR-022/-026):
+#   * Migrate KEDA + use-case workloads off the plain listener onto the SCRAM
+#     listener (port 9093). Strimzi will reject ACL-less SCRAM logins, so the
+#     least-privilege user model is enforced at the broker.
+#   * Each KafkaUser below carries the minimum ACLs needed by its caller.
+#   * Strimzi User Operator emits a Secret of the same name in `data-ingestion`
+#     containing `password` and `sasl.jaas.config`. The downstream
+#     ExternalSecret in `external-secrets.yaml` mirrors that Secret into
+#     `use-case-crypto` so KEDA TriggerAuthentication and consumer
+#     Deployments can mount it without cross-namespace SA grants.
+#
+# Topic prefix scoping:
+#   The `crypto.*` namespace is owned end-to-end by this use case, so all
+#   ACLs are anchored on prefix `crypto.` — no other use case can read/write
+#   crypto topics with this credential, and no use-case credential can touch
+#   foreign topics.
+# =============================================================================
+---
+# ----------------------------------------------------------------------------
+# crypto-keda-consumer  —  KEDA Kafka scaler: describe topic + group offsets
+# ----------------------------------------------------------------------------
+# KEDA's kafka scaler issues OffsetFetchRequest (group) and ListOffsets
+# (topic) — Read on the topic + Describe on the consumer group is enough.
+# Read on the group itself is needed because OffsetFetch is checked as
+# `Read on Group`, not `Describe on Group`, contrary to what the trigger docs
+# imply.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: keda-consumer
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    role: keda-scaler
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: crypto.
+          patternType: prefix
+        operations: [Describe, Read]
+        host: "*"
+      # KEDA queries each consumer group used by the workloads it scales.
+      - resource:
+          type: group
+          name: feature-engine
+          patternType: literal
+        operations: [Describe, Read]
+      - resource:
+          type: group
+          name: validator
+          patternType: literal
+        operations: [Describe, Read]
+      - resource:
+          type: group
+          name: analyzer
+          patternType: literal
+        operations: [Describe, Read]
+---
+# ----------------------------------------------------------------------------
+# crypto-app-consumer  —  validator/feature-engine/analyzer Deployments
+# ----------------------------------------------------------------------------
+# These workloads read and write `crypto.*` topics. Single shared credential is
+# acceptable because they share trust boundary (same use-case namespace, same
+# Vault path). If we ever need per-workload audit trails, split into three
+# users with distinct group ACLs.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: app-consumer
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    role: workload
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: crypto.
+          patternType: prefix
+        operations: [Describe, Read, Write, Create]
+      - resource:
+          type: group
+          name: feature-engine
+          patternType: literal
+        operations: [Describe, Read]
+      - resource:
+          type: group
+          name: validator
+          patternType: literal
+        operations: [Describe, Read]
+      - resource:
+          type: group
+          name: analyzer
+          patternType: literal
+        operations: [Describe, Read]
+      # Transactional producers (idempotent writes from feature-engine)
+      - resource:
+          type: transactionalId
+          name: crypto.
+          patternType: prefix
+        operations: [Describe, Write]
+---
+# ----------------------------------------------------------------------------
+# crypto-kafka-connect  —  Strimzi KafkaConnect cluster bootstrap user
+# ----------------------------------------------------------------------------
+# Used by the platform-level `kafka-connect` KafkaConnect CR to authenticate
+# its workers against the broker once the cluster is flipped onto the SCRAM
+# listener. Connect needs broad ACLs on its own internal topics
+# (`_connect-{configs,offsets,status}`) plus on the source/sink topics it
+# routes — here scoped to `crypto.*` for this use case.
+#
+# When stock and other use cases land, each gets its own `<usecase>-kafka-
+# connect` user with that use case's prefix; the platform Connect cluster
+# loads them as separate listener stanzas.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: kafka-connect
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    role: kafka-connect
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: crypto.
+          patternType: prefix
+        operations: [Describe, Read, Write, Create]
+      - resource:
+          type: topic
+          name: cdc.
+          patternType: prefix
+        operations: [Describe, Read, Write, Create]
+      - resource:
+          type: topic
+          name: _connect-
+          patternType: prefix
+        operations: [Describe, Read, Write, Create]
+      - resource:
+          type: group
+          name: kafka-connect-cluster
+          patternType: literal
+        operations: [Describe, Read]

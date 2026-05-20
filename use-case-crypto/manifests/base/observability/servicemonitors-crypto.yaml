@@ -1,0 +1,179 @@
+# =============================================================================
+# Crypto use-case ServiceMonitors
+# =============================================================================
+# ServiceMonitor CRs (Prometheus Operator) are discovered by the platform
+# Prometheus because its `serviceMonitorSelector: {}` +
+# `serviceMonitorNamespaceSelector: {}` match everything.
+#
+# Selectors target the generic `app: <service>` label on the Services
+# inherited from `platform/services/base/deployments/*.yaml`; the
+# `namePrefix: crypto-` kustomize transformer rewrites the Service name to
+# `crypto-<service>` in use-case-crypto without changing the `app:` label,
+# so these selectors keep working.
+#
+# Endpoint port names match the `http` / `metrics` port names declared in
+# each upstream Deployment's Service.
+#
+# Runtime checks (after ArgoCD sync):
+#   kubectl get servicemonitors -n use-case-crypto
+#   kubectl -n observability port-forward svc/kube-prometheus-stack-prometheus 9090 \
+#     && open http://localhost:9090/targets
+# =============================================================================
+---
+# -----------------------------------------------------------------------------
+# Ingestion (KNF-01, ingest-lag alert feed)
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: websocket-collector
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: websocket-collector }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rest-collector
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: rest-collector }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# -----------------------------------------------------------------------------
+# Quality (validator error-rate alert feed)
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: validator
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: validator }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# -----------------------------------------------------------------------------
+# Processing
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: feature-engine
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: feature-engine }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# ADR-023/025: PodMonitor (not ServiceMonitor) because the Flink Operator
+# does not auto-create a Service exposing the Prometheus reporter port.
+# Selector targets the JobManager pod labels the operator applies to the
+# FlinkDeployment `crypto-flink-job` (see flink/flinkdeployment.yaml —
+# `metrics.reporter.prom.port: "9249"`).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flink-job
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels:
+      app: crypto-flink-job
+      component: jobmanager
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# -----------------------------------------------------------------------------
+# Serving + cache
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gateway
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: gateway }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s  # gateway is on the hot path — scrape often
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: feature-cache
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: feature-cache }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# -----------------------------------------------------------------------------
+# ML bridge (ml-bridge latency alert feed)
+# -----------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ml-bridge
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+spec:
+  selector:
+    matchLabels: { app: ml-bridge }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

@@ -1,0 +1,38 @@
+# =============================================================================
+# KafkaTopic: crypto.predictions.v1
+# =============================================================================
+# Model-serving output — one message per KServe InferenceService response.
+# Produced by the gateway sidecar (after anti-corruption mapping) and
+# consumed by the dashboard, Superset, and Evidently drift monitors.
+#
+# Sizing:
+#   partitions        : 6    — lower fanout than feature stream
+#   replicas          : 3
+#   retention.ms      : 30d  — long enough for P&L attribution & audit log
+#   min.insync.replicas : 2
+#   compression.type  : zstd
+#   cleanup.policy    : delete
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: predictions-v1
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    stream-tier: serving
+    schema-version: v1
+spec:
+  topicName: crypto.predictions.v1
+  partitions: 6
+  replicas: 3
+  config:
+    retention.ms: 2592000000           # 30d
+    segment.ms: 259200000              # 3d
+    min.insync.replicas: 2
+    compression.type: zstd
+    cleanup.policy: delete
+    max.message.bytes: 524288          # 512 KiB — one response payload
+    message.timestamp.type: CreateTime

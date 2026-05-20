@@ -1,0 +1,38 @@
+# Crypto-specific: Inline config.yaml with crypto symbols + SCRAM listener.
+# Bootstrap on :9093 (SASL_SSL) — see configmaps/topics.yaml for the rest of
+# the use-case Kafka security overrides; the SCRAM creds and broker CA come
+# from the `crypto-app-consumer` Secret mounted by patches/kafka-sasl.yaml
+# (envFrom: KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD; volume: /etc/kafka/ca).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-engine
+spec:
+  template:
+    spec:
+      containers:
+        - name: feature-engine
+          command: ["sh", "-c"]
+          args:
+            - |
+              cat > /tmp/config.yaml << EOCFG
+              kafka:
+                brokers: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
+                security_protocol: "SASL_SSL"
+                sasl_mechanism: "SCRAM-SHA-512"
+                sasl_username: "${KAFKA_SASL_USERNAME}"
+                sasl_password: "${KAFKA_SASL_PASSWORD}"
+                ssl_ca_location: "/etc/kafka/ca/ca.crt"
+                input_topic: "crypto.validated"
+                output_topic: "crypto.features.v1"
+                group_id: "feature-engine"
+              valkey:
+                url: "redis://valkey.storage.svc.cluster.local:6379"
+                ttl_seconds: 3600
+              grpc_port: 50051
+              health_port: 8080
+              symbols:
+                - "BTC-USD"
+                - "ETH-USD"
+              EOCFG
+              cd /tmp && feature-engine

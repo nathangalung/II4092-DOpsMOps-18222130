@@ -1,0 +1,27 @@
+# Feast feature store configuration for crypto use case.
+# Uses ClickHouse offline store + Valkey online store (redis-py client).
+#
+# NOTE: Feast's own YAML parser does NOT substitute ${ENV_VAR}. The
+# Dockerfile installs `gettext-base` and runs `envsubst` over this file
+# at container start (see entrypoint.sh in this directory). Every
+# `${VAR}` below must therefore be a real process env var; missing vars
+# collapse to empty strings at render time. Valkey password comes from
+# platform/valkey/auth via the feast-valkey-secret Secret / SOPS-managed
+# equivalent, and is exposed to the container as VALKEY_PASSWORD.
+project: crypto
+registry: /app/registry.db
+provider: local
+
+online_store:
+  type: redis
+  connection_string: valkey.storage.svc.cluster.local:6379,password=${VALKEY_PASSWORD}
+
+offline_store:
+  type: clickhouse
+  host: clickhouse-platform.storage.svc.cluster.local
+  port: 8123
+  database: features
+  user: default
+  password: ""
+
+entity_key_serialization_version: 3

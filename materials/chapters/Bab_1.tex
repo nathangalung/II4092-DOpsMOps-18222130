@@ -1,0 +1,230 @@
+% @Bab_1.tex
+% ==========================================
+% BAB I PENDAHULAN
+% ==========================================
+\chapter{PENDAHULUAN}
+\label{chap:pendahuluan}
+
+% --- Latar Belakang ---
+\section{Latar Belakang}
+
+Pemanfaatan \textit{machine learning} (ML) tidak lagi berhenti pada tahap eksperimen di lingkungan riset, tetapi semakin banyak dioperasikan sebagai sistem yang berjalan stabil di lingkungan produksi. Pada tahap ini, sistem ML tidak hanya berisi kode model, melainkan bergantung pada rangkaian komponen pendukung yang saling terhubung dan perlu dikelola secara konsisten. \textcite{polyzotis2018data} menekankan bahwa sistem ML modern harus dipahami sebagai bagian dari ekosistem data yang kompleks, bukan sekadar kumpulan algoritma. Sejalan dengan itu, \textcite{sculley2015hidden} menunjukkan bahwa \textbf{porsi kode \textit{machine learning} hanya merupakan bagian kecil dari keseluruhan sistem}, sementara sekitar 95\% sisanya berupa infrastruktur seperti pengumpulan data, verifikasi, ekstraksi fitur, \textit{monitoring}, dan \textit{serving}. Kondisi ini menuntut perancangan arsitektur yang sejak awal terkelola, terdokumentasi, dan siap menghadapi kebutuhan produksi.
+
+Tantangan tersebut menjadi lebih berat pada domain \textit{algorithmic trading}, karena setiap keputusan model secara langsung memengaruhi pergerakan modal dengan latensi yang sangat rendah dalam hitungan milidetik. \textbf{Pertumbuhan pasar \textit{algorithmic trading} global dari USD 19{,}95 miliar (2024) menjadi USD 21{,}89 miliar (2025)} menunjukkan meningkatnya ketergantungan industri finansial terhadap sistem ML \autocite{business2025algorithmic}. Ketergantungan ini membuat kesalahan kecil pada arsitektur data atau proses operasional dapat berujung pada kerugian finansial yang signifikan dalam waktu singkat. Dalam konteks ini, arsitektur DataOps dan MLOps yang \textit{production-grade} diperlukan untuk menjaga akurasi model, tata kelola data, \textit{monitoring}, dan keandalan operasional secara menyeluruh.
+
+\textit{Machine Learning Operations} (MLOps) dan \textit{Data Operations} (DataOps) mengadaptasi praktik DevOps ke dalam konteks \textit{engineering} ML dan manajemen data untuk mengotomatisasi siklus hidup ML secara \textit{end-to-end} \autocite{kreuzberger2023mlops}. Pendekatan ini membentuk kerangka kerja bagi proses ML yang efisien, terukur, dan aman pada skala produksi \autocite{jain2025integrating, rella2022mlops, ahmad2024mlops}. Berbagai solusi telah muncul, mulai dari \textit{managed platform} hingga rangkaian komponen \textit{open-source} seperti \textit{feature store}, \textit{workflow orchestrator}, dan \textit{serving platform}. Namun, penerapan DataOps dan MLOps secara terpadu masih menghadapi empat tantangan utama yang memengaruhi \textit{reliability} sistem, terutama pada perdagangan finansial yang dinamis, yaitu: (1) tata kelola data dan metadata, (2) degradasi model akibat pergeseran distribusi, (3) kebocoran data temporal pada \textit{feature engineering}, dan (4) keterbatasan arsitektur penyimpanan untuk data modern berdimensi tinggi. Keempat tantangan ini menjadi dasar perumusan arsitektur yang diusulkan dalam proposal tugas akhir ini.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Krisis Tata Kelola Data dan Fragmentasi Metadata}
+    
+    Dalam sistem ML berskala besar, ratusan hingga ribuan fitur dapat terbentuk dari beragam sumber data tanpa mekanisme pengelolaan yang konsisten. Tanpa tata kelola yang jelas, repositori fitur berisiko berubah menjadi \textit{data swamp} yang sulit ditelusuri dan sukar dimanfaatkan kembali. Literatur menempatkan \textit{feature store} dan katalog data sebagai komponen utama untuk mengurangi fragmentasi metadata serta memudahkan \textit{discovery} dan \textit{reuse} fitur \autocite{lamer2024data}. Pentingnya tata kelola data juga diperkuat oleh studi lintas bidang yang menunjukkan korelasi positif antara praktik pengelolaan data dan peningkatan inovasi serta kualitas manajemen organisasi \autocite{bernardo2024data}.
+    
+    \vspace{0.5em}
+
+    Survei Anaconda terhadap 2.400 profesional data menunjukkan bahwa \textit{data scientist} justru menghabiskan porsi waktu terbesar pada tahap persiapan data, bukan pada pemodelan \autocite{anaconda2020state}. Pada saat yang sama, organisasi menanggung kerugian besar akibat kualitas data yang buruk \autocite{chien2022improve}. Tanpa katalog dan tata kelola yang eksplisit, aset data dan fitur sulit ditemukan, sulit ditafsirkan, dan rentan disalahgunakan. Kondisi ini menghambat eksperimen, mendorong duplikasi pekerjaan, dan meningkatkan risiko kesalahan yang seharusnya dapat dihindari.
+    
+    \vspace{0.5em}
+
+    Diperlukan katalog metadata terpusat sebagai \textit{single source of truth} yang merekam \textit{lineage} dari \textit{raw data} hingga model produksi, menyediakan \textit{semantic search} untuk \textit{discovery}, dan mendukung dokumentasi otomatis. Implementasi \textit{automated discovery} melalui \textit{data profiling} dan \textit{schema inference} dapat menurunkan beban dokumentasi manual yang biasanya memakan banyak waktu. Selain itu, \textit{data quality monitoring} perlu memberikan \textit{alert} proaktif ketika kualitas data menurun dan berpotensi memengaruhi model \autocite{stoyanovich2020responsible}. Kombinasi mekanisme ini membentuk fondasi tata kelola data yang dapat diskalakan dan diaudit.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Degradasi Model Senyap melalui Pergeseran Distribusi}
+    
+    Pasar finansial bersifat non-stasioner sehingga distribusi data input dan hubungan antara fitur dengan target berubah dari waktu ke waktu. Pergeseran distribusi (\textit{data/feature distribution shift}) dan \textit{concept drift} secara bertahap menurunkan kinerja model tanpa selalu menimbulkan \textit{error} eksplisit \autocite{lu2019learning}. Studi oleh \textcite{vela2022temporal} menunjukkan adanya degradasi temporal yang signifikan pada berbagai model dan dataset, sehingga permasalahan ini tidak dapat disederhanakan sebagai \textit{data drift} biasa. Pendekatan \textit{model-based concept drift explanation} juga menegaskan bahwa perubahan dapat terjadi pada hubungan kompleks antarf fitur, bukan hanya pada distribusi setiap fitur secara terpisah \autocite{hinder2023model}.
+    
+    \vspace{0.5em}
+
+    Deteksi \textit{drift} memerlukan metrik statistik yang sensitif terhadap perubahan distribusi, seperti \textit{Population Stability Index} (PSI) dan uji Kolmogorov--Smirnov \autocite{cespedes2024efficient}. Metrik tersebut membandingkan distribusi referensi dengan distribusi aktual sehingga gejala pergeseran dapat diidentifikasi secara kuantitatif. Pada domain finansial yang bergejolak, volume dan kecepatan data membuat inspeksi manual tidak lagi memadai. Tanpa pendekatan yang terukur, degradasi kinerja model mudah terlewat hingga dampaknya terlihat pada metrik bisnis.
+    
+    \vspace{0.5em}
+
+    Model yang dilatih pada periode volatilitas rendah sering kali gagal ketika pasar memasuki fase \textit{crash} atau \textit{regime change}. Krisis COVID-19 pada Maret 2020 memicu penurunan tajam indeks saham AS \autocite{mazur2021covid}, sedangkan keruntuhan Terra/LUNA pada Mei 2022 menghapus sekitar USD 50 miliar kapitalisasi pasar hanya dalam tiga hari \autocite{liu2023anatomy}. Pada situasi ekstrem seperti ini, model tetap dapat menghasilkan prediksi dengan \textit{confidence} tinggi meskipun akurasinya turun drastis (\textit{silent degradation}). Risiko bisnis meningkat tanpa segera terdeteksi apabila \textit{monitoring} tidak dirancang secara menyeluruh.
+    
+    \vspace{0.5em}
+
+    Karena itu, dibutuhkan \textbf{\textit{monitoring}} statistik \textit{near-real-time} dan periodik terhadap distribusi fitur serta keluaran prediksi, disertai \textit{alerting} proaktif dan \textit{automated retraining} ketika ambang \textit{drift} terlampaui \autocite{bayram2022concept}. \textit{Drift detection pipeline} perlu membedakan antara \textit{noise} yang wajar dan pergeseran sistematis yang memerlukan pembaruan model. Integrasi antara \textit{statistical testing} dan \textit{business logic} membantu menekan \textit{false positive alerts} tanpa mengurangi sensitivitas terhadap perubahan yang kritis. Dengan demikian, sistem dapat merespons dinamika pasar secara lebih terkendali dan konsisten.
+
+    \vspace{0.5em}
+
+    \item \textbf{Kebocoran Data Temporal dalam Inovasi \textit{Feature Engineering}}
+    
+    Inovasi fitur untuk membangun keunggulan kompetitif dalam \textit{trading} rentan terhadap kebocoran temporal, yaitu ketika informasi masa depan tanpa sengaja digunakan untuk memprediksi masa lalu. Kebocoran ini membuat hasil \textit{backtest} terlihat sangat baik, tetapi gagal direplikasi di lingkungan produksi \autocite{wang2021leakage}. Tanpa pengendalian eksplisit, kebocoran temporal mengganggu validitas evaluasi model dan membuat metrik performa menjadi menyesatkan. Dalam jangka panjang, hal ini dapat menurunkan kepercayaan terhadap keseluruhan proses pengembangan model.
+    
+    \vspace{0.5em}
+
+    Kebocoran temporal biasanya muncul melalui tiga pola utama, yaitu: (1) agregasi temporal yang keliru, (2) asumsi ketersediaan data yang tidak tepat, dan (3) kesalahan penyelarasan waktu, termasuk \textit{timezone alignment errors} dan batas sesi perdagangan yang tidak konsisten. Ketiga pola tersebut dapat menggeser informasi masa depan ke masa lalu akibat \textit{join} atau transformasi yang kurang tepat. Jika tidak terdeteksi, kesalahan ini akan terbawa ke seluruh siklus pelatihan dan evaluasi model. Oleh karena itu, pencegahan perlu dilakukan secara sistematis pada level \textit{feature engineering} dan \textit{retrieval}.
+    
+    \vspace{0.5em}
+
+    Konsep \textbf{\textit{point-in-time correctness}} menuntut \textit{temporal query semantics} yang memverifikasi bahwa setiap fitur memang sudah tersedia pada \textit{timestamp} yang digunakan. Feast menyediakan \textit{point-in-time joins} untuk memastikan \textit{feature retrieval} hanya menggunakan data yang secara historis tersedia pada saat prediksi dilakukan \autocite{feast2024}. Mekanisme ini mencakup \textit{timestamp validation}, \textit{feature versioning}, dan \textit{lag enforcement} sehingga kebocoran data temporal dapat dihindari baik pada tahap pelatihan maupun inferensi. Dengan pendekatan ini, evaluasi dan penggunaan model menjadi lebih konsisten terhadap kondisi operasional sebenarnya.
+    
+    \vspace{0.5em}
+
+    Validasi kebocoran temporal memerlukan \textit{automated testing framework} yang memeriksa integritas waktu secara konsisten. Great Expectations menyediakan \textit{expectation suite} yang dapat digunakan untuk menguji integritas temporal, misalnya memastikan tidak ada fitur dengan \textit{timestamp} yang lebih baru daripada \textit{prediction timestamp} \autocite{greatexpectations2024}. Validasi ini perlu diterapkan baik pada \textit{feature engineering} manual maupun otomatis agar integritas temporal terjaga di seluruh jalur data. Dengan cara tersebut, risiko kebocoran dapat dicegah sejak awal perancangan \textit{pipeline}, bukan hanya dideteksi di akhir.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Keterbatasan Arsitektur untuk Data Modern Berdimensi Tinggi}
+    
+    Sinyal dari \textit{alternative data} seperti sentimen berita dan media sosial sering direpresentasikan sebagai \textit{vector embeddings} berdimensi tinggi. BERT-Base menghasilkan vektor 768 dimensi \autocite[Table~1]{devlin2019bert}, sedangkan OpenAI \textit{text-embedding-ada-002} menghasilkan vektor 1.536 dimensi \autocite{openai2022embedding}. \textit{Online store} \textit{key--value} tradisional tidak dirancang untuk \textit{similarity search} yang efisien, padahal kebutuhan latensi ultra-rendah dengan persentil ke-99 (p99) $<$ 10~ms menjadi penting untuk \textit{embeddings retrieval}. Untuk menjembatani kebutuhan tersebut, indeks vektor seperti Hierarchical Navigable Small World (HNSW) diperlukan untuk \textit{approximate nearest neighbor search} yang cukup cepat sekaligus akurat \autocite{malkov2020efficient}.
+    
+    \vspace{0.5em}
+
+    Arsitektur HNSW mengorganisasikan vektor dalam bentuk graf berlapis sehingga pencarian dilakukan secara hierarkis dengan latensi rendah \autocite{malkov2020efficient}. Lapisan atas berfungsi sebagai jalur navigasi kasar menuju area ruang vektor yang relevan, sedangkan lapisan bawah melakukan pencarian yang lebih rinci. Struktur ini mengurangi jumlah perbandingan jarak yang diperlukan untuk menemukan tetangga terdekat secara aproksimatif. Dengan demikian, HNSW lebih sesuai untuk kebutuhan \textit{real-time} dibandingkan pencarian eksak yang mahal secara komputasi.
+    
+    \vspace{0.5em}
+
+    Pada pasar kripto, sentimen dapat berubah dalam hitungan menit sebagai respons terhadap \textit{tweet}, pernyataan publik, atau perubahan regulasi. \textit{Nearest-neighbor search} yang lambat dapat menyebabkan peluang transaksi bernilai tinggi hilang sebelum dieksekusi. Karena itu, diperlukan \textbf{integrasi \textit{vector database} dengan \textit{approximate nearest neighbor search}} yang mendukung \textit{hybrid retrieval} menggunakan \textit{dense vectors} dan \textit{sparse vectors}. Integrasi ini tetap harus mempertahankan target p99 $<$ 10~ms agar sistem mampu merespons perubahan pasar secara konsisten dalam skenario dunia nyata.
+
+    \vspace{0.5em}
+\end{enumerate}
+
+Proposal tugas akhir ini mengusulkan \textbf{arsitektur DataOps dan MLOps terintegrasi berbasis komponen \textit{open-source} di atas Kubernetes} sebagai satu kesatuan sistem untuk menangani keempat tantangan tersebut secara \textit{end-to-end}. Arsitektur MLOps \textit{open-source} yang diorkestrasi dengan Kubernetes dan didukung oleh observabilitas Prometheus/Grafana serta \textit{drift detectors} telah terbukti layak diterapkan \autocite{burgueno2025toward}. Dengan perdagangan saham dan \textit{cryptocurrency} sebagai domain uji yang sangat volatil \autocite{rodrigues2025architecture}, arsitektur ini ditujukan untuk menghasilkan platform yang andal, \textit{mature}, dan dapat digunakan kembali lintas \textit{use case}. Rancangan ini diharapkan berfungsi sebagai \textit{blueprint} arsitektural yang adaptif bagi organisasi lain yang menghadapi tantangan serupa.
+
+% --- Rumusan Masalah ---
+\section{Rumusan Masalah}
+
+Berdasarkan tantangan implementasi DataOps dan MLOps yang telah diuraikan pada bagian latar belakang, proposal tugas akhir ini menyusun seperangkat pertanyaan riset yang terfokus dan saling terkait. Pertanyaan tersebut diarahkan pada perancangan arsitektur, mekanisme \textit{monitoring}, jaminan integritas temporal, dan dukungan untuk data modern berdimensi tinggi sehingga kelemahan kondisi saat ini dapat diatasi secara sistematis.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item Bagaimana merancang arsitektur yang mengintegrasikan \textit{feature serving}, \textit{model serving}, dan katalog data secara otomatis di atas platform orkestrasi Kubernetes untuk membentuk \textit{single source of truth} yang terkelola, mudah ditemukan, dan tepercaya, sehingga fragmentasi metadata dan \textbf{asimetri informasi} dalam ekosistem DataOps dan MLOps dapat dikurangi, duplikasi pekerjaan menurun, dan risiko pengambilan keputusan berbasis data yang tidak konsisten dapat ditekan?
+    
+    \vspace{0.5em}
+    
+    \item Bagaimana mengimplementasikan \textit{pipeline monitoring} DataOps dan MLOps yang terotomatisasi dan proaktif dalam mendeteksi \textit{feature drift} dan \textit{concept drift} secara \textit{near-real-time} dan periodik di lingkungan pasar finansial yang non-stasioner, menggunakan metrik statistik seperti \textit{Population Stability Index} (PSI) dan uji Kolmogorov--Smirnov \autocite{cespedes2024efficient}, sehingga degradasi model tidak lagi terjadi secara senyap dan dapat ditindaklanjuti sebelum menimbulkan kerugian bisnis yang material?
+    
+    \vspace{0.5em}
+
+    \item Bagaimana arsitektur \textit{feature serving} dapat secara inheren menjamin validitas temporal atau \textit{point-in-time correctness} pada proses \textit{feature engineering}, baik yang dilakukan secara manual oleh \textit{data scientist} maupun secara otomatis melalui \textit{feature pipeline}, sehingga kebocoran data temporal dapat dicegah sejak tahap perancangan, akurasi hasil \textit{backtest} lebih mencerminkan kondisi produksi, dan kepercayaan pemangku kepentingan terhadap metrik evaluasi dapat ditingkatkan?
+    
+    \vspace{0.5em}
+
+    \item Bagaimana memperluas arsitektur penyimpanan fitur tradisional agar mampu menyimpan, mengelola, dan menyajikan tipe data modern seperti \textit{vector embeddings} berdimensi tinggi secara efisien dengan latensi ultra-rendah (p99 $<$ 10~ms), sehingga kebutuhan \textit{similarity search} untuk \textit{alternative data} seperti sentimen berita dan media sosial dapat dipenuhi tanpa mengorbankan \textit{throughput} maupun ketersediaan layanan pada skenario \textit{algorithmic trading} berfrekuensi tinggi?
+\end{enumerate}
+
+% --- Tujuan ---
+\section{Tujuan}
+
+Proposal tugas akhir ini bertujuan untuk merancang, mengimplementasikan, dan memvalidasi \textbf{arsitektur \textit{prototype} layanan DataOps dan MLOps terintegrasi} yang secara langsung menjawab pertanyaan riset dan keberhasilannya dapat diukur melalui kriteria teknis dan operasional yang jelas. Secara khusus, tujuan tugas akhir dirinci sebagai berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item Merancang dan mengimplementasikan \textbf{arsitektur terintegrasi yang \textit{cloud-native}} dengan \textit{technology stack} yang telah dispesifikasikan. Seluruh komponen diintegrasikan di atas Kubernetes \autocite{lakka2025kubernetes} untuk membentuk \textit{unified metadata flow} yang konsisten dan dapat ditelusuri lintas \textit{pipeline}, dengan kriteria keberhasilan berupa prototipe yang dapat di-\textit{deploy} dan dioperasikan secara stabil pada klaster uji.
+    
+    \vspace{0.5em}
+
+    \item Membangun \textit{prototype} \textbf{\textit{automated drift monitoring pipeline}} yang menganalisis distribusi fitur secara periodik dan memicu peringatan dini berbasis PSI serta uji Kolmogorov--Smirnov \autocite{cespedes2024efficient}, dengan kriteria keberhasilan berupa kemampuan mendeteksi \textit{synthetic drift} pada skenario uji yang dirancang dan memicu alur penanganan (misalnya \textit{retraining} atau \textit{rollback}) sesuai ambang yang ditetapkan.
+    
+    \vspace{0.5em}
+
+    \item Mengimplementasikan layanan fitur yang menerapkan \textbf{\textit{point-in-time correct joins}} pada pengambilan data pelatihan sehingga validitas temporal terjamin dan kebocoran data temporal terhindar pada pelatihan maupun inferensi, dengan kriteria keberhasilan berupa tidak ditemukannya pelanggaran integritas temporal pada serangkaian uji berbasis \textit{temporal validation framework} dan \textit{automated testing} terhadap integritas \textit{timestamp}.
+    
+    \vspace{0.5em}
+
+    \item Mendesain dan memvalidasi \textbf{arsitektur \textit{hybrid online store}} untuk fitur tabular dan \textit{vector embeddings serving} dengan target p99 $<$ 10~ms pada \textit{similarity search}, menggunakan Redis untuk fitur tabular, \textit{vector database} (Weaviate atau Qdrant) dengan HNSW, serta \textit{API Gateway} untuk orkestrasi \textit{hybrid search}. Kriteria keberhasilan berupa tercapainya target latensi p99 dan \textit{throughput} minimum yang ditetapkan pada dokumen kebutuhan.
+    
+    \vspace{0.5em}
+
+    \item Mencapai \textbf{Level 2 (ML pipeline automation)} menurut Google Cloud \autocite{googlecloud2024mlops} melalui otomasi Continuous Integration/Continuous Delivery/Continuous Training (CI/CD/CT) berbasis GitOps, mencakup \textit{drift-triggered retraining}, validasi otomatis sebelum \textit{deployment}, \textit{continuous monitoring}, serta \textit{rollback capabilities}, dengan kriteria keberhasilan berupa rangkaian \textit{pipeline} otomatis yang dapat dieksekusi dari komit kode hingga \textit{deployment} dan \textit{rollback} terkontrol pada lingkungan uji.
+\end{enumerate}
+
+% --- Batasan Masalah ---
+\section{Batasan Masalah}
+
+Untuk menjaga fokus dan kedalaman pembahasan, tugas akhir yang diusulkan dalam proposal ini menetapkan batasan yang mendefinisikan ruang lingkup secara eksplisit. Batasan ini dirancang agar beban implementasi tetap terkelola, tetapi tetap representatif terhadap tantangan MLOps yang muncul di praktik. Ruang lingkup yang jelas juga mendukung replikasi dan evaluasi karena asumsi dan keputusan desain terdokumentasi secara transparan. Dengan demikian, hasil yang diperoleh dapat diinterpretasikan secara tepat sesuai konteks yang ditetapkan.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Fokus Arsitektur dibanding Optimisasi Model}
+    
+    Tugas akhir berfokus pada desain, implementasi, dan evaluasi infrastruktur DataOps dan MLOps, bukan pada optimisasi model ML. Model diperlakukan sebagai \textit{workload} untuk memvalidasi arsitektur, bukan sebagai objek utama perbandingan algoritma. Model yang digunakan dapat berupa regresi linear, \textit{gradient-boosted trees}, atau \textit{neural networks} sehingga arsitektur yang dirancang terbukti fleksibel untuk berbagai jenis model tanpa perubahan berarti. Dengan demikian, evaluasi diarahkan pada kemampuan arsitektur dalam mendukung berbagai jenis \textit{workload}, bukan pada performa algoritma tertentu.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Domain Finansial sebagai Studi Kasus Terkendali}
+    
+    Data saham dan kripto digunakan sebagai studi kasus untuk menguji arsitektur pada data yang dinamis dan volatil. Data historis Yahoo Finance (1 tahun), CoinGecko (6 bulan), serta skenario simulasi \textit{market shock} dimanfaatkan sebagai dasar pengujian. Implementasi tidak dihubungkan ke \textit{live trading} dan tidak melibatkan transaksi nyata agar eksperimen berjalan terkendali, replikatif, dan bebas risiko finansial. Dengan cara ini, perilaku sistem dapat diamati secara menyeluruh tanpa menimbulkan konsekuensi langsung terhadap pasar.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Eksklusivitas \textit{Open-Source Stack}}
+    
+    Solusi hanya menggunakan \textit{technology stack open-source} yang telah dispesifikasikan: Kubernetes \autocite{lakka2025kubernetes}, Kubeflow \autocite{kubeflow2024}, Feast, MLflow \autocite{mlflow2024}, KServe \autocite{kserve2024}, DataHub, Spark \autocite{apachespark2024}, Flink \autocite{apacheflink2024}, Kafka \autocite{apachekafka2024}, Redis Stack, dan ClickHouse \autocite{clickhouse2024}. Solusi \textit{proprietary} atau layanan \textit{managed cloud} di luar IaaS dasar tidak digunakan untuk menjaga \textit{reproducibility}, \textit{transparency}, \textit{customizability}, dan \textit{cost-effectiveness}. Pemilihan ini juga memudahkan adopsi oleh organisasi yang memiliki kebijakan ketat terkait ketergantungan terhadap vendor tertentu.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Cakupan \textit{Data Pipeline} Transformasi}
+    
+    Data diasumsikan berasal dari \textit{pipeline} eksternal dalam format terstruktur seperti CSV, Parquet, dan JSON. Desain untuk \textit{raw data ingestion} dijelaskan secara konseptual, tetapi implementasi lengkap \textit{raw data extraction} seperti \textit{web scraping}, API bursa \textit{real-time}, dan \textit{parsing} dokumen PDF/HTML berada di luar cakupan. Fokus utama berada pada transformasi dan operasionalisasi data yang sudah tersedia agar pembahasan aspek DataOps dan MLOps dapat digali lebih dalam. Dengan pembatasan ini, kompleksitas teknis tetap terkendali tanpa mengurangi relevansi hasil.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Evaluasi Terkendali dibanding \textit{Production Deployment}}
+    
+    Evaluasi dilakukan pada lingkungan terkendali menggunakan data historis, data sintetis, dan \textit{synthetic load patterns} untuk mensimulasikan kondisi produksi. Skalabilitas diuji melalui \textit{load testing} dan berbagai \textit{failure scenarios} seperti \textit{node failures}, \textit{network partitions}, dan \textit{storage unavailability}. \textit{Production deployment} 24/7 dengan trafik nyata tidak termasuk dalam cakupan agar kompleksitas operasional tetap terkelola dan evaluasi teknis tetap terukur. Walau demikian, skenario uji dirancang sedekat mungkin dengan situasi produksi agar temuan yang diperoleh tetap relevan.
+\end{enumerate}
+
+% --- Metodologi Pengerjaan TA ---
+\section{Metodologi}
+
+Tugas akhir yang diusulkan dalam proposal ini menggunakan \textit{Design Science Research Methodology} (DSRM) yang mengintegrasikan teori dan praktik dalam perancangan serta evaluasi \textit{artifact} teknologi. \textit{Artifact} yang dikembangkan berupa arsitektur sistem dan implementasi \textit{prototype} yang dirancang untuk memenuhi kebutuhan operasional ML pada lingkungan yang menuntut. Metodologi ini dipilih karena menyediakan kerangka sistematis untuk mengidentifikasi masalah, merancang solusi, dan menguji efektivitasnya. DSRM kemudian diadaptasi ke dalam enam fase yang saling terkait secara sistematis dan iteratif.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Fase 1: \textit{Systematic Literature Review} dan Analisis \textit{State-of-the-Art} (4 minggu)}
+    
+    Kajian literatur dilakukan secara terstruktur terhadap publikasi akademik dan dokumentasi teknis untuk membangun landasan teoretis. Literatur diambil dari Scopus, IEEE Xplore, ACM Digital Library, dan arXiv dengan kriteria relevansi, kebaruan (2019 ke atas), dan dampak sitasi. \textit{Search strategy} menggunakan \textit{keyword} seperti ``MLOps'', ``DataOps'', ``feature store'', ``model serving'', ``drift detection'', ``vector database'', dan ``Kubernetes ML'', serta mengkaji dokumentasi resmi komponen \textit{open-source}. 
+    
+    \vspace{0.5em}
+
+    Dilakukan \textit{analisis komparatif} terhadap berbagai pendekatan arsitektur \autocite{najafabadi2024analysis} untuk mengidentifikasi celah riset dan peluang kontribusi \autocite{paleyes2022challenges}. Evaluasi mencakup perbandingan solusi \textit{open-source} dan \textit{enterprise}, \textit{cloud-native} dan \textit{on-premises}, serta pendekatan \textit{best-of-breed} dan \textit{end-to-end platform}. Luaran fase ini berupa \textit{gap analysis}, \textit{positioning statement}, dan landasan teoretis yang akan digunakan pada Bab II.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Fase 2: Analisis Masalah dan Spesifikasi Kebutuhan (2 minggu)}
+    
+    Fase ini menerjemahkan pertanyaan riset menjadi kebutuhan teknis yang konkret. Proses diawali dengan \textit{gap analysis} antara kondisi eksisting dan kondisi target berdasarkan empat tantangan pada latar belakang. Identifikasi \textit{use case} dilakukan melalui \textit{user persona} (Data Engineer, ML Engineer, ML Ops Engineer, Data Scientist) serta \textit{user journey mapping} dari \textit{data ingestion} hingga \textit{model monitoring}.
+    
+    \vspace{0.5em}
+    
+    Kebutuhan fungsional dan nonfungsional dispesifikasikan secara terukur, meliputi target latensi p99 $<$ 10~ms, \textit{availability} 99{,}9\%, \textit{horizontal scalability}, modularitas, dan \textit{security}. Setiap kebutuhan ditautkan ke pertanyaan riset untuk menjaga \textit{traceability}. Luaran fase ini berupa \textit{requirements matrix}, \textit{use case matrix}, dan definisi Service Level Agreement (SLA) yang akan digunakan pada Bab III.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Fase 3: Desain Solusi Arsitektur Berlapis (3 minggu)}
+    
+    Desain arsitektur memadukan pendekatan \textit{top-down} dan \textit{bottom-up} berdasarkan kebutuhan yang telah diidentifikasi. Alternatif solusi dieksplorasi melalui \textit{trade-off analysis} dan \textit{decision matrix} dengan kriteria biaya, fleksibilitas, risiko \textit{vendor lock-in}, dukungan komunitas, dan kematangan teknis.
+    
+    \vspace{0.5em}
+
+    Arsitektur dirancang secara berlapis: \textit{Infrastructure Layer}, \textit{Data Layer}, \textit{Feature Layer}, \textit{Model Layer}, \textit{Serving Layer}, \textit{Observability Layer}, dan \textit{Governance Layer}. Setiap lapisan memiliki titik integrasi, alur komunikasi, dan mekanisme \textit{failure handling} yang jelas. Luaran fase ini mencakup diagram arsitektur (C4), urutan interaksi antarkomponen, dan diagram alur data yang kemudian akan dijabarkan pada Bab IV.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Fase 4: Implementasi \textit{Prototype} Iteratif (8 minggu)}
+    
+    Implementasi dilakukan melalui empat \textit{sprint} dua mingguan. \textbf{Sprint 1} membangun klaster Kubernetes, MinIO, Kafka, dan Spark. \textbf{Sprint 2} mengintegrasikan Feast, Redis, Prometheus/Grafana, dan \textit{basic drift detection}. \textbf{Sprint 3} mengimplementasikan Kubeflow \textit{pipelines}, MLflow, KServe, dan \textit{model registry}. \textbf{Sprint 4} mengintegrasikan DataHub, \textit{drift-triggered retraining}, Great Expectations, dan pengujian \textit{end-to-end}.
+    
+    \vspace{0.5em}
+
+    Implementasi CI/CD berbasis GitOps menggunakan Argo CD \autocite{argocd2024}, dengan pemisahan \textit{infrastructure code}, \textit{application code}, dan konfigurasi YAML. Luaran fase ini berupa \textit{working prototype}, \textit{deployment scripts}, serta panduan \textit{setup} dan \textit{troubleshooting} yang menjadi dasar penyusunan rencana implementasi dan pengembangan lanjutan pada Bab V.
+    
+    \vspace{0.5em}
+
+    \item \textbf{Fase 5: Evaluasi dan Pengujian Sistematis (4 minggu)}
+    
+    Evaluasi memvalidasi pemenuhan kebutuhan melalui \textit{load testing} dengan alat seperti JMeter atau Locust untuk mengukur p50/p95/p99 dan \textit{throughput}, dengan fokus pada SLA p99 $<$ 10~ms. Pengujian juga mencakup skenario kegagalan seperti \textit{node failures}, \textit{network partitions}, dan \textit{storage unavailability}.
+    
+    \vspace{0.5em}
+
+    Validasi fungsional mencakup \textit{point-in-time correctness}, akurasi \textit{drift detection} melalui \textit{synthetic drift injection}, verifikasi otomasi \textit{end-to-end}, dan pengujian \textit{vector embeddings} terhadap latensi serta akurasi. Data uji meliputi Yahoo Finance (1 tahun), CoinGecko (6 bulan), data sintetis ekstrem, dan \textit{synthetic embeddings}. Luaran fase ini menjadi bahan utama analisis hasil, \textit{lessons learned}, serta perumusan rencana pengembangan lanjutan yang akan didokumentasikan pada Bab V.
+    
+    \vspace{0.5em}
+    
+    \item \textbf{Fase 6: Dokumentasi Komprehensif dan Analisis Hasil (2 minggu)}
+    
+    Fase terakhir menyintesis temuan melalui analisis terhadap kekuatan arsitektur, manfaat terukur, keterbatasan, dan rasional \textit{trade-off} yang diambil. Pembahasan juga mencakup perbandingan solusi \textit{open-source} dengan \textit{managed services} dan implikasinya terhadap konsistensi serta \textit{availability} pada sistem terdistribusi. Dokumentasi disusun agar dapat menjadi referensi praktis sekaligus akademik bagi pengembangan lanjutan dan menjadi penghubung menuju rencana selanjutnya pada Bab V.
+\end{enumerate}

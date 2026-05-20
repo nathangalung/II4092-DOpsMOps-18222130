@@ -1,0 +1,55 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: bronze
+    description: "Raw data from Kafka ingestion (Medallion bronze layer)"
+    tables:
+      - name: crypto_ohlcv
+        description: "Raw OHLCV candle data from Coinbase"
+        columns:
+          - name: symbol
+            tests:
+              - not_null
+          - name: timestamp
+            tests:
+              - not_null
+          - name: open
+            tests:
+              - not_null
+          - name: close
+            tests:
+              - not_null
+      - name: crypto_tickers
+        description: "Raw ticker snapshots (price/bid/ask)"
+        columns:
+          - name: symbol
+            tests:
+              - not_null
+          - name: timestamp
+            tests:
+              - not_null
+      - name: crypto_trades
+        description: "Raw individual executed trades"
+        columns:
+          - name: symbol
+            tests:
+              - not_null
+          - name: trade_id
+            tests:
+              - not_null
+      - name: crypto_sentiment
+        description: "Raw sentiment/news data from supplementary sources"
+        columns:
+          - name: symbol
+            tests:
+              - not_null
+      - name: crypto_ohlcv_features
+        description: "Stream-computed features from feature-engine + Flink"
+        columns:
+          - name: symbol
+            tests:
+              - not_null
+          - name: timestamp
+            tests:
+              - not_null

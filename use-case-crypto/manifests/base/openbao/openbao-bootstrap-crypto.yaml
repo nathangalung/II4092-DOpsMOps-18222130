@@ -1,0 +1,231 @@
+# =============================================================================
+# Crypto use-case OpenBao bootstrap Job (MPL-2.0)
+# =============================================================================
+# Runs once, in the `security` namespace (OpenBao's own namespace), AFTER the
+# platform's `openbao-bootstrap` Job has already initialised OpenBao, enabled
+# KV v2 at `secret/`, enabled Kubernetes auth, and bound the ESO SA. This
+# Job's sole responsibility is to:
+#
+#   1. Write the `crypto-bootstrap` OpenBao policy (create+update on
+#      `secret/data/usecases/crypto/*` only).
+#   2. Bind this Job's ServiceAccount to a dedicated K8s auth role
+#      `usecase-crypto-bootstrap` with that policy.
+#   3. Seed `secret/usecases/crypto/pipeline` and `.../api-keys` from the
+#      optional `openbao-crypto-seed` Secret (populated by
+#      use-case-crypto/scripts/seed-crypto-openbao.sh).
+#
+# Platform secrets are NOT touched here. Each use-case has its own
+# bootstrap Job with a scoped policy; the blast radius of a compromised
+# use-case token is confined to that use-case's subtree.
+#
+# Idempotent: `ensure_kv` only writes when the KV path is empty.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-bootstrap-crypto
+  namespace: security
+  labels:
+    app.kubernetes.io/name: openbao-bootstrap
+    app.kubernetes.io/part-of: use-case-crypto
+    usecase: crypto
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-bootstrap-crypto
+  namespace: security
+rules:
+  # `openbao-unseal` holds the root_token the script needs to bind the
+  # crypto-runtime role. `openbao-crypto-seed` is optional and seeds API keys.
+  # Both reads are by name only — no enumerate / mutate.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["openbao-unseal", "openbao-crypto-seed"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-bootstrap-crypto
+  namespace: security
+subjects:
+  - kind: ServiceAccount
+    name: openbao-bootstrap-crypto
+    namespace: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-bootstrap-crypto
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-bootstrap-crypto
+  namespace: security
+  labels:
+    app.kubernetes.io/name: openbao-bootstrap
+    app.kubernetes.io/part-of: use-case-crypto
+  annotations:
+    # PostSync so this runs after the platform's bootstrap has OpenBao unsealed.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    # Order within hooks: platform openbao-bootstrap is wave 0; crypto is wave 5.
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: openbao
+        job: bootstrap-crypto
+    spec:
+      serviceAccountName: openbao-bootstrap-crypto
+      restartPolicy: OnFailure
+      # openbao:2.5.3 image ships busybox `wget` and `bao`; no apk install
+      # needed. Pod runs unprivileged under the openbao user (UID 100) —
+      # satisfies Kyverno require-run-as-nonroot + PSA baseline/restricted.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: bootstrap
+          image: quay.io/openbao/openbao:2.5.3
+          # Kyverno require-resource-limits ClusterPolicy mandates explicit
+          # requests + limits on every container. Bootstrap is shell + curl
+          # + openbao CLI; idle most of the run, brief CPU on `bao kv put`.
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+          env:
+            - name: BAO_ADDR
+              value: "http://openbao.security.svc.cluster.local:8200"
+            - name: HOME
+              value: "/tmp"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+
+              # openbao:2.5.3 ships busybox `wget` + `bao`. No apk, no curl,
+              # no openssl. Random via /dev/urandom + od/base64 (busybox).
+              for bin in wget bao base64 od; do
+                command -v "$bin" >/dev/null 2>&1 || { echo "!!! FATAL: $bin missing"; exit 1; }
+              done
+
+              # K8s API helpers — replaces kubectl (not in openbao image).
+              # `?pretty=false` forces compact JSON so single-line sed works.
+              SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              K8S="https://kubernetes.default.svc"
+              AUTH="Authorization: Bearer ${SA_TOKEN}"
+              kube_get() {
+                wget -qO- --no-check-certificate --header="$AUTH" "${K8S}${1}?pretty=false"
+              }
+
+              echo ">>> waiting for OpenBao to be unsealed (platform bootstrap must have run)"
+              until bao status 2>&1 | grep -q 'Sealed.*false'; do sleep 3; done
+
+              UNSEAL_RESP=$(kube_get "/api/v1/namespaces/security/secrets/openbao-unseal")
+              INIT_B64=$(printf '%s' "$UNSEAL_RESP" | sed -n 's/.*"init.json":"\([^"]*\)".*/\1/p')
+              # Inner JSON from `bao operator init -format=json` may be pretty
+              # or compact — flatten before extracting root_token to handle both.
+              ROOT_TOKEN=$(printf '%s' "$INIT_B64" | base64 -d | tr -d '\n\r ' \
+                | sed -n 's/.*"root_token":"\([^"]*\)".*/\1/p')
+              [ -n "$ROOT_TOKEN" ] || { echo "!!! FATAL: failed to extract root_token"; exit 1; }
+              export BAO_TOKEN="$ROOT_TOKEN"
+
+              echo ">>> writing crypto-bootstrap policy"
+              bao policy write crypto-bootstrap - <<'POLICY'
+              path "secret/data/usecases/crypto/*" {
+                capabilities = ["create", "update", "read"]
+              }
+              path "secret/metadata/usecases/crypto/*" {
+                capabilities = ["read", "list"]
+              }
+              POLICY
+
+              echo ">>> writing crypto-runtime policy (read-only, for the pipeline SA)"
+              bao policy write crypto-runtime - <<'POLICY'
+              path "secret/data/usecases/crypto/*" {
+                capabilities = ["read"]
+              }
+              path "secret/metadata/usecases/crypto/*" {
+                capabilities = ["read", "list"]
+              }
+              POLICY
+
+              echo ">>> binding crypto-pipeline-sa (use-case-crypto) to role crypto-runtime"
+              bao write auth/kubernetes/role/crypto-runtime \
+                bound_service_account_names=crypto-pipeline-sa \
+                bound_service_account_namespaces=use-case-crypto \
+                policies=crypto-runtime \
+                ttl=1h
+
+              # Seed values: optional Secret `openbao-crypto-seed`
+              SEED_RESP=$(kube_get "/api/v1/namespaces/security/secrets/openbao-crypto-seed" 2>/dev/null || true)
+              if echo "$SEED_RESP" | grep -q '"data"'; then
+                echo ">>> sourcing openbao-crypto-seed"
+                for kv in $(echo "$SEED_RESP" | sed -n 's/.*"data":\({[^}]*}\).*/\1/p' | tr '{},"' '\n' | grep ':'); do
+                  KEY="${kv%%:*}"; VAL="${kv#*:}"
+                  export "$KEY"="$(echo "$VAL" | base64 -d)"
+                done
+              else
+                echo ">>> no openbao-crypto-seed Secret found; API keys fall back to REPLACE_ME sentinel"
+              fi
+
+              # busybox replacements for `openssl rand` (not in openbao image)
+              rand_hex()    { head -c "${1:-16}" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+              rand_base64() { head -c "${1:-24}" /dev/urandom | base64 | tr -d '\n'; }
+
+              ensure_kv() {
+                local path=$1 ; shift
+                if bao kv get "$path" >/dev/null 2>&1; then
+                  echo "    [skip] $path already populated"
+                  return 0
+                fi
+                bao kv put "$path" "$@"
+              }
+
+              echo ">>> seeding crypto use-case secrets"
+              ensure_kv secret/usecases/crypto/pipeline \
+                jwt_secret="${SEED_CRYPTO_JWT_SECRET:-$(rand_hex 32)}" \
+                mlflow_password="${SEED_CRYPTO_MLFLOW_TRACKING_PASSWORD:-$(rand_base64 24)}"
+              ensure_kv secret/usecases/crypto/api-keys \
+                coinbase="${SEED_COINBASE_API_KEY:-REPLACE_ME}" \
+                coinbase_secret="${SEED_COINBASE_API_SECRET:-REPLACE_ME}" \
+                coingecko="${SEED_COINGECKO_API_KEY:-REPLACE_ME}" \
+                cryptopanic="${SEED_CRYPTOPANIC_API_KEY:-REPLACE_ME}" \
+                newsapi="${SEED_NEWSAPI_KEY:-REPLACE_ME}"
+
+              # Dashboard demo user passwords — config.go (dashboard-backend)
+              # fails-fast if any USER_*_PASS env is unset. Auto-generated on
+              # first run; rotate with `bao kv put secret/usecases/crypto/dashboard`.
+              ensure_kv secret/usecases/crypto/dashboard \
+                dataeng_password="${SEED_CRYPTO_DASHBOARD_DATAENG_PASS:-$(rand_base64 18)}" \
+                datasci_password="${SEED_CRYPTO_DASHBOARD_DATASCI_PASS:-$(rand_base64 18)}" \
+                mleng_password="${SEED_CRYPTO_DASHBOARD_MLENG_PASS:-$(rand_base64 18)}" \
+                bususer_password="${SEED_CRYPTO_DASHBOARD_BUSUSER_PASS:-$(rand_base64 18)}"
+
+              # Slack webhook for crypto alertmanager — empty REPLACE_ME until
+              # the user rotates via `bao kv put secret/usecases/crypto/slack`.
+              ensure_kv secret/usecases/crypto/slack \
+                webhook="${SEED_CRYPTO_SLACK_WEBHOOK:-REPLACE_ME}"
+
+              echo ">>> crypto bootstrap complete."
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

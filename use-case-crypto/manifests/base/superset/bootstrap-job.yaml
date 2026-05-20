@@ -1,0 +1,117 @@
+# =============================================================================
+# CRYPTO SUPERSET BOOTSTRAP JOB
+# =============================================================================
+# One-shot Job that runs the bootstrap-configmap.yaml script.  Re-applies of
+# the overlay re-create the Job (Kustomize sees Job spec immutability and
+# uses replace-with-delete only via `ttlSecondsAfterFinished`); idempotency
+# is enforced inside the script itself (see bootstrap.py docstring).
+#
+# Image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+#   * Same base as push-pipeline-metrics-task and the supplementary CronJobs.
+#   * Ships `uv` + a pinned Python 3.14.  We rely on uv to read the PEP 723
+#     inline-script block from /scripts/bootstrap.py and resolve the (empty)
+#     dependency list — the script is pure stdlib so resolution is zero-work
+#     and there is no networked package install.
+#
+# Wait strategy: the script polls /health on the Superset Service for up
+# to 5 minutes before logging in, so the Job tolerates a slow Superset
+# Deployment rollout (init container builds psycopg2/clickhouse/trino wheels).
+#
+# RBAC: the Job runs without ServiceAccount RBAC against the K8s API — it
+# only talks to Superset's HTTP API and OpenBao-mirrored Secret env vars.
+# No `automountServiceAccountToken: true` is needed.
+# =============================================================================
+# Job name is intentionally `superset-bootstrap` (NOT `superset-bootstrap-crypto`).
+# The use-case-crypto overlay applies `namePrefix: crypto-` which would otherwise
+# produce `crypto-superset-bootstrap-crypto` — duplicated suffix. The base
+# stays domain-agnostic; the overlay supplies the use-case naming.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: superset-bootstrap
+  labels:
+    app.kubernetes.io/component: bi-bootstrap
+    app.kubernetes.io/part-of: mlops-platform
+    mlops-platform.io/use-case: crypto
+  annotations:
+    # ArgoCD: re-run on every sync without manual delete.  Sync-wave 10
+    # puts it AFTER the use-case-crypto namespace, ExternalSecrets, and
+    # platform Superset Deployment have converged.
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Cleanly delete pod 1h after success so the Job list stays readable.
+  # Failed pods stick around for postmortem (no failedJobsHistoryLimit
+  # parameter on batch/v1 Jobs — TTL handles only the succeeded case).
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 5
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: bi-bootstrap
+        app.kubernetes.io/part-of: mlops-platform
+        mlops-platform.io/use-case: crypto
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            # uv writes its cache to $HOME/.cache; redirect to /tmp so the
+            # filesystem-readonly SecurityContext above does not need to be
+            # relaxed.  UV_LINK_MODE=copy avoids EXDEV across mount points.
+            - { name: HOME,           value: "/tmp" }
+            - { name: UV_CACHE_DIR,   value: "/tmp/.uv-cache" }
+            - { name: UV_LINK_MODE,   value: "copy" }
+            - { name: UV_NO_PROGRESS, value: "1" }
+            # Optional overrides — defaults inlined in bootstrap.py match
+            # the in-cluster Service DNS so this Job runs zero-config.
+            - { name: SUPERSET_BASE_URL,
+                value: "http://superset.data-processing.svc.cluster.local:8088" }
+            - { name: CLICKHOUSE_HOST,
+                value: "clickhouse-platform.storage.svc.cluster.local" }
+            - { name: CLICKHOUSE_HTTP_PORT, value: "8123" }
+            - { name: TRINO_HOST,
+                value: "trino.data-processing.svc.cluster.local" }
+            - { name: TRINO_PORT,    value: "8080" }
+            - { name: TRINO_CATALOG, value: "iceberg" }
+            - { name: TRINO_SCHEMA,  value: "default" }
+            - { name: POSTGRES_HOST,
+                value: "postgresql-rw.storage.svc.cluster.local" }
+            - { name: POSTGRES_PORT,       value: "5432" }
+            - { name: POSTGRES_DB_MLFLOW,  value: "mlflow" }
+          envFrom:
+            - secretRef:
+                name: superset-bootstrap-secrets
+          command: ["uv", "run", "/scripts/bootstrap.py"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - { name: bootstrap, mountPath: /scripts, readOnly: true }
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: superset-bootstrap
+            defaultMode: 0555

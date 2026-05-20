@@ -1,0 +1,67 @@
+syntax = "proto3";
+package crypto.mlbridge;
+
+option go_package = "github.com/use-case-crypto/proto/mlbridge";
+
+import "common.proto";
+
+message PredictionRequest {
+    string symbol = 1;
+}
+
+message PredictionResponse {
+    string symbol = 1;
+    double predicted_price = 2;
+    string signal = 3;
+    double confidence = 4;
+    int64 timestamp = 5;
+}
+
+message MetricsRequest {
+    string symbol = 1;
+    int64 start_time = 2;
+    int64 end_time = 3;
+}
+
+message MetricPoint {
+    int64 timestamp = 1;
+    string name = 2;
+    double value = 3;
+}
+
+message MetricsResponse {
+    repeated MetricPoint points = 1;
+}
+
+message ModelListRequest {}
+
+message ModelInfo {
+    string name = 1;
+    string version = 2;
+    string stage = 3;
+    int64 created_at = 4;
+    map<string, double> metrics = 5;
+}
+
+message ModelListResponse {
+    repeated ModelInfo models = 1;
+}
+
+message TrainingRequest {
+    string symbol = 1;
+    string model_type = 2;
+    map<string, string> params = 3;
+}
+
+message TrainingResponse {
+    string job_id = 1;
+    string status = 2;
+}
+
+service MLBridge {
+    rpc GetPrediction(PredictionRequest) returns (PredictionResponse);
+    rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+    rpc ListModels(ModelListRequest) returns (ModelListResponse);
+    rpc TriggerTraining(TrainingRequest) returns (TrainingResponse);
+    rpc Health(crypto.common.HealthRequest) returns (crypto.common.HealthResponse);
+}

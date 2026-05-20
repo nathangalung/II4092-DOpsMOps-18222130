@@ -1,0 +1,51 @@
+syntax = "proto3";
+package crypto.drift;
+
+option go_package = "github.com/use-case-crypto/proto/drift";
+
+import "common.proto";
+
+message DriftCheckRequest {
+    string symbol = 1;
+    crypto.common.TimeScale scale = 2;
+    repeated string features = 3;
+}
+
+message DriftResult {
+    string feature = 1;
+    crypto.common.TimeScale scale = 2;
+    double psi_value = 3;
+    double ks_statistic = 4;
+    double ks_pvalue = 5;
+    bool drift_detected = 6;
+    Severity severity = 7;
+    int64 timestamp = 8;
+}
+
+enum Severity {
+    NONE = 0;
+    WARNING = 1;
+    SEVERE = 2;
+    CRITICAL = 3;
+}
+
+message DriftCheckResponse {
+    repeated DriftResult results = 1;
+    bool trigger_retrain = 2;
+    double overall_score = 3;
+}
+
+message MultiScaleDriftRequest {
+    string symbol = 1;
+    repeated crypto.common.TimeScale scales = 2;
+}
+
+message MultiScaleDriftResponse {
+    map<int32, DriftCheckResponse> results_by_scale = 1;
+}
+
+service DriftDetection {
+    rpc CheckDrift(DriftCheckRequest) returns (DriftCheckResponse);
+    rpc CheckMultiScaleDrift(MultiScaleDriftRequest) returns (MultiScaleDriftResponse);
+    rpc Health(crypto.common.HealthRequest) returns (crypto.common.HealthResponse);
+}

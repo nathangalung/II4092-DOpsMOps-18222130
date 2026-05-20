@@ -1,0 +1,70 @@
+# =============================================================================
+# PHASE 2 BASE — Training + Drift Detection ONLY
+# =============================================================================
+# Deploys only Train resources (training CronJobs, drift detection).
+# Does NOT include Data services (ingestion, quality, processing).
+# Requires Data data already in ClickHouse bronze/gold layers.
+#
+# Shares the same ConfigMap (pipeline-config) and secrets.
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
+  - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
+  - ../base/namespace.yaml
+  - ../base/configmap-feast.yaml
+  - ../base/external-secrets.yaml
+
+  # --- Train: Training (weekly scheduled via KFP) ---
+  # Training is handled by KFP recurring runs (submit_recurring.py).
+  # No CronJob needed — KFP schedules the pipeline directly.
+  # To trigger manually: python pipelines/submit_recurring.py
+
+  # --- Train: Drift Detection ---
+  # REMOVED from scheduled CronJobs — drift detection is now INLINE
+  # in the hourly features Airflow DAG (crypto_hourly_features):
+  #   batch_features → feast_materialize → drift_check → trigger_retrain
+  # This makes drift detection EVENT-DRIVEN (after new data),
+  # not scheduled (arbitrary intervals).
+  # - ../base/cronjobs/drift-multi-scale.yaml
+
+  # --- Train: Auto-Retraining ---
+  # REMOVED — retraining is triggered BY drift detection in the DAG,
+  # not on a fixed schedule. See dags/crypto_data_pipeline.py.
+  # - ../base/cronjobs/retraining.yaml
+
+  # --- Train: Feature Materialization (Feast: ClickHouse → Redis) ---
+  # REMOVED — materialization is now a step in the Airflow DAG
+  # (crypto_hourly_features: batch_features → feast_materialize)
+  # - ../base/cronjobs/materialization.yaml
+
+  # --- Train: Hyperparameter Optimization (Katib) ---
+  # Apply manually: kubectl apply -f manifests/base/katib/experiment-lightgbm.yaml -n use-case-crypto
+  # Not auto-deployed — experiments are one-shot, not continuous
+
+  # --- RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount) ---
+  - ../../../platform/services/base/rbac/roles.yaml
+  - ../../../platform/services/base/rbac/bindings.yaml
+  - ../base/rbac/service-account.yaml
+
+patches:
+  # schema.yaml is the SINGLE SOURCE OF TRUTH for feature names, symbols,
+  # table names, and data sources. Must be first so other patches can override.
+  - path: ../base/configmaps/schema.yaml
+  - path: ../base/configmaps/identity.yaml
+  - path: ../base/configmaps/topics.yaml
+  - path: ../base/configmaps/sources.yaml
+  - path: ../base/configmaps/features.yaml
+  - path: ../base/configmaps/models.yaml
+  - path: ../base/configmaps/quality.yaml
+  - path: ../base/configmaps/serving.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/component: ml-pipeline
+      app.kubernetes.io/part-of: mlops-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: true

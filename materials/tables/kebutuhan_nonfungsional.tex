@@ -1,0 +1,43 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{1cm}|m{2.5cm}|m{6cm}|m{3cm}|}
+\caption{\raggedright Kebutuhan Nonfungsional Sistem}
+\label{tab:kebutuhan_nonfungsional} \\
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{6cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} \\
+\hline
+\endfirsthead
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{6cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} dan \textit{vector similarity search} harus memberikan latensi yang stabil dan rendah untuk mendukung pengambilan keputusan perdagangan. Layanan ini perlu mampu merespons permintaan dengan cepat, bahkan pada saat beban tinggi. & p50 $< 5$ ms, p95 $< 8$ ms, p99 $< 10$ ms \\
+\hline
+KNF-02 & \textit{Throughput} Tinggi & Sistem harus mampu menangani \textit{workload} dengan \textit{throughput} tinggi yang lazim pada aplikasi perdagangan, dengan karakteristik skalabilitas mendekati linear ketika sumber daya ditambah. & \textit{Feature serving}: $> 10{,}000$ QPS/\textit{node}; \textit{stream processing}: $> 1$ juta \textit{events}/detik/\textit{pipeline} \\
+\hline
+KNF-03 & Skalabilitas Horizontal & Seluruh komponen sistem harus mendukung skala horizontal, sehingga kapasitas dapat ditingkatkan dengan menambah \textit{node} dan menghasilkan peningkatan kinerja yang linear atau mendekati linear. & \textit{Scaling} linear atau \textit{near-linear} hingga 10$\times$ kapasitas dasar \\
+\hline
+KNF-04 & Keandalan \& Toleransi Kesalahan & Sistem harus andal dan tidak memiliki \textit{single point of failure}, serta mampu melakukan pemulihan otomatis dari kegagalan sementara tanpa intervensi manual berlebihan. & \textit{Availability} 99{,}9\%; RTO $< 5$ menit; RPO $< 1$ menit \\
+\hline
+KNF-05 & Konsistensi \& Kebenaran & Sistem harus menjaga konsistensi data dan menjamin validitas temporal sehingga tidak terjadi kebocoran data yang merusak kebenaran hasil analisis maupun kinerja model. & \textit{Zero tolerance} untuk kebocoran data temporal yang terdeteksi \\
+\hline
+KNF-06 & \textit{Observability} & Sistem harus memiliki \textit{observability} menyeluruh, mencakup metrik, \textit{structured log}, dan \textit{distributed tracing} dengan dukungan OpenTelemetry, sehingga perilaku sistem dapat dianalisis end-to-end. & Seluruh komponen terinstrumentasi dengan metrik standar dan \textit{distributed tracing} berbasis OpenTelemetry \\
+\hline
+KNF-07 & Keamanan & Sistem harus menerapkan kontrol keamanan (autentikasi, otorisasi, enkripsi, dan \textit{audit logging}) untuk mencegah akses tidak sah dan menjaga kerahasiaan data sensitif. & TLS 1.3 \textit{in transit}, AES-256 \textit{at rest} \\
+\hline
+KNF-08 & Ekstensibilitas \& Modularitas & Arsitektur harus modular sehingga komponen dapat diperluas atau diganti melalui antarmuka terdefinisi tanpa mengganggu komponen lain. & Komponen dapat diganti terpisah tanpa perubahan signifikan pada modul lain \\
+\hline
+KNF-09 & Kemudahan Penggunaan & Antarmuka sistem harus intuitif dan didukung dokumentasi baik, sehingga pengguna baru dapat mengadopsi sistem dengan kurva belajar wajar. & Skor kepuasan pengguna $> 4/5$ pada survei internal \\
+\hline
+KNF-10 & Efisiensi Sumber Daya & Sistem harus memanfaatkan sumber daya komputasi dan penyimpanan efisien untuk mengendalikan biaya sambil mempertahankan kinerja. & \textit{Compression ratio} $> 5{:}1$; utilisasi CPU rata-rata $> 70\%$ pada \textit{workload} target \\
+\hline
+KNF-11 & Portabilitas & Sistem harus dapat dijalankan di berbagai lingkungan \textit{deployment} dengan perubahan terbatas pada konfigurasi dan tanpa modifikasi kode besar. & Dapat di-\textit{deploy} di AWS, GCP, Azure, atau \textit{on-premise} hanya dengan penyesuaian konfigurasi \\
+\hline
+KNF-12 & Kemudahan Pemeliharaan & Sistem harus mudah dipelihara, dengan struktur kode jelas, cakupan pengujian memadai, dan proses \textit{deployment} otomatis. & \textit{Test coverage} $> 80\%$ pada komponen inti \\
+\hline
+\end{longtable}
+}
