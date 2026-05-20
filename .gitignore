@@ -12,10 +12,6 @@
 # `git init -b main && git add platform/ && git push`.
 # =============================================================================
 
-# ---- Use-case overlays — own repos --------------------------------------
-use-case-crypto/
-use-case-stock/
-
 # ---- Audit + analytics artefacts ----------------------------------------
 audit-archive/
 audit-snapshot/
@@ -23,12 +19,6 @@ AUDIT_FINAL_*.md
 HANDOFF*.md
 *.audit.md
 session-snapshots/
-
-# ---- Reference materials (PDFs, slide decks, datasets, screenshots) -----
-materials/
-*.pdf
-*.pptx
-*.docx
 
 # ---- Tooling / IDE / Claude session state -------------------------------
 .claude/
