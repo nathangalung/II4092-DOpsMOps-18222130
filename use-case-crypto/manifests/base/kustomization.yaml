@@ -84,7 +84,7 @@ resources:
   # USE-CASE — Domain-specific resources (stay here, NOT promoted to platform)
   # ===========================================================================
   - namespace.yaml
-  - configmap-feast.yaml
+  - configmaps/feast.yaml
   # Declarative rest-collector config — defines Coinbase data source and
   # per-endpoint polling (ticker, trades, ...). Mounted by the rest-collector
   # patch at /etc/rest-collector/config.yaml.
@@ -93,6 +93,13 @@ resources:
   # contained hardcoded JWT_SECRET / POSTGRES_PASSWORD / S3_* literals.
   - external-secrets.yaml
   - schema-registration.yaml
+  # Declarative medallion DDL apply (replaces legacy database/init_database.sh
+  # which hardcoded the wrong CHI pod name `clickhouse-0`). PostSync hook +
+  # BeforeHookCreation makes re-runs idempotent at the Job-resource level; the
+  # SQL itself is idempotent via `CREATE … IF NOT EXISTS`. SQL bytes live in
+  # `clickhouse-init-sql` ConfigMap (configMapGenerator below) — same source
+  # file used historically (use-case-crypto/database/init_clickhouse.sql).
+  - clickhouse-init.yaml
   - connectors/debezium-postgres.yaml
   - connectors/iceberg-sink.yaml
 
@@ -111,8 +118,27 @@ resources:
   # --- Vector embedding (CryptoPanic → Qdrant) ---
   - cronjobs/vector-embedding.yaml
 
+  # --- GE checkpoint (data quality smoke on silver.stg_ohlcv every 6h) ---
+  # Periodic Great Expectations probe. GE is a Python library, not a server
+  # (see platform/components/data-processing/great-expectations configmap
+  # header) — this CronJob is the use-case's concrete exec path. Pushes a
+  # success bit + pass ratio to Pushgateway and uploads the validation
+  # result JSON to the platform `great-expectations` MinIO bucket under
+  # `validations/<use_case>/<suite>/<unix-ts>.json`.
+  - cronjobs/ge-checkpoint.yaml
+
+  # --- Drift detection CronJobs (platform-provided, domain-agnostic) ---
+  # Multi-scale: minute (1m), hourly (15m), daily (6h), weekly (12h).
+  # Each Job runs `drift-detector main.py --scale <s> --once`, reads silver
+  # features + gold predictions from ClickHouse `clickhouse-platform.storage`,
+  # and writes PSI/KS rows to `gold.drift_multi_scale` (consumed by the
+  # Argo CronWorkflow `crypto-retrain-on-drift` in ../cross-namespace/).
+  # The detector image is platform-built but use-case-tagged via the overlay
+  # images: stanza (see ../overlays/local/kustomization.yaml).
+  - ../../../platform/services/base/cronjobs/drift-multi-scale.yaml
+
   # --- Serving (domain-specific InferenceService) ---
-  - inferenceservices/crypto-inference.yaml
+  - inferenceservices/inference.yaml
 
   # --- HPO (Katib) ---
   # Declarative Experiment CR (flaml-automl-hpo) — the canonical HPO
@@ -125,9 +151,14 @@ resources:
   - katib/experiment-lightgbm.yaml
 
   # =========================================================================
-  # ORCHESTRATED BY AIRFLOW + KFP (not CronJobs):
+  # ORCHESTRATED BY AIRFLOW + KFP + ARGO WORKFLOWS (not CronJobs):
   #   - Batch features, sentiment, materialization → Airflow: crypto_hourly_features
-  #   - Drift detection, retraining → Airflow: crypto_hourly_features (event-driven)
+  #   - Drift detection → platform CronJobs drift-check-{minute,hourly,daily,weekly}
+  #     (writes `gold.drift_multi_scale`; pulled in above from
+  #     ../../../platform/services/base/cronjobs/drift-multi-scale.yaml)
+  #   - Retrain-on-drift → Argo CronWorkflow `retrain-on-drift` (model-lifecycle ns,
+  #     polls gold.drift_multi_scale every 6h, calls KFP API on threshold breach;
+  #     see workflows/retrain-on-drift.yaml in ../cross-namespace/)
   #   - dbt transforms, Evidently reports → Airflow: crypto_lakehouse
   #   - Daily backfill → Airflow: crypto_daily_backfill
   #   - Data quality gates → Airflow: crypto_data_quality_gate
@@ -137,7 +168,7 @@ resources:
 
   # --- RBAC (use-case-scoped ServiceAccount) ---
   # OpenBao binds `crypto-pipeline-sa` (= `pipeline-sa` + namePrefix `crypto-`)
-  # to the `crypto-runtime` K8s auth role in openbao/openbao-bootstrap-crypto.yaml.
+  # to the `crypto-runtime` K8s auth role in openbao/bootstrap.yaml.
   # The `kfp-kserve-deployer-binding` ClusterRoleBinding lives in
   # `../cross-namespace/` so its subjects (SAs in `model-lifecycle`) are not
   # rewritten to `use-case-crypto` by the namespace setter above.
@@ -166,12 +197,12 @@ resources:
   - network-policies.yaml
 
   # --- Observability (alerting routes + SLO PrometheusRules + ServiceMonitors) ---
-  - observability/alertmanagerconfig-crypto.yaml
-  - observability/servicemonitors-crypto.yaml
+  - observability/alertmanagerconfig.yaml
+  - observability/servicemonitors.yaml
   # Sloth PrometheusServiceLevel CRs (prediction-freshness, pipeline-lag,
   # model-freshness). Compiled into multi-window burn-rate PrometheusRules
   # by the Sloth operator (see ADR-021).
-  - observability/slos-crypto.yaml
+  - observability/slos.yaml
   # Push-helper ConfigMap (sh + py emitters) mounted by every short-lived
   # crypto batch surface — CronJobs (supplementary-*, vector-embedding),
   # Tekton finally tasks (build-pipeline, dbt-gold-build), Airflow DAG
@@ -220,6 +251,21 @@ resources:
   #   * chaos/resilience-experiments.yaml (chaos-mesh)
   # The overlay loads BOTH `../../base` and `../../cross-namespace`.
   # ---------------------------------------------------------------------------
+
+# =============================================================================
+# GENERATORS — ConfigMaps materialized from on-disk source files
+# =============================================================================
+# Keeping the SQL on disk (not inline YAML) means the file is editable by hand
+# (650+ lines), diff-friendly in git, and re-usable by the local dev tooling.
+# `disableNameSuffixHash: false` (default) means kustomize appends a content
+# hash to the generated ConfigMap name; any edit to init_clickhouse.sql forces
+# a new ConfigMap revision, which forces a new clickhouse-init Job spec, which
+# (via the BeforeHookCreation delete-policy) triggers a fresh DDL apply on the
+# next ArgoCD Sync. Idempotent by `CREATE … IF NOT EXISTS` at the SQL level.
+configMapGenerator:
+  - name: clickhouse-init-sql
+    files:
+      - init.sql=../../database/init_clickhouse.sql
 
 # =============================================================================
 # PATCHES — Crypto-specific shape applied on top of platform resources

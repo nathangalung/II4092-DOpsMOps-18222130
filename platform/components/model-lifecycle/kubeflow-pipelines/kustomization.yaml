@@ -4,7 +4,7 @@ namespace: model-lifecycle
 
 resources:
   - pipelines.yaml
-  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+  - hpa.yaml  # 7 KFP HPAs (cache-server, metadata-envoy, metadata-grpc, metadata-writer, ml-pipeline, ml-pipeline-ui, ml-pipeline-visualizationserver). Single-node bootstrap: minReplicas=maxReplicas=1; bump for prod load.
   # `minio-service-kubeflow.yaml` was moved to ../minio-service-kubeflow.yaml
   # because this kustomization forces `namespace: model-lifecycle` on every
   # resource, but the KFP v2 launcher hardcodes `minio-service.kubeflow` —
@@ -118,6 +118,24 @@ patches:
       - op: replace
         path: /metadata/annotations/cert-manager.io~1inject-ca-from
         value: model-lifecycle/kfp-cache-cert
+
+  # 2b5. Override KFP API server default pipeline runner SA.
+  #   Upstream KFP defaults to `default-editor` (Kubeflow profile convention).
+  #   We don't deploy Kubeflow profiles on this single-node setup, so the SA
+  #   doesn't exist — every ScheduledWorkflow firing dies at root-driver pod
+  #   creation with `serviceaccount "default-editor" not found`.
+  #   Point at `pipeline-runner` SA which is shipped by KFP (defined in
+  #   pipelines.yaml) and has the KFP-runner ClusterRoleBinding from
+  #   use-case-crypto/manifests/base/rbac/kfp-runner.yaml.
+  #   kfp.Client.create_recurring_run(service_account=) is silently ignored
+  #   by v2beta1 server — this ConfigMap is the only authoritative knob.
+  - target:
+      kind: ConfigMap
+      name: pipeline-api-server-config-dc9hkg52h6
+    patch: |-
+      - op: replace
+        path: /data/DEFAULTPIPELINERUNNERSERVICEACCOUNT
+        value: "pipeline-runner"
 
   # 2c. Add startup delay for ml-pipeline-persistenceagent
   - target:
@@ -572,8 +590,24 @@ patches:
               protocol: TCP
               name: http
 
-  # 10. Fix kfp-launcher ConfigMap to set correct default pipeline root
-  # Using minio:// protocol which KFP knows how to handle for local MinIO
+  # 10. Fix kfp-launcher ConfigMap — set defaultPipelineRoot AND providers.
+  #
+  # KFP v2 injects a `kfp-launcher` init container onto every executor pod and
+  # that init container reads this ConfigMap + Secret `mlpipeline-minio-artifact`
+  # from the POD's namespace at launcher boot. KFP single-user mode
+  # (MULTIUSER: false in pipeline-api-server-config) executes ALL pipeline runs
+  # in `model-lifecycle`, so this CM is the only one the launcher consults.
+  #
+  # WITHOUT the `providers` block the launcher falls back to its hardcoded
+  # default endpoint (`seaweedfs.kubeflow:9000` in KFP 2.16+) which doesn't
+  # resolve here, and every artifact + log upload dies with:
+  #   `Failed to upload log artifact … dial tcp: lookup seaweedfs.kubeflow
+  #    on 10.43.0.10:53: no such host`.
+  #
+  # The schema is verified against KFP 2.16.0 source
+  # (backend/src/v2/config/s3.go S3ProviderDefault): nested
+  # `credentials.secretRef.{secretName, accessKeyKey, secretKeyKey}` — flat
+  # placement under credentials would silently no-op.
   - target:
       kind: ConfigMap
       name: kfp-launcher
@@ -581,6 +615,31 @@ patches:
       - op: add
         path: /data/defaultPipelineRoot
         value: "minio://kubeflow-pipelines/v2/artifacts"
+      - op: add
+        path: /data/providers
+        value: |
+          s3:
+            default:
+              endpoint: minio.storage.svc.cluster.local:9000
+              disableSSL: true
+              region: us-east-1
+              credentials:
+                fromEnv: false
+                secretRef:
+                  secretName: mlpipeline-minio-artifact
+                  accessKeyKey: accesskey
+                  secretKeyKey: secretkey
+          minio:
+            default:
+              endpoint: minio.storage.svc.cluster.local:9000
+              disableSSL: true
+              region: us-east-1
+              credentials:
+                fromEnv: false
+                secretRef:
+                  secretName: mlpipeline-minio-artifact
+                  accessKeyKey: accesskey
+                  secretKeyKey: secretkey
 
   # 11. Update workflow-controller-configmap to use correct S3 endpoint and default imagePullPolicy
   - target:
@@ -602,15 +661,81 @@ patches:
             secretKeySecret:
               name: mlpipeline-minio-artifact
               key: secretkey
+      # workflowDefaults: Workflow-level defaults merged into every
+      # Workflow spec at admission time.
+      #   - securityContext.fsGroup=8737 makes the emptyDir `/var/run/argo`
+      #     group-writable by the same non-zero UID we pin in the executor
+      #     securityContext (see /data/executor below). argoexec image
+      #     declares USER 0 in its manifest, so without fsGroup the
+      #     init container can't write its progress + sidecar-control
+      #     files into the mount.
+      #   - podSpecPatch (workflow-level) is applied AFTER any template-level
+      #     podSpecPatch, so it wins on strategic-merge conflicts. KFP's
+      #     `system-container-impl` template uses
+      #     `podSpecPatch: '{{inputs.parameters.pod-spec-patch}}'` where the
+      #     driver-generated patch sets `name: main` + `resources: {}` (empty).
+      #     Empty resources fails Kyverno `require-resource-limits`. Setting
+      #     resources here overrides that.
+      #   - We do NOT patch the `kfp-launcher` init container here: strategic
+      #     merge on `initContainers` by name would ADD a new entry on driver
+      #     pods (`system-container-driver`, `system-dag-driver`) that have no
+      #     init container, leaving an image-less entry that fails admission
+      #     with `spec.initContainers[0].image: Required value`. The launcher
+      #     init container's missing `requests.memory` is handled by a
+      #     PolicyException scoped to executor pods (see
+      #     platform/components/security/kyverno/policies/policy-exception-kfp-launcher.yaml).
       - op: add
         path: /data/workflowDefaults
         value: |
           spec:
             imagePullSecrets: []
+            securityContext:
+              fsGroup: 8737
             podSpecPatch: |
               containers:
                 - name: main
                   imagePullPolicy: IfNotPresent
+                  resources:
+                    requests:
+                      cpu: 200m
+                      memory: 256Mi
+                    limits:
+                      cpu: 2000m
+                      memory: 2Gi
+      # Argo Workflows injects `init` + `wait` sidecar containers into every
+      # workflow pod. Without explicit resources, Kyverno `require-resource-limits`
+      # ValidatingPolicy denies the pod (every container must set requests+limits
+      # for cpu+memory). The `executor` block here sets cluster-wide defaults
+      # for those injected containers — no per-Workflow podSpecPatch needed.
+      #
+      # securityContext: argoexec image (quay.io/argoproj/argoexec:v3.7.x)
+      # is published without a USER directive, so kubelet treats it as
+      # potentially-root and refuses to start when pod-level runAsNonRoot=true
+      # (`container has runAsNonRoot and image will run as root`). Pin a
+      # non-zero UID (8737 = argo's standard non-root UID) + drop ALL caps
+      # so Kyverno `require-capability-drop-all` ClusterPolicy admits the
+      # pod. Without this, every KFP-driven workflow stalls at
+      # `Init:CreateContainerConfigError`.
+      - op: replace
+        path: /data/executor
+        value: |
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 8737
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
 
   # 12. REMOVED — kubeflow-pipelines-profile-controller Deployment is deleted
   #     together with metacontroller (see patch #4 above). No S3 endpoint patch

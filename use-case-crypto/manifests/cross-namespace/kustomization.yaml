@@ -33,14 +33,14 @@ resources:
   # Broker topic names preserved via `spec.topicName: crypto.<topic>`;
   # K8s `metadata.name` is hyphenated + carries `crypto-` after the
   # overlay namePrefix is applied.
-  - ../base/kafka-topics/crypto.rest.raw.yaml
-  - ../base/kafka-topics/crypto.ws.raw.yaml
-  - ../base/kafka-topics/crypto.validated.yaml
-  - ../base/kafka-topics/crypto.features.v1.yaml
-  - ../base/kafka-topics/crypto.trades.v1.yaml
-  - ../base/kafka-topics/crypto.orderbook.v1.yaml
-  - ../base/kafka-topics/crypto.predictions.v1.yaml
-  - ../base/kafka-topics/crypto.supplementary.yaml
+  - ../base/kafka-topics/rest.raw.yaml
+  - ../base/kafka-topics/ws.raw.yaml
+  - ../base/kafka-topics/validated.yaml
+  - ../base/kafka-topics/features.v1.yaml
+  - ../base/kafka-topics/trades.v1.yaml
+  - ../base/kafka-topics/orderbook.v1.yaml
+  - ../base/kafka-topics/predictions.v1.yaml
+  - ../base/kafka-topics/supplementary.yaml
   - ../base/kafka-topics/iceberg-dlq.yaml
 
   # --- Strimzi KafkaUsers (data-ingestion ns) ---
@@ -63,6 +63,13 @@ resources:
   # and reads Workflows from there.
   - ../base/workflows/retrain-on-drift.yaml
 
+  # --- pipeline-secrets mirror into model-lifecycle ns ---
+  # KFP single-user mode runs pipeline executor pods in `model-lifecycle`;
+  # `kubernetes.use_secret_as_env(secret_name="pipeline-secrets")` on
+  # drift_task + train_task therefore needs the Secret in that namespace.
+  # File header explains why we mirror instead of moving the canonical one.
+  - ../base/model-lifecycle-pipeline-secrets.yaml
+
   # --- Cluster-scoped RBAC with cross-namespace subjects ---
   # ClusterRoleBinding `kfp-kserve-deployer-binding` references SAs
   # `default` + `pipeline-runner` in `model-lifecycle`. Setting
@@ -84,7 +91,7 @@ resources:
   # `use-case-crypto` would clobber the explicit `namespace: security`
   # fields and break RBAC + DNS resolution. namePrefix `crypto-` from
   # the overlay still applies, so live names are `crypto-openbao-bootstrap-crypto`.
-  - ../base/openbao/openbao-bootstrap-crypto.yaml
+  - ../base/openbao/bootstrap.yaml
 
 # =============================================================================
 # COMMON LABELS
