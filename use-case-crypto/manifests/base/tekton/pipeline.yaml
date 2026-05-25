@@ -185,17 +185,6 @@ spec:
               fi
             done
 
-        # Use-case-only services (no platform counterpart): copy straight.
-        # crypto-retraining is the canonical example.
-        for extra in services/automation/retraining; do
-          if [ -d "${SRC}/${extra}" ]; then
-            name=$(basename "${SRC}/${extra}")
-            echo "Copying use-case-only service ${name}"
-            mkdir -p "${OUT}/${name}"
-            rsync -a "${SRC}/${extra}/" "${OUT}/${name}/"
-          fi
-        done
-
         echo "--- Merged tree ---"
         ls -la "${OUT}"
 ---
@@ -420,7 +409,7 @@ spec:
         # Data: Processing
         if [ "${PHASE}" = "2" ] || [ "${PHASE}" = "all" ]; then
           build_image "feature-engine"       "${SRC}/out/feature-engine"
-          build_image "flink-job"            "${SRC}/out/flink-job"
+          build_image "stream-processor"     "${SRC}/out/stream-processor"
           build_image "batch-processing"     "${SRC}/out/batch-processing"
           build_image "vector-processing"    "${SRC}/out/vector-processing"
         fi
@@ -437,8 +426,7 @@ spec:
           build_image "dashboard-backend"    "${SRC}/out/dashboard-backend"
           build_image "dashboard-frontend"   "${SRC}/out/dashboard-frontend"
           build_image "materialization"      "${SRC}/out/materialization"
-          build_image "evidently-reporter"   "${SRC}/out/evidently-reporter"
-          build_image "retraining"           "${SRC}/out/retraining"
+          build_image "drift-reporter"       "${SRC}/out/drift-reporter"
         fi
 
         echo "=== Build and push completed ==="

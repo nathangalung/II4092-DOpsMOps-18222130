@@ -46,9 +46,12 @@ metadata:
     use-case: crypto
     adr: "016"
 spec:
-  # Replicas are kept minimal on single-node; overlays/cloud bumps this
-  # via a patch.
-  replicas: 2
+  # Single-node invariant (project policy): 1 idle replica. The Rollout's
+  # canary strategy spawns ONE extra canary pod (maxSurge: 100% of 1 = 1)
+  # during step progression, peaking at 2 pods briefly — well within
+  # single-node capacity. HPA can lift replicas on real load (see
+  # hpa/autoscaling.yaml).
+  replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -59,7 +62,7 @@ spec:
       # creates it automatically when this field is unset. The controller
       # manipulates the stable Service selector (`app: ml-bridge`) to
       # shift traffic between ReplicaSets.
-      maxSurge: "25%"
+      maxSurge: "100%"
       maxUnavailable: 0
       steps:
         # 20% canary → wait 2m → analyze SLO over the next 2.5m
@@ -99,7 +102,7 @@ spec:
       containers:
         - name: ml-bridge
           image: ml-bridge:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["uv", "run", "main.py"]
           ports:
             - containerPort: 8000
@@ -141,7 +144,13 @@ spec:
     - name: success-rate
       interval: 30s
       count: 5
-      successCondition: result[0] >= 0.99
+      # ml-bridge is an internal dashboard proxy — on a fresh deploy with
+      # zero traffic the Prometheus query returns an empty vector and
+      # `result[0]` panics with `reflect: slice index out of range`, which
+      # the controller treats as a consecutiveError. `len(result) == 0`
+      # short-circuits to success when there is genuinely no traffic to
+      # judge; once a single request flows, the SLO gate engages.
+      successCondition: len(result) == 0 || result[0] >= 0.99
       failureLimit: 2
       provider:
         prometheus:
@@ -162,7 +171,7 @@ spec:
     - name: p99-latency-ms
       interval: 30s
       count: 5
-      successCondition: result[0] <= 500
+      successCondition: len(result) == 0 || result[0] <= 500
       failureLimit: 2
       provider:
         prometheus:

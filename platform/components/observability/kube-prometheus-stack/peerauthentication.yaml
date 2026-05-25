@@ -1,0 +1,44 @@
+# =============================================================================
+# PeerAuthentication — Prometheus + Alertmanager accept plaintext callers.
+# Mesh-wide default in istio-system enforces STRICT mTLS for all sidecar-
+# injected pods. Prometheus runs with istio sidecar (observability ns has
+# istio-injection=enabled). Out-of-mesh callers — KEDA operator (keda ns,
+# no sidecar) querying http_requests_total for ScaledObject prometheus
+# triggers, plus any istio-exempt namespace scraper — speak plain HTTP.
+# STRICT would RST these connections at the inbound sidecar (observed:
+# `read: connection reset by peer` on /api/v1/query from keda-operator
+# pod 10.42.0.50 → prom 10.43.250.94:9090). PERMISSIVE accepts both
+# mTLS (from meshed callers like Grafana) and plaintext (from KEDA and
+# any other istio-exempt caller) — the standard Istio pattern for
+# hybrid-mesh service boundaries, same shape as
+# data-ingestion/kafka-connect PeerAuthentication.
+# =============================================================================
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: prometheus
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: alertmanager
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  mtls:
+    mode: PERMISSIVE

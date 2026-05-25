@@ -18,12 +18,18 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
     app.kubernetes.io/component: storage-bootstrap
   annotations:
-    # ArgoCD sync-wave places this after the MinIO Deployment (wave 0) but
-    # before any consumer expects its bucket (wave ≥ 10).  Declared as a
-    # regular resource via kustomization.yaml, not a sync-hook, so ArgoCD
-    # tracks the Job in the application tree and its completion status is
-    # visible to `kubectl get application`.
-    argocd.argoproj.io/sync-wave: "5"
+    # ArgoCD PostSync hook — see lakekeeper-bootstrap pattern. As a regular
+    # sync-wave resource, the Job's `ttlSecondsAfterFinished` auto-deletes it
+    # after completion, then Argo permanently reports the parent app
+    # OutOfSync/Missing on a phantom Job that's "supposed to" exist live.
+    # PostSync + BeforeHookCreation,HookSucceeded delegates lifecycle to the
+    # hook engine: Argo creates a fresh Job each Sync, waits for completion,
+    # then removes it without counting the absence as drift. `mc mb
+    # --ignore-existing` and `mc cp --recursive` are idempotent, so
+    # re-execution on each Sync is safe. Field-validated 2026-05-21 against
+    # the storage app drift loop.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600

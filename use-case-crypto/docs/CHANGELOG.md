@@ -39,7 +39,7 @@ manifest landings, source-code changes, and post-audit cleanup.
 
 ### P0 — Domain SLOs (ADR-021)
 
-`use-case-crypto/manifests/base/observability/slos-crypto.yaml` — 3 Sloth
+`use-case-crypto/manifests/base/observability/slos.yaml` — 3 Sloth
 `PrometheusServiceLevel` CRs:
 
 - `crypto-prediction-freshness` (99.5%, 30d)
@@ -66,7 +66,7 @@ triggers in `scaling/scaledobjects.yaml`. Remaining HPAs:
 ### P0 — Stream runtime reshaped (ADR-023)
 
 `use-case-crypto/manifests/base/flink/flinkdeployment.yaml` — new
-`flink.apache.org/v1beta1 FlinkDeployment` CR (`crypto-flink-job`,
+`flink.apache.org/v1beta1 FlinkDeployment` CR (`crypto-stream-processor`,
 Flink 2.2.0, application mode, S3 checkpoints at
 `s3://flink-checkpoints/crypto/`, OpenLineage listener, single JM
 metrics reporter on `:9249`). Includes ServiceAccount + Role +
@@ -108,7 +108,7 @@ selector) + `crypto-game-day` Workflow for manual thesis-viva demo.
 
 ### P2 — OpenLineage emission (ADR-018)
 
-`use-case-crypto/dags/crypto_lakehouse_dag.py` — manual OpenLineage
+`use-case-crypto/dags/lakehouse.py` — manual OpenLineage
 `RunEvent` emission from 4 PythonOperator callables (create / merge /
 delete LakeFS branch + Trino QC). Custom run facet `crypto_qc` carries
 `goldRowCount`, `predictionRowCount`, `predictionCoverageRatio`,
@@ -118,7 +118,7 @@ delete LakeFS branch + Trino QC). Custom run facet `crypto_qc` carries
 ### P2 — Kustomization registrations
 
 `use-case-crypto/manifests/base/kustomization.yaml` registered new
-resources: `observability/slos-crypto.yaml`, `scaling/scaledobjects.yaml`,
+resources: `observability/slos.yaml`, `scaling/scaledobjects.yaml`,
 `flink/flinkdeployment.yaml`, `rollouts/ml-bridge-rollout.yaml`,
 `chaos/resilience-experiments.yaml`, `authorization/edge-authz.yaml`.
 Added `patches/ml-bridge-disable-deployment.yaml`.

@@ -101,7 +101,7 @@ deploymentSpec:
       container:
         args:
         - export MLFLOW_TRACKING_URI="$2" MLFLOW_S3_ENDPOINT_URL="$4" AWS_ACCESS_KEY_ID="$5"
-          AWS_SECRET_ACCESS_KEY="$6" && uv run src/deploy_kserve.py --model-name "$0"
+          AWS_SECRET_ACCESS_KEY="$6" && python src/deploy_kserve.py --model-name "$0"
           --namespace "$1" --experiment "$3"
         - '{{$.inputs.parameters[''model_name'']}}'
         - '{{$.inputs.parameters[''namespace'']}}'
@@ -119,7 +119,7 @@ deploymentSpec:
         args:
         - export CLICKHOUSE_HOST="$0" CLICKHOUSE_PORT="$1" CLICKHOUSE_DB="$2" CLICKHOUSE_TABLE="$3"
           VALKEY_HOST="$4" DRIFT_THRESHOLD="$5" DRIFT_FEATURES_TO_MONITOR="$6" &&
-          uv run main.py --scale daily --once
+          python main.py --scale daily --once
         - '{{$.inputs.parameters[''clickhouse_host'']}}'
         - '{{$.inputs.parameters[''clickhouse_port'']}}'
         - '{{$.inputs.parameters[''clickhouse_db'']}}'
@@ -139,7 +139,7 @@ deploymentSpec:
           FLAML_ESTIMATOR_LIST="$7" CLICKHOUSE_HOST="$8" CLICKHOUSE_PORT="$9" && shift
           10 && export CLICKHOUSE_DB="$0" MLFLOW_TRACKING_URI="$1" MLFLOW_EXPERIMENT="$2"
           MLFLOW_S3_ENDPOINT_URL="$3" AWS_ACCESS_KEY_ID="$4" AWS_SECRET_ACCESS_KEY="$5"
-          && uv run main.py --symbol "$SYMBOL"
+          && python main.py --symbol "$SYMBOL"
         - '{{$.inputs.parameters[''symbol'']}}'
         - '{{$.inputs.parameters[''task_type'']}}'
         - '{{$.inputs.parameters[''target_column'']}}'
@@ -168,8 +168,7 @@ root:
   dag:
     tasks:
       deploy-to-kserve:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-deploy-to-kserve
         dependentTasks:
@@ -194,8 +193,7 @@ root:
         taskInfo:
           name: deploy-to-kserve
       detect-drift:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-detect-drift
         inputs:
@@ -217,8 +215,7 @@ root:
         taskInfo:
           name: detect-drift
       train-and-register:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-train-and-register
         dependentTasks:
@@ -343,3 +340,34 @@ root:
         parameterType: STRING
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.16.0
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-detect-drift:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: CLICKHOUSE_USER
+              secretKey: CLICKHOUSE_USER
+            - envVar: CLICKHOUSE_PASSWORD
+              secretKey: CLICKHOUSE_PASSWORD
+            - envVar: VALKEY_PASSWORD
+              secretKey: VALKEY_PASSWORD
+            optional: false
+            secretName: pipeline-secrets
+            secretNameParameter:
+              runtimeValue:
+                constant: pipeline-secrets
+        exec-train-and-register:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: CLICKHOUSE_USER
+              secretKey: CLICKHOUSE_USER
+            - envVar: CLICKHOUSE_PASSWORD
+              secretKey: CLICKHOUSE_PASSWORD
+            optional: false
+            secretName: pipeline-secrets
+            secretNameParameter:
+              runtimeValue:
+                constant: pipeline-secrets

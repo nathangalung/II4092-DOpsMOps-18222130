@@ -34,15 +34,32 @@ spec:
     maxReplicas: 3
     serviceAccountName: kserve-sa
     model:
+      # Explicit runtime ref (matches platform-health-check pattern). Skips
+      # KServe's autoSelect lookup against ClusterServingRuntimes which —
+      # under reconcile churn before the runtime cache primes — emits a
+      # "no runtime found for modelFormat: mlflow/2" Event every ~60s
+      # until the cache catches up (#348). Pinning runtime: silences that
+      # path entirely; the runtime advertises mlflow v1+v2 in
+      # platform/components/model-serving/kserve/kserve-serving-runtimes.yaml.
+      runtime: kserve-mlflowserver
       modelFormat:
         name: mlflow
         version: "2"
-      # storageUri is updated at model-promotion time by the MLflow→KServe
-      # bridge (see Phase B.14 Argo CronWorkflow). Format:
-      #   s3://mlflow/artifacts/{experiment_id}/{run_id}/artifacts/model/
-      # The placeholder below matches MLflow experiment "crypto-btc-usd" (id=1).
-      # KServe reports "FailedToLoad" until the bridge promotes a real model.
-      storageUri: "s3://mlflow/artifacts/1/placeholder/artifacts/model"
+      protocolVersion: v2
+      # Boot-time warmup: points at the iris MLflow bundle the
+      # minio-bucket-bootstrap Job pre-seeds to s3://platform-models/sklearn/iris/
+      # (platform/components/storage/minio/bucket-bootstrap.yaml). This is
+      # a 4-feature sklearn logistic regression — wrong domain, but
+      # *loadable*, so MLServer transitions Ready instead of crash-looping
+      # with "Invalid URI /mnt/models" (#348 spam root cause). Predictions
+      # in this state are meaningless; the platform-health-check probe
+      # exercises the same model so smoke-tests still validate the serving
+      # path end-to-end. The model-promotion bridge (Phase B.14, follow-up
+      # task) patches this field to
+      # `s3://mlflow/artifacts/{experiment_id}/{run_id}/artifacts/model/`
+      # after the first KFP retraining_pipeline run completes — see
+      # retrain-on-drift.yaml workflow.
+      storageUri: "s3://platform-models/sklearn/iris/"
       resources:
         requests:
           cpu: 100m

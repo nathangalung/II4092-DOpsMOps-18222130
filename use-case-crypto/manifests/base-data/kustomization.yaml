@@ -17,7 +17,7 @@ resources:
   # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
   - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
   - ../base/namespace.yaml
-  - ../base/configmap-feast.yaml
+  - ../base/configmaps/feast.yaml
   - ../base/configmaps/rest-collector-config.yaml
   - ../base/external-secrets.yaml
   - ../base/schema-registration.yaml

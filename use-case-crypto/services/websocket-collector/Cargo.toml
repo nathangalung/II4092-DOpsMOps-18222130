@@ -25,7 +25,7 @@ path = "src/main.rs"
 [dependencies]
 # Platform library — provides GenericCollector, MessageParser trait,
 # Record, Config, KafkaProducer, health server.
-websocket-collector = { path = "../../../../platform/services/ingestion/websocket-collector" }
+websocket-collector = { path = "../../../platform/services/ingestion/websocket-collector" }
 
 tokio = { version = "1.49", features = ["full"] }
 simd-json = "0.14"

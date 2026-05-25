@@ -13,8 +13,8 @@ services-src/                       <- Generic service source code
     src/config/domain.ts            <- Generic labels (POSITIVE/NEGATIVE/NEUTRAL)
   dashboard/ml-bridge/
     services/prediction.py          <- Generic fields (predicted_value, class_label)
-  training/trainer/
-    src/models/*.py                 <- NUM_CLASSES from env var (default 3)
+  trainer/
+    src/*.py                        <- NUM_CLASSES from env var (default 3)
 
 services/                           <- Domain-specific extensions
   processing/

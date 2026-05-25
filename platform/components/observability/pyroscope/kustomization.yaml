@@ -5,3 +5,4 @@ kind: Kustomization
 # See helm-release.yaml for ingester topology + eBPF DaemonSet config.
 resources:
   - helm-release.yaml
+  - vpa.yaml

@@ -85,6 +85,8 @@ class TextEmbeddingJob:
             host=self.config.clickhouse_host,
             port=self.config.clickhouse_port,
             database=self.config.clickhouse_database,
+            username=self.config.clickhouse_user,
+            password=self.config.clickhouse_password,
         )
         logger.info("Connected to ClickHouse: %s", self.config.clickhouse_host)
 

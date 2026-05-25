@@ -52,7 +52,7 @@ All use-case-side Kafka bootstrap-server references already point at
 `platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092` as of
 2026-04-21 (cycle-5 cutover). Audit list:
 
-- `use-case-crypto/dags/crypto_data_pipeline.py` — DAG location (originally
+- `use-case-crypto/dags/data_pipeline.py` — DAG location (originally
   the path under `platform/components/data-processing/airflow/dags/` was
   phantom; the DAG lives in `use-case-crypto/dags/` per the use-case
   boundary move, ARCHITECTURE_REVIEW_2026-04-19 §266)

@@ -8,8 +8,13 @@ Integration:
   KServe              — model serving via kserve-mlflowserver (mlflow format, model-agnostic)
 
 Usage:
-  uv run --with kfp retraining_pipeline.py     # compile
-  uv run --with kfp submit_recurring.py        # submit recurring runs
+  uv run --with 'kfp[kubernetes]==2.16.0' retraining_pipeline.py     # compile
+  uv run --with 'kfp[kubernetes]==2.16.0' submit_recurring.py        # submit recurring runs
+
+The `[kubernetes]` extra ships `kfp.kubernetes` (imported above) — without it,
+`from kfp import kubernetes` fails at module load. Version is pinned to match
+the kfp-launcher / kfp-driver image deployed by platform/.../pipelines.yaml so
+the compiled spec stays compatible with what runs it.
 
 Notes on container_component:
   KFP v2 container_component passes args as positional parameters to `sh -c`.
@@ -19,7 +24,7 @@ Notes on container_component:
 
 import os
 
-from kfp import compiler, dsl
+from kfp import compiler, dsl, kubernetes
 
 # =============================================================================
 # USE_CASE master-knob (matches DAG pattern in dags/crypto_*.py).
@@ -64,7 +69,7 @@ def detect_drift(
             'VALKEY_HOST="$4" '
             'DRIFT_THRESHOLD="$5" '
             'DRIFT_FEATURES_TO_MONITOR="$6" '
-            "&& uv run main.py --scale daily --once",
+            "&& python main.py --scale daily --once",
             clickhouse_host,
             clickhouse_port,
             clickhouse_db,
@@ -124,7 +129,7 @@ def train_and_register(
             'MLFLOW_S3_ENDPOINT_URL="$3" '
             'AWS_ACCESS_KEY_ID="$4" '
             'AWS_SECRET_ACCESS_KEY="$5" '
-            '&& uv run main.py --symbol "$SYMBOL"',
+            '&& python main.py --symbol "$SYMBOL"',
             symbol,
             task_type,
             target_column,
@@ -172,7 +177,7 @@ def deploy_to_kserve(
             'MLFLOW_S3_ENDPOINT_URL="$4" '
             'AWS_ACCESS_KEY_ID="$5" '
             'AWS_SECRET_ACCESS_KEY="$6" '
-            '&& uv run src/deploy_kserve.py '
+            '&& python src/deploy_kserve.py '
             '--model-name "$0" '
             '--namespace "$1" '
             '--experiment "$3"',
@@ -203,7 +208,7 @@ def retraining_pipeline(
     target_column: str = "close",
     features_table: str = "gold.fct_training_data",
     # start_date is overridden by the retraining launcher
-    # (services/automation/retraining/app.py) to a rolling N-day window; the
+    # (services/retraining/app.py) to a rolling N-day window; the
     # value below is only used for manual one-off compile+submit runs.
     start_date: str = "",
     end_date: str = "",  # empty = use current timestamp (auto-expanding window)
@@ -232,6 +237,25 @@ def retraining_pipeline(
         drift_features=drift_features,
         valkey_host=valkey_host,
     )
+    # ClickHouse basic-auth creds for drift-detector + Valkey AUTH password.
+    # The CHI installation.yaml seeds `users.default.password_sha256_hex`, so
+    # clickhouse_connect (http) demands a password; without these env vars
+    # the pod exits with Code: 194 ("Authentication failed: password is
+    # incorrect, or there is no user with such name"). Source secret keys
+    # are declared by use-case-crypto/manifests/base/external-secrets.yaml
+    # (pipeline-secrets ExternalSecret, properties:
+    # CLICKHOUSE_USER / CLICKHOUSE_PASSWORD / VALKEY_PASSWORD).
+    kubernetes.use_secret_as_env(
+        drift_task,
+        secret_name="pipeline-secrets",
+        secret_key_to_env={
+            "CLICKHOUSE_USER": "CLICKHOUSE_USER",
+            "CLICKHOUSE_PASSWORD": "CLICKHOUSE_PASSWORD",
+            "VALKEY_PASSWORD": "VALKEY_PASSWORD",
+        },
+    )
+    # Drift signal changes per run — never reuse a cached Succeeded shell.
+    drift_task.set_caching_options(enable_caching=False)
 
     # Step 2: FLAML AutoML training → MLflow
     train_task = train_and_register(
@@ -253,6 +277,26 @@ def retraining_pipeline(
         s3_secret_access_key=s3_secret_access_key,
     )
     train_task.after(drift_task)
+    # Trainer reads gold.fct_training_data via clickhouse_connect — same
+    # ClickHouse default user with sha256 password as drift_task above.
+    # MLflow server has no basic-auth (mlflow-config carries only S3 +
+    # HOST/PORT/ARTIFACT vars), so we deliberately do NOT mount
+    # MLFLOW_TRACKING_PASSWORD — the mlflow client would otherwise send
+    # an Authorization header with an empty username and 401.
+    kubernetes.use_secret_as_env(
+        train_task,
+        secret_name="pipeline-secrets",
+        secret_key_to_env={
+            "CLICKHOUSE_USER": "CLICKHOUSE_USER",
+            "CLICKHOUSE_PASSWORD": "CLICKHOUSE_PASSWORD",
+        },
+    )
+    # KFP v2 defaults enableCache=true — a previously-Succeeded train shell
+    # (e.g. silent exit-0 from <50-row dataset) would otherwise be reused on
+    # the next workflow run, skipping the impl pod and never writing to
+    # MLflow. Deploy then fresh-fails with "Experiment '<usecase>-default' not
+    # found". Disable caching so every retrain attempt actually runs train.
+    train_task.set_caching_options(enable_caching=False)
 
     # Step 3: Deploy to KServe (mlflow format)
     deploy_task = deploy_to_kserve(
@@ -265,6 +309,8 @@ def retraining_pipeline(
         s3_secret_access_key=s3_secret_access_key,
     )
     deploy_task.after(train_task)
+    # Deploy mutates a live InferenceService — never cache the result.
+    deploy_task.set_caching_options(enable_caching=False)
 
 
 if __name__ == "__main__":

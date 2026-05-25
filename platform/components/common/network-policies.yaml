@@ -53,6 +53,14 @@ spec:
         # blocks the operator and Cluster.status.phase stays at "Instance Status
         # Extraction Error: HTTP communication issue" → Application Health=Unknown.
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }
+        # Altinity clickhouse-operator polls SELECT version() against
+        # chi-platform-main-0-0.storage.svc.cluster.local:8123 from the
+        # clickhouse-system ns to flip pod label
+        # `clickhouse.altinity.com/ready` no→yes. Without this allow,
+        # default-deny-ingress drops the operator's HTTP ping with
+        # "connection refused", the label stays no, the Service selector
+        # never matches, and clickhouse-platform endpoints stays empty.
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: clickhouse-system } }
 ---
 # ──────────────────────────────────────────────────────────────────────────
 # data-ingestion

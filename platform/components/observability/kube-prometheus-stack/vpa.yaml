@@ -1,0 +1,42 @@
+# =============================================================================
+# VerticalPodAutoscaler — Prometheus (advisory, updateMode: Off)
+# =============================================================================
+# Per platform/scalability/README.md per-component table: Prometheus is a
+# single-instance stateful workload. Right-sizing requests/limits via HPA
+# doesn't apply (no horizontal scaling). VPA Off-mode publishes recommendations
+# on the CR status; an operator reviews Grafana → updates STS resources in
+# source manifests. Never auto-rewrites Pod requests (would restart the
+# Prometheus pod on every recommendation refresh — IO cascade risk on single-node).
+#
+# Target name resolution: kube-prometheus-stack creates a Prometheus CR named
+# `kube-prometheus-stack-prometheus` which the prometheus-operator reconciles
+# into a StatefulSet `prometheus-kube-prometheus-stack-prometheus`.
+# =============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: prometheus
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: prometheus
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: prometheus-kube-prometheus-stack-prometheus
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: prometheus
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: 100m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 2
+          memory: 8Gi
+      - containerName: config-reloader
+        mode: "Off"

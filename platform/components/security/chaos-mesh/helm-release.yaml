@@ -36,9 +36,13 @@ spec:
     helm:
       releaseName: chaos-mesh
       values: |
-        # Single-node k3s: replicaCount 1 everywhere. Leader election stays on
-        # for when we scale out (multi-node future). The chart has no built-in
-        # pod anti-affinity, but there's no HA win on a single node either.
+        # Single-node k3s: replicaCount 1 everywhere. Leader election OFF —
+        # chart 2.8.2 sets LEADER_ELECT_LEASE_DURATION=15s/RENEW=10s/RETRY=2s
+        # and the controller-runtime renew loop collapses under kine INSERT
+        # spikes (1-3s/op against 185MB SQLite state.db), driving 38+ restarts
+        # with `leader election lost`. With replicaCount=1 LE adds zero safety.
+        # Re-enable once replicaCount > 1 AND k3s embedded-etcd lands (task
+        # #331).
         dashboard:
           create: true
           replicaCount: 1
@@ -50,7 +54,7 @@ spec:
             limits:   { cpu: 500m, memory: 512Mi }
         controllerManager:
           replicaCount: 1
-          leaderElection: { enabled: true }
+          leaderElection: { enabled: false }
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits:   { cpu: 500m, memory: 256Mi }
@@ -87,6 +91,22 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+  # cert-manager rotates `chaos-mesh-chaosd-client-certs` (mTLS between
+  # chaos-controller-manager and chaos-daemon) without updating the chart's
+  # rendered Secret placeholder. The Secret's managedFields show only
+  # `argocd-controller/Apply` (cert-manager writes via Update sub-resource,
+  # not SSA), so the global Secret carve-out in argocd-cm-patch.yaml's
+  # `managedFieldsManagers: cert-manager-certificates-issuing` doesn't match.
+  # Mask `/data` on this Secret specifically; the cert content remains
+  # cert-manager's source of truth and live cert validity is monitored via
+  # CertificateReady probes.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: chaos-mesh-chaosd-client-certs
+      namespace: chaos-mesh
+      jsonPointers:
+        - /data
 ---
 # =============================================================================
 # PolicyException — exempt chaos-daemon DaemonSet pods from disallow-privileged.

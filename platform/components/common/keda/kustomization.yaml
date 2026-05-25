@@ -13,7 +13,7 @@ kind: Kustomization
 # `custom.metrics.k8s.io` and `external.metrics.k8s.io` registrations
 # (prometheus-adapter retired by ADR-026, 2026-04-21). ScaledObjects live
 # with the workloads they target (data-ingestion, data-processing,
-# use-case-crypto manifests).
+# use-case overlays).
 namespace: keda
 
 helmCharts:
@@ -78,12 +78,41 @@ helmCharts:
       # flags (--leader-elect-lease-duration / --leader-elect-renew-deadline /
       # --leader-elect-retry-period). Only `--leader-elect` (boolean) is
       # available; lease/renew/retry durations are hardcoded to controller-
-      # runtime defaults (15s/10s/2s). Attempted bump via `extraArgs.keda`
-      # caused `Error: unknown flag: --leader-elect-lease-duration` →
-      # CrashLoopBackOff. Root-cause of historical `leader election lost`
-      # storm was IO pressure under pre-ADR-031 CSI sidecar churn (#214/#243
-      # fixed; ADR-031 dropped Longhorn entirely). Defaults acceptable on the
-      # healed single-node cluster.
+      # runtime defaults (15s/10s/2s). Defaults collapse under any kine INSERT
+      # latency spike (1-3s observed on 185MB state.db single-node k3s),
+      # churning ~220 restarts with `leader election lost`. Chart template
+      # hardcodes the `--leader-elect` arg with no toggle, so we strip it via
+      # the JSON patch below (single-replica → LE adds zero safety).
 
 resources:
   - namespace.yaml
+
+# Strip --leader-elect from operator Deployment args. Chart 2.19.0 hardcodes
+# the flag in templates/manager/deployment.yaml:81 with no values toggle. The
+# 5s lease-renew context timeout in controller-runtime collapses under kine
+# INSERT spikes on this single-node k3s cluster, churning ~220 restarts. The
+# rest of the args are preserved verbatim from the chart render.
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: keda-operator
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - --disable-compression=true
+          - --zap-log-level=info
+          - --zap-encoder=console
+          - --zap-time-encoding=rfc3339
+          - --enable-webhook-patching=true
+          - --cert-dir=/certs
+          - --enable-cert-rotation=true
+          - --cert-secret-name=kedaorg-certs
+          - --operator-service-name=keda-operator
+          - --metrics-server-service-name=keda-operator-metrics-apiserver
+          - --webhooks-service-name=keda-admission-webhooks
+          - --k8s-cluster-name=kubernetes-default
+          - --k8s-cluster-domain=cluster.local
+          - --enable-prometheus-metrics=false

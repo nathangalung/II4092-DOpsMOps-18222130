@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: superset
   minReplicas: 1
-  maxReplicas: 1  # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300

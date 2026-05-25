@@ -1,0 +1,38 @@
+# =============================================================================
+# VerticalPodAutoscaler — Pyroscope (advisory, updateMode: Off)
+# =============================================================================
+# Pyroscope runs single-binary on a StatefulSet (pyroscope) — workload pattern
+# is stateful + memory-driven (profile ingester). VPA Off-mode recommends
+# cpu/memory rightsizing without restarting the pod. Operator promotes
+# recommendations into helm values manually.
+#
+# Note: chart 2.0.1 STS name = `pyroscope` (single-binary), not the
+# microservices form (which would generate `pyroscope-ingester-N`,
+# `pyroscope-querier-N`, etc.). Bump targetRef.name when switching topology.
+# =============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: pyroscope
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: pyroscope
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: pyroscope
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: pyroscope
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 2
+          memory: 4Gi

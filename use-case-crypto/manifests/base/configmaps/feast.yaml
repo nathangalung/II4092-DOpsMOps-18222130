@@ -45,7 +45,7 @@ data:
     project: crypto
     registry:
       registry_type: sql
-      path: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/feast
+      path: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/feast
       cache_ttl_seconds: 600
     provider: local
     online_store:

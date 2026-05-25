@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dbt-profile
+  namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: use-case-crypto
+    app.kubernetes.io/component: data-processing
+data:
+  # Runtime-mounted profile — overrides the image-baked /dbt/profiles.yml
+  # so we can fix the `secure` field type (dbt-clickhouse requires native
+  # bool, not the string 'false' returned by env_var). Mount at a separate
+  # dir and pass `--profiles-dir /tmp/dbt-profiles` so the rest of /dbt
+  # (dbt_project.yml + models/) keeps the image-baked layout.
+  profiles.yml: |
+    platform:
+      outputs:
+        prod:
+          type: clickhouse
+          threads: 4
+          host: "{{ env_var('CLICKHOUSE_HOST', 'clickhouse-platform.storage.svc.cluster.local') }}"
+          port: "{{ env_var('CLICKHOUSE_PORT', '8123') | int }}"
+          user: "{{ env_var('CLICKHOUSE_USER', 'default') }}"
+          password: "{{ env_var('CLICKHOUSE_PASSWORD', '') }}"
+          schema: "{{ env_var('DBT_SCHEMA', 'crypto') }}"
+          secure: false
+      target: prod

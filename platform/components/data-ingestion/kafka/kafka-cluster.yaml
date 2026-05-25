@@ -101,14 +101,16 @@ spec:
             prometheus.io/scrape: "true"
             prometheus.io/port: "9404"
             # Strimzi binds its own mTLS on 9090 (replication) + 9091 (control
-            # plane) and SCRAM SASL on 9092/9093/9094. Istio sidecar default
-            # intercepts every inbound port (`includeInboundPorts: "*"`) and
-            # tries to terminate TLS on 9090/9091, which makes the Strimzi
-            # operator's AdminClient see "Connection terminated during
-            # authentication" on every reconcile. Excluding the broker ports
-            # leaves Strimzi's protocol untouched while still giving the rest
-            # of the pod a sidecar.
-            traffic.sidecar.istio.io/excludeInboundPorts: "9090,9091,9092,9093,9094,9404"
+            # plane) and SCRAM SASL on 9092/9093/9094. Excluding those broker
+            # ports from the Istio sidecar (traffic.sidecar.istio.io/excludeInboundPorts)
+            # is documented as enough — but in practice on this k3s + Istio 1.28
+            # cluster, native-sidecar envoy still races with Strimzi's TLS
+            # listener and inbound SCRAM_SSL handshakes from out-of-mesh
+            # callers fail with "SSL handshake failed" / librdkafka
+            # "Disconnected: connection closed by peer". Strimzi already
+            # implements TLS + SCRAM-SHA-512 at the broker; there's nothing
+            # the mesh adds here. Disable injection entirely on broker pods.
+            sidecar.istio.io/inject: "false"
   entityOperator:
     # Kyverno `require-resource-limits` (cluster-wide policy, restricted PSA)
     # rejects the auto-generated entity-operator Deployment unless every
@@ -126,9 +128,11 @@ spec:
       pod:
         metadata:
           annotations:
-            # Entity Operator sidecars (TLS sidecar to broker mTLS) hit the
-            # same Istio ↔ Strimzi-mTLS collision as the broker itself.
-            traffic.sidecar.istio.io/excludeOutboundPorts: "9090,9091,9092,9093,9094"
+            # Entity Operator drives Strimzi's own mTLS sidecar to the broker
+            # on 9090/9091. Sidecar injection here hit the same broker-side
+            # TLS handshake failures we removed on the broker pod; disable
+            # injection on the operator pod too. JMX/Prometheus is unaffected.
+            sidecar.istio.io/inject: "false"
   # Cruise Control disabled — Strimzi rejects with `InvalidResourceException:
   # Cruise Control cannot be deployed with a Kafka cluster which has only one
   # broker. It requires at least two Kafka brokers.` Re-enable when broker
@@ -144,7 +148,9 @@ spec:
       pod:
         metadata:
           annotations:
-            traffic.sidecar.istio.io/excludeOutboundPorts: "9090,9091,9092,9093,9094"
+            # kafka-exporter polls broker on 9092 (and replicates 9090/9091
+            # paths for some metrics). Same collision rule as the broker pod.
+            sidecar.istio.io/inject: "false"
 ---
 # DestinationRule: disable Istio mTLS for traffic to Kafka broker ports.
 # The broker uses `traffic.sidecar.istio.io/excludeInboundPorts` to bypass

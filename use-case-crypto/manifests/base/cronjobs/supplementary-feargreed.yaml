@@ -15,24 +15,69 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
+    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 300
+      # 600→1800: local-registry pulls under IO contention measured at 18+ min
+      # (`localhost:5000/crypto-rest-collector:latest` saw 18m48s + 18m57s
+      # concurrent waits in #402 forensics). Pair with IfNotPresent below so
+      # only the first cold-cache pod pays the bill; subsequent fires reuse
+      # the node-local layer. ttl already deletes completed pods, so the
+      # extended deadline only widens the upper bound, not the steady-state.
+      activeDeadlineSeconds: 1800
       template:
         metadata:
           labels:
             app: supplementary-feargreed
         spec:
           restartPolicy: OnFailure
+          # PodSecurity "restricted" + Kyverno require-run-as-nonroot.
+          # Dockerfile USER 1000:1000 runs the binary; this block declares
+          # the contract to kubelet so the Audit policies stop spamming.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumes:
             - name: push-helper
               configMap:
                 name: push-helper
                 defaultMode: 0555
+            # rest-collector binary opens /etc/rest-collector/config.yaml at
+            # startup; without the mount the Job crashes on `open ... no such
+            # file` before any HTTP fetch fires (mirrors the long-running
+            # rest-collector Deployment patch).
+            - name: rest-collector-config
+              configMap:
+                name: crypto-rest-collector-config
+            # Kafka SASL_SSL CA — required by librdkafka producer in rest-collector
+            # (KAFKA_SSL_CA_LOCATION=/etc/kafka/ca/ca.crt). patches/kafka-sasl.yaml
+            # only patches Deployments; CronJobs embed the mount directly.
+            - name: kafka-ca
+              secret:
+                secretName: crypto-app-consumer
+                items:
+                  - key: ca.crt
+                    path: ca.crt
           containers:
             - name: rest-collector
               image: rest-collector:latest
+              # IfNotPresent: in-cluster registry sits on the same node IO
+              # bus the use-case pods are competing for. Always forced a
+              # full re-pull every fire and stacked into a multi-pull queue
+              # that exceeded activeDeadlineSeconds. #167 set the same
+              # policy for kueue; same root cause, same fix.
               imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -44,6 +89,8 @@ spec:
                     name: pipeline-config
                 - secretRef:
                     name: pipeline-secrets
+                - secretRef:
+                    name: crypto-app-consumer
               env:
                 - name: HISTORY_BACKFILL_ON_START
                   value: "false"
@@ -70,6 +117,12 @@ spec:
               volumeMounts:
                 - name: push-helper
                   mountPath: /scripts
+                  readOnly: true
+                - name: rest-collector-config
+                  mountPath: /etc/rest-collector
+                  readOnly: true
+                - name: kafka-ca
+                  mountPath: /etc/kafka/ca
                   readOnly: true
               resources:
                 requests:

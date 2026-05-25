@@ -16,7 +16,7 @@
 #
 # Observability hook: every chaos event emits an `experiment.thesis=`
 # label; Grafana's "Crypto Resilience" dashboard plots SLO burn
-# (observability/slos-crypto.yaml) before/after the experiment window.
+# (observability/slos.yaml) before/after the experiment window.
 # =============================================================================
 ---
 # --- 1. Crypto gateway network loss (edge flakiness, 5m every Tuesday) ------

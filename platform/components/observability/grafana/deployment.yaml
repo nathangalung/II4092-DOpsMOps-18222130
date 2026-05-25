@@ -224,18 +224,28 @@ spec:
             - name: GF_ALERTING_ENABLED
               value: "false"  # use unified alerting only
           resources:
-            requests: { cpu: 100m, memory: 256Mi }
-            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 100m, memory: 384Mi }
+            # 256Mi limit OOMed on Grafana 12.x dashboard-service bleve-index
+            # rebuilds (~12 restarts/35h); 512Mi gives index cache headroom
+            # while staying small for single-node platform.
+            limits:   { cpu: 500m, memory: 512Mi }
           startupProbe:
             httpGet: { path: /api/health, port: 3000 }
             failureThreshold: 60
             periodSeconds: 10
+            timeoutSeconds: 5
+          # timeoutSeconds: 5 — Istio sidecar rewrites probes to
+          # envoy port 15020 which adds ~50-200ms proxy overhead;
+          # the K8s default 1s flapped Ready=False under index-rebuild
+          # bursts. 5s gives slack without delaying real-failure detection.
           readinessProbe:
             httpGet: { path: /api/health, port: 3000 }
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /api/health, port: 3000 }
             periodSeconds: 30
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

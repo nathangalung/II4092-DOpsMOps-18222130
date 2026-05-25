@@ -181,6 +181,13 @@ spec:
         - CREATE DATABASE feast OWNER platform;
         - CREATE DATABASE spicedb OWNER platform;
         - CREATE DATABASE lakekeeper OWNER platform;
+        # `pipeline` holds the domain-agnostic CDC source schema consumed by
+        # Debezium → Kafka → ClickHouse gold layer. Schema/tables created by
+        # the `pipeline-db-init` Job (platform/components/storage/postgresql/
+        # pipeline-db-init.yaml) which runs after CNPG primary is healthy.
+        # Use-cases extend the schema via their own idempotent SQL (see
+        # use-case-*/database/init_postgres.sql).
+        - CREATE DATABASE pipeline OWNER platform;
         - CREATE USER spicedb WITH PASSWORD 'set-by-eso';
         - GRANT ALL ON DATABASE spicedb TO spicedb;
         # PG 15+: GRANT ALL on DATABASE does NOT grant CREATE on schema
@@ -232,7 +239,11 @@ spec:
     # under typical analytics queries (kubectl top). Memory floor 1Gi forced
     # by shared_buffers=1GB (CNPG admission rejects mem<shared_buffers).
     requests: { cpu: 100m, memory: 1Gi }
-    limits:   { cpu: 2000m, memory: 4Gi }
+    # cpu "2" not "2000m" — CNPG webhook normalises milli-CPU >=1000m to
+    # whole-core string ("2"), and ArgoCD's diff engine compares yaml-string
+    # literals (no resource.Quantity coercion), so authoring as "2000m" leaves
+    # Cluster permanently OutOfSync on a semantically identical value.
+    limits:   { cpu: "2", memory: 4Gi }
 
   postgresql:
     parameters:

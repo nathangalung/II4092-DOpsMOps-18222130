@@ -104,6 +104,15 @@ HELM ?= helm
 COMPONENT ?=
 REPLICAS ?= 1
 
+# Docker build wrapper.
+#   --network=host bypasses BuildKit's isolated network namespace so RUN steps
+#   inherit the host's /etc/resolv.conf (campus + 1.1.1.1 + 8.8.8.8). Without
+#   it, Docker 25+/BuildKit 0.13+ ignores daemon.json `dns:` for build
+#   containers and any RUN that does outbound DNS (wget, curl, apk add, mill,
+#   apt-get) fails with "bad address". Override on the CLI to disable:
+#       make platform-build-services DOCKER_BUILD='docker build'
+DOCKER_BUILD ?= docker build --network=host
+
 # Retry tuning for apply-component.sh — handles CRD-before-CR + slow webhook boot.
 # Override per-call:  make phase-base APPLY_MAX_ATTEMPTS=20 APPLY_DELAY=15
 APPLY_MAX_ATTEMPTS ?= 10
@@ -128,20 +137,53 @@ PLATFORM_SERVICES := \
   feature-engine:processing/stream/feature-engine \
   flink-job:processing/stream/flink-job \
   vector-processing:processing/vector \
-  trainer:training/trainer \
-  drift-detector:training/drift \
+  trainer:trainer \
+  drift-detector:quality/drift \
   retraining:automation/retraining \
   materialization:automation/materialization \
   gateway:serving/gateway \
   feature-cache:serving/feature-cache \
   inference-engine:serving/inference-engine \
   scoring:serving/scoring \
-  evidently-reporter:observability/evidently-reporter
+  drift-reporter:drift-reporter
 
 # Pass-through to scripts/render-scalability.sh, scripts/scale.sh, scripts/apply-component.sh
 export KIND CPU_TARGET MEM_TARGET MODE CPU_MIN CPU_MAX MEM_MIN MEM_MAX MIN MAX TRIGGER TRIGGER_META NS NUKE_ALL FORCE
 export MAX_ATTEMPTS=$(APPLY_MAX_ATTEMPTS)
 export DELAY=$(APPLY_DELAY)
+
+# =============================================================================
+# USE-CASE-CRYPTO VARIABLES (sourced by usecase-crypto-* targets below)
+# =============================================================================
+# config/project.yaml is single source of truth for use-case naming. Secrets
+# (API keys, passwords) live in use-case-crypto/.env (gitignored). `-include`
+# resolves at parse time, so literal path is used here (not $(USECASE_DIR)).
+-include use-case-crypto/.env
+USE_CASE_NAME := $(or $(shell awk '/namespace:/{gsub(/"/,"",$$2); sub(/use-case-/,"",$$2); print $$2; exit}' $(USECASE_DIR)/config/project.yaml 2>/dev/null),crypto)
+USE_CASE_PREFIX := $(USE_CASE_NAME)
+NAMESPACE := use-case-$(USE_CASE_PREFIX)
+ENV ?= local
+# Generic service source code path (for building Docker images + running tests)
+SERVICES_SRC ?= $(PLATFORM_DIR)/services
+SVC_CONFIG := $(USECASE_DIR)/config/services.yaml
+VERSION ?= latest
+REGISTRY ?= $(PLATFORM_REGISTRY)
+AIRFLOW_NS ?= data-processing
+AIRFLOW_DEPLOY ?= deploy/airflow-scheduler
+
+# Non-phase service lists (without USE_CASE_PREFIX — added in commands below)
+TRAIN_CRONJOBS    := training-weekly retraining drift-check-daily drift-check-hourly drift-check-minute drift-check-weekly
+SERVE_DEPLOYMENTS := gateway feature-cache inference-engine
+APP_DEPLOYMENTS   := dashboard-backend dashboard-frontend ml-bridge
+APP_CRONJOBS      := materialization
+
+# Service enabled check — reads $(SVC_CONFIG).
+# Usage: $(call svc_enabled,section,service_name) → "true" or "false".
+svc_enabled = $(shell awk 'BEGIN{s=0;f=0} /^  $(1):/{s=1} s&&/^    $(2):/{f=1} f&&/enabled:/{print $$2;exit}' $(SVC_CONFIG) 2>/dev/null || echo "true")
+
+# Recursive (lazy) — REQUIRED so $(call _push,name) expands $(1) at call site.
+# Do NOT change to `:=` (immediate) — would lock $(1) to first call's value.
+_push = docker tag $(1):$(VERSION) $(REGISTRY)/$(1):$(VERSION) && docker push $(REGISTRY)/$(1):$(VERSION)
 
 # Color helpers
 GREEN := \033[0;32m
@@ -352,7 +394,7 @@ atom-features: install-feast ## Feast feature store (online + offline)
 
 atom-train-mlflow: install-mlflow ## MLflow tracking + registry
 
-atom-train-kubeflow: install-kubeflow-pipelines install-kubeflow-pipeline-api install-kubeflow-metadata install-kubeflow-trainer install-kubeflow-notebooks install-kubeflow-katib ## Kubeflow training + AutoML
+atom-train-kubeflow: install-kubeflow-pipelines install-kubeflow-trainer install-kubeflow-notebooks install-kubeflow-katib ## Kubeflow training + AutoML (ml-pipeline + metadata-grpc HPAs folded into kubeflow-pipelines/hpa.yaml)
 
 atom-serving-core: install-knative install-kserve ## Knative + KServe
 
@@ -441,7 +483,7 @@ phase-full: phase-base atom-rbac phase-observability atom-storage-kv atom-storag
 # =============================================================================
 # Platform retries each component up to APPLY_MAX_ATTEMPTS times. Use-case
 # deploy runs after platform finishes; it has its own retry/wait logic in
-# use-case-crypto/Makefile. If platform fails, use-case is skipped.
+# the usecase-crypto-* targets below. If platform fails, use-case is skipped.
 .PHONY: full-stream full-batch full-stream-with-data full-batch-with-data full
 
 full-stream: phase-stream-e2e usecase-crypto-up ## Platform stream-e2e + use-case-crypto deploy (all)
@@ -514,7 +556,7 @@ install-keda-scaledobject: ## Install KEDA ScaledObject — make install-keda-sc
 # =============================================================================
 # Builds the 14 platform/services/ Dockerfiles into local Docker, then pushes
 # each tag to $(PLATFORM_REGISTRY). Use-case overlays retag these (see
-# use-case-crypto/Makefile build-* targets). Idempotent: skips when image
+# usecase-crypto-build-* targets in this file). Idempotent: skips when image
 # already present (`docker image inspect`). Bypass cache with FORCE_REBUILD=1.
 #
 # Registry runs in-cluster (platform/components/common/registry → ns
@@ -553,7 +595,7 @@ platform-build-services: platform-registry-up ## Build + push 15 generic images 
 			echo "$(YELLOW)  · $$tag (cached, FORCE_REBUILD=1 to rebuild)$(NC)"; \
 		else \
 			echo "$(GREEN)  + building $$tag from $$ctx$(NC)"; \
-			docker build -t $$tag $$ctx; \
+			$(DOCKER_BUILD) -t $$tag $$ctx; \
 		fi; \
 		docker tag $$tag $$remote; \
 		docker push $$remote >/dev/null; \
@@ -586,45 +628,956 @@ platform-clean-services: ## Remove local generic images (registry data preserved
 	@echo "$(GREEN)Local generic images removed$(NC)"
 
 # =============================================================================
-# USE-CASE DISPATCH
+# USE-CASE DISPATCH — crypto microservices, data init, build, deploy, ops
 # =============================================================================
-# Use-case sub-phases match service flow (data → train → serve → app):
-#   data   = ingestion + quality + processing → Feast feature store
-#   train  = model training + drift detection
-#   serve  = KServe inference services
-#   app    = dashboard (frontend + backend) + automation (retraining)
-.PHONY: usecase-crypto-up usecase-crypto-down usecase-crypto-status usecase-crypto-build usecase-crypto-test \
+# Single source of truth: $(USECASE_DIR)/config/project.yaml drives USE_CASE_NAME.
+# To create a new use case:
+#   1. Copy use-case-crypto/ → use-case-<name>/
+#   2. Edit USECASE_DIR := use-case-<name> at top of this Makefile
+#   3. Edit config/project.yaml (namespace: use-case-<name>)
+#   4. Run: make usecase-crypto-configure  (rename target after copy)
+#
+# Sub-phases match service flow (data → train → serve → app):
+#   data   = ingestion + quality + processing → Feast feature store (~4GB)
+#   train  = model training + drift detection (~2GB)
+#   serve  = KServe inference services (~3GB)
+#   app    = dashboard (frontend + backend) + automation (~2GB)
+# =============================================================================
+.PHONY: usecase-crypto-configure usecase-crypto-generate-kustomization usecase-crypto-compile-pipelines \
+        usecase-crypto-seed-airflow-vars \
+        usecase-crypto-setup usecase-crypto-setup-full \
+        usecase-crypto-init-db usecase-crypto-init-clickhouse usecase-crypto-init-postgres \
+        usecase-crypto-init-lakehouse usecase-crypto-init-redis usecase-crypto-init-kafka usecase-crypto-init-cdc \
+        usecase-crypto-build-dbt usecase-crypto-dbt-run usecase-crypto-dbt-test \
+        usecase-crypto-katib-run usecase-crypto-katib-status \
+        usecase-crypto-feast-materialize usecase-crypto-train-now \
+        usecase-crypto-check usecase-crypto-check-code usecase-crypto-format \
+        usecase-crypto-lint usecase-crypto-lint-python usecase-crypto-lint-rust usecase-crypto-lint-go \
+        usecase-crypto-lint-java usecase-crypto-lint-cpp usecase-crypto-lint-ts \
+        usecase-crypto-test usecase-crypto-test-python usecase-crypto-test-rust usecase-crypto-test-go \
+        usecase-crypto-test-java usecase-crypto-test-cpp usecase-crypto-test-ts \
+        usecase-crypto-build usecase-crypto-build-ingestion usecase-crypto-build-quality \
+        usecase-crypto-build-processing usecase-crypto-build-training usecase-crypto-build-serving \
+        usecase-crypto-build-observability usecase-crypto-build-automation usecase-crypto-build-dashboard \
+        usecase-crypto-build-data usecase-crypto-build-train usecase-crypto-build-serve usecase-crypto-build-app \
+        usecase-crypto-lint-data usecase-crypto-lint-train usecase-crypto-lint-serve usecase-crypto-lint-app \
+        usecase-crypto-test-data usecase-crypto-test-train usecase-crypto-test-serve usecase-crypto-test-app \
         usecase-crypto-data usecase-crypto-train usecase-crypto-serve usecase-crypto-app \
-        usecase-crypto-images
+        usecase-crypto-up usecase-crypto-up-local usecase-crypto-up-cloud \
+        usecase-crypto-deploy-data usecase-crypto-deploy-train usecase-crypto-deploy-serve usecase-crypto-deploy-app \
+        usecase-crypto-down usecase-crypto-redeploy \
+        usecase-crypto-stop-data usecase-crypto-stop-train usecase-crypto-stop-serve usecase-crypto-stop-app \
+        usecase-crypto-resume-data usecase-crypto-resume-train usecase-crypto-resume-serve usecase-crypto-resume-app \
+        usecase-crypto-status usecase-crypto-status-all usecase-crypto-logs usecase-crypto-logs-all \
+        usecase-crypto-restart usecase-crypto-restart-one \
+        usecase-crypto-clean usecase-crypto-clean-images usecase-crypto-clean-all usecase-crypto-images \
+        usecase-crypto-shell-clickhouse usecase-crypto-shell-redis usecase-crypto-shell-kafka \
+        usecase-crypto-port-forward-dashboard usecase-crypto-port-forward-gateway \
+        usecase-crypto-check-cluster usecase-crypto-proto \
+        usecase-crypto-sync-dags usecase-crypto-submit-pipeline
 
-usecase-crypto-up: ## Deploy all use-case-crypto microservices (data + train + serve + app)
-	@$(MAKE) -C $(USECASE_DIR) deploy
+# -----------------------------------------------------------------------------
+# TEMPLATE CONFIGURATION
+# -----------------------------------------------------------------------------
 
-usecase-crypto-down: ## Undeploy use-case-crypto
-	@$(MAKE) -C $(USECASE_DIR) undeploy
+usecase-crypto-generate-kustomization: ## Generate $(USECASE_DIR)/manifests/base/kustomization.yaml from services.yaml
+	@echo "$(YELLOW)Generating $(USECASE_DIR)/manifests/base/kustomization.yaml from services config...$(NC)"
+	@cd $(USECASE_DIR) && uv run scripts/generate_kustomization.py
+	@echo "$(GREEN)Done. Verify with: kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone | head$(NC)"
 
-usecase-crypto-status: ## Use-case-crypto pod state
-	@$(MAKE) -C $(USECASE_DIR) status
+usecase-crypto-compile-pipelines: ## Recompile KFP pipeline YAMLs (bakes USE_CASE-derived defaults)
+	@echo "$(YELLOW)Compiling KFP pipelines (USE_CASE=$(USE_CASE_NAME))...$(NC)"
+	@cd $(USECASE_DIR)/pipelines && USE_CASE=$(USE_CASE_NAME) USE_CASE_REGISTRY=$(REGISTRY) USE_CASE_IMAGE_TAG=$(VERSION) USE_CASE_IMAGE_PREFIX=$(USE_CASE_NAME) uv run --with 'kfp[kubernetes]==2.16.0' retraining_pipeline.py
+	@echo "$(GREEN)Done. $(USECASE_DIR)/pipelines/retraining_pipeline.yaml regenerated.$(NC)"
+
+usecase-configure: ## Propagate USE_CASE_NAME (from config/project.yaml) to ALL use-case files. Domain-agnostic.
+	@$(USECASE_DIR)/scripts/configure-use-case.sh
+
+usecase-crypto-configure: usecase-configure ## Alias of usecase-configure (back-compat)
+
+# -----------------------------------------------------------------------------
+# COMPLETE SETUP
+# -----------------------------------------------------------------------------
+
+usecase-crypto-setup: ## Complete setup: test + build + init-db + deploy
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  COMPLETE SETUP - $(NAMESPACE)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@$(MAKE) usecase-crypto-test
+	@$(MAKE) usecase-crypto-build
+	@$(MAKE) usecase-crypto-init-db
+	@$(MAKE) usecase-crypto-up
+	@echo ""
+	@echo "$(GREEN)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(GREEN)  SETUP COMPLETE!$(NC)"
+	@echo "$(GREEN)═══════════════════════════════════════════════════════════════$(NC)"
+
+usecase-crypto-setup-full: ## Full setup with all checks: format + lint + test + build + init-db + deploy
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  FULL SETUP (with code quality) - $(NAMESPACE)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@$(MAKE) usecase-crypto-check
+	@$(MAKE) usecase-crypto-build
+	@$(MAKE) usecase-crypto-init-db
+	@$(MAKE) usecase-crypto-up
+	@echo ""
+	@echo "$(GREEN)  FULL SETUP COMPLETE!$(NC)"
+
+# -----------------------------------------------------------------------------
+# PHASED SETUP (deploy incrementally by memory footprint)
+# -----------------------------------------------------------------------------
+
+usecase-crypto-data: ## Data sub-phase: lint + test + build + deploy + init DB + dbt
+	@echo "$(BLUE)  DATA: Ingestion + Quality + Processing + Medallion$(NC)"
+	@$(MAKE) usecase-crypto-lint-data
+	@$(MAKE) usecase-crypto-test-data
+	@$(MAKE) usecase-crypto-build-data
+	@$(MAKE) usecase-crypto-init-db
+	@$(MAKE) usecase-crypto-deploy-data
+	@$(MAKE) usecase-crypto-dbt-run
+	@echo "$(GREEN)Data complete. Run 'make usecase-crypto-status' to verify.$(NC)"
+
+usecase-crypto-train: ## Train sub-phase: lint + test + build + deploy + KFP pipeline
+	@echo "$(BLUE)  TRAIN: Training + Drift Detection + Kubeflow Pipeline$(NC)"
+	@$(MAKE) usecase-crypto-lint-train
+	@$(MAKE) usecase-crypto-test-train
+	@$(MAKE) usecase-crypto-build-train
+	@$(MAKE) usecase-crypto-deploy-train
+	@$(MAKE) usecase-crypto-submit-pipeline
+	@echo "$(GREEN)Train complete.$(NC)"
+
+usecase-crypto-serve: ## Serve sub-phase: lint + test + build + deploy (KServe)
+	@echo "$(BLUE)  SERVE: Serving (KServe + Gateway)$(NC)"
+	@$(MAKE) usecase-crypto-lint-serve
+	@$(MAKE) usecase-crypto-test-serve
+	@$(MAKE) usecase-crypto-build-serve
+	@$(MAKE) usecase-crypto-deploy-serve
+	@echo "$(GREEN)Serve complete.$(NC)"
+
+usecase-crypto-app: ## App sub-phase: lint + test + build + deploy dashboard + automation
+	@echo "$(BLUE)  APP: Dashboard + Automation$(NC)"
+	@$(MAKE) usecase-crypto-lint-app
+	@$(MAKE) usecase-crypto-test-app
+	@$(MAKE) usecase-crypto-build-app
+	@$(MAKE) usecase-crypto-deploy-app
+	@echo "$(GREEN)App complete.$(NC)"
+
+# Phase-specific build aggregators
+usecase-crypto-build-data: ## Build Data images: Ingestion + Quality + Processing
+	@$(MAKE) usecase-crypto-build-ingestion
+	@$(MAKE) usecase-crypto-build-quality
+	@$(MAKE) usecase-crypto-build-processing
+	@echo "$(GREEN)Data images built.$(NC)"
+
+usecase-crypto-build-train: ## Build Train images: Training + Drift
+	@$(MAKE) usecase-crypto-build-training
+	@echo "$(GREEN)Train images built.$(NC)"
+
+usecase-crypto-build-serve: ## Build Serve images: Serving
+	@$(MAKE) usecase-crypto-build-serving
+	@echo "$(GREEN)Serve images built.$(NC)"
+
+usecase-crypto-build-app: ## Build App images: Dashboard + Automation
+	@$(MAKE) usecase-crypto-build-dashboard
+	@$(MAKE) usecase-crypto-build-automation
+	@echo "$(GREEN)App images built.$(NC)"
+
+# Phase-specific lint targets
+usecase-crypto-lint-data: ## Lint Data services
+	@echo "$(YELLOW)Linting Data services...$(NC)"
+	@cd $(SERVICES_SRC)/ingestion/rest-collector && (golangci-lint run ./... 2>/dev/null || go vet ./...)
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/quality/validator && cargo clippy -- -D warnings
+	@uv run --with ruff ruff check $(SERVICES_SRC)/quality/analyzer/
+	@uv run --with ruff ruff check $(SERVICES_SRC)/quality/drift/
+	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/batch/
+	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/vector/
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
+	@cd $(USECASE_DIR)/services/websocket-collector && cargo clippy -- -D warnings
+	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.compile
+	@echo "$(GREEN)Data lint passed.$(NC)"
+
+usecase-crypto-lint-train: ## Lint Train services
+	@uv run --with ruff ruff check $(SERVICES_SRC)/trainer/
+	@echo "$(GREEN)Train lint passed.$(NC)"
+
+usecase-crypto-lint-serve: ## Lint Serve services
+	@cd $(SERVICES_SRC)/serving/gateway && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clippy -- -D warnings
+	@(which xmake > /dev/null 2>&1 && pkg-config --exists grpc++ protobuf 2>/dev/null && test -d /opt/onnxruntime) && \
+		(cd $(SERVICES_SRC)/serving/inference-engine && mkdir -p build/generated && xmake f --tests=y -y && xmake build test_inference) || \
+		echo "$(YELLOW)  SKIP: C++ deps not fully installed$(NC)"
+	@echo "$(GREEN)Serve lint passed.$(NC)"
+
+usecase-crypto-lint-app: ## Lint App services
+	@cd $(SERVICES_SRC)/dashboard/backend && (golangci-lint run ./... 2>/dev/null || go vet ./...)
+	@uv run --with ruff ruff check $(SERVICES_SRC)/dashboard/ml-bridge/
+	@cd $(SERVICES_SRC)/dashboard/frontend && bun run lint
+	@uv run --with ruff ruff check $(SERVICES_SRC)/automation/materialization/
+	@uv run --with ruff ruff check $(SERVICES_SRC)/automation/retraining/
+	@echo "$(GREEN)App lint passed.$(NC)"
+
+# Phase-specific test targets
+usecase-crypto-test-data: ## Test Data services
+	@cd $(SERVICES_SRC)/ingestion/rest-collector && go test ./...
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/quality/validator && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/quality/analyzer && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/quality/drift && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
+	@cd $(SERVICES_SRC)/processing/batch && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/processing/vector && uv run pytest tests/ -v
+	@cd $(USECASE_DIR)/services/websocket-collector && cargo nextest run 2>/dev/null || cargo test
+	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.test
+	@echo "$(GREEN)Data tests passed.$(NC)"
+
+usecase-crypto-test-train: ## Test Train services
+	@cd $(SERVICES_SRC)/trainer && uv run pytest tests/ -v
+	@echo "$(GREEN)Train tests passed.$(NC)"
+
+usecase-crypto-test-serve: ## Test Serve services
+	@cd $(SERVICES_SRC)/serving/gateway && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo nextest run 2>/dev/null || cargo test
+	@(which xmake > /dev/null 2>&1 && pkg-config --exists grpc++ protobuf 2>/dev/null && test -d /opt/onnxruntime) && \
+		(cd $(SERVICES_SRC)/serving/inference-engine && mkdir -p build/generated && xmake f --tests=y && xmake run test_inference) || \
+		echo "$(YELLOW)  SKIP: C++ deps not fully installed$(NC)"
+	@echo "$(GREEN)Serve tests passed.$(NC)"
+
+usecase-crypto-test-app: ## Test App services
+	@cd $(SERVICES_SRC)/dashboard/backend && go test ./...
+	@cd $(SERVICES_SRC)/dashboard/ml-bridge && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/dashboard/frontend && bun install --frozen-lockfile 2>/dev/null || bun install && bun run --bun vitest --run
+	@cd $(SERVICES_SRC)/automation/materialization && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/automation/retraining && uv run pytest tests/ -v
+	@echo "$(GREEN)App tests passed.$(NC)"
+
+# -----------------------------------------------------------------------------
+# CODE QUALITY
+# -----------------------------------------------------------------------------
+
+usecase-crypto-check: usecase-crypto-check-code ## Run all code quality checks (format + lint + test)
+	@echo "$(GREEN)All code quality checks passed.$(NC)"
+
+usecase-crypto-check-code: ## Format, lint, and test all use-case code
+	@$(MAKE) usecase-crypto-format
+	@$(MAKE) usecase-crypto-lint
+	@$(MAKE) usecase-crypto-test
+
+# -----------------------------------------------------------------------------
+# DATABASE INITIALIZATION
+# -----------------------------------------------------------------------------
+
+usecase-crypto-init-db: usecase-crypto-init-clickhouse usecase-crypto-init-postgres usecase-crypto-init-lakehouse usecase-crypto-init-redis usecase-crypto-init-kafka ## Init all databases + lakehouse
+	@echo "$(GREEN)All databases initialized.$(NC)"
+
+usecase-crypto-init-lakehouse: ## Init Lakehouse (MinIO buckets + Polaris catalog)
+	@echo "$(YELLOW)Initializing Lakehouse (MinIO + Polaris + LakeFS)...$(NC)"
+	@bash $(SERVICES_SRC)/base/database/init_lakehouse.sh
+	@echo "$(GREEN)Lakehouse init complete.$(NC)"
+
+usecase-crypto-init-clickhouse: ## Init ClickHouse tables
+	@echo "$(YELLOW)Initializing ClickHouse...$(NC)"
+	@CH_POD=$$(kubectl -n storage get pods -l clickhouse.altinity.com/chi=platform -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$CH_POD" ]; then echo "$(RED)ClickHouse CHI pod not found$(NC)"; exit 1; fi; \
+	kubectl -n storage wait --for=condition=ready pod/$$CH_POD --timeout=60s || \
+		(echo "$(RED)ClickHouse pod not ready$(NC)" && exit 1); \
+	CH_PASS=$$(kubectl -n storage get secret clickhouse-admin -o jsonpath='{.data.CLICKHOUSE_PASSWORD}' | base64 -d); \
+	kubectl exec -i -n storage $$CH_POD -c clickhouse -- clickhouse-client --user default --password "$$CH_PASS" --multiquery < $(USECASE_DIR)/database/init_clickhouse.sql; \
+	kubectl exec -n storage $$CH_POD -c clickhouse -- clickhouse-client --user default --password "$$CH_PASS" --query "SHOW DATABASES" 2>/dev/null || true; \
+	kubectl exec -n storage $$CH_POD -c clickhouse -- clickhouse-client --user default --password "$$CH_PASS" --query "SHOW TABLES FROM bronze" 2>/dev/null || true
+	@echo "$(GREEN)ClickHouse init complete.$(NC)"
+
+usecase-crypto-init-postgres: ## Init PostgreSQL OLTP tables (pipeline schema)
+	@echo "$(YELLOW)Initializing PostgreSQL...$(NC)"
+	@PG_POD=$$(kubectl get pods -n storage -l cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) && \
+		kubectl wait --for=condition=ready pod/$$PG_POD -n storage --timeout=60s || \
+		(echo "$(RED)PostgreSQL pod not ready$(NC)" && exit 1)
+	@PG_POD=$$(kubectl get pods -n storage -l cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -n storage $$PG_POD -- psql -U postgres -c "CREATE DATABASE pipeline" 2>/dev/null || true
+	@PG_POD=$$(kubectl get pods -n storage -l cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -i -n storage $$PG_POD -- psql -U postgres -d pipeline < $(SERVICES_SRC)/base/database/init_postgres.sql
+	@PG_POD=$$(kubectl get pods -n storage -l cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -i -n storage $$PG_POD -- psql -U postgres -d pipeline < $(USECASE_DIR)/database/init_postgres.sql
+	@PG_POD=$$(kubectl get pods -n storage -l cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -n storage $$PG_POD -- psql -U postgres -d pipeline -c "\dt pipeline.*"
+	@echo "$(GREEN)PostgreSQL init complete.$(NC)"
+
+usecase-crypto-init-cdc: ## Register Debezium CDC connector (PostgreSQL → Kafka)
+	@echo "$(YELLOW)Registering Debezium CDC connector...$(NC)"
+	@kubectl delete job $(USE_CASE_PREFIX)-debezium-registration -n $(NAMESPACE) 2>/dev/null || true
+	@kubectl apply -k $(USECASE_DIR)/manifests/overlays/$(ENV)-data --load-restrictor LoadRestrictionsNone 2>/dev/null || \
+		kubectl apply -k $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone 2>/dev/null
+	@kubectl wait --for=condition=complete job/$(USE_CASE_PREFIX)-debezium-registration -n $(NAMESPACE) --timeout=120s 2>/dev/null || \
+		echo "$(YELLOW)Job may already be complete or still running$(NC)"
+	@echo "$(GREEN)CDC connector registered.$(NC)"
+
+# PSA `restricted` + Kyverno `require-resource-limits` enforced on
+# use-case-crypto, so a bare `kubectl run` is rejected. We materialise a
+# Pod manifest via heredoc that satisfies both: securityContext (non-root,
+# no priv-esc, drop ALL, seccomp RuntimeDefault) + explicit cpu/mem
+# requests+limits. CLICKHOUSE creds come from the `pipeline-secrets`
+# Secret mirrored into the use-case ns by ESO (ADR-035) — the dbt
+# profile (profiles.yml) reads them via env_var('CLICKHOUSE_USER'),
+# env_var('CLICKHOUSE_PASSWORD'). Image ENTRYPOINT/CMD already runs
+# `dbt run --profiles-dir /dbt --project-dir /dbt`; we override `args:`
+# for the `test` variant.
+usecase-crypto-dbt-run: ## Run dbt transformations (bronze → silver → gold)
+	@echo "$(YELLOW)Running dbt transformations...$(NC)"
+	@kubectl delete pod dbt-manual-run -n $(NAMESPACE) 2>/dev/null || true
+	@printf '%s\n' \
+		'apiVersion: v1' \
+		'kind: Pod' \
+		'metadata:' \
+		'  name: dbt-manual-run' \
+		'  namespace: $(NAMESPACE)' \
+		'spec:' \
+		'  restartPolicy: Never' \
+		'  securityContext:' \
+		'    runAsNonRoot: true' \
+		'    runAsUser: 1000' \
+		'    runAsGroup: 1000' \
+		'    fsGroup: 1000' \
+		'    seccompProfile: { type: RuntimeDefault }' \
+		'  volumes:' \
+		'  - name: dbt-profile' \
+		'    configMap: { name: dbt-profile }' \
+		'  containers:' \
+		'  - name: dbt' \
+		'    image: localhost:5000/$(USE_CASE_PREFIX)-dbt-project:$(VERSION)' \
+		'    imagePullPolicy: IfNotPresent' \
+		'    args: ["run", "--profiles-dir", "/tmp/dbt-profiles", "--project-dir", "/dbt"]' \
+		'    volumeMounts:' \
+		'    - { name: dbt-profile, mountPath: /tmp/dbt-profiles }' \
+		'    env:' \
+		'    - { name: CLICKHOUSE_HOST,  value: clickhouse-platform.storage.svc.cluster.local }' \
+		'    - { name: CLICKHOUSE_PORT,  value: "8123" }' \
+		'    - { name: CLICKHOUSE_USER,     valueFrom: { secretKeyRef: { name: pipeline-secrets, key: CLICKHOUSE_USER } } }' \
+		'    - { name: CLICKHOUSE_PASSWORD, valueFrom: { secretKeyRef: { name: pipeline-secrets, key: CLICKHOUSE_PASSWORD } } }' \
+		'    resources:' \
+		'      requests: { cpu: 200m, memory: 512Mi }' \
+		'      limits:   { cpu: "1",  memory: 2Gi   }' \
+		'    securityContext:' \
+		'      allowPrivilegeEscalation: false' \
+		'      readOnlyRootFilesystem: false' \
+		'      capabilities: { drop: [ALL] }' \
+		| kubectl apply -f -
+	@kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/dbt-manual-run -n $(NAMESPACE) --timeout=600s || \
+		(echo "$(RED)dbt-manual-run did not Succeed — tail logs:$(NC)"; kubectl logs -n $(NAMESPACE) dbt-manual-run --tail=80; exit 1)
+	@kubectl logs -n $(NAMESPACE) dbt-manual-run --tail=20
+	@kubectl delete pod dbt-manual-run -n $(NAMESPACE) 2>/dev/null || true
+	@echo "$(GREEN)dbt transformations complete.$(NC)"
+
+usecase-crypto-dbt-test: ## Run dbt data quality tests
+	@echo "$(YELLOW)Running dbt tests (data quality gates)...$(NC)"
+	@kubectl delete pod dbt-test-run -n $(NAMESPACE) 2>/dev/null || true
+	@printf '%s\n' \
+		'apiVersion: v1' \
+		'kind: Pod' \
+		'metadata:' \
+		'  name: dbt-test-run' \
+		'  namespace: $(NAMESPACE)' \
+		'spec:' \
+		'  restartPolicy: Never' \
+		'  securityContext:' \
+		'    runAsNonRoot: true' \
+		'    runAsUser: 1000' \
+		'    runAsGroup: 1000' \
+		'    fsGroup: 1000' \
+		'    seccompProfile: { type: RuntimeDefault }' \
+		'  volumes:' \
+		'  - name: dbt-profile' \
+		'    configMap: { name: dbt-profile }' \
+		'  containers:' \
+		'  - name: dbt' \
+		'    image: localhost:5000/$(USE_CASE_PREFIX)-dbt-project:$(VERSION)' \
+		'    imagePullPolicy: IfNotPresent' \
+		'    args: ["test", "--profiles-dir", "/tmp/dbt-profiles", "--project-dir", "/dbt"]' \
+		'    volumeMounts:' \
+		'    - { name: dbt-profile, mountPath: /tmp/dbt-profiles }' \
+		'    env:' \
+		'    - { name: CLICKHOUSE_HOST,  value: clickhouse-platform.storage.svc.cluster.local }' \
+		'    - { name: CLICKHOUSE_PORT,  value: "8123" }' \
+		'    - { name: CLICKHOUSE_USER,     valueFrom: { secretKeyRef: { name: pipeline-secrets, key: CLICKHOUSE_USER } } }' \
+		'    - { name: CLICKHOUSE_PASSWORD, valueFrom: { secretKeyRef: { name: pipeline-secrets, key: CLICKHOUSE_PASSWORD } } }' \
+		'    resources:' \
+		'      requests: { cpu: 100m, memory: 256Mi }' \
+		'      limits:   { cpu: 500m, memory: 1Gi   }' \
+		'    securityContext:' \
+		'      allowPrivilegeEscalation: false' \
+		'      readOnlyRootFilesystem: false' \
+		'      capabilities: { drop: [ALL] }' \
+		| kubectl apply -f -
+	@kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/dbt-test-run -n $(NAMESPACE) --timeout=300s || \
+		(echo "$(RED)dbt-test-run did not Succeed — tail logs:$(NC)"; kubectl logs -n $(NAMESPACE) dbt-test-run --tail=80; exit 1)
+	@kubectl logs -n $(NAMESPACE) dbt-test-run --tail=20
+	@kubectl delete pod dbt-test-run -n $(NAMESPACE) 2>/dev/null || true
+	@echo "$(GREEN)dbt tests passed.$(NC)"
+
+# -----------------------------------------------------------------------------
+# ML LIFECYCLE
+# -----------------------------------------------------------------------------
+
+usecase-crypto-train-now: ## Trigger training job immediately (all symbols)
+	@kubectl delete job $(USE_CASE_PREFIX)-train-manual -n $(NAMESPACE) 2>/dev/null || true
+	@kubectl create job $(USE_CASE_PREFIX)-train-manual --from=cronjob/$(USE_CASE_PREFIX)-training-weekly -n $(NAMESPACE)
+	@echo "$(GREEN)Training job created. Monitor: kubectl logs -n $(NAMESPACE) job/$(USE_CASE_PREFIX)-train-manual -c trainer -f$(NC)"
+
+usecase-crypto-feast-materialize: ## Run Feast materialization (ClickHouse → Redis)
+	@kubectl delete job $(USE_CASE_PREFIX)-feast-manual -n $(NAMESPACE) 2>/dev/null || true
+	@kubectl create job $(USE_CASE_PREFIX)-feast-manual --from=cronjob/$(USE_CASE_PREFIX)-materialization -n $(NAMESPACE)
+	@echo "$(GREEN)Materialization job created.$(NC)"
+
+usecase-crypto-katib-run: ## Launch Katib HPO experiment (LightGBM hyperparameter search)
+	@kubectl delete experiment $(USE_CASE_PREFIX)-lightgbm-hpo -n $(NAMESPACE) 2>/dev/null || true
+	@kubectl apply -f $(USECASE_DIR)/manifests/base/katib/experiment-lightgbm.yaml -n $(NAMESPACE)
+	@echo "$(GREEN)Katib experiment created. Monitor: make usecase-crypto-katib-status$(NC)"
+
+usecase-crypto-katib-status: ## Check Katib experiment status
+	@kubectl get experiments -n $(NAMESPACE) 2>/dev/null || echo "No experiments found"
+	@kubectl get trials -n $(NAMESPACE) 2>/dev/null || echo "No trials found"
+
+usecase-crypto-init-redis: ## Init Redis (feature cache for online serving)
+	@echo "$(YELLOW)Initializing Redis...$(NC)"
+	@REDIS_POD=$$(kubectl get pods -n storage -l app=redis -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) && \
+		kubectl wait --for=condition=ready pod/$$REDIS_POD -n storage --timeout=60s || \
+		(echo "$(RED)Redis pod not ready$(NC)" && exit 1)
+	@REDIS_POD=$$(kubectl get pods -n storage -l app=redis -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -n storage $$REDIS_POD -- redis-cli PING && \
+		kubectl exec -n storage $$REDIS_POD -- redis-cli CONFIG SET maxmemory-policy allkeys-lru || true
+	@REDIS_POD=$$(kubectl get pods -n storage -l app=redis -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -n storage $$REDIS_POD -- redis-cli FT.CREATE feature_idx ON HASH PREFIX 1 "feast:" SCHEMA \
+			symbol TAG \
+			timestamp NUMERIC 2>/dev/null || \
+		echo "$(YELLOW)Index exists or Redis Search not available (OK for basic caching)$(NC)"
+	@echo "$(GREEN)Redis init complete.$(NC)"
+
+usecase-crypto-init-kafka: ## Create Kafka topics
+	@echo "$(YELLOW)Initializing Kafka topics...$(NC)"
+	@kubectl wait --for=condition=ready pod/kafka-0 -n data-ingestion --timeout=60s || \
+		(echo "$(RED)Kafka pod not ready$(NC)" && exit 1)
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-raw --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-validated --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-features --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-predictions --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-sentiment --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic drift-events --partitions 1 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-trades --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic $(USE_CASE_PREFIX)-orderbook --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092 2>/dev/null || true
+	@kubectl exec -n data-ingestion kafka-0 -- /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 2>/dev/null | grep -E "($(USE_CASE_PREFIX)|drift)" || true
+	@echo "$(GREEN)Kafka topics init complete.$(NC)"
+
+# -----------------------------------------------------------------------------
+# DOCKER IMAGE BUILD — retag generic + rebuild overlays
+# -----------------------------------------------------------------------------
+# REQUIRES: Generic images first via `make platform-build-services`.
+# Services WITHOUT overlay code → retag generic image (fast, no rebuild).
+# Services WITH overlay code → rebuild with domain code (TMPDIR / overlay Dockerfile).
+# -----------------------------------------------------------------------------
 
 usecase-crypto-build: platform-build-services ## Build generic + retag/rebuild + push crypto images
-	@$(MAKE) -C $(USECASE_DIR) build-images REGISTRY=$(PLATFORM_REGISTRY) VERSION=$(PLATFORM_IMAGE_TAG)
+	@echo ""
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  Building Use-Case Images (retag generic + rebuild overlays)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo ""
+	@if ! docker image inspect rest-collector:$(VERSION) >/dev/null 2>&1; then \
+		echo "$(RED)ERROR: Generic images not found. Run: make platform-build-services$(NC)"; \
+		exit 1; \
+	fi
+	@$(MAKE) usecase-crypto-build-ingestion
+	@$(MAKE) usecase-crypto-build-quality
+	@$(MAKE) usecase-crypto-build-processing
+	@$(MAKE) usecase-crypto-build-training
+	@$(MAKE) usecase-crypto-build-serving
+	@$(MAKE) usecase-crypto-build-observability
+	@$(MAKE) usecase-crypto-build-automation
+	@$(MAKE) usecase-crypto-build-dashboard
+	@echo ""
+	@echo "$(GREEN)All images ready.$(NC)"
+	@docker images | grep "$(USE_CASE_PREFIX)-" | head -20
 
-usecase-crypto-images: ## List crypto-* tags present in registry
-	@curl -fsS http://$(PLATFORM_REGISTRY)/v2/_catalog 2>/dev/null | \
-		jq -r '.repositories[] | select(startswith("crypto-")) | "  " + .'  || \
-		echo "$(RED)Registry unreachable: $(PLATFORM_REGISTRY)$(NC)"
+usecase-crypto-build-ingestion: ## Retag ingestion + build websocket-collector overlay
+	@echo "$(YELLOW)── Ingestion ──$(NC)"
+	@if [ "$(call svc_enabled,ingestion,rest_collector)" = "true" ]; then \
+		docker tag rest-collector:$(VERSION) $(USE_CASE_PREFIX)-rest-collector:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-rest-collector) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-rest-collector (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - rest-collector SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,ingestion,websocket_collector)" = "true" ]; then \
+		$(DOCKER_BUILD) -f $(USECASE_DIR)/services/websocket-collector/Dockerfile \
+			-t $(USE_CASE_PREFIX)-websocket-collector:$(VERSION) \
+			. && \
+		$(call _push,$(USE_CASE_PREFIX)-websocket-collector) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-websocket-collector (overlay binary with Coinbase parser)$(NC)"; \
+	else echo "$(YELLOW)  - websocket-collector SKIPPED$(NC)"; fi
 
-usecase-crypto-test: ## Run all use-case-crypto tests
-	@$(MAKE) -C $(USECASE_DIR) test
+usecase-crypto-build-quality: ## Retag quality images from generic
+	@echo "$(YELLOW)── Quality ──$(NC)"
+	@if [ "$(call svc_enabled,quality,validator)" = "true" ]; then \
+		docker tag validator:$(VERSION) $(USE_CASE_PREFIX)-validator:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-validator) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-validator (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - validator SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,quality,analyzer)" = "true" ]; then \
+		docker tag analyzer:$(VERSION) $(USE_CASE_PREFIX)-analyzer:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-analyzer) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-analyzer (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - analyzer SKIPPED$(NC)"; fi
 
-usecase-crypto-data: ## Setup data sub-phase: ingestion + quality + processing → Feast
-	@$(MAKE) -C $(USECASE_DIR) setup-data
+usecase-crypto-build-processing: ## Rebuild batch (overlay) + retag others + build stream-processor
+	@echo "$(YELLOW)── Processing ──$(NC)"
+	@if [ "$(call svc_enabled,processing,batch)" = "true" ]; then \
+		TMPDIR=$$(mktemp -d) && \
+		cp -r $(SERVICES_SRC)/processing/batch/* $$TMPDIR/ && \
+		if [ -d $(USECASE_DIR)/services/processing/batch ]; then cp -r $(USECASE_DIR)/services/processing/batch/* $$TMPDIR/; fi && \
+		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-batch-processing:$(VERSION) $$TMPDIR && \
+		rm -rf $$TMPDIR && \
+		$(call _push,$(USE_CASE_PREFIX)-batch-processing) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-batch-processing (overlay rebuild)$(NC)"; \
+	else echo "$(YELLOW)  - batch-processing SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,processing,feature_engine)" = "true" ]; then \
+		docker tag feature-engine:$(VERSION) $(USE_CASE_PREFIX)-feature-engine:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-feature-engine) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-feature-engine (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - feature-engine SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,processing,stream_processor)" = "true" ]; then \
+		if ! docker image inspect flink-job:$(VERSION) >/dev/null 2>&1; then \
+			echo "$(RED)ERROR: Platform base image flink-job:$(VERSION) not found. Run: make platform-build-services$(NC)"; \
+			exit 1; \
+		fi; \
+		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-stream-processor:$(VERSION) $(USECASE_DIR)/services/processing/stream-processor && \
+		$(call _push,$(USE_CASE_PREFIX)-stream-processor) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-stream-processor (overlay with Trade/Orderbook functions)$(NC)"; \
+	else echo "$(YELLOW)  - stream-processor SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,processing,vector)" = "true" ]; then \
+		docker tag vector-processing:$(VERSION) $(USE_CASE_PREFIX)-vector-processing:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-vector-processing) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-vector-processing (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - vector-processing SKIPPED$(NC)"; fi
+	@$(MAKE) usecase-crypto-build-dbt
 
-usecase-crypto-train: ## Setup train sub-phase: training + drift detection
-	@$(MAKE) -C $(USECASE_DIR) setup-train
+usecase-crypto-build-dbt: ## Build dbt image with use-case models baked in
+	@echo "$(YELLOW)── dbt (use-case models) ──$(NC)"
+	@$(DOCKER_BUILD) -f $(USECASE_DIR)/Dockerfile.dbt -t dbt-project:$(VERSION) $(USECASE_DIR) && \
+		docker tag dbt-project:$(VERSION) $(USE_CASE_PREFIX)-dbt-project:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-dbt-project) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-dbt-project$(NC)"
 
-usecase-crypto-serve: ## Setup serve sub-phase: KServe inference services
-	@$(MAKE) -C $(USECASE_DIR) setup-serve
+usecase-crypto-build-training: ## Retag training + build feast materialization image
+	@echo "$(YELLOW)── Training ──$(NC)"
+	@if [ "$(call svc_enabled,training,trainer)" = "true" ]; then \
+		docker tag trainer:$(VERSION) $(USE_CASE_PREFIX)-trainer:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-trainer) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-trainer (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - trainer SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,training,drift)" = "true" ]; then \
+		docker tag drift-detector:$(VERSION) $(USE_CASE_PREFIX)-drift-detector:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-drift-detector) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-drift-detector (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - drift-detector SKIPPED$(NC)"; fi
+	@$(DOCKER_BUILD) -f $(USECASE_DIR)/Dockerfile.feast -t $(USE_CASE_PREFIX)-materialization:$(VERSION) $(USECASE_DIR) && \
+		$(call _push,$(USE_CASE_PREFIX)-materialization) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-materialization (feast overlay build)$(NC)"
 
-usecase-crypto-app: ## Setup app sub-phase: dashboard + automation
-	@$(MAKE) -C $(USECASE_DIR) setup-app
+usecase-crypto-build-serving: ## Retag serving images from generic
+	@echo "$(YELLOW)── Serving ──$(NC)"
+	@if [ "$(call svc_enabled,serving,gateway)" = "true" ]; then \
+		docker tag gateway:$(VERSION) $(USE_CASE_PREFIX)-gateway:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-gateway) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-gateway (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - gateway SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,serving,feature_cache)" = "true" ]; then \
+		docker tag feature-cache:$(VERSION) $(USE_CASE_PREFIX)-feature-cache:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-feature-cache) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-feature-cache (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - feature-cache SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,serving,inference_engine)" = "true" ]; then \
+		docker tag inference-engine:$(VERSION) $(USE_CASE_PREFIX)-inference-engine:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-inference-engine) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-inference-engine (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - inference-engine SKIPPED$(NC)"; fi
+	@if docker image inspect scoring:$(VERSION) >/dev/null 2>&1; then \
+		docker tag scoring:$(VERSION) $(USE_CASE_PREFIX)-scoring:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-scoring) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-scoring (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - scoring SKIPPED (image not built)$(NC)"; fi
+
+usecase-crypto-build-observability: ## Retag observability images from generic
+	@echo "$(YELLOW)── Observability ──$(NC)"
+	@if docker image inspect drift-reporter:$(VERSION) >/dev/null 2>&1; then \
+		docker tag drift-reporter:$(VERSION) $(USE_CASE_PREFIX)-drift-reporter:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-drift-reporter) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-drift-reporter (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - drift-reporter SKIPPED (image not built)$(NC)"; fi
+
+usecase-crypto-build-automation: ## Retag automation images from generic
+	@echo "$(YELLOW)── Automation ──$(NC)"
+	@if [ "$(call svc_enabled,automation,materialization)" = "true" ]; then \
+		docker tag materialization:$(VERSION) $(USE_CASE_PREFIX)-materialization:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-materialization) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-materialization (retagged)$(NC)"; \
+	else echo "$(YELLOW)  - materialization SKIPPED$(NC)"; fi
+
+usecase-crypto-build-dashboard: ## Build dashboard images (UI is inherently use-case-specific)
+	@echo "$(YELLOW)── Dashboard ──$(NC)"
+	@if [ "$(call svc_enabled,dashboard,backend)" = "true" ]; then \
+		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-dashboard-backend:$(VERSION) $(USECASE_DIR)/services/dashboard/backend && \
+		$(call _push,$(USE_CASE_PREFIX)-dashboard-backend) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-dashboard-backend (use-case build)$(NC)"; \
+	else echo "$(YELLOW)  - dashboard-backend SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,dashboard,ml_bridge)" = "true" ]; then \
+		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-ml-bridge:$(VERSION) $(USECASE_DIR)/services/dashboard/ml-bridge && \
+		$(call _push,$(USE_CASE_PREFIX)-ml-bridge) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-ml-bridge (use-case build)$(NC)"; \
+	else echo "$(YELLOW)  - ml-bridge SKIPPED$(NC)"; fi
+	@if [ "$(call svc_enabled,dashboard,frontend)" = "true" ]; then \
+		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-dashboard-frontend:$(VERSION) $(USECASE_DIR)/services/dashboard/frontend && \
+		$(call _push,$(USE_CASE_PREFIX)-dashboard-frontend) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-dashboard-frontend (use-case build)$(NC)"; \
+	else echo "$(YELLOW)  - dashboard-frontend SKIPPED$(NC)"; fi
+
+usecase-crypto-images: ## List use-case-prefixed tags present in registry
+	@curl -fsS http://$(REGISTRY)/v2/_catalog 2>/dev/null | \
+		jq -r --arg p "$(USE_CASE_PREFIX)-" '.repositories[] | select(startswith($$p)) | "  " + .' || \
+		echo "$(RED)Registry unreachable: $(REGISTRY)$(NC)"
+
+# -----------------------------------------------------------------------------
+# AIRFLOW VARIABLES SEED
+# -----------------------------------------------------------------------------
+
+usecase-crypto-seed-airflow-vars: ## Seed USE_CASE Airflow Variables from config (run after deploy)
+	@echo "$(BLUE)Seeding Airflow Variables for USE_CASE=$(USE_CASE_NAME)...$(NC)"
+	@kubectl exec -n $(AIRFLOW_NS) $(AIRFLOW_DEPLOY) -- bash -c '\
+		airflow variables set USE_CASE $(USE_CASE_NAME) && \
+		airflow variables set USE_CASE_NAMESPACE $(NAMESPACE) && \
+		airflow variables set USE_CASE_REGISTRY $(REGISTRY) && \
+		airflow variables set USE_CASE_IMAGE_TAG $(VERSION) && \
+		airflow variables set USE_CASE_IMAGE_PREFIX $(USE_CASE_NAME) && \
+		airflow variables set USE_CASE_PIPELINE_CONFIGMAP $(USE_CASE_NAME)-pipeline-config && \
+		airflow variables set USE_CASE_PIPELINE_SECRET $(USE_CASE_NAME)-pipeline-secrets && \
+		airflow variables set OPENLINEAGE_NAMESPACE $(USE_CASE_NAME)-pipeline && \
+		airflow variables set OPENLINEAGE_PRODUCER_QUALITY_GATE airflow-$(USE_CASE_NAME)-quality-gate && \
+		airflow variables set OPENLINEAGE_PRODUCER_LAKEHOUSE airflow-$(USE_CASE_NAME)-lakehouse'
+	@echo "$(GREEN)Airflow Variables seeded.$(NC)"
+
+# -----------------------------------------------------------------------------
+# KUBERNETES DEPLOYMENT
+# -----------------------------------------------------------------------------
+
+usecase-crypto-up: ## Deploy all use-case-crypto microservices (data + train + serve + app)
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  Deploying $(NAMESPACE) to Kubernetes ($(ENV))$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@kubectl create namespace $(NAMESPACE) 2>/dev/null || echo "$(YELLOW)Namespace already exists$(NC)"
+	@kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+	@echo "$(GREEN)Deployment initiated.$(NC)"
+	@sleep 5
+	@$(MAKE) usecase-crypto-status
+
+usecase-crypto-up-local: ## Deploy to local cluster (ENV=local)
+	@ENV=local $(MAKE) usecase-crypto-up
+
+usecase-crypto-up-cloud: ## Deploy to cloud cluster (ENV=cloud)
+	@ENV=cloud $(MAKE) usecase-crypto-up
+
+usecase-crypto-deploy-data: ## Deploy Data sub-phase only
+	@echo "$(BLUE)  Deploying Data only ($(ENV))$(NC)"
+	@kubectl create namespace $(NAMESPACE) 2>/dev/null || echo "$(YELLOW)Namespace already exists$(NC)"
+	@kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV)-data --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+	@sleep 5
+	@$(MAKE) usecase-crypto-status
+
+usecase-crypto-deploy-train: ## Deploy Train sub-phase only
+	@echo "$(BLUE)  Deploying Train only ($(ENV))$(NC)"
+	@kubectl create namespace $(NAMESPACE) 2>/dev/null || echo "$(YELLOW)Namespace already exists$(NC)"
+	@kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV)-train --load-restrictor LoadRestrictionsNone | kubectl apply -f -
+	@kubectl get cronjobs -n $(NAMESPACE) | grep -E "training|drift|retraining"
+
+usecase-crypto-deploy-serve: ## Deploy Data+Train+Serve (removes App workloads)
+	@$(MAKE) usecase-crypto-up
+	@echo "$(YELLOW)Removing App workloads...$(NC)"
+	@for d in $(APP_DEPLOYMENTS); do \
+		kubectl delete deployment $(USE_CASE_PREFIX)-$$d -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || true; \
+		kubectl delete service $(USE_CASE_PREFIX)-$$d -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || true; \
+	done
+	@for cj in $(APP_CRONJOBS); do \
+		kubectl delete cronjob $(USE_CASE_PREFIX)-$$cj -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || true; \
+	done
+	@echo "$(GREEN)Data+Train+Serve deployed (App removed).$(NC)"
+
+usecase-crypto-deploy-app: ## Deploy all phases (same as usecase-crypto-up)
+	@$(MAKE) usecase-crypto-up
+
+usecase-crypto-down: ## Undeploy use-case-crypto
+	@echo "$(YELLOW)Removing all use-case deployments from $(NAMESPACE)...$(NC)"
+	@kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone | kubectl delete -f - --ignore-not-found=true
+	@echo "$(GREEN)All deployments removed.$(NC)"
+
+usecase-crypto-redeploy: ## Redeploy (down + up)
+	@$(MAKE) usecase-crypto-down
+	@sleep 3
+	@$(MAKE) usecase-crypto-up
+
+# -----------------------------------------------------------------------------
+# STOP / RESUME (scale to 0 / back to 1, data preserved)
+# -----------------------------------------------------------------------------
+
+usecase-crypto-stop-data: ## Stop services (scale to 0 + suspend CronJobs, data preserved)
+	@echo "$(YELLOW)Stopping services...$(NC)"
+	@kubectl scale deploy -n $(NAMESPACE) --all --replicas=0 2>/dev/null || true
+	@kubectl get cronjobs -n $(NAMESPACE) -o name 2>/dev/null | xargs -I{} kubectl patch {} -n $(NAMESPACE) -p '{"spec":{"suspend":true}}' 2>/dev/null || true
+	@kubectl delete pods -n $(NAMESPACE) --field-selector=status.phase=Succeeded --force --grace-period=0 2>/dev/null || true
+	@kubectl delete pods -n $(NAMESPACE) -l job-name --force --grace-period=0 2>/dev/null || true
+	@echo "$(GREEN)Stopped. Data preserved. Resume: make usecase-crypto-resume-data$(NC)"
+
+usecase-crypto-resume-data: ## Resume services (scale back to 1 + unsuspend CronJobs)
+	@echo "$(YELLOW)Resuming services...$(NC)"
+	@kubectl scale deploy -n $(NAMESPACE) --all --replicas=1 2>/dev/null || true
+	@kubectl get cronjobs -n $(NAMESPACE) -o name 2>/dev/null | xargs -I{} kubectl patch {} -n $(NAMESPACE) -p '{"spec":{"suspend":false}}' 2>/dev/null || true
+	@echo "$(GREEN)Resumed. Run 'make usecase-crypto-status' to verify.$(NC)"
+
+usecase-crypto-stop-train: usecase-crypto-stop-data ## Stop Train (same as stop-data — single namespace)
+usecase-crypto-resume-train: usecase-crypto-resume-data ## Resume Train
+usecase-crypto-stop-serve: usecase-crypto-stop-data ## Stop Serve
+usecase-crypto-resume-serve: usecase-crypto-resume-data ## Resume Serve
+usecase-crypto-stop-app: usecase-crypto-stop-data ## Stop App
+usecase-crypto-resume-app: usecase-crypto-resume-data ## Resume App
+
+# -----------------------------------------------------------------------------
+# STATUS / MONITORING
+# -----------------------------------------------------------------------------
+
+usecase-crypto-status: ## Check deployment status
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  Deployment Status - $(NAMESPACE)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@kubectl get pods -n $(NAMESPACE) 2>/dev/null || echo "$(YELLOW)Namespace $(NAMESPACE) not found$(NC)"
+	@echo "$(YELLOW)CronJobs:$(NC)"
+	@kubectl get cronjobs -n $(NAMESPACE) 2>/dev/null || true
+	@echo "$(YELLOW)Services:$(NC)"
+	@kubectl get svc -n $(NAMESPACE) 2>/dev/null || true
+
+usecase-crypto-status-all: ## Check all relevant namespaces
+	@kubectl get pods -A | grep -E "($(NAMESPACE)|storage|data-ingestion|model-lifecycle)" | head -30
+
+usecase-crypto-logs: ## View logs (usage: make usecase-crypto-logs DEPLOY=rest-collector)
+	@if [ -z "$(DEPLOY)" ]; then \
+		echo "$(YELLOW)Usage: make usecase-crypto-logs DEPLOY=<deployment-name>$(NC)"; \
+		echo ""; \
+		echo "Available deployments:"; \
+		kubectl get deployments -n $(NAMESPACE) -o name 2>/dev/null | sed 's/deployment.apps\///'; \
+	else \
+		kubectl logs -f deployment/$(DEPLOY) -n $(NAMESPACE) --all-containers=true; \
+	fi
+
+usecase-crypto-logs-all: ## View all logs
+	@kubectl logs -n $(NAMESPACE) -l app.kubernetes.io/name=$(USE_CASE_PREFIX)-pipeline --all-containers=true -f --max-log-requests=20
+
+usecase-crypto-restart: ## Restart all deployments
+	@kubectl rollout restart deployment -n $(NAMESPACE)
+	@echo "$(GREEN)Restart initiated.$(NC)"
+
+usecase-crypto-restart-one: ## Restart specific deployment (DEPLOY=rest-collector)
+	@if [ -z "$(DEPLOY)" ]; then \
+		echo "$(YELLOW)Usage: make usecase-crypto-restart-one DEPLOY=<deployment-name>$(NC)"; \
+	else \
+		kubectl rollout restart deployment/$(DEPLOY) -n $(NAMESPACE); \
+	fi
+
+# -----------------------------------------------------------------------------
+# TESTING
+# -----------------------------------------------------------------------------
+
+usecase-crypto-test: ## Run all use-case tests (6 languages) — fails on first error
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)  Running All Tests (18 services, 6 languages)$(NC)"
+	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
+	@FAIL=0; \
+	echo "$(YELLOW)── [1/6] Python ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-python || FAIL=1; \
+	echo "$(YELLOW)── [2/6] Rust ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-rust || FAIL=1; \
+	echo "$(YELLOW)── [3/6] Go ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-go || FAIL=1; \
+	echo "$(YELLOW)── [4/6] Java ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-java || FAIL=1; \
+	echo "$(YELLOW)── [5/6] C++ ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-cpp || FAIL=1; \
+	echo "$(YELLOW)── [6/6] TypeScript ──$(NC)"; \
+	$(MAKE) usecase-crypto-test-ts || FAIL=1; \
+	if [ $$FAIL -eq 1 ]; then \
+		echo "$(RED)  TESTS FAILED$(NC)"; exit 1; \
+	fi; \
+	echo "$(GREEN)  ALL TESTS PASSED$(NC)"
+
+usecase-crypto-test-python: ## Run Python tests (uv + pytest)
+	@cd $(SERVICES_SRC)/trainer && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/quality/drift && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/quality/analyzer && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/processing/batch && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/processing/vector && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/dashboard/ml-bridge && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/automation/materialization && uv run pytest tests/ -v
+	@cd $(SERVICES_SRC)/automation/retraining && uv run pytest tests/ -v
+
+usecase-crypto-test-rust: ## Run Rust tests (cargo-nextest)
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/quality/validator && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/serving/gateway && cargo nextest run 2>/dev/null || cargo test
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo nextest run 2>/dev/null || cargo test
+	@cd $(USECASE_DIR)/services/websocket-collector && cargo nextest run 2>/dev/null || cargo test
+
+usecase-crypto-test-go: ## Run Go tests
+	@cd $(SERVICES_SRC)/ingestion/rest-collector && go test ./...
+	@cd $(SERVICES_SRC)/dashboard/backend && go test ./...
+
+usecase-crypto-test-java: ## Run Java tests (Mill)
+	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
+	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.test
+
+usecase-crypto-test-cpp: ## Run C++ tests (xmake — requires protoc, grpc, onnxruntime)
+	@(pkg-config --exists grpc++ protobuf 2>/dev/null && test -d /opt/onnxruntime) || { echo "$(YELLOW)  SKIP: C++ system deps not installed$(NC)"; exit 0; }
+	@cd $(SERVICES_SRC)/serving/inference-engine && mkdir -p build/generated && xmake f --tests=y && xmake run test_inference
+
+usecase-crypto-test-ts: ## Run TypeScript tests (bun + vitest)
+	@cd $(SERVICES_SRC)/dashboard/frontend && bun install --frozen-lockfile 2>/dev/null || bun install && bun run --bun vitest --run
+
+# -----------------------------------------------------------------------------
+# LINTING / FORMATTING
+# -----------------------------------------------------------------------------
+
+usecase-crypto-lint: ## Run all use-case linters (6 languages)
+	@$(MAKE) usecase-crypto-lint-python
+	@$(MAKE) usecase-crypto-lint-rust
+	@$(MAKE) usecase-crypto-lint-go
+	@$(MAKE) usecase-crypto-lint-java
+	@$(MAKE) usecase-crypto-lint-cpp
+	@$(MAKE) usecase-crypto-lint-ts
+
+usecase-crypto-lint-python: ## Lint Python (ruff via uv)
+	@uv run --with ruff ruff check $(SERVICES_SRC)/
+
+usecase-crypto-lint-rust: ## Lint Rust (clippy)
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/quality/validator && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/serving/gateway && cargo clippy -- -D warnings
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clippy -- -D warnings
+	@cd $(USECASE_DIR)/services/websocket-collector && cargo clippy -- -D warnings
+
+usecase-crypto-lint-go: ## Lint Go (golangci-lint)
+	@cd $(SERVICES_SRC)/ingestion/rest-collector && golangci-lint run ./... 2>/dev/null || go vet ./...
+	@cd $(SERVICES_SRC)/dashboard/backend && golangci-lint run ./... 2>/dev/null || go vet ./...
+
+usecase-crypto-lint-java: ## Lint Java (Mill compile check)
+	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
+	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.compile
+
+usecase-crypto-lint-cpp: ## Lint C++ (xmake compile check)
+	@which xmake > /dev/null 2>&1 || { echo "$(YELLOW)  SKIP: xmake not installed$(NC)"; exit 0; }
+	@cd $(SERVICES_SRC)/serving/inference-engine && mkdir -p build/generated && xmake f --tests=y -y && xmake build test_inference
+
+usecase-crypto-lint-ts: ## Lint TypeScript (eslint via bun)
+	@cd $(SERVICES_SRC)/dashboard/frontend && bun run lint
+
+usecase-crypto-format: ## Format all use-case code
+	@echo "$(YELLOW)Formatting code...$(NC)"
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo fmt 2>/dev/null || true
+	@cd $(SERVICES_SRC)/quality/validator && cargo fmt 2>/dev/null || true
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo fmt 2>/dev/null || true
+	@cd $(SERVICES_SRC)/serving/gateway && cargo fmt 2>/dev/null || true
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo fmt 2>/dev/null || true
+	@uv run --with ruff ruff format $(SERVICES_SRC)/ 2>/dev/null || true
+	@cd $(SERVICES_SRC)/ingestion/rest-collector && go fmt ./... 2>/dev/null || true
+	@cd $(SERVICES_SRC)/dashboard/backend && go fmt ./... 2>/dev/null || true
+	@cd $(SERVICES_SRC)/dashboard/frontend && bun x prettier --write src/ 2>/dev/null || true
+	@cd $(USECASE_DIR)/services/websocket-collector && cargo fmt 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# CLEANUP
+# -----------------------------------------------------------------------------
+
+usecase-crypto-clean: ## Clean use-case build artifacts
+	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
+	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo clean 2>/dev/null || true
+	@cd $(SERVICES_SRC)/quality/validator && cargo clean 2>/dev/null || true
+	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clean 2>/dev/null || true
+	@cd $(SERVICES_SRC)/serving/gateway && cargo clean 2>/dev/null || true
+	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clean 2>/dev/null || true
+	@cd $(SERVICES_SRC)/serving/inference-engine && xmake clean 2>/dev/null || rm -rf build 2>/dev/null || true
+	@cd $(SERVICES_SRC)/processing/stream/flink-job && rm -rf out/ .mill-jvm-opts 2>/dev/null || true
+	@rm -rf $(SERVICES_SRC)/dashboard/frontend/dist 2>/dev/null || true
+	@rm -rf $(SERVICES_SRC)/dashboard/frontend/node_modules 2>/dev/null || true
+	@find $(SERVICES_SRC) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find $(SERVICES_SRC) -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	@find $(SERVICES_SRC) -type d -name "target" -exec rm -rf {} + 2>/dev/null || true
+	@find $(SERVICES_SRC) -type d -name ".xmake" -exec rm -rf {} + 2>/dev/null || true
+	@echo "$(GREEN)Cleanup complete.$(NC)"
+
+usecase-crypto-clean-images: ## Remove all crypto Docker images
+	@docker images | grep "$(USE_CASE_PREFIX)-" | awk '{print $$3}' | xargs -r docker rmi -f 2>/dev/null || true
+	@docker images | grep "$(REGISTRY)/$(USE_CASE_PREFIX)-" | awk '{print $$3}' | xargs -r docker rmi -f 2>/dev/null || true
+	@echo "$(GREEN)Images removed.$(NC)"
+
+usecase-crypto-clean-all: usecase-crypto-clean usecase-crypto-clean-images usecase-crypto-down ## Clean everything
+
+# -----------------------------------------------------------------------------
+# UTILITIES
+# -----------------------------------------------------------------------------
+
+usecase-crypto-shell-clickhouse: ## Open ClickHouse shell
+	@kubectl exec -it -n storage clickhouse-0 -- clickhouse-client
+
+usecase-crypto-shell-redis: ## Open Redis shell
+	@REDIS_POD=$$(kubectl get pods -n storage -l app=redis -o jsonpath='{.items[0].metadata.name}') && \
+		kubectl exec -it -n storage $$REDIS_POD -- redis-cli
+
+usecase-crypto-shell-kafka: ## Open Kafka shell
+	@kubectl exec -it -n data-ingestion kafka-0 -- bash
+
+usecase-crypto-port-forward-dashboard: ## Port forward dashboard (localhost:3000)
+	@echo "$(YELLOW)Dashboard at http://localhost:3000$(NC)"
+	@kubectl port-forward -n $(NAMESPACE) svc/$(USE_CASE_PREFIX)-dashboard-frontend 3000:80
+
+usecase-crypto-port-forward-gateway: ## Port forward gateway API (localhost:8080)
+	@echo "$(YELLOW)Gateway API at http://localhost:8080$(NC)"
+	@kubectl port-forward -n $(NAMESPACE) svc/$(USE_CASE_PREFIX)-gateway 8080:8080
+
+usecase-crypto-check-cluster: ## Check if K8s cluster is running + dependencies
+	@kubectl cluster-info || (echo "$(RED)Cluster not running.$(NC)" && exit 1)
+	@kubectl get pods -n storage | grep -E "(clickhouse|redis|minio)" || true
+	@kubectl get pods -n data-ingestion | grep kafka || true
+	@kubectl get pods -n model-lifecycle | grep mlflow || true
+	@echo "$(GREEN)Cluster ready.$(NC)"
+
+usecase-crypto-proto: ## Generate all proto files
+	@$(USECASE_DIR)/scripts/proto-gen.sh 2>/dev/null || \
+		(echo "$(YELLOW)Running inline proto generation...$(NC)" && \
+		protoc --go_out=. --go-grpc_out=. $(USECASE_DIR)/proto/*.proto 2>/dev/null || true)
+
+# -----------------------------------------------------------------------------
+# WORKFLOW COMMANDS (Airflow / Kubeflow)
+# -----------------------------------------------------------------------------
+
+usecase-crypto-sync-dags: ## Sync Airflow DAGs into the Airflow pod
+	@echo "$(BLUE)Syncing Airflow DAGs...$(NC)"
+	@AIRFLOW_POD=$$($(KUBECTL) get pods -n data-processing -l app=airflow -o name | head -1) && \
+		if [ -n "$$AIRFLOW_POD" ]; then \
+			$(KUBECTL) cp $(USECASE_DIR)/dags/ data-processing/$${AIRFLOW_POD#pod/}:/opt/airflow/dags/ && \
+			echo "$(GREEN)DAGs synced.$(NC)"; \
+		else \
+			echo "$(YELLOW)Airflow pod not found$(NC)"; \
+		fi
+
+usecase-crypto-submit-pipeline: ## Compile + submit KFP retraining pipeline
+	@echo "$(BLUE)Submitting Kubeflow Pipeline...$(NC)"
+	@$(KUBECTL) port-forward svc/ml-pipeline -n model-lifecycle 8888:8888 > /dev/null 2>&1 & \
+		PF_PID=$$! && sleep 5 && \
+		cd $(USECASE_DIR)/pipelines && \
+		KFP_HOST=http://localhost:8888 uv run --with 'kfp[kubernetes]==2.16.0' submit_recurring.py && \
+		kill $$PF_PID 2>/dev/null && \
+		echo "$(GREEN)Pipeline submitted.$(NC)" || \
+		{ kill $$PF_PID 2>/dev/null; echo "$(YELLOW)KFP not available — pipeline submission deferred$(NC)"; }

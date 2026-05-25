@@ -4,11 +4,12 @@ version = "2.0.0"
 description = "FLAML AutoML trainer — automatic model selection with MLflow logging"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    # AutoML — searches across lgbm/xgboost/catboost/rf/linear automatically
-    "flaml[automl]>=2.3.0",
-    # Boosting backends (FLAML uses these as learners)
-    # Versions constrained by FLAML's upper bounds
-    "xgboost>=2.1.0",
+    # AutoML — searches across lgbm/xgboost/catboost/rf/linear automatically.
+    # Bypass [automl] extra to avoid GPU-flavored xgboost; declare CPU learners explicitly.
+    "flaml>=2.3.0",
+    # Boosting backends (FLAML uses these as learners) — CPU-only (no GPU).
+    # xgboost-cpu excludes nvidia-nccl-cu12; lightgbm/catboost ship CPU by default.
+    "xgboost-cpu>=2.1.0",
     "lightgbm>=4.5.0",
     "catboost>=1.2.7",
     # Core
@@ -24,6 +25,9 @@ dependencies = [
     "kubernetes>=32.0.0",
     # Observability
     "prometheus-client>=0.24.1",
+    # Continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS env
+    # (set by platform pipeline-config ConfigMap; see main.py init block).
+    "pyroscope-io>=0.8.7",
 ]
 
 [build-system]

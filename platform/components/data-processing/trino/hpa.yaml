@@ -8,8 +8,11 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: trino
+  # Coordinator (coordinator=true in config). Trino coordinator is
+  # singleton — one active node owns query planning + discovery. Workers
+  # scale, coordinator does not. Add worker StatefulSet HPA when wired.
   minReplicas: 1
-  maxReplicas: 1  # Single-pod bootstrap; bump for production load.
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:

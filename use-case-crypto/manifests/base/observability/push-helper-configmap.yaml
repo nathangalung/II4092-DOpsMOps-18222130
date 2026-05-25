@@ -27,7 +27,7 @@
 #
 # Domain-agnostic shape: every metric is labelled
 #   {use_case="crypto", job="<job>", instance="<pod>"}
-# so SLOs / alert routes in alertmanagerconfig-crypto.yaml can target the
+# so SLOs / alert routes in alertmanagerconfig.yaml can target the
 # `use_case` label and a single dashboard panel renders ALL crypto batch
 # runs without per-script wiring.
 # =============================================================================
@@ -97,10 +97,11 @@ data:
           && echo "[push-helper] pushed metrics to ${_url}" \
           || echo "[push-helper] WARN: curl push failed; metrics dropped" >&2
       elif command -v wget >/dev/null 2>&1; then
-        # busybox wget supports stdin via `--post-data=-`? No — use a tmpfile.
+        # Busybox wget (alpine default) only supports --post-file=FILE / --post-data=STR.
+        # GNU --method=POST --body-file= is not recognized; use --post-file.
         _tmp=$(mktemp 2>/dev/null || echo /tmp/_pgw_$$)
         printf '%s' "${_payload}" > "${_tmp}"
-        wget -q --method=POST --body-file="${_tmp}" --header="Content-Type: text/plain" \
+        wget -q --post-file="${_tmp}" --header="Content-Type: text/plain" \
              -O - "${_url}" >/dev/null \
           && echo "[push-helper] pushed metrics to ${_url} (wget)" \
           || echo "[push-helper] WARN: wget push failed; metrics dropped" >&2

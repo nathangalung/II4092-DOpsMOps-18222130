@@ -12,3 +12,9 @@ metadata:
     mlops-platform.io/use-case: "true"
     mlops-platform.io/istio-exempt: "true"
     istio-injection: disabled
+    # Kueue ClusterQueue mlops-cluster-queue (platform/components/common/
+    # kueue/queues.yaml) gates admission via namespaceSelector on this
+    # label. Without it, every workload routed through training-queue or
+    # batch-queue would be rejected at LocalQueue admission. Opt-in,
+    # domain-agnostic — any future use-case namespace adds the same label.
+    kueue.mlops/use-case: "true"

@@ -89,7 +89,7 @@ spec:
           jsonPointers:
             - /spec/target/template/metadata/labels
         # storageUri on the InferenceService is owned by the retraining pipeline
-        # (platform/services/training/trainer/src/deploy_kserve.py), which patches
+        # (platform/services/trainer/src/deploy_kserve.py), which patches
         # it with the latest MLflow run's artifact path after each successful
         # training. The committed manifest only carries a placeholder; ArgoCD must
         # leave the live value alone so model promotions aren't reverted on sync.

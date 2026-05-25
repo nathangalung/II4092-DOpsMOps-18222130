@@ -83,7 +83,7 @@ func NewKafkaProducer(cfg config.KafkaConfig, logger *zap.Logger) (*KafkaProduce
 }
 
 // applyKafkaSecurity wires SASL+TLS into sarama from KafkaConfig. Mirrors the
-// platform pipeline-config / crypto-app-consumer envFrom contract:
+// platform pipeline-config / <usecase>-app-consumer envFrom contract:
 //
 //	KAFKA_SECURITY_PROTOCOL = SASL_SSL  → enable both
 //	KAFKA_SASL_MECHANISM    = SCRAM-SHA-512 (or SCRAM-SHA-256 / PLAIN)

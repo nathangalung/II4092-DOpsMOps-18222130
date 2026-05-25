@@ -100,12 +100,12 @@ spec:
 # ADR-023/025: PodMonitor (not ServiceMonitor) because the Flink Operator
 # does not auto-create a Service exposing the Prometheus reporter port.
 # Selector targets the JobManager pod labels the operator applies to the
-# FlinkDeployment `crypto-flink-job` (see flink/flinkdeployment.yaml —
+# FlinkDeployment `crypto-stream-processor` (see flink/flinkdeployment.yaml —
 # `metrics.reporter.prom.port: "9249"`).
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: flink-job
+  name: stream-processor
   namespace: use-case-crypto
   labels:
     app.kubernetes.io/part-of: use-case-crypto
@@ -113,7 +113,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: crypto-flink-job
+      app: crypto-stream-processor
       component: jobmanager
   podMetricsEndpoints:
     - port: metrics

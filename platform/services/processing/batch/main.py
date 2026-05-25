@@ -5,6 +5,7 @@ Runs feature engineering jobs on historical data from ClickHouse.
 
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 
@@ -17,6 +18,21 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
+# = profiler disabled, service runs unchanged.
+if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
+    import pyroscope
+
+    pyroscope.configure(
+        application_name=f"{os.environ.get('USE_CASE', 'platform')}.processing.batch",
+        server_address=os.environ["PYROSCOPE_SERVER_ADDRESS"],
+        tags={
+            "use_case": os.environ.get("USE_CASE", "platform"),
+            "service": "processing.batch",
+        },
+    )
 
 
 def run_features(config: Config) -> None:

@@ -594,9 +594,7 @@ source = { editable = "." }
 dependencies = [
     { name = "clickhouse-connect" },
     { name = "feast", extra = ["clickhouse", "redis"] },
-    { name = "prometheus-client" },
     { name = "psycopg", extra = ["binary", "pool"] },
-    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -611,9 +609,7 @@ dev = [
 requires-dist = [
     { name = "clickhouse-connect", specifier = ">=0.14.0" },
     { name = "feast", extras = ["clickhouse", "redis"], specifier = ">=0.61.0" },
-    { name = "prometheus-client", specifier = ">=0.24.1" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [package.metadata.requires-dev]

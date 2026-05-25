@@ -7,74 +7,66 @@
 # duplicate cluster-scoped objects.
 #
 # This file only declares the namespace-scoped LocalQueues that land in
-# `use-case-crypto`. Each queue targets the shared cluster queue:
+# `use-case-crypto`. Both queues target the shared cluster queue:
 #
-#   ClusterQueue mlops-cluster-queue  (cohort=mlops, platform)
+#   ClusterQueue mlops-cluster-queue  (cohort=mlops, platform layer)
 #     |
-#     +-- LocalQueue crypto-training-queue  <-- training workloads
-#     +-- LocalQueue crypto-batch-queue     <-- batch processing workloads
+#     +-- LocalQueue training-queue   <-- Katib / KFP / training workloads
+#     +-- LocalQueue batch-queue      <-- supplementary / vector-embedding /
+#                                         dbt / feature-engineering CronJobs
 #
-# Usage: add the following label to the Job or CronJob pod template:
-#   kueue.x-k8s.io/queue-name: crypto-training-queue
+# NAME-PREFIX CAVEAT
+#   The local overlay (overlays/local/kustomization.yaml) sets
+#   `namePrefix: crypto-`, which renames these LocalQueue resources to
+#   `crypto-training-queue` and `crypto-batch-queue` in the rendered output.
+#   Kustomize does NOT transform label *values*, so every workload's
+#   `kueue.x-k8s.io/queue-name` label MUST be hardcoded to the post-prefix
+#   name (`crypto-training-queue` / `crypto-batch-queue`) in base, or Kueue
+#   admission will fail with "LocalQueue not found".
 #
-# For batch processing jobs (dbt, feature engineering, vector embedding):
-#   kueue.x-k8s.io/queue-name: crypto-batch-queue
+# Admission contract
+#   1. The owning namespace MUST carry `kueue.mlops/use-case: "true"` so the
+#      ClusterQueue namespaceSelector admits its LocalQueues.
+#   2. Each workload sets the queue-name label on the Job-level metadata
+#      (NOT on the pod template — Kueue's Job integration reads Job labels):
+#
+#         apiVersion: batch/v1
+#         kind: CronJob
+#         spec:
+#           jobTemplate:
+#             metadata:
+#               labels:
+#                 kueue.x-k8s.io/queue-name: crypto-batch-queue
+#             spec:
+#               template: ...
+#
+#      For a bare Job, the label sits on the Job's own metadata.labels.
+#   3. Bootstrap / one-shot Jobs (openbao bootstrap, schema-registration,
+#      superset bootstrap) intentionally stay unlabeled so they bypass
+#      Kueue admission entirely — routing them through a queue can deadlock
+#      install when the ClusterQueue budget is saturated.
 # =============================================================================
 
 ---
-# -----------------------------------------------------------------------------
-# LocalQueue: crypto-training-queue
-# -----------------------------------------------------------------------------
-# Namespace-scoped queue for training workloads in the use-case-crypto
-# namespace. Training CronJobs, Katib hyperparameter tuning experiments,
-# and KFP pipeline pods submit work here.
-#
-# Example usage in a CronJob:
-#   apiVersion: batch/v1
-#   kind: CronJob
-#   metadata:
-#     name: crypto-model-training
-#     namespace: use-case-crypto
-#   spec:
-#     jobTemplate:
-#       spec:
-#         template:
-#           metadata:
-#             labels:
-#               kueue.x-k8s.io/queue-name: crypto-training-queue
-# -----------------------------------------------------------------------------
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   name: training-queue
   namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: queueing
 spec:
   clusterQueue: mlops-cluster-queue
 
 ---
-# -----------------------------------------------------------------------------
-# LocalQueue: crypto-batch-queue
-# -----------------------------------------------------------------------------
-# Namespace-scoped queue for batch processing workloads in the
-# use-case-crypto namespace. Used by dbt transformation jobs, feature
-# engineering pipelines, and vector embedding generation.
-#
-# Example usage in a Job:
-#   apiVersion: batch/v1
-#   kind: Job
-#   metadata:
-#     name: dbt-transform
-#     namespace: use-case-crypto
-#   spec:
-#     template:
-#       metadata:
-#         labels:
-#           kueue.x-k8s.io/queue-name: crypto-batch-queue
-# -----------------------------------------------------------------------------
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   name: batch-queue
   namespace: use-case-crypto
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: queueing
 spec:
   clusterQueue: mlops-cluster-queue

@@ -46,6 +46,8 @@ spec:
               envFrom:
                 - configMapRef:
                     name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
               resources:
                 requests:
                   cpu: "50m"
@@ -85,6 +87,8 @@ spec:
               envFrom:
                 - configMapRef:
                     name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
               resources:
                 requests:
                   cpu: "100m"
@@ -124,6 +128,8 @@ spec:
               envFrom:
                 - configMapRef:
                     name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
               resources:
                 requests:
                   cpu: "200m"
@@ -163,6 +169,8 @@ spec:
               envFrom:
                 - configMapRef:
                     name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
               resources:
                 requests:
                   cpu: "200m"

@@ -3,6 +3,18 @@ kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
+  # --- ClickHouse (drift-detector, dbt, validator, trainer, analyzer) ---
+  # Schema-qualified tables live under bronze/silver/gold; the `features`
+  # database holds VIEWs that wrap bronze sources for feature-store and
+  # drift detection (see use-case-crypto/database/init_clickhouse.sql L491+).
+  CLICKHOUSE_HOST: "clickhouse-platform.storage.svc.cluster.local"
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_DB: "features"
+  # Schema-qualified — serving.yaml overrides CLICKHOUSE_DB to "default" so
+  # unqualified table names won't resolve; consumers read bronze.* directly.
+  CLICKHOUSE_TABLE: "bronze.crypto_ohlcv_features"
+  DRIFT_SINK_TABLE: "gold.drift_multi_scale"
+  DRIFT_SINK_SYMBOL: "BTC-USD"
   # --- rest-collector config path ---
   # The rest-collector reads its data-source and endpoint definitions from
   # a file-based config (see configmaps/rest-collector-config.yaml) because

@@ -3,7 +3,7 @@
 # =============================================================================
 # Swaps the platform default image (`websocket-collector:latest`, which ships
 # the generic DefaultTickerParser) for the Coinbase binary produced by
-# use-case-crypto/services/ingestion/websocket-collector. The overlay binary
+# use-case-crypto/services/websocket-collector. The overlay binary
 # reuses the platform library for config/producer/health and adds a Coinbase
 # MessageParser that understands ticker / match / l2update channels.
 # =============================================================================

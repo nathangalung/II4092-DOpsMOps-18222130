@@ -210,3 +210,90 @@ spec:
   selector:
     matchLabels:
       app: lakekeeper
+---
+# =============================================================================
+# LAKEKEEPER BOOTSTRAP — one-time server init
+# =============================================================================
+# Lakekeeper requires a one-time POST /management/v1/bootstrap call to
+# initialize the default project (00000000-0000-0000-0000-000000000000) and
+# accept the terms of use. Without this, every subsequent /management/v1/
+# call returns 404 ProjectNotFound (e.g. warehouse creation by use-case
+# Iceberg sink Jobs). See: https://docs.lakekeeper.io/docs/bootstrap.
+#
+# Idempotent: a second bootstrap call returns HTTP 400/409, which we accept.
+# The Job is platform-level (server init) and domain-agnostic, so it lives
+# next to the Lakekeeper Deployment rather than in any use-case overlay.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lakekeeper-bootstrap
+  namespace: storage
+  labels:
+    app: lakekeeper
+    app.kubernetes.io/part-of: mlops-platform
+  annotations:
+    # ArgoCD PostSync hook (mirrors openbao-bootstrap pattern): the Job runs
+    # AFTER lakekeeper Deployment is Synced+Healthy. `BeforeHookCreation`
+    # deletes any prior hook Job from the previous Sync before creating a
+    # fresh one (handles spec changes idempotently). `HookSucceeded` removes
+    # the Job after a successful run so Argo doesn't track it as part of
+    # sync state. Without these annotations the Job's
+    # `ttlSecondsAfterFinished: 900` deletes it after 15min and Argo then
+    # reports the parent Application as Missing forever (the Job is both
+    # required by Sync AND auto-deleted out from under Argo). The bootstrap
+    # call is idempotent — second invocation returns HTTP 400/409 which the
+    # script treats as success — so re-running on each Sync is safe.
+    # Field-validated 2026-05-21.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 900
+  template:
+    metadata:
+      labels:
+        app: lakekeeper
+        job: lakekeeper-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: curlimages/curl:8.20.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              LK="http://lakekeeper.storage.svc.cluster.local:8181"
+              echo "Waiting for Lakekeeper readiness..."
+              until curl -sf "$LK/health" >/dev/null; do
+                sleep 3
+              done
+              echo "Lakekeeper is ready"
+
+              echo "POST $LK/management/v1/bootstrap"
+              # /tmp is read-only (readOnlyRootFilesystem: true), so drop body
+              # capture and write the http_code to stdout via -o /dev/null.
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X POST "$LK/management/v1/bootstrap" \
+                -H "Content-Type: application/json" \
+                -d '{"accept-terms-of-use": true, "is-operator": true}')
+              echo "Bootstrap: HTTP $HTTP"
+              # 200/204 = first-run success; 400/409 = already bootstrapped.
+              case "$HTTP" in
+                200|201|204|400|409) echo "OK — Lakekeeper ready for warehouse creation"; exit 0 ;;
+                *) echo "ERROR: bootstrap returned $HTTP"; exit 1 ;;
+              esac

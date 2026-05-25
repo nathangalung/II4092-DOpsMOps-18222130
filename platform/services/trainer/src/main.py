@@ -18,6 +18,7 @@ References:
 
 import logging
 import os
+import sys
 
 import clickhouse_connect
 import mlflow
@@ -40,6 +41,21 @@ from trainer import Trainer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
+# = profiler disabled, service runs unchanged.
+if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
+    import pyroscope
+
+    pyroscope.configure(
+        application_name=f"{os.environ.get('USE_CASE', 'platform')}.trainer",
+        server_address=os.environ["PYROSCOPE_SERVER_ADDRESS"],
+        tags={
+            "use_case": os.environ.get("USE_CASE", "platform"),
+            "service": "trainer",
+        },
+    )
+
 TRAIN_COUNTER = Counter("trainer_runs_total", "Training runs")
 TRAIN_DURATION = Histogram("trainer_duration_seconds", "Training duration")
 
@@ -52,6 +68,8 @@ class Config:
     CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
     CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
     CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "features")
+    CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
     MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
     EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "ml-pipeline")
     FEATURES_TABLE = os.getenv("FEATURES_TABLE", "features")
@@ -119,25 +137,41 @@ def _log_model_to_mlflow(automl: AutoML) -> None:
 # ── Data loading ────────────────────────────────────────────────────────
 
 def load_data(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Load training data from ClickHouse."""
+    """Load training data from ClickHouse.
+
+    Empty start/end strings = no upper/lower timestamp bound. The recurring
+    submitter passes empty defaults so the trainer captures whatever the
+    feature pipeline has materialised; the retraining launcher overrides
+    with a rolling N-day window when invoked via Argo Workflow.
+    """
     client = clickhouse_connect.get_client(
         host=Config.CLICKHOUSE_HOST,
         port=Config.CLICKHOUSE_PORT,
         database=Config.CLICKHOUSE_DB,
+        username=Config.CLICKHOUSE_USER,
+        password=Config.CLICKHOUSE_PASSWORD,
     )
+
+    where_clauses = [f"symbol = '{symbol}'"]
+    if start:
+        where_clauses.append(f"timestamp >= '{start}'")
+    if end:
+        where_clauses.append(f"timestamp <= '{end}'")
+    where_sql = " AND ".join(where_clauses)
 
     query = f"""
     SELECT *
     FROM {Config.FEATURES_TABLE}
-    WHERE symbol = '{symbol}'
-      AND timestamp >= '{start}'
-      AND timestamp <= '{end}'
+    WHERE {where_sql}
     ORDER BY timestamp
     """
 
     df = client.query_df(query)
     df = df.ffill().fillna(0)
-    logger.info("Loaded %d rows for %s", len(df), symbol)
+    logger.info(
+        "Loaded %d rows for %s (window=[%s, %s])",
+        len(df), symbol, start or "-inf", end or "+inf",
+    )
     return df
 
 
@@ -285,21 +319,41 @@ def main() -> None:
 
     logger.info("Training symbols: %s, window: %s to %s", symbols, start_date, end_date)
 
+    # Collect failures, then exit non-zero at the end. We avoid raising mid-loop
+    # so a single bad symbol doesn't skip the rest, but we MUST surface failure
+    # to the orchestrator (KFP / Workflow) — silent exit-0 lets cached
+    # Succeeded shells block downstream "Experiment not found" diagnosis.
+    failures: list[str] = []
     for symbol in symbols:
         logger.info("Training for %s", symbol)
         with TRAIN_DURATION.time():
             TRAIN_COUNTER.inc()
             try:
                 df = load_data(symbol, start_date, end_date)
-                if len(df) >= 50:
-                    results = train(symbol, df)
-                    logger.info("Training complete for %s: %s", symbol, results)
-                else:
-                    logger.warning(
-                        "Not enough data for %s (%d rows, need >= 50)", symbol, len(df)
+                if len(df) < 50:
+                    failures.append(
+                        f"{symbol}: insufficient data ({len(df)} rows, need >= 50)"
                     )
+                    logger.error(
+                        "Insufficient data for %s (%d rows, need >= 50)",
+                        symbol,
+                        len(df),
+                    )
+                    continue
+                results = train(symbol, df)
+                logger.info("Training complete for %s: %s", symbol, results)
             except Exception as e:
-                logger.error("Training failed for %s: %s", symbol, e)
+                failures.append(f"{symbol}: {e}")
+                logger.exception("Training failed for %s", symbol)
+
+    if failures:
+        logger.error(
+            "Training run failed for %d/%d symbol(s): %s",
+            len(failures),
+            len(symbols),
+            "; ".join(failures),
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

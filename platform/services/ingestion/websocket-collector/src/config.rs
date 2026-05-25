@@ -1,6 +1,7 @@
 //! Configuration for WebSocket collector
 
 use anyhow::Result;
+use rdkafka::ClientConfig;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -10,12 +11,47 @@ pub struct Config {
     pub health_port: u16,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct KafkaConfig {
     pub brokers: String,
     pub topic: String,
     pub batch_size: usize,
     pub flush_interval_ms: u64,
+    /// Optional SASL/SSL — set by use-cases needing auth.
+    /// Platform default (None) keeps PLAINTEXT to stay domain-agnostic.
+    #[serde(default)]
+    pub security_protocol: Option<String>,
+    #[serde(default)]
+    pub sasl_mechanism: Option<String>,
+    #[serde(default)]
+    pub sasl_username: Option<String>,
+    #[serde(default)]
+    pub sasl_password: Option<String>,
+    #[serde(default)]
+    pub ssl_ca_location: Option<String>,
+}
+
+impl KafkaConfig {
+    /// Apply SASL/SSL settings to an rdkafka ClientConfig.
+    /// No-op when security_protocol is unset.
+    pub fn apply_security(&self, cfg: &mut ClientConfig) {
+        let Some(proto) = self.security_protocol.as_deref() else {
+            return;
+        };
+        cfg.set("security.protocol", proto);
+        if let Some(m) = &self.sasl_mechanism {
+            cfg.set("sasl.mechanisms", m);
+        }
+        if let Some(u) = &self.sasl_username {
+            cfg.set("sasl.username", u);
+        }
+        if let Some(p) = &self.sasl_password {
+            cfg.set("sasl.password", p);
+        }
+        if let Some(ca) = &self.ssl_ca_location {
+            cfg.set("ssl.ca.location", ca);
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -51,6 +87,23 @@ impl Config {
         }
         if let Ok(v) = std::env::var("KAFKA_TOPIC") {
             cfg.kafka.topic = v;
+        }
+        // SASL/SSL — use-case sets these via ConfigMap; platform default
+        // leaves them None and the producer runs PLAINTEXT.
+        if let Ok(v) = std::env::var("KAFKA_SECURITY_PROTOCOL") {
+            cfg.kafka.security_protocol = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_MECHANISM") {
+            cfg.kafka.sasl_mechanism = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_USERNAME") {
+            cfg.kafka.sasl_username = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_PASSWORD") {
+            cfg.kafka.sasl_password = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SSL_CA_LOCATION") {
+            cfg.kafka.ssl_ca_location = Some(v);
         }
         if let Ok(v) = std::env::var("SERVER_PORT")
             && let Ok(p) = v.parse()
@@ -107,6 +160,7 @@ mod tests {
             topic: "test-topic".to_string(),
             batch_size: 100,
             flush_interval_ms: 50,
+            ..Default::default()
         };
         let cloned = kafka.clone();
         assert_eq!(kafka.brokers, cloned.brokers);
@@ -148,6 +202,7 @@ mod tests {
             topic: "test".to_string(),
             batch_size: 10,
             flush_interval_ms: 5,
+            ..Default::default()
         };
         let debug_str = format!("{:?}", kafka);
         assert!(debug_str.contains("test:9092"));

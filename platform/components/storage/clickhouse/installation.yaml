@@ -39,6 +39,42 @@ spec:
     - secretKey: password
       remoteRef: { key: platform/clickhouse/admin, property: password }
 ---
+# =============================================================================
+# Strimzi cluster CA cert mirror — `data-ingestion/platform-kafka-cluster-ca-cert`
+# is auto-managed by the Strimzi cluster-operator and carries the cluster CA used
+# to sign each Kafka broker certificate (listeners :9093 internal TLS, :9094
+# external TLS).
+#
+# ClickHouse Kafka engine talks to brokers via librdkafka. With
+# `security_protocol=SASL_SSL` librdkafka verifies the broker cert chain against
+# the system CA bundle by default — Strimzi-issued certs are NOT in the system
+# bundle, so we must point ssl.ca.location at the mirrored CA file. CHI mounts
+# the secret read-only at /etc/clickhouse-server/kafka-ca/ca.crt (see
+# ch-pod podTemplate below) and the path is published via
+# `<kafka><ssl_ca_location>` in the configuration settings block.
+#
+# Domain-agnostic: every use-case Kafka engine table reuses this CA. Use-case
+# overlays only add their KafkaUser + named collection — no CA plumbing.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: clickhouse-kafka-ca
+  namespace: storage
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-kafka-users, kind: ClusterSecretStore }
+  target:
+    name: clickhouse-kafka-ca
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        ca.crt: "{{ index . \"ca.crt\" }}"
+  data:
+    - secretKey: ca.crt
+      remoteRef: { key: platform-kafka-cluster-ca-cert, property: ca.crt }
+---
 apiVersion: clickhouse-keeper.altinity.com/v1
 kind: ClickHouseKeeperInstallation
 metadata:
@@ -130,6 +166,34 @@ spec:
       max_connections: "1024"
       merge_tree/parts_to_delay_insert: "300"
       merge_tree/parts_to_throw_insert: "600"
+      # Single-node IO throttle (2026-05-20 cascade #307): default
+      # background_pool_size=16 saturates a 1-disk local-path PVC under
+      # sustained ingestion (REST backfill + WS stream → ~1222 KB/s
+      # sustained writes, sda w_await 210ms, some-PSI 88%). Cap parallel
+      # merges at 4 + concurrency ratio 1 so one merge thread per
+      # ~250 KB/s headroom, keeping w_await <50ms. Bumping
+      # merge_with_ttl_timeout to 4h reduces TTL-driven merge churn on
+      # bronze MergeTrees (which carry per-row TTL DELETE).
+      background_pool_size: "4"
+      background_schedule_pool_size: "8"
+      background_merges_mutations_concurrency_ratio: "1"
+      # ClickHouse 26.x server sanity check (see Server::main → MergeTreeSettingsImpl::sanityCheck):
+      # number_of_free_entries_in_pool_to_execute_mutation must be ≤ background_pool_size *
+      # background_merges_mutations_concurrency_ratio. Default 20 vs our pool 4 → BAD_ARGUMENTS
+      # (Code:36) on startup. Match the same logic for the lower_max_size_of_merge knob
+      # (default 8). Values chosen: leave at least half the pool free for inserts before
+      # gating mutations / down-sizing merges.
+      merge_tree/number_of_free_entries_in_pool_to_execute_mutation: "2"
+      merge_tree/number_of_free_entries_in_pool_to_lower_max_size_of_merge: "2"
+      merge_tree/number_of_free_entries_in_pool_to_execute_optimize_entire_partition: "2"
+      merge_tree/merge_with_ttl_timeout: "14400"
+      merge_tree/min_bytes_for_wide_part: "104857600"
+      # librdkafka SSL CA path — points at the cluster-CA cert mirrored from
+      # `data-ingestion/platform-kafka-cluster-ca-cert` via the ExternalSecret
+      # at the top of this file. Every Kafka engine table that talks to
+      # `*-kafka-bootstrap.data-ingestion.svc.cluster.local:9093` (SASL_SSL)
+      # picks this up — use-case overlays do NOT need to set it per-table.
+      kafka/ssl_ca_location: "/etc/clickhouse-server/kafka-ca/ca.crt"
       # Do NOT set remote_servers/* here — the operator generates the full
       # `<remote_servers>` block from spec.configuration.clusters[*].layout.
       # A flat `remote_servers/main/shard/internal_replication: "true"` line
@@ -170,6 +234,20 @@ spec:
                 allowPrivilegeEscalation: false
                 runAsNonRoot: true
                 capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                # Strimzi cluster CA — Kafka engine SSL verification target.
+                # `kafka/ssl_ca_location` in settings (above) points here.
+                - name: kafka-ca
+                  mountPath: /etc/clickhouse-server/kafka-ca
+                  readOnly: true
+          volumes:
+            - name: kafka-ca
+              secret:
+                secretName: clickhouse-kafka-ca
+                defaultMode: 0444
+                items:
+                  - key: ca.crt
+                    path: ca.crt
     volumeClaimTemplates:
       - name: ch-data
         spec:

@@ -1,18 +1,23 @@
 # =============================================================================
 # Knative serving Namespace patch
 # =============================================================================
-# Upstream serving-core.yaml ships a vanilla `knative-serving` Namespace.  Two
-# labels must be added cluster-side without editing the pinned bundle:
-#   - istio-injection: enabled       → sidecar-inject every Knative pod so the
-#     Knative CA/DataPlane handshake lands on the mesh.
-#   - pod-security.kubernetes.io/enforce: restricted → PSA hardening.
+# Upstream serving-core.yaml ships a vanilla `knative-serving` Namespace.
+# Apply PSA hardening only.
 #
-# Kustomize merge-patches the labels onto the upstream object.
+# NB: `istio-injection: enabled` is INTENTIONALLY OMITTED. Knative control
+# plane pods (webhook, activator, autoscaler, controller, autoscaler-hpa) do
+# not need mesh sidecars — mesh routing for KServe / Knative Services is
+# programmed by net-istio-controller via Gateway + VirtualService objects, not
+# via sidecar interception on knative-serving pods. Injecting the istio-proxy
+# sidecar collides with PSA `restricted` (injected `istio-validation` +
+# `istio-proxy` containers lack seccompProfile, admission denies pod create),
+# driving webhook/activator/autoscaler ReplicaSets to 0/1 ready and leaving
+# the validating-webhook Service endpoints empty — which then blocks every
+# downstream Argo sync that touches Knative CRs.
 # =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
   name: knative-serving
   labels:
-    istio-injection: enabled
     pod-security.kubernetes.io/enforce: restricted

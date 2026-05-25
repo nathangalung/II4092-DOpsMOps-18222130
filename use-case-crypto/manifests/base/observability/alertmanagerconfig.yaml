@@ -115,7 +115,7 @@ spec:
 
     # =========================================================================
     # Service-health alerts driven by the ServiceMonitors in
-    # observability/servicemonitors-crypto.yaml. These five mirror the
+    # observability/servicemonitors.yaml. These five mirror the
     # audit expectation (ingest lag, validator error rate, ml-bridge
     # latency, Katib experiment status, drift threshold).
     # =========================================================================
@@ -207,7 +207,7 @@ spec:
 
         # ---- Drift threshold (Evidently drift score > 0.3 for any feature).
         # Metric emitted by the inline drift_check step in the Airflow DAG
-        # `crypto_hourly_features` (see dags/crypto_data_pipeline.py).
+        # `crypto_hourly_features` (see dags/data_pipeline.py).
         - alert: CryptoFeatureDriftHigh
           expr: |
             max by (feature) (

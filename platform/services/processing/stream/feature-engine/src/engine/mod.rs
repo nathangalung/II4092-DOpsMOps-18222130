@@ -33,19 +33,23 @@ pub struct FeatureEngine {
 
 impl FeatureEngine {
     pub fn new(cfg: &Config) -> anyhow::Result<Self> {
-        let consumer: StreamConsumer = ClientConfig::new()
+        let mut consumer_cfg = ClientConfig::new();
+        consumer_cfg
             .set("bootstrap.servers", &cfg.kafka.brokers)
             .set("group.id", &cfg.kafka.group_id)
             .set("auto.offset.reset", "latest")
-            .set("enable.auto.commit", "true")
-            .create()?;
+            .set("enable.auto.commit", "true");
+        cfg.kafka.apply_security(&mut consumer_cfg);
+        let consumer: StreamConsumer = consumer_cfg.create()?;
 
         consumer.subscribe(&[&cfg.kafka.input_topic])?;
 
-        let producer: FutureProducer = ClientConfig::new()
+        let mut producer_cfg = ClientConfig::new();
+        producer_cfg
             .set("bootstrap.servers", &cfg.kafka.brokers)
-            .set("message.timeout.ms", "5000")
-            .create()?;
+            .set("message.timeout.ms", "5000");
+        cfg.kafka.apply_security(&mut producer_cfg);
+        let producer: FutureProducer = producer_cfg.create()?;
 
         let redis_client = redis::Client::open(cfg.redis.url.as_str())?;
 

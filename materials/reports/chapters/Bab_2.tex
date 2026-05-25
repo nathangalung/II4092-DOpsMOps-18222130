@@ -1,232 +1,209 @@
-\cleardoublepage % memastikan bab baru dimulai di halaman ganjil (kanan)
+\cleardoublepage
 \chapter{STUDI LITERATUR}
 \label{chap:studi-literatur}
-\section{Tentang Studi Literatur}
-Studi literatur biasanya berisi tentang tinjauan pustaka, landasan teori, dan penelitian-penelitian terdahulu yang relevan dengan topik tugas akhir yang dikerjakan.
-Dalam subbab ini, penulis diharapkan dapat menjelaskan:
-\begin{enumerate}
-  \item Landasan teori yang diperoleh dari literatur yang akan digunakan untuk menyelesaikan persoalan TA;
-  \item Pengetahuan tentang kasus yang akan dikaji; dan
-  \item Penelitian atau solusi terkait untuk mengetahui posisi persoalan dan berbagai solusi yang memungkinkan untuk diterapkan berdasarkan hasil studi literatur ini.
-\end{enumerate}
-Jadi, studi literatur ini bukan sekadar rangkuman dari berbagai sumber referensi, tetapi harus diolah dan disajikan secara sistematis sehingga dapat memberikan gambaran yang jelas tentang landasan teori dan penelitian-penelitian terdahulu yang relevan dengan topik tugas akhir.
 
-Penulisan studi literatur yang baik dimulai dari penjelasan tentang kasus yang akan dikaji, kemudian diikuti dengan penjelasan tentang teori-teori yang relevan, dan diakhiri dengan tinjauan terhadap penelitian-penelitian terdahulu yang berkaitan dengan topik tugas akhir.
-Misalnya, jika topik tugas akhir adalah tentang masalah klasifikasi biji kopi berdasarkan citra kopi, 
-penulis dapat memulai dengan menjelaskan terlebih dahulu tentang karakteristik biji kopi, masalah dalam melakukan klasifikasi biji kopi, 
-kemudian menjelaskan tentang berbagai metode berbasis komputer yang dapat digunakan untuk mengklasifikasikan biji kopi berdasarkan citranya, 
-metode terbaik yang memungkinkan untuk diterapkan, teori-teori dasar tentang metode tersebut, dan diakhiri dengan tinjauan terhadap penelitian-penelitian terdahulu yang menggunakan metode untuk klasifikasi citra.
+% Studi literatur DataOps MLOps
+\section{Cakupan Studi Literatur}
+\label{sec:cakupan-studi-literatur}
 
-Dalam studi literatur, biasanya banyak penjelasan tentang teori-teori yang disertai dengan rumus atau persamaan matematika, gambar, tabel, algoritma, pseudocode, atau kode program.
-Oleh karena itu, pada subbab berikut akan dijelaskan beberapa hal teknis terkait format penulisan dokumen tugas akhir.
+Bab ini merangkum landasan teori dan ekosistem perangkat lunak yang relevan untuk perancangan platform pada Bab~\ref{chap:perancangan}. Tinjauan disusun mulai dari konsep DataOps dan MLOps, dilanjutkan dengan komponen teknis yang menjadi bahan baku perancangan, kemudian ditutup dengan posisi penelitian terdahulu dan kebaruan yang ditawarkan.
 
-\section{Format Penulisan Gambar, Tabel, Rumus, dan Kode Program}
-Berikut adalah beberapa contoh penulisan gambar, tabel, rumus, dan kode program yang sesuai dengan format penulisan tugas akhir.
-\subsection{Penulisan Gambar}
-Contoh gambar dapat dilihat pada Gambar \ref{fig:jaringan} dan Gambar \ref{fig:jaringan2}.
-Secara vertikal, gambar biasanya diletakkan di bagian atas halaman (\textit{top}) atau di bagian bawah halaman (\textit{bottom}).
-Gambar tidak harus diletakkan tepat di tempat gambar tersebut disebutkan pertama kali dalam teks,
-tetapi dapat diletakkan di halaman berikutnya jika tidak muat di halaman yang sama. Pada contoh ini, kedua gambar diletakkan di bagian atas halaman 
-menggunakan opsi \texttt{[t]} pada lingkungan \texttt{figure}, namun pada halaman yang berbeda, meskipun disebutkan di halaman yang sama akibat ruang yang terbatas. 
+\section{DataOps dan MLOps}
+\label{sec:dataops-mlops}
 
-Penyebutan judul gambar dalam teks menggunakan perintah \texttt{ref}, misalnya Gambar \texttt{\\ref\{fig:jaringan\}}.
-Gunakan huruf kapital pada kata "Gambar" saat menyebutkan gambar dalam teks.
+\subsection{DataOps}
+\label{subsec:dataops}
 
-\begin{figure}[t] % pilihan opsi yang disarankan: t = top, b = bottom, h = here
-  \caption{Contoh peletakan gambar di bagian atas halaman} 
-	\label{fig:jaringan}
-    	\includegraphics[width=0.7\textwidth]{images/gambar1.png}
+DataOps merupakan adaptasi praktik DevOps untuk siklus hidup data. \textcite{rella2022mlops} mendefinisikan DataOps sebagai pendekatan kolaboratif yang menempatkan kualitas data, kecepatan iterasi, dan pengukuran tertaut sebagai inti. \textcite{kleppmann2017ddia} memberi fondasi konseptual lewat penjelasan tentang sistem berbasis data yang andal, dapat diskalakan, dan dapat dipelihara, sementara \textcite{stopford2018designing} memperkenalkan pola arsitektur \textit{event-driven} dengan Apache Kafka sebagai tulang punggung. Pada praktiknya, DataOps menuntut otomasi \textit{pipeline} ingestasi dan transformasi, pengujian kontrak data, perekaman \textit{lineage}, dan pemantauan kualitas data sebagai bagian permanen dari operasi.
+
+\subsection{MLOps}
+\label{subsec:mlops}
+
+MLOps memperluas DevOps ke seluruh siklus hidup model \textit{machine learning}. \textcite{kreuzberger2023mlops} memberikan definisi konsolidatif: MLOps sebagai gabungan budaya kerja dan perangkat lunak untuk mengotomasi eksperimen, pelatihan, evaluasi, penyebaran, dan pemantauan model. \textcite{sculley2015hidden} menjelaskan akar persoalannya: \textit{hidden technical debt} pada sistem \textit{machine learning} muncul terutama dari komponen non-model seperti perekayasaan fitur, konfigurasi, perekaman, pengujian data, dan layanan pemantauan. \textcite{paleyes2022challenges} melengkapi pemetaan dengan survei tantangan operasionalisasi, dan \textcite{shankar2022operationalizing} membawa perspektif praktisi melalui wawancara dengan tim MLOps lintas industri.
+
+\subsection{Tingkat Kematangan MLOps}
+\label{subsec:maturity}
+
+Beberapa kerangka kematangan diusulkan untuk menggambarkan jenjang kapabilitas tim. \textcite{googlecloud2024mlops} membagi MLOps menjadi tiga level: \textit{level 0} dengan proses manual, \textit{level 1} dengan otomasi \textit{pipeline} pelatihan, dan \textit{level 2} dengan otomasi penyebaran berbasis CI/CD/CT. Tiga level ini diilustrasikan pada Gambar~\ref{fig:mlops-level-0}, Gambar~\ref{fig:mlops-level-1}, dan Gambar~\ref{fig:mlops-level-2}. \textcite{azure2023maturity} memberi varian dengan lima level (0–4), dan \textcite{mcknight2020gigaom} menambah perspektif organisasi. Perbandingan ringkas dapat dilihat pada Tabel~\ref{tab:mlops_maturity_comparison}.
+
+\begin{figure}[t]
+  \caption{MLOps \textit{level} 0: proses manual dengan penyerahan model satu arah.}
+  \label{fig:mlops-level-0}
+  \centering
+  \includegraphics[width=0.9\textwidth]{figures/MLOps_0.jpg}
 \end{figure}
 
-Gambar, grafik, atau ilustrasi harus memiliki keterangan atau judul (\textit{caption}) yang menjelaskan isi gambar tersebut. 
-Secara horisontal, gambar dan judulnya diposisikan di tengah. Nomor gambar tidak diakhiri tanda baca.
-Judul gambar diletakkan di bawah gambar dan ditulis dengan huruf kecil kecuali huruf pertama pada kalimat judul. 
-Kalimat judul yang panjang dapat ditulis dalam beberapa baris seperti pada Gambar \ref{fig:jaringan2}.
-
-Ukuran gambar yang ditampilkan dapat diatur dengan mengubah nilai \textit{width} dalam sintaks \textit{includegraphics}. 
-Gambar \ref{fig:jaringan} memiliki lebar 70\% dari lebar teks, sedangkan Gambar \ref{fig:jaringan2} memiliki lebar 90\% dari lebar teks.
- 
-
-\begin{figure}[t] 
-  \caption{Contoh peletakan gambar dengan judul yang panjang sehingga ditulis dalam beberapa baris} 
-	\label{fig:jaringan2}
-    	\includegraphics[width=0.9\textwidth]{images/gambar1.png}
+\begin{figure}[t]
+  \caption{MLOps \textit{level} 1: otomasi \textit{pipeline} pelatihan dengan komponen yang dapat dipakai ulang.}
+  \label{fig:mlops-level-1}
+  \centering
+  \includegraphics[width=0.9\textwidth]{figures/MlOps_1.jpg}
 \end{figure}
 
-Pastikan gambar yang digunakan memiliki resolusi yang cukup tinggi agar tidak pecah atau buram saat dicetak. 
-Gambar umumnya tidak tajam dan tulisan tidak jelas atau kabur jika gambar tersebut:
-\begin{enumerate}[a.]
-  \item diperoleh dari hasil cropping pada suatu halaman buku atau situs web;
-  \item hasil pembesaran gambar yang gambar aslinya sebenarnya berukuran kecil; atau
-  \item disimpan dalam resolusi kecil
-\end{enumerate}
-Ketidakjelasan gambar ini dapat dilihat pada garis-garis diagram yang tidak tegas dan tulisan-tulisan dalam gambar yang tampak kabur dan kurang jelas terbaca.
-
-Untuk mendapatkan gambar yang tidak kabur (\textit{blur}), langkah-langkah berikut dapat digunakan:
-\begin{enumerate}[(a)]
-\item Hindari \textit{screenshot}. Gambar yang didapat di suatu pustaka atau referensi sebaiknya digambar ulang (tidak perlu sama persis), misalnya menggunakan PowerPoint, Canva, Figma, draw.io, atau yang lainnya.
-\item Jika diagram atau ilustrasi digambar menggunakan draw.io, saat gambar disimpan ke format PNG atau JPG (\textit{export as}), lakukan \textit{zoom} ke minimal 300\% (\textit{the default value is} 100\%). 
-\item Jika diagram digambar dengan menggunakan \texttt{PowerPoint} atau aplikasi yang mengolah gambar vektor lainnya, gambar dapat langsung disimpan asalkan resolusinya tinggi.
-\end{enumerate}
-
-\subsection{Penulisan Tabel}
-Format penulisan tabel hampir sama dengan format penulisan gambar. Bedanya adalah judul tabel diletakkan di atas tabel, bukan di bawah tabel seperti pada gambar.
-Ada tabel yang bisa dimuat dalam satu halaman (tabel pendek) dan ada tabel panjang yang yang tidak muat dalam satu halaman. Kedua jenis tabel tersebut disusun dengan cara yang berbeda.
-Jika tabel sangat panjang, gunakan paket \textit{longtable} untuk membuat tabel yang dapat terpotong ke halaman berikutnya.
-Namun, jika tabel dapat dimuat dalam satu halaman, gunakan lingkungan \textit{table} biasa, tidak menggunakan \textit{longtable}.
-Usahakan tabel dapat ditulis dalam satu halaman, tidak terpotong ke halaman berikutnya, jika memungkinkan.
-
-\subsubsection{Penulisan Tabel Pendek}
-Contoh tabel pendek dapat dilihat pada Tabel \ref{tab:tabel1}, \ref{tab:tabel2}, dan \ref{tab:tabel3}. 
-Pada kedua table ini, tabel dan judulnya diposisikan di tengah secara horisontal dan 
-judul tabel diletakkan di atas tabel. Secara vertikal, tabel sebaiknya diletakkan di bagian atas atau bawah halaman.
-
-Penyebutan judul tabel dalam teks menggunakan perintah \texttt{ref}, misalnya Tabel \ref{tab:tabel1}.
-Gunakan huruf kapital pada kata "Tabel" saat menyebutkan tabel dalam teks.
-
-Tabel \ref{tab:tabel1} menggunakan paket \textit{tabularx} untuk mengatur lebar kolom secara fleksibel. 
-Selain itu, tabel ini juga menggunakan \textit{threeparttable} untuk menambahkan catatan kaki pada tabel 
-dan opsi \texttt{X} agar lebar kolom fleksibel menyesuaikan lebar tabel.
-Catatan kaki pada tabel ini menggunakan perintah \texttt{tablenotes} yang disediakan oleh paket \textit{threeparttable}.
-Catatan kaki pada tabel ini menggunakan perintah \texttt{\textbackslash footnotemark} dan \texttt{\textbackslash footnotetext} untuk menambahkan catatan kaki pada tabel.
-
-Tabel \ref{tab:tabel2} menggunakan format standar \texttt{| l | c | r |}. 
-Tabel \ref{tab:tabel3} menggunakan lebar kolom tetap (\textit{fixed width}) menggunakan \texttt{p\{width\}}.
-
-\begin{table} 
+\begin{figure}[t]
+  \caption{MLOps \textit{level} 2: orkestrasi CI/CD/CT dengan deteksi \textit{drift} sebagai pemicu pelatihan ulang.}
+  \label{fig:mlops-level-2}
   \centering
-    \begin{threeparttable}[t] % threeparttable agar bisa menambahkan catatan kaki pada tabel
-    \caption{Contoh tabel yang menggunakan \texttt{tabularx} untuk mengatur lebar kolom secara fleksibel. 
-    Selain itu, tabel ini juga menggunakan \texttt{threeparttable} untuk menambahkan catatan kaki pada tabel 
-    dan opsi \texttt{X} agar lebar kolom fleksibel menyesuaikan lebar tabel.}
-    \label{tab:tabel1}
-    \begin{tabularx}{0.6\textwidth}{| c | X| l | r @{}|} % @{} removes extra space at edges, X makes the column flexible width
-	    \hline
-	    No & Nama 	& Satuan 		& Harga \\
-	    \hline
-	    1 & Buku 	& Exemplar	& 25000 \\
-	    2 & Komputer	& Unit		& 2500000 \\
-	    3 & Pensil	& Buah		& 118900 \\
-	    \hline
-	  \end{tabularx} 
-    \begin{tablenotes}
-      \footnotesize
-      \item \footnotemark[1]Tabel harga berdasarkan data tahun 2023.
-      \item \footnotemark[2]Sumber: \url{https://www.example.com}
-    \end{tablenotes}
-  \end{threeparttable}
-\end{table}
+  \includegraphics[width=0.9\textwidth]{figures/MLOps_2.jpg}
+\end{figure}
 
+\input{tables/mlops_maturity_comparison.tex}
 
+\subsection{Integrasi DataOps dan MLOps}
+\label{subsec:integrasi}
 
+\textcite{jain2025integrating} menyatakan bahwa integrasi DataOps dan MLOps menjadi prasyarat skalabilitas dan ketahanan \textit{pipeline} \textit{machine learning} modern. \textcite{burgueno2025toward} mengusulkan arsitektur \textit{open source} yang menyatukan kedua praktik tersebut, namun belum membahas penyajian fitur \textit{dual-store} dan kebijakan deteksi \textit{drift} sebagai satu kesatuan. \textcite{rodrigues2025architecture} membahas arsitektur untuk \textit{stream learning} mendekati waktu nyata, dengan penekanan pada deteksi \textit{drift} dan pembaruan model. Penelitian ini berdiri pada irisan ketiganya: arsitektur \textit{open source} yang menyatukan DataOps dan MLOps, dengan layanan fitur \textit{dual-store} dan deteksi \textit{drift} terotomasi sebagai kelas pertama.
 
-\begin{table}[t] % pilihan opsi yang disarankan: t = top, b = bottom, h = here
-  \caption{Tabel yang menggunakan format standar \texttt{| l | c | r |}}
-  \label{tab:tabel2}
-	\begin{tabular}{ | l | c | r | }
-	\hline
-	Nama 	& Satuan 		& Harga \\
-	\hline
-	Buku 	& Exemplar	& 25000 \\
-	Komputer	& Unit		& 2500000 \\
-	Pensil	& Buah		& 118900 \\
-	\hline
-	\end{tabular}
-\end{table}
+\section{Kubernetes dan Orkestrasi \textit{Cloud-Native}}
+\label{sec:kubernetes}
 
+Kubernetes berperan sebagai bidang orkestrasi yang menjalankan beban kerja terkontainerisasi pada \textit{cluster} mesin. \textcite{lakka2025kubernetes} mendokumentasikan adopsi Kubernetes pada skala perusahaan dan menyoroti perannya sebagai standar \textit{de facto} \textit{cloud-native}. \textcite{adusumilli2025serverless} memperluas perspektif tersebut dengan pola \textit{serverless} di atas Kubernetes, yang relevan untuk beban kerja \textit{inference} dengan pola lalu lintas berfluktuasi.
 
-\begin{table}[t] % pilihan opsi yang disarankan: t = top, b = bottom, h = here
-  \centering
-  \caption{Tabel yang lebar kolomnya dibuat tetap}
-  \label{tbl:tabel3}
-	\begin{tabular}{  p{0.2\textwidth} | p{0.2\textwidth} | p{0.2\textwidth}  }
-	\hline
-	\textbf{Nama} 	& \textbf{Satuan} 		& \textbf{Harga} \\
-	\hline
-	Buku 	& Exemplar	& 25000 \\
-	\emph{Komputer}	& Unit		& 2500000 \\
-	Pensil	& Buah		& 118900 \\
-	\hline
-	\end{tabular}
-\end{table}
+Pemilihan Kubernetes sebagai bidang dasar memberi tiga keuntungan teknis: orkestrasi beban kerja melalui objek deklaratif, mekanisme penskalaan otomatis lewat HPA, VPA, dan KEDA, serta ekosistem operator yang menyediakan perangkat seperti \textit{operator} Kafka, Spark, Flink, MLflow, dan Argo CD. Distribusi \textit{lightweight} seperti \textit{k3s} mengakomodasi pengembangan dan pengujian pada satu \textit{node} tanpa mengorbankan kompatibilitas API.
 
-% -- Example of importing table from external file --
-\subsubsection{Mengimpor Tabel dari Berkas Eksternal}
+\section{Manajemen Data: Ingestasi, \textit{Streaming}, dan \textit{Batch}}
+\label{sec:manajemen-data}
 
-Untuk kerapian penulisan, tabel tidak harus ditulis di dokumen utama. Sebagai contoh, Tabel \ref{tab:tabel4} diimpor dari berkas eksternal \texttt{table/tabel1.tex} menggunakan perintah \texttt{input}. 
-Dengan demikian, jika tabel tersebut perlu diubah, cukup mengubah pada berkas eksternal tersebut tanpa perlu mengubah pada berkas dokumen utama ini.
+\subsection{Pola Lambda dan Kappa}
+\label{subsec:lambda-kappa}
 
-\input tables/tabel1.tex
+\textcite{marz2015lambda} memperkenalkan arsitektur Lambda yang memisahkan \textit{batch layer} dan \textit{speed layer}. \textcite{kreps2014kafka} mengkritisi pola tersebut karena ganda operasi dan mengusulkan arsitektur Kappa yang menyatukan keduanya menjadi satu jalur \textit{stream-first}. \textcite{aws2024edapatterns} memberikan rangkuman pola \textit{event-driven} yang banyak diadopsi di lingkungan \textit{cloud-native}.
 
+\subsection{Apache Kafka}
+\label{subsec:kafka}
 
-% -- Example of long table --
-\subsubsection{Tabel yang Sangat Panjang}
-Jika tabel terlalu panjang sehingga tidak muat dalam satu halaman, gunakan paket 
-\textit{longtable} untuk membuat tabel yang dapat terpotong ke halaman berikutnya, 
-seperti pada Tabel \ref{tab:long}. 
+Apache Kafka berperan sebagai \textit{distributed log} yang menyimpan kejadian dalam urutan tertentu dan memungkinkan pelanggan untuk memutar ulang aliran data dari posisi tertentu \autocite{apachekafka2024}. Kafka mendukung jaminan \textit{at-least-once} secara baku dan \textit{exactly-once} dengan transaksi, sehingga cocok untuk dipakai sebagai tulang punggung penghubung antara produsen data dan konsumen pemroses.
 
-\input tables/longtable1.tex
+\subsection{Apache Flink}
+\label{subsec:flink}
 
-\subsection{Penulisan Rumus atau Persamaan Matematika Menggunakan {\LaTeX} dan Penomorannya}
-Contoh rumus matematika dapat ditulis seperti pada Persamaan \ref{eq:contoh1} di bawah ini. 
-Penomoran persamaan diletakkan di sebelah kanan, dan rumus ditulis dalam mode \textit{display math}.
-\begin{equation}
-E = mc^2
-\label{eq:contoh1}
-\end{equation}
-\eqcaption{Persamaan Pertama}
+Apache Flink memproses aliran data dengan dukungan \textit{event-time} dan \textit{stateful operations}. \textcite{carbone2015apache} menjelaskan dasar \textit{pipeline} \textit{streaming} pada Flink, dan dokumentasi resmi \autocite{apacheflink2024} menjabarkan fitur \textit{exactly-once processing} dengan \textit{checkpointing}. Flink dipakai untuk transformasi fitur waktu nyata dan agregasi \textit{rolling window} yang dibutuhkan oleh model \textit{streaming}.
 
-Contoh lain penulisan rumus matematika yang lebih kompleks dapat ditulis seperti pada Persamaan \ref{eq:rumus2}.
-Perlu diperhatikan bahwa jika rumus terdiri dari beberapa baris, nomor persamaan hanya diletakkan pada baris terakhir, bukan pada setiap baris.
-\begin{align}
-f(x) &= ax^2 + bx + c \notag \\ % tidak menampilkan nomor pada baris ini
-f'(x) &= \frac{d}{dx}(ax^2 + bx + c) \notag \\ % tidak menampilkan nomor pada baris ini
-      &= 2ax + b 
-      \label{eq:rumus2} % nomor hanya muncul pada baris terakhir
-\end{align}
-\eqcaption{Persamaan Kedua}
+\subsection{Apache Spark}
+\label{subsec:spark}
 
-Jika rumus terlalu panjang untuk ditulis dalam satu baris, gunakan lingkungan \textit{multline} seperti pada Persamaan \ref{eq:rumus3} di bawah ini.
-\begin{multline} 
-y = a_0 + a_1x + a_2x^2 + a_3x^3 + a_4x^4 + a_5x^5 + a_6x^6 + a_7x^7 \\
-    + a_8x^8 + a_9x^9 + a_{10}x^{10} \label{eq:rumus3}
-\end{multline}
-\eqcaption{Persamaan Ketiga}
+Apache Spark menyediakan kemampuan pemrosesan \textit{batch} dan \textit{micro-batch} pada skala besar \autocite{apachespark2024}. \textcite{zaharia2016spark} memberikan ringkasan arsitektur Spark sebagai mesin terpadu. Spark dipakai untuk transformasi fitur dengan referensi waktu historis dan untuk pelatihan model yang membutuhkan pemrosesan data besar.
 
-Jika ada penurunan rumus yang terdiri dari beberapa baris, namun tidak memerlukan penomoran pada setiap baris dan tidak masuk di daftar persamaan, gunakan lingkungan \textit{align*}, misalnya:
+\input{tables/data_processing_comparison.tex}
 
-\begin{align*} 
-S &= \sum_{i=1}^{n} i^2 \\
-  &= 1^2 + 2^2 + 3^2 + \cdots + n^2 \\
-  &= \frac{n(n + 1)(2n + 1)}{6}
-\intertext{Contoh lainnya adalah rumus untuk mencari nilai rata-rata fungsi $f(x)$ pada interval $[p, q]$:}
-\bar{f} &= \frac{1}{q - p} \int_{p}^{q} f(x) \, dx \\
-        &= \frac{1}{q - p} \int_{p}^{q} (ax^2 + bx + c) \, dx \\
-        &= \frac{1}{q - p} \left[ \frac{a}{3}x^3 + \frac{b}{2}x^2 + cx \right]_p^q \\
-        &= \frac{a(q^3 - p^3)}{3(q - p)} + \frac{b(q^2 - p^2)}{2(q - p)} + c \label{eq:rumus4}
-\end{align*}
+\subsection{Format Tabel \textit{Lakehouse}}
+\label{subsec:lakehouse-format}
 
+Penyimpanan jangka panjang pada \textit{data lake} memerlukan format tabel yang menyediakan transaksi ACID, evolusi skema yang aman, dan ketertelusuran lintas \textit{engine} pemrosesan. Apache Iceberg, Delta Lake, dan Apache Hudi merupakan tiga format tabel \textit{open-source} yang lazim dipakai untuk arsitektur \textit{lakehouse}, sementara penyimpanan langsung dalam berkas Parquet tanpa lapisan format tabel tidak menjamin transaksi maupun evolusi skema yang aman. Pada platform ini, Apache Iceberg dipilih sebagai format tabel \textit{lakehouse} karena netralitas \textit{engine}, dukungan katalog REST melalui Lakekeeper \autocite{lakekeeper2025}, dan kemampuan kueri federasi melalui Trino \autocite{trino2024}. Tabel~\ref{tab:lakehouse_format_comparison} merangkum perbandingan beberapa format tabel \textit{lakehouse} terhadap kriteria yang relevan dengan platform.
 
+\input{tables/lakehouse_format_comparison.tex}
 
+\section{Layanan Fitur (\textit{Feature Store})}
+\label{sec:feature-store}
 
-\subsection{Penulisan Kode Program, \textit{Script} atau \textit{Pseudocode}}
-Contoh penulisan kode program, \textit{script}, atau \textit{pseudocode} dapat dilihat seperti pada \textit{listing} \ref{lst:binary_iter}. 
-Gunakan paket \textit{listings} untuk menulis \textit{source code} dalam bahasa pemrograman tertentu. 
-Kode seperti ini disebut dengan istilah \textit{listing}. 
-Kode program, \textit{script}, atau \textit{pseudocode} yang relatif pendek dapat ditulis di dalam
-dokumen utama. Namun, jika kode programnya sangat panjang, sebaiknya ditulis di berkas terpisah dan diletakkan di lampiran.
+\subsection{Konsep dan Peran}
+\label{subsec:konsep-feature-store}
 
-\subsection{Penulisan Algoritma}
-Contoh penulisan algoritma dapat dilihat pada Algoritma \ref{alg:binary-search}. Ada beberapa paket yang dapat digunakan untuk menulis algoritma,
-misalnya \textit{algorithm2e}, \textit{algorithmic}, dan \textit{algpseudocode}. 
-Pada contoh ini digunakan paket \textit{algorithmic} untuk menulis algoritma. Setiap paket memiliki sintaks yang berbeda-beda.
-Oleh karena itu, pelajari dokumentasi paket yang digunakan untuk menulis algoritma.
+\textit{Feature store} berperan sebagai lapis penyatu antara produksi fitur dan konsumsi fitur. \textcite{lamer2024data} menjelaskan posisi \textit{feature store} di antara \textit{data lake}, \textit{data warehouse}, dan \textit{datamart}, sebagai komponen yang menyiapkan fitur untuk konsumsi model. \textcite{li2023managed} menjabarkan arsitektur \textit{feature store} \textit{geo-distributed} dan menekankan pentingnya kontrak fitur yang seragam antara \textit{batch} dan \textit{online}.
 
+\subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
+\label{subsec:offline-online-teori}
 
-\input{listings/binary-search-python.tex}
+Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}; penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten.
 
+\input{tables/offline_storage_comparison.tex}
 
-\input{algorithms/binary-search-alg.tex}
+\input{tables/online_storage_comparison.tex}
 
+\subsection{Pencarian Vektor dan HNSW}
+\label{subsec:vektor-hnsw}
 
+Fitur \textit{embedding} berdimensi tinggi memerlukan struktur indeks pendekatan tetangga terdekat (\textit{approximate nearest neighbor}, ANN). \textcite{malkov2020efficient} memperkenalkan \textit{Hierarchical Navigable Small World} (HNSW) sebagai struktur indeks dengan keseimbangan baik antara kecepatan kueri dan kualitas hasil. Alternatif lain seperti \textit{Product Quantization} \autocite{jegou2011product} dan pencarian skala miliar dengan GPU \autocite{johnson2021billion} relevan untuk skala yang berbeda. Untuk platform ini, HNSW pada Redis Stack \autocite{redis2024} dipilih karena dukungan \textit{embedded} pada penyimpanan \textit{online} yang sama dengan fitur tabular. Tabel~\ref{tab:vector_index_comparison} merangkum perbandingan beberapa pilihan \textit{vector index} \textit{open-source} pada empat kriteria yang relevan dengan kebutuhan platform.
 
+\input{tables/vector_index_comparison.tex}
+
+\subsection{\textit{Point-in-Time Correctness}}
+\label{subsec:pit}
+
+Jaminan \textit{point-in-time correctness} berarti nilai fitur yang dipakai saat pelatihan model harus identik dengan nilai yang tersedia pada saat itu, bukan nilai versi terkini. \textcite{wang2021leakage} memperlihatkan dampak buruk kebocoran temporal pada \textit{backtesting} keuangan, dan analoginya berlaku pada beragam domain. Feast menyediakan operasi \texttt{get\_historical\_features} yang melakukan \textit{point-in-time join} antara entitas dan riwayat fitur, sehingga konsistensi nilai antara fase pelatihan dan fase \textit{inference} dapat ditegakkan.
+
+\input{tables/feature_store_comparison.tex}
+
+\section{Siklus Hidup Model}
+\label{sec:siklus-model}
+
+\subsection{Eksperimen dan \textit{Tracking}}
+\label{subsec:tracking}
+
+MLflow \autocite{mlflow2024} menyediakan \textit{tracking} eksperimen, \textit{registry} model, dan API penyebaran. \textcite{pimentel2019notebooks} menyoroti masalah reproduksibilitas \textit{notebook}, yang menjadi alasan mengapa \textit{tracking} terpusat menjadi prasyarat. Tabel~\ref{tab:tracking_comparison} membandingkan beberapa pilihan platform \textit{tracking}.
+
+\input{tables/tracking_comparison.tex}
+
+\subsection{Orkestrasi Pelatihan}
+\label{subsec:orkestrasi}
+
+Kubeflow Pipelines \autocite{kubeflow2024} dan Argo Workflows menjadi dua pilihan utama untuk orkestrasi pelatihan pada Kubernetes. Apache Airflow \autocite{airflow2024} masih relevan untuk \textit{pipeline} data berorientasi \textit{batch}. Tabel~\ref{tab:orchestration_comparison} membandingkan ketiganya berdasarkan kebutuhan domain.
+
+\input{tables/orchestration_comparison.tex}
+
+\subsection{Penyajian Model}
+\label{subsec:serving}
+
+KServe \autocite{kserve2024} menyediakan kerangka penyajian model di atas Kubernetes dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi dengan praktik GitOps. \textcite{hsu2024endtoend} memperlihatkan ujicoba penyebaran terotomasi dengan KServe yang sejalan dengan pendekatan platform ini. \textcite{liang2024automating} menyoroti integrasi sistem dengan \textit{machine learning} sebagai pendorong otomasi pelatihan dan penyebaran.
+
+\input{tables/serving_comparison.tex}
+
+\section{Tata Kelola Data: Katalog, \textit{Lineage}, dan Kualitas}
+\label{sec:tata-kelola-teori}
+
+\textcite{bernardo2024data} memetakan tata kelola data sebagai disiplin lintas fungsi yang mencakup metadata, kualitas, akses, dan kepemilikan. \textcite{stoyanovich2020responsible} memberi konteks etis dengan menempatkan tanggung jawab atas data pada level platform, bukan hanya level aplikasi. \textcite{chien2022improve} memberi panduan praktis untuk peningkatan kualitas data berbasis pengukuran.
+
+DataHub \autocite{datahub2024} dipilih sebagai katalog metadata karena dukungan integrasi luas dengan komponen DataOps dan MLOps. Great Expectations \autocite{greatexpectations2024} dipakai untuk pengujian kontrak data yang dijalankan pada \textit{pipeline} produksi. OpenLineage \autocite{openlineage2025} dipakai sebagai standar terbuka pengumpulan \textit{lineage} antar komponen \textit{pipeline}, sehingga jejak dari ingestasi hingga model dapat disusun dengan kosa kata yang seragam. Tabel~\ref{tab:metadata_comparison} merangkum perbandingan beberapa pilihan katalog.
+
+\input{tables/metadata_comparison.tex}
+
+\section{Deteksi \textit{Drift}}
+\label{sec:drift}
+
+\textcite{lu2019learning} memberikan tinjauan luas tentang pembelajaran di bawah \textit{concept drift}. \textcite{bayram2022concept} mengelompokkan keluarga detektor berbasis performa, dan \textcite{hinder2023model} memperluas pembahasan ke arah penjelasan model. Beberapa metrik yang relevan untuk \textit{covariate drift} dan \textit{prior probability shift} antara lain \textit{Population Stability Index} (PSI), uji Kolmogorov-Smirnov \autocite{reis2016kdd}, dan jarak Wasserstein. \textcite{cespedes2024efficient} memperlihatkan implementasi deteksi \textit{drift} pada lingkungan \textit{serverless}, sementara \textcite{jourdan2023handling} membahas penanganan \textit{drift} pada \textit{deep learning} untuk pemantauan proses.
+
+Pada platform ini, PSI dan uji Kolmogorov-Smirnov dipakai sebagai detektor utama, dengan ambang batas konfigurasi yang diatur per fitur. Detektor dijalankan oleh \textit{Argo CronWorkflow} sebagai \textit{control loop} yang memicu pelatihan ulang melalui Kubeflow Pipelines apabila ambang dilewati.
+
+\section{Observabilitas \textit{Cloud-Native}}
+\label{sec:observability}
+
+\textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas.
+
+\input{tables/monitoring_comparison.tex}
+
+\section{GitOps dan \textit{Continuous Delivery}}
+\label{sec:gitops}
+
+GitOps menempatkan repositori Git sebagai sumber kebenaran tunggal untuk konfigurasi sistem. \textcite{limoncelli2022gitops} menjelaskan pola GitOps sebagai pendekatan IT \textit{self-service} yang memetakan operasi ke kontrol versi. Argo CD \autocite{argocd2024} dipakai sebagai \textit{operator} GitOps yang merekonsiliasi keadaan \textit{cluster} dengan deklarasi pada Git. \textcite{devopshandbook2016} memberi dasar teoretis tentang aliran kerja CI/CD yang menjadi induk GitOps. Tekton \autocite{tekton2024} dipakai sebagai \textit{pipeline} CI yang membangun \textit{image} dan menjalankan pengujian sebelum komit menjadi sumber penyebaran. Argo Rollouts \autocite{argorollouts2025} melengkapi rantai dengan strategi penyebaran progresif berbasis \textit{canary} dan analisis metrik. Tabel~\ref{tab:gitops_comparison} merangkum perbandingan beberapa \textit{GitOps controller} \textit{open-source} berdasarkan kriteria yang relevan dengan platform.
+
+\input{tables/gitops_comparison.tex}
+
+\section{Keamanan Platform: Identitas, Rahasia, \textit{Mesh}, dan Kebijakan}
+\label{sec:keamanan-platform}
+
+Lapisan keamanan menjadi prasyarat bagi platform yang melayani DataOps dan MLOps secara berdampingan. Empat aspek dipertimbangkan: identitas pengguna terpadu, pengelolaan rahasia, \textit{service mesh}, dan \textit{policy engine}.
+
+Untuk identitas, Dex \autocite{dex2025} dipakai sebagai \textit{identity provider} berbasis OpenID Connect (OIDC) karena \textit{footprint} ringan, dukungan federasi terhadap penyedia identitas eksternal, dan integrasi sederhana dengan \textit{cluster} Kubernetes. Tabel~\ref{tab:identity_comparison} merangkum perbandingan beberapa \textit{identity provider} \textit{open-source} berdasarkan kriteria yang relevan dengan platform.
+
+\input{tables/identity_comparison.tex}
+
+Untuk pengelolaan rahasia, OpenBao \autocite{openbao2025} dipakai sebagai \textit{successor} \textit{open-source} dari HashiCorp Vault yang menjamin penyimpanan rahasia terenkripsi serta penerbitan kredensial dinamis. Integrasi pada beban kerja dilakukan melalui \textit{External Secrets Operator} yang menyalin rahasia ke \texttt{Secret} Kubernetes dengan rotasi otomatis. Tabel~\ref{tab:secrets_comparison} merangkum perbandingan beberapa pengelola rahasia \textit{open-source}.
+
+\input{tables/secrets_comparison.tex}
+
+Untuk komunikasi antar-layanan, Istio \autocite{istio2024} dipakai sebagai \textit{service mesh} yang menyediakan \textit{mutual TLS} (mTLS) seragam, kontrol L7 berbasis \texttt{VirtualService} dan \texttt{AuthorizationPolicy}, serta integrasi telemetri dengan OpenTelemetry. Tabel~\ref{tab:service_mesh_comparison} merangkum perbandingan beberapa \textit{service mesh} \textit{open-source} berdasarkan kriteria fitur, ekosistem, dan kematangan.
+
+\input{tables/service_mesh_comparison.tex}
+
+Untuk penegakan kebijakan, Kyverno \autocite{kyverno2024} dipakai sebagai \textit{policy engine} \textit{native} Kubernetes dengan sintaks YAML yang ringkas serta dukungan \textit{mutate}, \textit{validate}, dan \textit{generate}. Open Policy Agent (OPA) Gatekeeper \autocite{opa2024} juga umum dipakai sebagai alternatif berbasis Rego. Tabel~\ref{tab:policy_comparison} merangkum perbandingan beberapa \textit{policy engine} \textit{open-source}.
+
+\input{tables/policy_comparison.tex}
+
+\section{Penelitian Terkait dan Posisi Penelitian}
+\label{sec:terkait}
+
+Beberapa penelitian terdahulu menjadi tetangga dekat platform ini. \textcite{burgueno2025toward} mengusulkan arsitektur MLOps \textit{open source}, namun belum memasukkan layanan fitur dengan dukungan vektor sebagai komponen kelas pertama. \textcite{najafabadi2024analysis} memetakan beragam arsitektur MLOps tetapi tidak menggabungkan DataOps secara menyeluruh. \textcite{rodrigues2025architecture} menyentuh \textit{near real-time stream learning}, namun tidak meletakkan tata kelola data sebagai bidang kendali yang ditegakkan. \textcite{ahmad2024mlops} membahas strategi keamanan MLOps, dan dengan demikian melengkapi sudut pandang yang dibahas pada platform ini di bagian kebijakan jaringan dan manajemen rahasia.
+
+Platform yang dikembangkan pada Tugas Akhir ini menggabungkan tiga karakter yang belum dilingkupi sekaligus pada penelitian sebelumnya: integrasi DataOps dan MLOps pada satu bidang kendali Kubernetes, layanan fitur \textit{dual-store} dengan dukungan vektor HNSW, dan deteksi \textit{drift} terotomasi yang memicu pelatihan ulang melalui kontrol GitOps. Tabel~\ref{tab:architecture_comparison} menyajikan posisi platform ini terhadap penelitian terkait.
+
+\input{tables/architecture_comparison.tex}

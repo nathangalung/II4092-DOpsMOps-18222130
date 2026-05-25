@@ -40,8 +40,8 @@ SERVICE_RESOURCES = {
     ("processing", "feature_engine"): [
         "deployments/feature-engine.yaml",
     ],
-    ("processing", "flink_job"): [
-        "deployments/flink-job.yaml",
+    ("processing", "stream_processor"): [
+        "flink/flinkdeployment.yaml",
     ],
     ("processing", "batch"): [
         "deployments/batch-processing.yaml",
@@ -62,9 +62,6 @@ SERVICE_RESOURCES = {
         "cronjobs/drift-multi-scale.yaml",
     ],
     # Automation
-    ("automation", "retraining"): [
-        "cronjobs/retraining.yaml",
-    ],
     ("automation", "materialization"): [
         "cronjobs/materialization.yaml",
     ],
@@ -211,7 +208,7 @@ def generate_kustomization(services: dict, dry_run: bool = False) -> str:
     )
     lines.append("  - pipeline-infrastructure.yaml")
     lines.append("  - namespace.yaml")
-    lines.append("  - configmap-feast.yaml")
+    lines.append("  - configmaps/feast.yaml")
     lines.append("  - external-secrets.yaml  # ADR-008: ExternalSecret CRs (was legacy secrets.yaml)")
     lines.append("  - schema-registration.yaml")
     lines.append("")

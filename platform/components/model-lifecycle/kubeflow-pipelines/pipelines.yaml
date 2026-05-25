@@ -5770,8 +5770,20 @@ data:
       secretKeySecret:
         name: mlpipeline-minio-artifact
         key: secretkey
+  # Executor sidecar (Argo `wait` container) injected into every workflow pod.
+  # Resources are required because the cluster's Kyverno
+  # `require-resource-limits` policy denies pods whose containers omit them
+  # — without this block the wait sidecar fails admission and the whole
+  # workflow step errors before `measure-drift` ever runs.
   executor: |
     imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 kind: ConfigMap
 metadata:
   labels:

@@ -74,7 +74,7 @@ images:
   - name: feature-engine
     newName: localhost:5000/crypto-feature-engine
     newTag: latest
-  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-flink-job:latest`;
+  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-stream-processor:latest`;
   # kustomize image transformer cannot rewrite it because the operator CR is
   # outside the set kustomize rewrites. Image is published by the build pipeline.
   # Batch/Vector — no standing Deployments. `batch-processing` runs as a
@@ -91,7 +91,7 @@ images:
     newTag: latest
   - name: drift-detector
     newName: localhost:5000/crypto-drift-detector
-    newTag: latest
+    newTag: v2026.05.22
   # Serving
   - name: gateway
     newName: localhost:5000/crypto-gateway
@@ -105,15 +105,12 @@ images:
   # inference-engine replaced by KServe InferenceService (crypto-predictor)
   # scoring replaced by gateway's built-in scoring endpoint
   # Observability
-  - name: evidently-reporter
-    newName: localhost:5000/crypto-evidently-reporter
+  - name: drift-reporter
+    newName: localhost:5000/crypto-drift-reporter
     newTag: latest
   # Automation
   - name: materialization
     newName: localhost:5000/crypto-materialization
-    newTag: latest
-  - name: retraining
-    newName: localhost:5000/crypto-retraining
     newTag: latest
   # Dashboard
   - name: dashboard-backend
@@ -190,6 +187,20 @@ patches:
         path: /secrets/0/name
         value: crypto-kserve-storage-secret
 
+  # Fix ExternalSecret target.name — kustomize namePrefix prefixes metadata.name
+  # but NOT spec.target.name (not a nameReference). SA expects
+  # `crypto-kserve-storage-secret`; without this patch ESO renders Secret as
+  # `kserve-storage-secret` and the storage-initializer can't find creds.
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: kserve-storage-secret
+    patch: |-
+      - op: replace
+        path: /spec/target/name
+        value: crypto-kserve-storage-secret
+
   # Fix Tekton EventListener → ServiceAccount reference
   - target:
       group: triggers.tekton.dev
@@ -222,20 +233,32 @@ patches:
   # =========================================================================
   # Image pull policy
   # =========================================================================
-
-  # Use IfNotPresent pull policy (works for both minikube and k3s with local registry)
+  #
+  # Always (not IfNotPresent) on the `:latest`-tagged crypto images so each
+  # pod create does a registry digest check. Without this, kubelet kept a
+  # stale containerd layer that pre-dated VALKEY_PASSWORD + KAFKA_SASL_* env
+  # reads, so the Flink TM ran a stale jar against a correctly-populated
+  # Secret and got NOAUTH from Valkey. localhost:5000 is on-node, so the
+  # digest check cost is negligible for long-lived workloads.
+  #
+  # #402: CronJobs are intentionally excluded from the Always-blanket. Every
+  # fire of a CronJob spawns a fresh pod and re-pays the local-registry pull
+  # under IO contention — 18+ min measured on cold cache (rest-collector image,
+  # see #167 / #402 forensics). Each cronjob base file pins IfNotPresent
+  # explicitly so the first cold-cache fire pays once and warm-cache reruns
+  # finish in seconds.
   - target:
       kind: Deployment
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
-      kind: CronJob
+      kind: Rollout
     patch: |-
       - op: replace
-        path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
 
   # =========================================================================
   # Reduce memory requests for minikube (limited node resources)
@@ -300,16 +323,20 @@ patches:
 
   # CronJobs - reduce heavy jobs
   # batch-features CronJob removed — superseded by Airflow DAG crypto_hourly_features
+  # vector-embedding loads sentence-transformers/all-mpnet-base-v2 (~420MB
+  # safetensors). PyTorch + transformers + tokenizer peak RSS during first
+  # load is ~1.8-2.2GB; 1Gi limit OOMKills mid-load. Bump to 2.5Gi limit;
+  # base ADS=1800 (#402) is sufficient — overlay no longer overrides it.
   - target:
       kind: CronJob
       name: vector-embedding
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/resources/requests/memory
-        value: "256Mi"
+        value: "512Mi"
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/resources/limits/memory
-        value: "1Gi"
+        value: "2500Mi"
 
   # =========================================================================
   # KafkaTopic replicas — base defines RF=3 for HA; single-broker needs RF=1.
@@ -336,11 +363,11 @@ patches:
       group: flink.apache.org
       version: v1beta1
       kind: FlinkDeployment
-      name: flink-job
+      name: stream-processor
     patch: |-
       - op: replace
         path: /spec/image
-        value: "localhost:5000/crypto-flink-job:latest"
+        value: "localhost:5000/crypto-stream-processor:latest"
 
   # =========================================================================
   # HPA caps for VPS (single node — cap maxReplicas to 3)

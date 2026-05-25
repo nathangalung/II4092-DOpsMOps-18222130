@@ -23,8 +23,16 @@ spec:
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
   jobTemplate:
+    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
-      activeDeadlineSeconds: 240
+      # 600→1800: in-cluster registry pulls have hit 18+ min under IO
+      # contention (#402 forensics). Combined with IfNotPresent below, only
+      # the first cold-cache fire pays the cost; warm-cache reruns finish
+      # in ~70s.
+      activeDeadlineSeconds: 1800
       ttlSecondsAfterFinished: 600
       template:
         metadata:
@@ -33,15 +41,48 @@ spec:
             type: supplementary
         spec:
           restartPolicy: OnFailure
+          # PodSecurity "restricted" baseline — paired with Dockerfile
+          # USER 1000:1000. Silences Kyverno require-run-as-nonroot Audit
+          # entries and matches the long-running rest-collector Deployment.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumes:
             - name: push-helper
               configMap:
                 name: push-helper
                 defaultMode: 0555
+            # Mirror the long-running rest-collector Deployment patch
+            # (manifests/base/patches/rest-collector.yaml): the binary
+            # reads its source registry from /etc/rest-collector/config.yaml,
+            # so every supplementary CronJob needs the same mount or it
+            # exits with `open /etc/rest-collector/config.yaml: no such file`.
+            - name: rest-collector-config
+              configMap:
+                name: crypto-rest-collector-config
+            # Kafka SASL_SSL: producer publishes to KAFKA_SUPPLEMENTARY_TOPIC.
+            # patches/kafka-sasl.yaml only covers Deployments — CronJobs embed
+            # the broker CA directly here (key `ca.crt` of crypto-app-consumer).
+            - name: kafka-ca
+              secret:
+                secretName: crypto-app-consumer
+                items:
+                  - key: ca.crt
+                    path: ca.crt
           containers:
             - name: rest-collector
               image: rest-collector:latest
+              # IfNotPresent: see #167 / #402 — local-registry contention
+              # made Always re-pull take 18 min under IO load.
               imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -53,6 +94,8 @@ spec:
                     name: pipeline-config
                 - secretRef:
                     name: pipeline-secrets
+                - secretRef:
+                    name: crypto-app-consumer
               env:
                 - name: JOB_NAME
                   value: "supplementary_source"
@@ -61,6 +104,12 @@ spec:
               volumeMounts:
                 - name: push-helper
                   mountPath: /scripts
+                  readOnly: true
+                - name: rest-collector-config
+                  mountPath: /etc/rest-collector
+                  readOnly: true
+                - name: kafka-ca
+                  mountPath: /etc/kafka/ca
                   readOnly: true
               resources:
                 requests:

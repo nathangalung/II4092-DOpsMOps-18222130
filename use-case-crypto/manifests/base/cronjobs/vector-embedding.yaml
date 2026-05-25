@@ -27,9 +27,22 @@ spec:
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
   jobTemplate:
+    # Kueue admission: routes spawned Jobs to LocalQueue batch-queue
+    # (use-case-crypto ns) → ClusterQueue mlops-cluster-queue. The webhook
+    # softened in platform/components/common/kueue/pre-apply.sh only acts
+    # on workloads carrying this label, so unlabeled bootstrap Jobs bypass
+    # admission entirely. Label MUST be on jobTemplate.metadata (Job level),
+    # not on the pod template — Kueue's Job integration reads Job labels.
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       ttlSecondsAfterFinished: 600
-      activeDeadlineSeconds: 240
+      # 600→1800: in-cluster registry pulls under IO contention measured
+      # at 18+ min (#402). The vector-processing image is larger than the
+      # rest-collector image; first cold-cache fire pays once with
+      # IfNotPresent below keeping later fires warm.
+      activeDeadlineSeconds: 1800
       backoffLimit: 2
       template:
         metadata:
@@ -38,19 +51,42 @@ spec:
             job-type: embedding-generation
         spec:
           restartPolicy: OnFailure
+          # Pod-level securityContext satisfies PodSecurity "restricted"
+          # and the Kyverno require-run-as-nonroot ClusterPolicy. Dockerfile
+          # USER 1000:1000 is what actually runs the process; this block
+          # tells the kubelet to enforce it.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: embedding
               image: vector-processing:latest
+              # IfNotPresent — local-registry pull serialises behind the
+              # rest-collector pulls (#402). Always policy forced a full
+              # re-pull every fire which queued into 18+ min waits.
               imagePullPolicy: IfNotPresent
-              # Wrap `uv run main.py` in shell that emits the run outcome
+              # Container-level securityContext required by Kyverno
+              # require-capability-drop-all and PodSecurity "restricted":
+              # NET_RAW + similar caps off, no privilege escalation.
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              # Wrap `python main.py` in shell that emits the run outcome
               # to Pushgateway via the same push-helper ConfigMap that
               # rest-collector CronJobs use. Image already has /bin/sh.
+              # `python` resolves via Dockerfile PATH (/app/.venv/bin) —
+              # `uv run` at runtime triggers editable rebuild needing
+              # hatchling from PyPI which fails air-gapped.
               command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -u
                   . /scripts/push_job_metrics.sh
-                  run_and_push uv run main.py --mode embeddings
+                  run_and_push python main.py --mode embeddings
               envFrom:
                 - configMapRef:
                     name: pipeline-config
@@ -65,6 +101,14 @@ spec:
                   value: "vector_embedding"
                 - name: USE_CASE
                   value: "crypto"
+                # Pin the HuggingFace cache to the path the model is baked
+                # into at image build (Dockerfile ENV). Path lives outside
+                # /home/app/.cache/ to avoid colliding with the uv cache
+                # BuildKit mount during image build. Without this env the
+                # library falls back to /home/<user>/.cache/huggingface,
+                # which would be cold (no baked weights) on every fire.
+                - name: HF_HOME
+                  value: "/home/app/hf-cache"
               resources:
                 requests:
                   cpu: "500m"
@@ -75,8 +119,11 @@ spec:
               volumeMounts:
                 - name: config
                   mountPath: /app/config
-                - name: model-cache
-                  mountPath: /root/.cache/huggingface
+                # Model weights live in the image at /home/app/hf-cache
+                # (baked by Dockerfile, HF_HOME env above). No model-cache
+                # volume is mounted — an EmptyDir at /root/.cache/
+                # huggingface was both wrong-path-for-uid-1000 and a cold
+                # cache each fire.
                 - name: push-helper
                   mountPath: /scripts
                   readOnly: true
@@ -84,9 +131,6 @@ spec:
             - name: config
               configMap:
                 name: pipeline-config
-            - name: model-cache
-              emptyDir:
-                sizeLimit: 2Gi
             - name: push-helper
               configMap:
                 name: push-helper

@@ -175,7 +175,7 @@ spec:
 # PeerAuthentication — allow plaintext from istio-exempt namespaces.
 # Mesh-wide default in istio-system enforces STRICT mTLS for all sidecar-
 # injected pods. KafkaConnect runs with istio sidecar (data-ingestion ns has
-# istio-injection=enabled). Use-case namespaces (e.g., use-case-crypto) are
+# istio-injection=enabled). Use-case namespaces (e.g., any <usecase>) are
 # istio-exempt by design (`mlops-platform.io/istio-exempt=true`) so their
 # registration Jobs and Kafka Connect REST callers speak plain HTTP. STRICT
 # would RST these connections at the inbound sidecar. PERMISSIVE accepts both

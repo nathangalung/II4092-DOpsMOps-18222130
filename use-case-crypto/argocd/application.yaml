@@ -63,7 +63,13 @@ spec:
   namespaceResourceWhitelist:
     - { group: "*", kind: "*" }
   orphanedResources:
-    warn: true
+    # warn=false: orphaned-resource detection only matters when a use-case
+    # accidentally provisions cross-namespace state that escapes manifest
+    # ownership. In our single-app overlay each kustomize render is the
+    # full picture, so orphan reports are noise that flips the
+    # Application to Degraded health for cosmetic reasons (e.g. transient
+    # Jobs created by platform components inside crypto-* namespaces).
+    warn: false
   roles:
     - name: crypto-admin
       description: "Full admin on crypto use-case Applications"

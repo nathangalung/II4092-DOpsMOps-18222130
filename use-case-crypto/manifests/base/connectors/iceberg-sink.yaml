@@ -30,9 +30,15 @@ metadata:
   name: iceberg-sink-registration
   labels:
     app: iceberg-sink
+  annotations:
+    # ArgoCD PostSync hook — see debezium-postgres.yaml for full rationale.
+    # Idempotent registration against kafka-connect /connectors REST API;
+    # re-invocation returns 409 which the script treats as success.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
-  backoffLimit: 5
-  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 900
   template:
     metadata:
       labels:
@@ -94,13 +100,26 @@ spec:
               S3_SK="$S3_SECRET_KEY"
               LK="http://lakekeeper.storage.svc.cluster.local:8181"
 
+              # Default Lakekeeper project UUID. In Lakekeeper 0.12.x the project
+              # context for /management/v1/* endpoints is provided via the
+              # `x-project-id` HEADER, not the request body. Without the header
+              # the server emits a misleading `ProjectNotFound 00000000-...`
+              # even though the default project is fully provisioned (see
+              # `/management/v1/info` → default-project-id field).
+              PROJ_ID="00000000-0000-0000-0000-000000000000"
+
               echo "=== Step 1: Create Lakekeeper warehouse (idempotent) ==="
-              HTTP=$(curl -sf -o /tmp/r.txt -w "%{http_code}" \
+              # Do not use curl -f here — Lakekeeper returns 400 (or 409) when
+              # the warehouse already exists, which would abort `set -e`. Check
+              # the HTTP code explicitly instead so the second-run path stays
+              # green on a clean cluster *and* on top of existing state.
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X POST "$LK/management/v1/warehouse" \
                 -H "Content-Type: application/json" \
+                -H "x-project-id: ${PROJ_ID}" \
                 -d "{
                   \"warehouse-name\": \"warehouse\",
-                  \"project-id\": \"00000000-0000-0000-0000-000000000000\",
+                  \"project-id\": \"${PROJ_ID}\",
                   \"storage-profile\": {
                     \"type\": \"s3\",
                     \"bucket\": \"warehouse\",
@@ -118,22 +137,33 @@ spec:
                     \"aws-secret-access-key\": \"${S3_SK}\"
                   }
                 }")
-              echo "Create warehouse: HTTP $HTTP (201=created, 400=exists)"
+              echo "Create warehouse: HTTP $HTTP (201=created, 400/409=exists)"
+              if [ "$HTTP" != "201" ] && [ "$HTTP" != "200" ] && [ "$HTTP" != "400" ] && [ "$HTTP" != "409" ]; then
+                echo "ERROR: warehouse creation returned $HTTP"; exit 1
+              fi
 
-              # Get warehouse UUID for namespace creation
-              WH_ID=$(curl -sf "$LK/management/v1/warehouse" | sed -n 's/.*"warehouse-id":"\([^"]*\)".*/\1/p' | head -1)
+              # Get warehouse UUID for namespace creation. Use -s only; on a fresh
+              # cluster the GET may transiently 404 until the POST commits.
+              WH_ID=$(curl -s -H "x-project-id: ${PROJ_ID}" \
+                "$LK/management/v1/warehouse" \
+                | sed -n 's/.*"warehouse-id":"\([^"]*\)".*/\1/p' | head -1)
               echo "Warehouse ID: $WH_ID"
+              : "${WH_ID:?Could not resolve warehouse-id from Lakekeeper}"
 
               echo "=== Step 2: Create bronze namespace (idempotent) ==="
-              HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X POST "$LK/catalog/v1/${WH_ID}/namespaces" \
                 -H "Content-Type: application/json" \
+                -H "x-project-id: ${PROJ_ID}" \
                 -d '{"namespace":["bronze"],"properties":{}}')
-              echo "Create namespace: HTTP $HTTP (200=created, 409=exists)"
+              echo "Create namespace: HTTP $HTTP (200/201=created, 409=exists)"
+              if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ] && [ "$HTTP" != "204" ] && [ "$HTTP" != "409" ]; then
+                echo "ERROR: namespace creation returned $HTTP"; exit 1
+              fi
 
               echo ""
               echo "=== Step 3: Register Iceberg sink connector ==="
-              HTTP_CODE=$(curl -sf -o /tmp/response.txt -w "%{http_code}" \
+              HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
                 -X PUT \
                 http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/crypto-iceberg-sink/config \
                 -H "Content-Type: application/json" \

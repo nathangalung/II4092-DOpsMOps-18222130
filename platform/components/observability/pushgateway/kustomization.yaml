@@ -3,4 +3,5 @@ kind: Kustomization
 
 resources:
   - deployment.yaml
+  - peerauthentication.yaml
   # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>

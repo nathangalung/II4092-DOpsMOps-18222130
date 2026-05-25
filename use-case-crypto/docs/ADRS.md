@@ -13,10 +13,9 @@ Maps to platform ADR-003 (Airflow for data, KFP for ML).
 
 The crypto use-case ships four Airflow DAGs, all in `use-case-crypto/dags/`:
 
-- `crypto_hourly_features.py` — hourly OHLCV → feature table
-- `crypto_daily_backfill.py` — daily ClickHouse backfill from Iceberg
-- `crypto_lakehouse.py` — LakeFS branch / merge / delete + Trino QC
-- `crypto_quality_gate.py` — Great Expectations + SQL checks + OpenLineage
+- `data_pipeline.py` — hourly OHLCV → feature table + daily backfill (DAG IDs `crypto_hourly_features`, `crypto_daily_backfill`)
+- `lakehouse.py` — LakeFS branch / merge / delete + Trino QC (DAG ID `crypto_lakehouse`)
+- `quality_gate.py` — Great Expectations + SQL checks + OpenLineage (DAG ID `crypto_data_quality_gate`)
 
 DAG IDs are derived from `Variable.get("USE_CASE", default_var="crypto")` so a
 clone of this use-case repo can re-bind without body edits (cycle-5 / cycle-6
@@ -26,7 +25,7 @@ master-knob refactor; see audit §15-§17).
 
 Maps to platform ADR-018 (manual in domain DAGs, native in Flink/Spark).
 
-`use-case-crypto/dags/crypto_lakehouse_dag.py` declares helpers `_ol_dataset`,
+`use-case-crypto/dags/lakehouse.py` declares helpers `_ol_dataset`,
 `_ol_event`, `_ol_emit`, `_ol_run_id` plus Variables `OPENLINEAGE_URL`,
 `OPENLINEAGE_NAMESPACE`, `OPENLINEAGE_PRODUCER_LAKEHOUSE`. Wired into four
 PythonOperator callables (LakeFS branch create/merge/delete + Trino quality
@@ -40,7 +39,7 @@ gate). Custom run facet `crypto_qc` carries:
 These are queryable in DataHub's lineage explorer and feed the
 "data completeness" Grafana panel.
 
-`use-case-crypto/dags/crypto_quality_gate.py` declares `OPENLINEAGE_PRODUCER_QUALITY_GATE`
+`use-case-crypto/dags/quality_gate.py` declares `OPENLINEAGE_PRODUCER_QUALITY_GATE`
 (per-DAG isolation; cycle-6 split prevents seed-time collision with the
 lakehouse producer Variable).
 
@@ -48,7 +47,7 @@ lakehouse producer Variable).
 
 Maps to platform ADR-021 (Sloth SLO authorship).
 
-`use-case-crypto/manifests/base/observability/slos-crypto.yaml` ships three
+`use-case-crypto/manifests/base/observability/slos.yaml` ships three
 `PrometheusServiceLevel` CRs:
 
 - `crypto-prediction-freshness` — 99.5% over 30d, SLI
@@ -88,10 +87,10 @@ Maps to platform ADR-023 (FlinkDeployment CR replaces in-pod Deployment).
 
 `use-case-crypto/manifests/base/flink/flinkdeployment.yaml` declares:
 
-- **Image**: `crypto-flink-job:latest` (the crypto overlay jar baked into the
+- **Image**: `crypto-stream-processor:latest` (the crypto overlay jar baked into the
   operator's Flink 2.2.0 base image)
 - **Mode**: `application` (driver-in-JM, matches prior shape)
-- **jarURI**: `local:///opt/flink/usrlib/crypto-flink-job.jar`
+- **jarURI**: `local:///opt/flink/usrlib/crypto-stream-processor.jar`
 - **entryClass**: `io.mlops.crypto.flink.CryptoStreamJob`
 - **Checkpointing**: `s3://flink-checkpoints/crypto/` (MinIO-backed),
   interval 60s. Credentials from Vault via ExternalSecret `crypto-flink-s3`
@@ -128,7 +127,7 @@ The `use-case-crypto` namespace is on the ADR-009 Istio opt-out allowlist
   `feature-engine|validator|analyzer` (post-ADR-025; `flink-job` removed
   because Airflow does not call Flink JM directly)
   `allow-kfp-to-training-targets` selector lists
-  `feature-engine|crypto-flink-job|ml-bridge`
+  `feature-engine|crypto-stream-processor|ml-bridge`
 - `allow-prometheus-scrape` includes port 9249 (Flink reporter, ADR-023)
 - `allow-ingress-to-gateway` restricts istio-system → only `app: gateway`
   pod on `:8080`
@@ -157,10 +156,10 @@ Use-case-side actions:
      image / replicas / resource / probe patches removed
 
 3. Resources rescoped to FlinkDeployment pod labels:
-   - `base/hpa/autoscaling.yaml` — `flink-job-jobmanager-pdb` selects
-     `app: crypto-flink-job, component: jobmanager`
-   - `base/observability/servicemonitors-crypto.yaml` — **PodMonitor**
-     selecting `app: crypto-flink-job, component: jobmanager` on named port
+   - `base/hpa/autoscaling.yaml` — `stream-processor-jobmanager-pdb` selects
+     `app: crypto-stream-processor, component: jobmanager`
+   - `base/observability/servicemonitors.yaml` — **PodMonitor**
+     selecting `app: crypto-stream-processor, component: jobmanager` on named port
      `metrics` (9249)
    - `base/network-policies.yaml` — port 8083 removed; selectors updated
      per ADR-024 implementation above

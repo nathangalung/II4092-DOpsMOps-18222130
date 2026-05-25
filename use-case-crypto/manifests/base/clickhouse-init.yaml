@@ -1,0 +1,203 @@
+# =============================================================================
+# CLICKHOUSE-INIT — Apply medallion DDL to live ClickHouse (storage ns)
+# =============================================================================
+# Replaces the legacy imperative `database/init_database.sh` (which hardcoded
+# the wrong pod name `clickhouse-0`; live CHI pod is `chi-platform-main-0-0-0`).
+#
+# Declarative GitOps shape mirrors `schema-registration.yaml`:
+#   - ArgoCD PostSync hook — runs after every Sync of the use-case app.
+#   - `BeforeHookCreation,HookSucceeded` delete-policy makes re-runs idempotent
+#     at the Job-resource level (Argo deletes the prior Job before creating a
+#     new one each Sync); DDL idempotency is guaranteed at the SQL level by
+#     `CREATE … IF NOT EXISTS` on every statement in init_clickhouse.sql.
+#   - initContainer waits for clickhouse-platform.storage:9000 to accept TCP.
+#   - Auth via `pipeline-secrets` (ESO Secret from `platform/clickhouse/admin`)
+#     exposing CLICKHOUSE_USER + CLICKHOUSE_PASSWORD (see external-secrets.yaml
+#     lines 42-43).
+#   - Kafka SASL_SSL credentials for the `kafka_crypto` NAMED COLLECTION come
+#     from `crypto-clickhouse` (ESO mirror of KafkaUser `clickhouse`'s Strimzi
+#     Secret) — KAFKA_CLICKHOUSE_USERNAME + KAFKA_CLICKHOUSE_PASSWORD.
+#
+# Apply order (must run in this sequence — bronze Kafka engine tables in
+# init_clickhouse.sql reference `Kafka(kafka_crypto, …)`):
+#   1. `--query "CREATE NAMED COLLECTION IF NOT EXISTS kafka_crypto AS …"`
+#      seeds broker + SASL_SSL config; expanded with env-var substitution at
+#      apply time so passwords stay out of the SQL ConfigMap.
+#   2. `--queries-file=/sql/init.sql` then defines all databases + tables.
+#
+# The SQL file is bound to a ConfigMap created by `configMapGenerator` in
+# kustomization.yaml (single source of truth — same file used historically by
+# init_database.sh). The hash-suffixed ConfigMap name means any SQL edit
+# triggers a new Job rollout via ArgoCD on next reconcile.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-init
+  labels:
+    app: clickhouse-init
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 900
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: clickhouse-init
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        # clickhouse-server image runs as UID 101 (clickhouse user) by default;
+        # using the same UID avoids fsGroup gymnastics for the SQL ConfigMap
+        # mount (configMap volumes are world-readable so any non-root UID works).
+        runAsUser: 101
+      initContainers:
+        - name: wait-for-clickhouse
+          image: busybox:1.37
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 50m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            runAsUser: 65534
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for ClickHouse native TCP (storage:9000)..."
+              until nc -zw2 clickhouse-platform.storage.svc.cluster.local 9000 2>/dev/null; do
+                echo "ClickHouse not ready - sleeping"
+                sleep 5
+              done
+              echo "ClickHouse is reachable."
+      containers:
+        - name: apply-schema
+          # Pinned to the CHI server version (installation.yaml). The
+          # `clickhouse-server` image ships `clickhouse-client` so re-using it
+          # avoids pulling a second image and guarantees client/server protocol
+          # parity (no version-skew issues with newer DDL features).
+          image: clickhouse/clickhouse-server:26.3.10.60
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: false
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "=== Applying medallion DDL to clickhouse-platform.storage:9000 ==="
+              echo "ClickHouse admin: ${CLICKHOUSE_USER}"
+              echo "Kafka SASL user:  ${KAFKA_CLICKHOUSE_USERNAME}"
+              echo "SQL bytes:        $(wc -c < /sql/init.sql)"
+
+              # ----------------------------------------------------------------
+              # Step 1 — Seed/refresh the `kafka_crypto` NAMED COLLECTION
+              # ----------------------------------------------------------------
+              # Carries the broker + SASL_SSL creds shared by all bronze Kafka
+              # engine tables defined in init_clickhouse.sql below. Done as a
+              # separate `--query` so the SQL ConfigMap stays password-free.
+              #
+              # Idempotency + rotation via DROP IF EXISTS + CREATE in a single
+              # --multiquery payload:
+              #   * Context7-checked: ClickHouse 26.x docs only surface
+              #     `CREATE NAMED COLLECTION [IF NOT EXISTS]` — `CREATE OR
+              #     REPLACE NAMED COLLECTION` is NOT a documented form
+              #     (although CREATE OR REPLACE works for TABLE / MASKING
+              #     POLICY / temporary tables). Using IF NOT EXISTS alone
+              #     would silently skip credential refresh on rotation.
+              #   * DROP NAMED COLLECTION IF EXISTS removes the prior
+              #     definition; the new CREATE seeds the rotated password.
+              #   * Gap between DROP and CREATE is sub-millisecond inside one
+              #     --multiquery; if a bronze Kafka consumer happens to poll
+              #     during that window librdkafka logs one auth error and
+              #     retries on its 500ms default cycle — no data loss because
+              #     ClickHouse tracks consumer offsets in ZK/Keeper, not in
+              #     librdkafka memory.
+              #
+              # Broker on :9093 (TLS+SCRAM listener). CA file is platform-
+              # mounted at /etc/clickhouse-server/kafka-ca/ca.crt via the CHI
+              # podTemplate + `<kafka><ssl_ca_location>` server config.
+              echo ""
+              echo "=== Seeding kafka_crypto NAMED COLLECTION ==="
+              clickhouse-client \
+                --host=clickhouse-platform.storage.svc.cluster.local \
+                --port=9000 \
+                --user="${CLICKHOUSE_USER}" \
+                --password="${CLICKHOUSE_PASSWORD}" \
+                --multiquery \
+                --query="DROP NAMED COLLECTION IF EXISTS kafka_crypto;
+                         CREATE NAMED COLLECTION kafka_crypto AS
+                           kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+                           kafka_security_protocol = 'SASL_SSL',
+                           kafka_sasl_mechanism = 'SCRAM-SHA-512',
+                           kafka_sasl_username = '${KAFKA_CLICKHOUSE_USERNAME}',
+                           kafka_sasl_password = '${KAFKA_CLICKHOUSE_PASSWORD}'"
+
+              # ----------------------------------------------------------------
+              # Step 2 — Apply medallion DDL (databases + tables + MVs)
+              # ----------------------------------------------------------------
+              # --multiquery: parse multiple statements separated by ';'
+              # --queries-file: read SQL from file (cleaner than stdin redirect)
+              # ClickHouse 26.x supports --queries-file natively.
+              echo ""
+              echo "=== Applying medallion DDL from /sql/init.sql ==="
+              clickhouse-client \
+                --host=clickhouse-platform.storage.svc.cluster.local \
+                --port=9000 \
+                --user="${CLICKHOUSE_USER}" \
+                --password="${CLICKHOUSE_PASSWORD}" \
+                --multiquery \
+                --queries-file=/sql/init.sql
+
+              echo ""
+              echo "=== Verifying medallion databases ==="
+              clickhouse-client \
+                --host=clickhouse-platform.storage.svc.cluster.local \
+                --port=9000 \
+                --user="${CLICKHOUSE_USER}" \
+                --password="${CLICKHOUSE_PASSWORD}" \
+                --query="SHOW DATABASES" | grep -E '^(bronze|silver|gold|features)$' || {
+                  echo "FATAL: one of bronze/silver/gold/features missing after apply" >&2
+                  exit 1
+                }
+
+              echo ""
+              echo "=== Verifying kafka_crypto NAMED COLLECTION ==="
+              clickhouse-client \
+                --host=clickhouse-platform.storage.svc.cluster.local \
+                --port=9000 \
+                --user="${CLICKHOUSE_USER}" \
+                --password="${CLICKHOUSE_PASSWORD}" \
+                --query="SELECT name FROM system.named_collections WHERE name = 'kafka_crypto'" \
+                | grep -q '^kafka_crypto$' || {
+                  echo "FATAL: kafka_crypto NAMED COLLECTION missing after apply" >&2
+                  exit 1
+                }
+
+              echo ""
+              echo "=== Schema apply complete ==="
+          envFrom:
+            # Admin DDL credentials (CLICKHOUSE_USER/PASSWORD)
+            - secretRef:
+                name: pipeline-secrets
+            # Kafka SASL user creds for the NAMED COLLECTION
+            # (KAFKA_CLICKHOUSE_USERNAME/PASSWORD)
+            - secretRef:
+                name: crypto-clickhouse
+          volumeMounts:
+            - name: sql-files
+              mountPath: /sql
+              readOnly: true
+      volumes:
+        - name: sql-files
+          configMap:
+            name: clickhouse-init-sql
+            defaultMode: 0444

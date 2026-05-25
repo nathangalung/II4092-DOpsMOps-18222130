@@ -140,6 +140,34 @@ spec:
             limits:
               cpu: 50m
               memory: 32Mi
+        # opencost-ui v1.120.1 bakes the UI dist (index.html, assets/, logo,
+        # favicon) directly at /var/www in the image — there is no entrypoint
+        # `cp /opt/ui/dist/* /var/www` step (the prior comment referencing
+        # /opt/ui/dist was for older builds). Mounting an emptyDir at /var/www
+        # shadows the baked dist, leaving nginx serving an empty directory →
+        # 403 directory index forbidden on every probe. This init seeds the
+        # emptyDir with the image's /var/www contents so the main container
+        # sees both: dist files (read) and a writable directory.
+        - name: seed-var-www
+          image: ghcr.io/opencost/opencost-ui:1.120.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command: ["/bin/sh", "-c"]
+          args: ["cp -a /var/www/. /seed/"]
+          volumeMounts:
+            - name: var-www
+              mountPath: /seed
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
       containers:
         - name: opencost
           image: ghcr.io/opencost/opencost:1.120.1
@@ -180,12 +208,10 @@ spec:
             periodSeconds: 30
         - name: opencost-ui
           image: ghcr.io/opencost/opencost-ui:1.120.1
-          # Image bakes /var/www owned by root; running as nonroot (fsGroup
-          # 1000) the entrypoint's `cp -r /opt/ui/dist/* /var/www` fails
-          # Permission denied. Mount emptyDir at /var/www so kubelet chowns
-          # to fsGroup and the cp + nginx serve succeed. /var/cache/nginx
-          # and /var/run also need writable mounts under nginx unprivileged.
-          # ROFS stays off — upstream chart pattern.
+          # /var/cache/nginx and /var/run need writable mounts for nginx
+          # unprivileged.  /var/www is mounted from the seed-var-www init's
+          # output (image's baked dist).  ROFS stays off because nginx writes
+          # access log + tmp paths under /var.
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -195,6 +221,20 @@ spec:
           ports:
             - containerPort: 9090
               name: ui
+          env:
+            # Image entrypoint defaults BASE_URL=/model, which roots the UI
+            # (and the only route nginx serves) at /model/. With kubelet's
+            # liveness/readiness GET / through the istio sidecar rewrite,
+            # nginx returns 403 (no location block at root) and the kubelet
+            # kills the container in CrashLoopBackOff (field-observed
+            # 2026-05-21, 100+ restarts). Pinning BASE_URL=/ tells the
+            # entrypoint's envsubst to render the nginx location block at
+            # /, so probe GET / lands on /var/www/index.html → 200. Routes
+            # exposed by the platform Ingress can still front this with a
+            # /opencost/ prefix; that's an Ingress rewrite concern, not a
+            # backend path concern.
+            - name: BASE_URL
+              value: "/"
           volumeMounts:
             - name: var-www
               mountPath: /var/www

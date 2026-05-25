@@ -32,3 +32,10 @@ spec:
               value: "false"
             - name: KAFKA_SUPPLEMENTARY_TOPIC
               value: "crypto.supplementary"
+            # Override pipeline-config KAFKA_TOPIC (websocket producer
+            # default = crypto.ws.raw) so the REST collector lands on its
+            # dedicated topic. Independent KEDA lag trigger
+            # (manifests/base/scaling/scaledobjects.yaml) + validator
+            # fan-in via VALIDATOR_INPUT_TOPICS picks it up downstream.
+            - name: KAFKA_TOPIC
+              value: "crypto.rest.raw"

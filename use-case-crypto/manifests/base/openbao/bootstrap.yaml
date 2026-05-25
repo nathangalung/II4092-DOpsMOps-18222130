@@ -12,7 +12,7 @@
 #      `usecase-crypto-bootstrap` with that policy.
 #   3. Seed `secret/usecases/crypto/pipeline` and `.../api-keys` from the
 #      optional `openbao-crypto-seed` Secret (populated by
-#      use-case-crypto/scripts/seed-crypto-openbao.sh).
+#      use-case-crypto/scripts/seed-openbao.sh).
 #
 # Platform secrets are NOT touched here. Each use-case has its own
 # bootstrap Job with a scoped policy; the blast radius of a compromised

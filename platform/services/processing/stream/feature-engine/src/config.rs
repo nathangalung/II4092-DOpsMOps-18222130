@@ -1,4 +1,5 @@
 use config::{Config as CfgLoader, Environment, File};
+use rdkafka::ClientConfig;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -12,12 +13,47 @@ pub struct Config {
     pub indicators: IndicatorConfig,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct KafkaConfig {
     pub brokers: String,
     pub input_topic: String,
     pub output_topic: String,
     pub group_id: String,
+    /// Optional SASL/SSL — set by use-cases needing auth.
+    /// Platform default (None) keeps PLAINTEXT to stay domain-agnostic.
+    #[serde(default)]
+    pub security_protocol: Option<String>,
+    #[serde(default)]
+    pub sasl_mechanism: Option<String>,
+    #[serde(default)]
+    pub sasl_username: Option<String>,
+    #[serde(default)]
+    pub sasl_password: Option<String>,
+    #[serde(default)]
+    pub ssl_ca_location: Option<String>,
+}
+
+impl KafkaConfig {
+    /// Apply SASL/SSL settings to an rdkafka ClientConfig.
+    /// No-op when security_protocol is unset.
+    pub fn apply_security(&self, cfg: &mut ClientConfig) {
+        let Some(proto) = self.security_protocol.as_deref() else {
+            return;
+        };
+        cfg.set("security.protocol", proto);
+        if let Some(m) = &self.sasl_mechanism {
+            cfg.set("sasl.mechanisms", m);
+        }
+        if let Some(u) = &self.sasl_username {
+            cfg.set("sasl.username", u);
+        }
+        if let Some(p) = &self.sasl_password {
+            cfg.set("sasl.password", p);
+        }
+        if let Some(ca) = &self.ssl_ca_location {
+            cfg.set("ssl.ca.location", ca);
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +113,36 @@ impl Config {
         let mut loaded: Self = cfg.try_deserialize()?;
         loaded.redis.url =
             inject_redis_password(&loaded.redis.url, read_redis_password_env().as_deref());
+
+        // Bare env-var overrides — use-case deployments set these via ConfigMap
+        // without forcing the FEATURE__KAFKA__ prefix nesting.
+        if let Ok(v) = std::env::var("KAFKA_BROKERS") {
+            loaded.kafka.brokers = v;
+        }
+        if let Ok(v) = std::env::var("KAFKA_INPUT_TOPIC") {
+            loaded.kafka.input_topic = v;
+        }
+        if let Ok(v) = std::env::var("KAFKA_OUTPUT_TOPIC") {
+            loaded.kafka.output_topic = v;
+        }
+        if let Ok(v) = std::env::var("KAFKA_GROUP_ID") {
+            loaded.kafka.group_id = v;
+        }
+        if let Ok(v) = std::env::var("KAFKA_SECURITY_PROTOCOL") {
+            loaded.kafka.security_protocol = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_MECHANISM") {
+            loaded.kafka.sasl_mechanism = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_USERNAME") {
+            loaded.kafka.sasl_username = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_PASSWORD") {
+            loaded.kafka.sasl_password = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SSL_CA_LOCATION") {
+            loaded.kafka.ssl_ca_location = Some(v);
+        }
         Ok(loaded)
     }
 }
@@ -138,6 +204,7 @@ mod tests {
             input_topic: "input".to_string(),
             output_topic: "output".to_string(),
             group_id: "test-group".to_string(),
+            ..Default::default()
         };
 
         assert_eq!(kafka.brokers, "broker1:9092,broker2:9092");

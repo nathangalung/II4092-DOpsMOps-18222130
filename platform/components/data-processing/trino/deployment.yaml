@@ -83,6 +83,12 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8085
     discovery.uri=http://localhost:8085
+    # Pod-IP announcer URI: without this Trino registers nodes with an
+    # empty `httpUri` because the default `node.internal-address-source=HOSTNAME`
+    # resolves to the pod's randomized name which fails to round-trip on
+    # single-replica Deployments. CoordinatorNodeManager then chokes with
+    # `URI does not have a scheme:` every 5s when polling node state.
+    node.internal-address-source=IP
     query.max-memory=2GB
   jvm.config: |
     -server

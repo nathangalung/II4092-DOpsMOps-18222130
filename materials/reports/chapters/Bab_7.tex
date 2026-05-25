@@ -1,10 +1,16 @@
-% ==========================================
-% BAB VII PENUTUP
-% ==========================================
+% Bab VII Penutup
 \cleardoublepage
 \chapter{PENUTUP}
 \label{chap:penutup}
+
+Bab ini akan diisi setelah hasil evaluasi pada Bab~\ref{chap:evaluasi} terkonsolidasi. Kerangka kesimpulan dijaga mengikuti aturan rantai kunci: setiap poin kesimpulan menjawab tepat satu tujuan T-1 sampai T-4 dengan urutan yang sama, tanpa menambahkan klaim baru di luar yang dibahas pada bab-bab sebelumnya.
+
 \section{Kesimpulan}
-Jelaskan secara detail langkah-langkah rencana selanjutnya, hal-hal yang diperlukan atau akan disiapkan, dan risiko dan mitigasinya, yang meliputi:
+\label{sec:kesimpulan}
+
+Kesimpulan akan dirangkum dalam empat poin yang bersesuaian dengan empat tujuan platform. Poin K1 akan merangkum bukti bahwa arsitektur DataOps dan MLOps terintegrasi pada Kubernetes dapat dipasang dari satu sumber Git dengan praktik GitOps. Poin K2 akan merangkum bukti bahwa katalog metadata, \textit{lineage}, dan kontrol kualitas data berjalan otomatis sepanjang \textit{pipeline} data, fitur, dan model. Poin K3 akan merangkum bukti bahwa deteksi \textit{drift} terotomasi memicu pelatihan ulang sesuai kebijakan dan bahwa penyajian fitur memenuhi \textit{point-in-time correctness}. Poin K4 akan merangkum bukti bahwa layanan fitur \textit{dual-store} menyajikan fitur tabular, fitur agregat, dan fitur vektor dengan kontrak yang konsisten antara fase pelatihan dan fase \textit{inference}.
+
 \section{Saran}
-asdfas
+\label{sec:saran}
+
+Saran akan diarahkan pada tindak lanjut untuk tujuan yang belum tertutup penuh oleh evaluasi awal serta pada arah pengembangan platform berikutnya. Beberapa arah yang telah teridentifikasi mencakup perluasan dukungan multi-\textit{tenancy} pada lapis tata kelola, otomasi kebijakan kuota pada \textit{Kueue} untuk beban pelatihan yang lebih besar, integrasi metrik biaya \textit{OpenCost} dengan kebijakan \textit{retraining}, dan adopsi profil keamanan yang lebih ketat melalui \textit{Kyverno} setelah profil dasar matang.

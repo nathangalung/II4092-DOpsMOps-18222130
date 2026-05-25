@@ -1,0 +1,47 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{0.75cm}|m{2cm}|m{8cm}|>{\centering\arraybackslash}m{1.75cm}|}
+\caption{\raggedright Kebutuhan Fungsional Sistem}
+\label{tab:kebutuhan_fungsional} \\
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{0.75cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Kebutuhan Fungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{8cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.75cm}|}{\textbf{Prioritas}} \\
+\hline
+\endfirsthead
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{0.75cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Kebutuhan Fungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{8cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.75cm}|}{\textbf{Prioritas}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KF-01 & Manajemen Fitur Terpusat & Sistem menyediakan \textit{feature registry} terpusat untuk mendefinisikan, mengelola, dan melakukan \textit{versioning} fitur. \textit{Registry} menyimpan metadata seperti deskripsi, tipe data, \textit{owner}, dan dependensi, serta dikelola di dalam repositori Git agar mendukung \textit{workflow} GitOps dan penelusuran perubahan. & Tinggi \\
+\hline
+KF-02 & Penyajian Fitur Ganda & Sistem mampu melakukan \textit{serving} fitur dalam dua mode, yaitu \textit{online serving} untuk \textit{real-time inference} dengan target latensi $< 10$ ms di p99 dan \textit{offline serving} untuk \textit{historical retrieval} berkapasitas besar yang mendukung \textit{point-in-time correct join} pada data historis. & Tinggi \\
+\hline
+KF-03 & Jaminan Validitas Temporal & Sistem secara bawaan menjamin \textit{point-in-time correctness} ketika menyusun \textit{training dataset} untuk data \textit{time-series}, sehingga mencegah kebocoran data temporal yang dapat membuat evaluasi dan model menjadi tidak valid. & Tinggi \\
+\hline
+KF-04 & Dukungan \textit{Vector Embeddings} & Sistem mendukung penyimpanan, pengindeksan, dan \textit{serving vector embeddings} pada \textit{online store} dengan \textit{similarity search} yang efisien (latensi $< 10$ ms di p99), misalnya melalui algoritme HNSW atau metode sejenis. & Tinggi \\
+\hline
+KF-05 & Otomatisasi \textit{Pipeline} Pelatihan & Sistem menyediakan \textit{pipeline} otomatis untuk mengorkestrasi proses pelatihan model dari ujung ke ujung, terintegrasi dengan \textit{feature store}, \textit{experiment tracking}, dan \textit{model registry}, sehingga mendukung pencapaian otomasi sesuai MLOps Level 2. & Tinggi \\
+\hline
+KF-06 & Otomatisasi Penerapan Model & Sistem mengotomatisasi \textit{deployment} model yang telah lulus validasi ke \textit{inference endpoint} produksi, serta mendukung strategi \textit{rolling update}, \textit{canary deployment}, \textit{A/B testing}, dan mekanisme \textit{rollback} yang aman ketika terjadi degradasi. & Tinggi \\
+\hline
+KF-07 & Pemantauan \textit{Drift} Otomatis & Sistem secara otomatis dan berkala memantau \textit{data drift} dan \textit{concept drift} dengan membandingkan distribusi fitur di produksi terhadap distribusi pada saat pelatihan menggunakan uji statistik (misalnya PSI, K--S) dengan ambang adaptif, serta terintegrasi dengan \textit{event-driven monitoring} untuk memungkinkan respon otomatis terhadap anomali. & Tinggi \\
+\hline
+KF-08 & \textit{Governance} \& Penemuan Otomatis & Sistem menangkap dan menyajikan metadata serta \textit{lineage} untuk fitur, \textit{dataset}, model, dan \textit{pipeline} dalam sebuah katalog yang dapat dicari, sehingga memudahkan \textit{discovery}, analisis dampak, dan pemenuhan kebutuhan \textit{compliance}. & Tinggi \\
+\hline
+KF-09 & Pelacakan Eksperimen Terintegrasi & Sistem menyediakan \textit{experiment tracking} yang terintegrasi untuk mencatat parameter, metrik, artefak, dan versi kode, sehingga proses eksperimen dapat direproduksi dan dibandingkan secara sistematis. & Tinggi \\
+\hline
+KF-10 & \textit{Versioning} dan Registri Model & Sistem menyediakan \textit{model registry} terpusat untuk mengelola versi model dan status siklus hidupnya (\textit{staging}, \textit{production}, \textit{archived}) disertai \textit{audit trail} lengkap untuk mendukung \textit{governance}. & Tinggi \\
+\hline
+KF-11 & Pemrosesan \textit{Batch} dan \textit{Stream} & Sistem mendukung \textit{batch processing} untuk analisis dan rekayasa fitur historis serta \textit{stream processing} untuk komputasi fitur \textit{real-time}, di mana keduanya terhubung dengan \textit{feature store} sehingga definisi fitur tetap konsisten. & Tinggi \\
+\hline
+KF-12 & Konfigurasi Deklaratif & Sistem memungkinkan konfigurasi komponen seperti fitur, \textit{pipeline}, dan \textit{deployment} dalam format deklaratif (misalnya YAML atau Python), yang dikontrol versinya di Git dan selaras dengan prinsip GitOps. & Tinggi \\
+\hline
+KF-13 & API dan SDK Terpadu & Sistem menyediakan API dan SDK terpadu (misalnya untuk Python) sebagai antarmuka standar untuk berinteraksi dengan seluruh komponen, sehingga kompleksitas integrasi menurun dan pola pemakaian menjadi konsisten. & Sedang \\
+\hline
+KF-14 & Manajemen Sumber Daya & Sistem menyediakan kemampuan pengelolaan sumber daya komputasi yang efisien, termasuk \textit{resource quota}, prioritas, serta \textit{dynamic provisioning} pada lingkungan \textit{multi-tenant} untuk mencegah satu \textit{workload} menghabiskan sumber daya klaster. & Sedang \\
+\hline
+\end{longtable}
+}

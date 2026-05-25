@@ -4,7 +4,7 @@
 # Adds crypto-specific serving endpoints to the platform base ConfigMap.
 #
 # KSERVE_INFERENCE_URL naming:
-#   The InferenceService is declared in inferenceservices/crypto-inference.yaml
+#   The InferenceService is declared in inferenceservices/inference.yaml
 #   with the base name `predictor`. The overlay applies `namePrefix: crypto-`
 #   so the rendered IS is `crypto-predictor`. KServe then creates a Service
 #   named `<isvc>-predictor` for the predictor component, which is why the

@@ -165,9 +165,38 @@ spec:
               - key: ca.crt
                 path: ca.crt
 ---
-# Allow cross-namespace HTTP access to Schema Registry. Without this,
-# global-deny-all in istio-system rejects DataHub init probes and any
-# producer/consumer that needs to fetch a subject schema.
+# =============================================================================
+# PeerAuthentication — accept both mTLS and plaintext on the Karapace sidecar.
+# Mesh-wide default (istio-system/default) enforces STRICT mTLS for every pod
+# with a sidecar. Karapace runs in data-ingestion (istio-injection=enabled), so
+# it inherits STRICT. Schema bootstrap and registration Jobs live in use-case
+# namespaces that are istio-exempt by design (mlops-platform.io/istio-exempt=
+# true). Without PERMISSIVE the inbound sidecar RSTs every plain-HTTP call from
+# those Jobs (curl exits 56 — failure receiving network data). Same pattern as
+# kafka-connect (task #242) and prometheus/alertmanager (task #304).
+# =============================================================================
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: karapace
+  namespace: data-ingestion
+  labels:
+    app: karapace
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: data-ingestion
+spec:
+  selector:
+    matchLabels:
+      app: karapace
+  mtls:
+    mode: PERMISSIVE
+---
+# Allow HTTP access to Schema Registry from any in-cluster caller on the
+# registry port. A `source.namespaces` selector cannot match istio-exempt use-
+# case callers (no SPIFFE identity), so we keep authorization at L4 via the
+# pod CIDR / NetworkPolicy and grant L7 ALLOW unconditionally on 8081. DataHub
+# init probes, dbt karapace-compat-check, producer/consumer subject fetches,
+# and use-case schema-registration Jobs all rely on this open path.
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
@@ -181,9 +210,6 @@ spec:
       app: karapace
   action: ALLOW
   rules:
-    - from:
-        - source:
-            namespaces: ["data-ingestion", "data-governance", "data-processing", "model-lifecycle", "istio-system"]
-      to:
+    - to:
         - operation:
             ports: ["8081"]

@@ -7,12 +7,12 @@ dependencies = [
     "fastapi>=0.129.0",
     "uvicorn[standard]>=0.30.6",
     "httpx>=0.28.1",
-    "feast[redis]>=0.59.0",
-    "clickhouse-connect>=0.11.0",
-    "redis>=4.2.2",
+    # Feast SQL registry + Valkey online store; clickhouse extra pulls the offline-store
+    # contrib + clickhouse-connect (definitions.py imports ClickhouseSource at load time).
+    "feast[clickhouse,redis]>=0.59.0",
     "pydantic>=2.12.0",
-    "pydantic-settings>=2.13.0",
-    "prometheus-client>=0.24.0",
+    # PG driver for Feast SQL registry (configmap uses postgresql+psycopg:// URI).
+    "psycopg[binary,pool]>=3.2.0",
 ]
 
 [build-system]

@@ -59,6 +59,14 @@ spec:
     trialSpec:
       apiVersion: batch/v1
       kind: Job
+      # Kueue admission: Job-level label routes each FLAML Trial to the
+      # use-case training-queue → ClusterQueue mlops-cluster-queue
+      # (cohort=mlops, ResourceFlavor default-flavor). Kueue Job integration
+      # reads Job.metadata.labels (not pod template) — Katib propagates this
+      # block onto the spawned Job manifest.
+      metadata:
+        labels:
+          kueue.x-k8s.io/queue-name: crypto-training-queue
       spec:
         template:
           metadata:
@@ -69,7 +77,7 @@ spec:
             containers:
               - name: trainer
                 image: trainer:latest
-                imagePullPolicy: IfNotPresent
+                imagePullPolicy: Always
                 command: ["uv", "run", "main.py"]
                 args:
                   - "--symbol=BTC-USD"

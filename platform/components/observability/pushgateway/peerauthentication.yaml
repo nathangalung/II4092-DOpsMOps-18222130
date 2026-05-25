@@ -1,0 +1,28 @@
+# =============================================================================
+# PeerAuthentication — Pushgateway accept plaintext callers.
+# Mesh-wide default in istio-system enforces STRICT mTLS for all sidecar-
+# injected pods. Pushgateway runs with istio sidecar (observability ns has
+# istio-injection=enabled, pod is 2/2). Out-of-mesh callers — use-case
+# CronJobs/Jobs (use-case-* ns, PSA restricted, no sidecar) posting run
+# outcome metrics via push-helper — speak plain HTTP on :9091. STRICT
+# would RST these connections at the inbound sidecar (observed:
+# `wget: error getting response: Connection reset by peer` on
+# /metrics/job/test from use-case CronJob pod → pushgateway 10.43.182.93:9091).
+# PERMISSIVE accepts both mTLS (from meshed callers) and plaintext (from
+# out-of-mesh CronJobs) — same pattern as the prometheus + alertmanager
+# PeerAuthentication in kube-prometheus-stack/peerauthentication.yaml.
+# =============================================================================
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: pushgateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+spec:
+  selector:
+    matchLabels:
+      app: pushgateway
+  mtls:
+    mode: PERMISSIVE

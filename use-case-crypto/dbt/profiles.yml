@@ -8,5 +8,5 @@ platform:
       user: "{{ env_var('CLICKHOUSE_USER', 'default') }}"
       password: "{{ env_var('CLICKHOUSE_PASSWORD', '') }}"
       schema: "{{ env_var('DBT_SCHEMA', 'crypto') }}"
-      secure: "{{ env_var('CLICKHOUSE_SECURE', 'false') }}"
+      secure: false
   target: prod

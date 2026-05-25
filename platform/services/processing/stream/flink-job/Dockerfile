@@ -1,5 +1,14 @@
 # Multi-stage build for Flink job using Mill (5-10x faster than Maven, instant incremental builds)
-FROM eclipse-temurin:25-jdk-alpine AS builder
+#
+# JDK version pin: eclipse-temurin 21-jdk-alpine.
+#   - Flink 2.2 line officially supports Java 21 (DockerHub publishes
+#     flink:2.2.0-scala_2.12-java21 as the runtime image).
+#   - Java 21 is the current LTS as of April 2026 (next LTS = Java 25, Sep 2025
+#     GA but Flink 2.2 has not certified it for production).
+#   - Aligning builder JDK with runtime JDK avoids `--release` cross-compile
+#     warnings and ensures `mill-jvm-version: system` (see build.mill) lands
+#     on the same major version Flink will execute.
+FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +28,11 @@ WORKDIR /app
 # reachable via the JDK's TLS stack.  BusyBox wget (already in the temurin
 # alpine base) handles HTTPS via libtls without any package install.
 #
-# JAVA_HOME export so Mill skips downloading its own JDK.
+# JAVA_HOME export pairs with `//| mill-jvm-version: system` in build.mill so
+# Mill resolves the base-image JDK instead of downloading zulu:21 from
+# cdn.azul.com (which is not reachable from this lab network). Both are
+# required: env var alone is insufficient, the build-header opt-in is what
+# stops coursier's JVM-index lookup.
 RUN mkdir -p /root/.cache/mill/download && \
     wget -q -O /root/.cache/mill/download/1.1.5 https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.5/mill-dist-1.1.5.exe && \
     chmod +x /root/.cache/mill/download/1.1.5 && \
@@ -31,15 +44,30 @@ ENV MILL_JAVA_HOME=$JAVA_HOME
 COPY build.mill .
 COPY src ./src
 
-# Build fat JAR (resolve deps + compile + assemble in single step)
-RUN mill -j 0 flink.assembly
+# Build fat JAR (resolve deps + compile + assemble in single step).
+#
+# Retry wrapper handles transient DNS failures from the campus uplink resolver
+# (167.205.22.123). Coursier's per-artifact retry covers 5xx but not
+# UnknownHostException, and the launcher-level mill-runner-daemon pom fetch
+# happens before any user code runs — a single DNS blip kills the whole job.
+# Mill's `out/` is preserved across iterations so completed work is not redone.
+RUN for i in 1 2 3 4 5; do \
+        mill -j 0 flink.assembly && exit 0; \
+        echo "[build] attempt $i failed, retrying in 15s..."; \
+        sleep 15; \
+    done; \
+    echo "[build] failed after 5 attempts" >&2; \
+    exit 1
 
-# Runtime image - use JRE base (no full Flink cluster needed for MiniCluster mode).
-# Tag `25-jre-alpine` is the official Adoptium rolling alpine variant; the dated
-# `-alpine3.XX` suffix is not published for the JRE line (only the JDK line had
-# it historically).  Sticking to the rolling tag keeps the image on the latest
-# Alpine 3.x point release picked up at build time.
-FROM eclipse-temurin:25-jre-alpine
+# Runtime image — eclipse-temurin 21-jre-alpine.
+#   - Matches the JDK 21 builder so the fat JAR runs on the same major it
+#     was compiled against (no AOT bytecode-version mismatch risk).
+#   - Matches Flink 2.2's officially supported Java 21 runtime line.
+#   - JRE-only base — application-mode submission via Flink Operator runs
+#     this image only for the MiniCluster fallback path (see CMD below);
+#     the operator-driven path uses a use-case overlay image built on top
+#     of flink:2.2.0-scala_2.12-java21 (see use-case/manifests/.../flink/).
+FROM eclipse-temurin:21-jre-alpine
 
 RUN adduser -D -u 1000 -s /sbin/nologin app
 

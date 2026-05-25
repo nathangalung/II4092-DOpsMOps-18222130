@@ -6,12 +6,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.connector.kafka.source.KafkaSourceBuilder;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Properties;
 
 /**
  * Domain-agnostic Flink streaming harness.
@@ -22,6 +25,14 @@ import org.slf4j.LoggerFactory;
  *
  * Env contract
  *   KAFKA_BROKERS                       Bootstrap servers (required)
+ *   KAFKA_SECURITY_PROTOCOL             PLAINTEXT | SASL_PLAINTEXT | SASL_SSL | SSL
+ *                                         (optional; default PLAINTEXT). When SASL_*,
+ *                                         the JAAS config is built from
+ *                                         KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD.
+ *   KAFKA_SASL_MECHANISM                e.g. SCRAM-SHA-512 (required when SASL_*).
+ *   KAFKA_SASL_USERNAME / _PASSWORD     SCRAM creds, injected from a KafkaUser secret.
+ *   KAFKA_SSL_CA_LOCATION               PEM path for ssl.truststore.location
+ *                                         (Strimzi cluster CA cert; required for SSL/SASL_SSL).
  *   VALKEY_HOST, VALKEY_PORT, VALKEY_PASSWORD   Sink parameters (required;
  *                                         Valkey speaks Redis-RESP — Lettuce client below)
  *   ENABLED_STREAMS                     Comma-separated stream names, e.g.
@@ -110,13 +121,62 @@ public class StreamJob {
     }
 
     private static KafkaSource<String> buildKafkaSource(String brokers, String topic, String groupId) {
-        return KafkaSource.<String>builder()
+        KafkaSourceBuilder<String> b = KafkaSource.<String>builder()
             .setBootstrapServers(brokers)
             .setTopics(topic)
             .setGroupId(groupId)
             .setStartingOffsets(OffsetsInitializer.latest())
-            .setValueOnlyDeserializer(new SimpleStringSchema())
-            .build();
+            .setValueOnlyDeserializer(new SimpleStringSchema());
+
+        // Forward Kafka client security properties from the env so Strimzi
+        // SASL_SSL listeners (9093) are reachable. setProperties merges into
+        // the AdminClient + Consumer configs used by KafkaSourceEnumerator
+        // and KafkaPartitionSplitReader respectively.
+        Properties sec = kafkaSecurityProperties();
+        if (!sec.isEmpty()) {
+            b.setProperties(sec);
+            LOG.info("Kafka security: protocol={} mechanism={} truststore={}",
+                sec.getProperty("security.protocol"),
+                sec.getProperty("sasl.mechanism"),
+                sec.getProperty("ssl.truststore.location"));
+        }
+        return b.build();
+    }
+
+    /**
+     * Build Kafka client security Properties from env vars. Returns empty
+     * when KAFKA_SECURITY_PROTOCOL is unset / PLAINTEXT (Strimzi 9092
+     * listener path used by single-node dev clusters without auth).
+     *
+     * SSL truststore uses PEM type — Kafka 3.0+ supports loading the
+     * Strimzi-emitted ca.crt directly without a JKS conversion step.
+     */
+    private static Properties kafkaSecurityProperties() {
+        Properties p = new Properties();
+        String proto = System.getenv("KAFKA_SECURITY_PROTOCOL");
+        if (proto == null || proto.isEmpty() || "PLAINTEXT".equalsIgnoreCase(proto)) {
+            return p;
+        }
+        p.setProperty("security.protocol", proto);
+
+        if (proto.startsWith("SASL_")) {
+            String mech = System.getenv().getOrDefault("KAFKA_SASL_MECHANISM", "SCRAM-SHA-512");
+            String user = required("KAFKA_SASL_USERNAME");
+            String pass = required("KAFKA_SASL_PASSWORD");
+            p.setProperty("sasl.mechanism", mech);
+            // Only SCRAM mechanisms are configured here; PLAIN/OAUTHBEARER would
+            // need a different LoginModule. SCRAM is the Strimzi default.
+            String loginModule = "org.apache.kafka.common.security.scram.ScramLoginModule";
+            p.setProperty("sasl.jaas.config",
+                loginModule + " required username=\"" + user + "\" password=\"" + pass + "\";");
+        }
+
+        if (proto.endsWith("SSL")) {
+            String ca = System.getenv().getOrDefault("KAFKA_SSL_CA_LOCATION", "/etc/kafka/ca/ca.crt");
+            p.setProperty("ssl.truststore.type", "PEM");
+            p.setProperty("ssl.truststore.location", ca);
+        }
+        return p;
     }
 
     private static String extractSymbol(String json) {

@@ -15,13 +15,13 @@ resources:
   # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
   - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
   - ../base/namespace.yaml
-  - ../base/configmap-feast.yaml
+  - ../base/configmaps/feast.yaml
   - ../base/external-secrets.yaml
 
   # --- Train: Training (weekly scheduled via KFP) ---
   # Training is handled by KFP recurring runs (submit_recurring.py).
   # No CronJob needed — KFP schedules the pipeline directly.
-  # To trigger manually: python pipelines/submit_recurring.py
+  # To trigger manually: uv run pipelines/submit_recurring.py
 
   # --- Train: Drift Detection ---
   # REMOVED from scheduled CronJobs — drift detection is now INLINE
@@ -33,7 +33,7 @@ resources:
 
   # --- Train: Auto-Retraining ---
   # REMOVED — retraining is triggered BY drift detection in the DAG,
-  # not on a fixed schedule. See dags/crypto_data_pipeline.py.
+  # not on a fixed schedule. See dags/data_pipeline.py.
   # - ../base/cronjobs/retraining.yaml
 
   # --- Train: Feature Materialization (Feast: ClickHouse → Redis) ---

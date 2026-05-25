@@ -158,8 +158,9 @@ make usecase-crypto-build         # Build images
 make usecase-crypto-test          # Run tests
 ```
 
-Each use-case has its own `Makefile` (e.g. `use-case-crypto/Makefile`); the root
-delegates via `$(MAKE) -C <dir> <target>`.
+All use-case targets live in the root `Makefile` prefixed with `usecase-<name>-`
+(e.g. `usecase-crypto-up`, `usecase-crypto-build`); paths inside those targets
+resolve relative to the use-case directory (e.g. `use-case-crypto/`).
 
 ## Conventions
 

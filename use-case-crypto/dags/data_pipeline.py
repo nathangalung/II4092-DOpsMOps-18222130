@@ -17,8 +17,8 @@ CronJobs REPLACED by these DAGs:
   - batch-features.yaml       → crypto_hourly_features
   - batch-sentiment.yaml       → crypto_hourly_features
   - materialization.yaml       → crypto_hourly_features
-  - dbt-run.yaml              → crypto_lakehouse (in crypto_lakehouse_dag.py)
-  - evidently-report.yaml     → crypto_lakehouse (in crypto_lakehouse_dag.py)
+  - dbt-run.yaml              → crypto_lakehouse (in lakehouse.py)
+  - evidently-report.yaml     → crypto_lakehouse (in lakehouse.py)
   - backfill.yaml             → crypto_daily_backfill
 """
 
@@ -180,7 +180,11 @@ with DAG(
         mem_req="256Mi",
     )
 
-    # Drift detection runs AFTER features are computed (event-driven, not scheduled)
+    # Drift detection runs AFTER features are computed. PSI/KS scores are
+    # written to ClickHouse `gold.drift_metrics`; the Argo CronWorkflow
+    # `retrain-on-drift` (model-lifecycle) polls that table on its own
+    # schedule and triggers KFP retraining when thresholds are exceeded —
+    # the DAG fans out and exits without waiting on retrain.
     drift_check = k8s_pod(
         "drift_check",
         image=_image("drift-detector"),
@@ -188,16 +192,6 @@ with DAG(
         args=["--scale", "hour", "--once"],
         cpu_req="100m",
         mem_req="256Mi",
-    )
-
-    # If drift detected (published to Redis), trigger KFP retraining pipeline
-    trigger_retrain = k8s_pod(
-        "trigger_retrain_if_drift",
-        image=_image("retraining"),
-        cmds=["uv", "run", "main.py"],
-        args=["--check-and-retrain"],
-        cpu_req="50m",
-        mem_req="128Mi",
     )
 
     # Scoring: run batch inference via ml-bridge (proxies to KServe InferenceService)
@@ -213,15 +207,16 @@ with DAG(
         mem_lim="1Gi",
     )
 
-    # Pipeline: features → materialize → [sentiment, drift → retrain, scoring]
+    # Pipeline: features → materialize → [sentiment, drift, scoring]
+    # Retrain-on-drift is decoupled (Argo CronWorkflow polls ClickHouse).
     batch_features >> feast_materialize
     feast_materialize >> batch_sentiment
-    feast_materialize >> drift_check >> trigger_retrain
+    feast_materialize >> drift_check
     feast_materialize >> scoring
 
 
-# crypto_transformation DAG removed — fully superseded by crypto_lakehouse_dag
-# (LakeFS-versioned dbt + Trino quality checks in crypto_lakehouse_dag.py).
+# crypto_transformation DAG removed — fully superseded by crypto_lakehouse
+# (LakeFS-versioned dbt + Trino quality checks in lakehouse.py).
 
 
 # ═════════════════════════════════════════════════════════════

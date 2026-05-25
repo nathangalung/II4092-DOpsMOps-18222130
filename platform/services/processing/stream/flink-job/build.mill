@@ -1,32 +1,49 @@
+//| mill-version: 1.1.5
+//| mill-jvm-version: system
 package build
 
 import mill._
 import mill.javalib._
 import mill.javalib.Assembly._
 
+// -----------------------------------------------------------------------------
+// platform :: flink streaming harness
+// -----------------------------------------------------------------------------
+// Mill 1.x JVM resolution defaults to a coursier-managed `zulu:21` download
+// from cdn.azul.com. Inside a hermetic Docker build that DNS may be blocked
+// (intermittent in this lab network), so we force Mill to use the base
+// image's system JDK via the `//| mill-jvm-version: system` build header
+// (Mill 1.0+ syntax). MILL_JAVA_HOME alone is insufficient — coursier still
+// resolves and downloads zulu:21 unless the header explicitly opts in.
+// Reference: https://mill-build.org/mill/javalib/intro.html#_jvm_version
+// -----------------------------------------------------------------------------
+
 object flink extends JavaModule {
   // Source directory override (Mill default is flink/src, but we use src/main/java)
   def sources = Task.Sources(moduleDir / os.up / "src" / "main" / "java")
 
-  // Java 21
-  def javacOptions = Seq("-source", "21", "-target", "21", "-encoding", "UTF-8")
+  // Java 21 LTS — Flink 2.2 line officially supports the Java 21 runtime
+  // (DockerHub: flink:2.2.0-scala_2.12-java21). `--release 21` enforces
+  // both source level AND JDK 21 API surface (rejects later-only APIs).
+  def javacOptions = Seq("--release", "21", "-encoding", "UTF-8")
 
-  // Dependencies (all bundled in fat JAR for MiniCluster mode)
+  // Dependencies (all bundled in fat JAR for application-mode + MiniCluster mode)
   def mvnDeps = Seq(
-    // Flink core (included for MiniCluster mode - no external Flink cluster needed)
+    // Flink core (2.2.0 — Aug 2025; 2.2.1 released May 2026 → outside cap)
     mvn"org.apache.flink:flink-streaming-java:2.2.0",
     mvn"org.apache.flink:flink-clients:2.2.0",
     mvn"org.apache.flink:flink-runtime:2.2.0",
-    // Flink Kafka Connector + base
+    // Flink Kafka Connector — externalised version line `4.0.1-2.0`
+    // (connector 4.0.1 for Flink 2.0+ API). Kafka client 3.7 bundled.
     mvn"org.apache.flink:flink-connector-base:2.2.0",
     mvn"org.apache.flink:flink-connector-kafka:4.0.1-2.0",
-    // JSON
-    mvn"com.fasterxml.jackson.core:jackson-databind:2.19.0",
-    // Redis
-    mvn"io.lettuce:lettuce-core:6.7.1.RELEASE",
-    // Math
+    // Jackson 2.21.0 LTS — Jan 2026 release; LTS through Sep 2027.
+    mvn"com.fasterxml.jackson.core:jackson-databind:2.21.0",
+    // Lettuce 6.8.1.RELEASE — Apr 2 2026 (last 6.x within April cap).
+    mvn"io.lettuce:lettuce-core:6.8.1.RELEASE",
+    // commons-math3 3.6.1 — last 3.x stable (math4 still beta in Apr 2026).
     mvn"org.apache.commons:commons-math3:3.6.1",
-    // Logging
+    // slf4j 2.0.17 — last 2.0.x release before April 2026 (2.0.18 is May).
     mvn"org.slf4j:slf4j-api:2.0.17",
     mvn"org.slf4j:slf4j-simple:2.0.17"
   )
@@ -41,10 +58,10 @@ object flink extends JavaModule {
     Rule.ExcludePattern("META-INF/NOTICE.*")
   )
 
-  // Test module
+  // Test module — JUnit Jupiter 5.14.0 GA (Jan 6 2026); 6.1.0 ships May → excluded.
   object test extends JavaTests with TestModule.Junit5 {
     def mvnDeps = super.mvnDeps() ++ Seq(
-      mvn"org.junit.jupiter:junit-jupiter:5.11.0"
+      mvn"org.junit.jupiter:junit-jupiter:5.14.0"
     )
   }
 }

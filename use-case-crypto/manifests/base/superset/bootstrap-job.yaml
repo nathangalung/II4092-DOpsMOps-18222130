@@ -90,7 +90,10 @@ spec:
             - { name: CLICKHOUSE_HTTP_PORT, value: "8123" }
             - { name: TRINO_HOST,
                 value: "trino.data-processing.svc.cluster.local" }
-            - { name: TRINO_PORT,    value: "8080" }
+            # Platform Trino Service port is 8085 (see
+            # platform/components/data-processing/trino/deployment.yaml —
+            # http-server.http.port=8085, NOT upstream default 8080).
+            - { name: TRINO_PORT,    value: "8085" }
             - { name: TRINO_CATALOG, value: "iceberg" }
             - { name: TRINO_SCHEMA,  value: "default" }
             - { name: POSTGRES_HOST,

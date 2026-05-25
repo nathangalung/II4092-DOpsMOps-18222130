@@ -4,14 +4,22 @@ kind: Kustomization
 # CloudNativePG 1.29.x (chart 0.28.0) — PostgreSQL operator (ADR-011).
 #
 # Rendered via `kustomize build --enable-helm` (apply-component.sh) and
-# applied with `kubectl apply --server-side --force-conflicts`. Server-side
-# apply is mandatory: CNPG ships several CRDs (clusters, backups, poolers,
-# scheduledbackups, databases, publications, subscriptions, clusterimage-
-# catalogs) whose schemas exceed the 256KB annotation limit.
+# applied with `kubectl apply --server-side --force-conflicts`.
 #
-# Plugin barman-cloud (separate manifest) installs the CNPG-I backup plugin
-# that replaces the deprecated in-tree `Cluster.spec.backup.barmanObjectStore`
-# (removed in CNPG 1.30).
+# CRDs are installed by `pre-apply.sh` (raw chart files → SSA), NOT by this
+# render. `crds.create: false` below ensures `helm template` omits the CRD
+# objects so neither the local apply path nor Argo CD's render carries them.
+# Rationale: clusters.postgresql.cnpg.io (452 KB) and poolers (649 KB)
+# exceed the 262144-byte last-applied-configuration annotation limit. Argo
+# CD 3.3.6 with `syncStrategy.apply.force: true` falls back to CSA
+# (`kubectl replace --force`), writes the legacy annotation, then prunes
+# the CRD on the apply failure — taking every Cluster/Pooler CR with it.
+# Server-side apply via pre-apply.sh writes managedFields instead of the
+# legacy annotation and has no size cap.
+#
+# Plugin barman-cloud (separate helm chart below) installs the CNPG-I
+# backup plugin that replaces the deprecated in-tree
+# `Cluster.spec.backup.barmanObjectStore` (removed in CNPG 1.30).
 namespace: cnpg-system
 
 helmCharts:
@@ -24,8 +32,11 @@ helmCharts:
     version: 0.6.0
     releaseName: barman-cloud
     namespace: cnpg-system
-    includeCRDs: true
+    # CRDs are installed by pre-apply.sh, NOT by the helm render.
+    includeCRDs: false
     valuesInline:
+      crds:
+        create: false
       resources:
         requests: { cpu: 50m, memory: 64Mi }
         limits:   { cpu: 500m, memory: 256Mi }
@@ -38,15 +49,23 @@ helmCharts:
     version: 0.28.0
     releaseName: cnpg
     namespace: cnpg-system
-    includeCRDs: true
+    # CRDs are installed by pre-apply.sh, NOT by the helm render.
+    includeCRDs: false
     valuesInline:
+      crds:
+        create: false
       # Operator >=1 — webhook MUST serve before any Cluster / Pooler /
       # ScheduledBackup CR applies (admission calls fail "no endpoints
       # available for service cnpg-webhook-service" otherwise). Bump to 2
       # (active/standby with leader election) post-stabilization.
       replicaCount: 1
-      leaderElection:
-        enabled: true
+      # NB: chart 0.28.0 hardcodes `--leader-elect` in templates/deployment.yaml:68
+      # with no values toggle. The flag is stripped via the JSON patch below
+      # (same approach as KEDA + barman-cloud). controller-runtime 5s defaults
+      # collapse under kine INSERT spikes (1-3s/op against 185MB SQLite
+      # state.db), driving 35+ `leader election lost` restarts on the cnpg
+      # operator. Re-emit the flag when replicaCount > 1 AND k3s embedded-etcd
+      # lands (task #331).
       monitoring:
         # PodMonitor (monitoring.coreos.com/v1) requires Prometheus Operator
         # CRDs. atom-obs-stack runs AFTER phase-base; re-enabled by overlay
@@ -114,3 +133,44 @@ patches:
       - op: replace
         path: /webhooks/3/failurePolicy
         value: Ignore
+
+  # Strip --leader-elect from barman-cloud plugin Deployment. Chart hardcodes
+  # the flag but the plugin only exposes the toggle (no lease-duration /
+  # renew-deadline knobs). Single replica + kine-backed k3s: the 5-second
+  # default Lease timeout collapses under any apiserver latency spike and
+  # the pod exits with "leader election lost", churning ~220 restarts since
+  # boot. With one replica, leader election adds no safety — drop it.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: barman-cloud-plugin-barman-cloud
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - operator
+          - --server-cert=/server/tls.crt
+          - --server-key=/server/tls.key
+          - --client-cert=/client/tls.crt
+          - --server-address=:9090
+          - --log-level=debug
+
+  # Strip --leader-elect from cnpg-cloudnative-pg operator Deployment. Chart
+  # 0.28.0 hardcodes the flag in templates/deployment.yaml:68 with no toggle
+  # exposed. Same kine 5s LE collapse pattern as barman-cloud above — 35+
+  # `leader election lost` restarts on a single-replica controller. Preserve
+  # the rest of the args verbatim from the chart render.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: cnpg-cloudnative-pg
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - controller
+          - --max-concurrent-reconciles=10
+          - --config-map-name=cnpg-controller-manager-config
+          - --webhook-port=9443

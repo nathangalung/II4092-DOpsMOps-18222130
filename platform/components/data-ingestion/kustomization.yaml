@@ -22,8 +22,11 @@ resources:
   - kafka/kafka-cluster.yaml
   - kafka-ui/deployment.yaml
   - karapace
-  # - kafka-connect   # blocked: requires in-cluster OCI registry (TODO:
-  #                   # platform/components/common/registry component +
-  #                   # k3s containerd registries.yaml trust). Deferred —
-  #                   # use-cases that consume kafka-connect are also
-  #                   # undeployed at present.
+  # kafka-connect uses the in-cluster Distribution registry (platform/
+  # components/common/registry) as Strimzi Build output sink. k3s
+  # containerd trusts `registry.platform-registry.svc.cluster.local:5000`
+  # via /etc/rancher/k3s/registries.yaml (HTTP, cluster-internal only).
+  # KafkaConnect CR runs at replicas: 1 idle; use-case Connector
+  # registration Jobs POST to http://kafka-connect.data-ingestion:8083
+  # and kafka-ui surfaces the cluster at the same URL.
+  - kafka-connect

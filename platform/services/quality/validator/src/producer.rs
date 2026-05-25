@@ -15,11 +15,12 @@ pub struct KafkaProducer {
 
 impl KafkaProducer {
     pub fn new(config: &KafkaConfig) -> Result<Self> {
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", &config.brokers)
+        let mut cc = ClientConfig::new();
+        cc.set("bootstrap.servers", &config.brokers)
             .set("message.timeout.ms", "5000")
-            .set("compression.type", "lz4")
-            .create()?;
+            .set("compression.type", "lz4");
+        config.apply_security(&mut cc);
+        let producer: FutureProducer = cc.create()?;
 
         Ok(Self {
             producer,

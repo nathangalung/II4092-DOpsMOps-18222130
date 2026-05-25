@@ -61,14 +61,15 @@ spec:
               additionalLabels:
                 release: kube-prometheus-stack
           extraArgs:
-            # Leader election on single-node k3s still works, but we tighten
-            # the renew window so stuck controllers get evicted faster.
-            # Flag names per `argo-rollouts --help`: `leader-election-*`,
-            # not `leader-elect-*` (the shorter form triggers CLI help output
-            # and CrashLoop on startup).
-            - --leader-election-renew-deadline=30s
-            - --leader-election-retry-period=2s
-            - --leader-election-lease-duration=45s
+            # Chart 2.40.9 only emits `--leader-elect` when replicas > 1, but
+            # the binary defaults LE to ON when the flag is absent. Even with
+            # 30s/45s/2s timing the renew loop still collapses under kine
+            # INSERT spikes on single-node k3s (1-3s/op against 185MB SQLite
+            # state.db), churning 108+ `failed to renew lease ... context
+            # deadline exceeded` restarts. Single replica = LE adds zero
+            # safety, so disable outright. Bump back to true once replicas > 1
+            # AND k3s embedded-etcd migration (task #331) lands.
+            - --leader-elect=false
           podSecurityContext:
             runAsNonRoot: true
             runAsUser: 999

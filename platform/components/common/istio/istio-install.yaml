@@ -3479,6 +3479,7 @@ spec:
       app: istio-ingressgateway
       istio: ingressgateway
   strategy:
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 100%
       maxUnavailable: 25%
@@ -3711,6 +3712,7 @@ spec:
     matchLabels:
       istio: pilot
   strategy:
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 100%
       maxUnavailable: 25%

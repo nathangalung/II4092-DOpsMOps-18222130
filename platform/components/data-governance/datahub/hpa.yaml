@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: datahub-gms
   minReplicas: 1
-  maxReplicas: 1  # autoscaling disabled — single-node bootstrap
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:
@@ -29,7 +29,7 @@ spec:
     kind: Deployment
     name: datahub-frontend
   minReplicas: 1
-  maxReplicas: 1  # autoscaling disabled — single-node bootstrap
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -54,7 +54,7 @@ spec:
     kind: Deployment
     name: datahub-actions
   minReplicas: 1
-  maxReplicas: 1  # autoscaling disabled — single-node bootstrap
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300

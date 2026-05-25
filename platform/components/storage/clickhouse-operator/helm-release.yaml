@@ -48,6 +48,21 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: 500m, memory: 512Mi }
+        # Chart 0.26.3 ships a pre-install/pre-upgrade hook that bundles all
+        # 4 CRDs (~280 KB) into a single ConfigMap. Even with SyncOption
+        # `ServerSideApply=true`, kubectl-apply on a helm-hook adds the
+        # `kubectl.kubernetes.io/last-applied-configuration` annotation
+        # (CSA fallback for hook objects), which exceeds the 262144-byte
+        # annotation size limit and fails sync with:
+        #   metadata.annotations: Too long: may not be more than 262144 bytes
+        # CRDs are already installed (verified: clickhouseinstallations.*,
+        # clickhouseinstallationtemplates.*, clickhousekeeperinstallations.*,
+        # clickhouseoperatorconfigurations.*). The chart hook is therefore
+        # redundant. Future CRD upgrades must be applied manually:
+        #   helm pull altinity-clickhouse-operator --repo … --version X.Y.Z
+        #   kubectl apply --server-side -f crds/
+        crdHook:
+          enabled: false
         # Operator config lives inside the chart's embedded YAML at
         # `configs.files."config.yaml".*` — chart deep-merges these values
         # into the rendered ConfigMap; everything else stays default.

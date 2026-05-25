@@ -1,10 +1,20 @@
 \cleardoublepage
-\chapter{KODE PROGRAM}
-Pada umumnya, kode program tidak perlu disertakan di dalam laporan tugas akhir karena kode program biasanya sangat panjang
-dan sudah disimpan dalam bentuk berkas-berkas elektronik terpisah di repositori daring. 
-Namun, jika ada bagian kode program singkat yang penting untuk ditulis dalam laporan tugas akhir, 
-bagian tersebut dapat disertakan di dalam laporan.
-\section{Perangkat Lunak untuk Akuisisi Data dari Sensor Ultrasonik}
-\lstinputlisting[language=Python, caption=Binary search code]{listings/binary-search-python.tex}  
-\section{Perangkat Lunak untuk Pengolahan Data Akuisisi dan Visualisasi Hasil Pengukuran Jarak} 
-asdjfkjashdkjfas
+\chapter{DAFTAR ARTEFAK PLATFORM}
+\label{appx:artefak}
+
+Lampiran ini merangkum lokasi dan tata letak artefak yang dirujuk oleh Bab~\ref{chap:perancangan} dan Bab~\ref{chap:implementasi}. Kode program lengkap, \textit{manifest} Kubernetes, \textit{chart} Helm, dan berkas konfigurasi disimpan pada repositori Gitea internal yang menjadi sumber kebenaran bagi Argo CD. Berkas terkait \textit{use case} pasar aset kripto sebagai instans uji disimpan pada repositori terpisah agar tata kelola domain tidak bercampur dengan \textit{control plane} platform.
+
+\section{Tata Letak Repositori Platform}
+\label{appx:tata-letak-platform}
+
+Repositori platform disusun mengikuti pemisahan komponen menjadi tujuh lapisan sebagaimana digambarkan pada Subbab~\ref{sec:gambaran-umum-platform}. Direktori \texttt{platform/components/} memuat \textit{manifest} setiap komponen dasar yang dipasang melalui Argo CD; direktori \texttt{platform/services/} memuat layanan kustom yang ditulis untuk kebutuhan tata kelola, deteksi \textit{drift}, dan layanan fitur; direktori \texttt{platform/scripts/} memuat \textit{script} bantu untuk bootstrap, nuke, dan penskalaan beban.
+
+\section{Tata Letak Repositori Use Case}
+\label{appx:tata-letak-usecase}
+
+Repositori \textit{use case} pasar aset kripto memuat berkas \textit{overlay} Kustomize yang mengikat \textit{base manifest} platform dengan konfigurasi domain. Berkas \texttt{config/project.yaml} menyimpan parameter spesifik domain yang dirujuk oleh Tekton, Argo Workflows, dan Feast. Direktori \texttt{services/} memuat kode produsen data, transformator fitur, dan \textit{trainer} yang dipanggil oleh \textit{pipeline} pelatihan.
+
+\section{Contoh Berkas Konfigurasi Feast}
+\label{appx:feast-config}
+
+Berkas \texttt{feature\_store.yaml} mendeklarasikan \textit{registry} pada MinIO, \textit{offline store} pada ClickHouse, dan \textit{online store} pada Redis Stack dengan dukungan vektor. Berkas ini diolah oleh layanan fitur pada saat \textit{materialization} batch maupun \textit{streaming}; rincian sintaks dijelaskan pada Subbab~\ref{sec:impl-feast}.

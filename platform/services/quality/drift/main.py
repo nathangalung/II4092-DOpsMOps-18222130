@@ -26,6 +26,21 @@ from prometheus_client import Counter, Gauge, start_http_server
 from ks_test import ks_test
 from psi import calculate_psi
 
+# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
+# = profiler disabled, service runs unchanged.
+if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
+    import pyroscope
+
+    pyroscope.configure(
+        application_name=f"{os.environ.get('USE_CASE', 'platform')}.drift",
+        server_address=os.environ["PYROSCOPE_SERVER_ADDRESS"],
+        tags={
+            "use_case": os.environ.get("USE_CASE", "platform"),
+            "service": "drift",
+        },
+    )
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -43,9 +58,19 @@ class Config:
     CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
     CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
     CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "features")
+    CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
     CLICKHOUSE_TABLE = os.getenv(
         "CLICKHOUSE_TABLE", "data_features"
     )
+    # Sink table receiving per-scale drift metrics. Argo CronWorkflow
+    # `retrain-on-drift` polls this table — keep the name aligned with
+    # the use-case `init_clickhouse.sql` gold layer DDL.
+    DRIFT_SINK_TABLE = os.getenv("DRIFT_SINK_TABLE", "gold.drift_multi_scale")
+    # Symbol dimension is multi-asset/aggregate by design — drift detector
+    # iterates feature columns not symbols. ALL means "aggregate across all
+    # symbols observed in the comparison window".
+    DRIFT_SINK_SYMBOL = os.getenv("DRIFT_SINK_SYMBOL", "ALL")
     VALKEY_HOST = os.getenv("VALKEY_HOST", "localhost")
     VALKEY_PORT = int(os.getenv("VALKEY_PORT", "6379"))
     VALKEY_PASSWORD = os.getenv("VALKEY_PASSWORD", "")
@@ -123,6 +148,61 @@ def get_clickhouse_client() -> Any:
         host=Config.CLICKHOUSE_HOST,
         port=Config.CLICKHOUSE_PORT,
         database=Config.CLICKHOUSE_DB,
+        username=Config.CLICKHOUSE_USER,
+        password=Config.CLICKHOUSE_PASSWORD,
+    )
+
+
+def insert_drift_metrics(
+    client: Any,
+    scale_name: str,
+    feature: str,
+    psi: float,
+    ks_stat: float,
+    ks_pvalue: float,
+    drift_detected: int,
+    severity: str,
+    trigger_retrain: int,
+) -> None:
+    """Persist per-scale drift result to gold.drift_multi_scale.
+
+    Argo CronWorkflow `retrain-on-drift` polls this sink to decide whether
+    to fire the KFP retraining_pipeline run. The Valkey pubsub publish
+    that follows is observability-only (volatile, no durable consumer).
+    """
+    now = datetime.now(tz=UTC)
+    table = Config.DRIFT_SINK_TABLE
+    if "." in table:
+        db, name = table.split(".", 1)
+    else:
+        db, name = Config.CLICKHOUSE_DB, table
+    client.insert(
+        table=name,
+        database=db,
+        data=[[
+            Config.DRIFT_SINK_SYMBOL,
+            now,
+            scale_name,
+            feature,
+            float(psi),
+            float(ks_stat),
+            float(ks_pvalue),
+            int(drift_detected),
+            severity,
+            int(trigger_retrain),
+        ]],
+        column_names=[
+            "symbol",
+            "timestamp",
+            "scale",
+            "feature_name",
+            "psi_value",
+            "ks_statistic",
+            "ks_pvalue",
+            "drift_detected",
+            "severity",
+            "trigger_retrain",
+        ],
     )
 
 
@@ -186,11 +266,38 @@ def check_scale(
 
             psi_exceeded = psi > scale_config["psi_severe"]
             ks_failed = ks_pvalue < scale_config["ks_pvalue"]
+            drift_flag = 1 if (psi_exceeded or ks_failed) else 0
+            severity = (
+                "SEVERE" if psi > scale_config.get("psi_severe", 0.3)
+                else ("WARNING" if drift_flag else "OK")
+            )
+            trigger_retrain = (
+                1 if drift_flag and scale_config.get("trigger_retrain", False) else 0
+            )
 
-            if psi_exceeded or ks_failed:
+            # Persist EVERY result (drift or not) so the retrain workflow's
+            # 6h window query has signal even during calm periods — and so
+            # `severity='OK'` rows are visible for SLO denominators.
+            try:
+                insert_drift_metrics(
+                    ch_client,
+                    scale_name,
+                    feature,
+                    psi,
+                    ks_stat,
+                    ks_pvalue,
+                    drift_flag,
+                    severity,
+                    trigger_retrain,
+                )
+            except Exception as ins_err:
+                logger.error(
+                    f"  {scale_name}/{feature}: sink insert failed - {ins_err}"
+                )
+
+            if drift_flag:
                 drift_count += 1
                 DRIFT_DETECTED.labels(scale=scale_name, feature=feature).inc()
-                severity = "SEVERE" if psi > scale_config.get("psi_severe", 0.3) else "WARNING"
                 logger.warning(
                     f"  DRIFT {severity}: {scale_name}/{feature} "
                     f"PSI={psi:.4f} KS_p={ks_pvalue:.4f}"

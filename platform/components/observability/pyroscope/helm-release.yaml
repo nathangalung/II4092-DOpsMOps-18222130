@@ -156,9 +156,35 @@ spec:
       - CreateNamespace=false
       - ServerSideApply=true
       - ApplyOutOfSyncOnly=true
+      # RespectIgnoreDifferences is what makes the sync engine actually
+      # honor `ignoreDifferences` during reconcile. Without it, Argo will
+      # still apply server-side and re-diff against the rendered manifest,
+      # leaving the STS persistentVolumeClaimRetentionPolicy ghost OutOfSync
+      # even though it is listed in ignoreDifferences below.
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  # Server-default ghost drift on StatefulSet/pyroscope. Chart 2.0.1's
+  # deployments-statefulsets.yaml emits ONLY `podManagementPolicy: Parallel`
+  # at top-level — leaves `revisionHistoryLimit`, `updateStrategy`, and
+  # `persistentVolumeClaimRetentionPolicy` unset. K8s apps/v1 server then
+  # defaults them to 10 / {RollingUpdate, partition:0} / {Retain, Retain}.
+  # ArgoCD re-renders the chart on every reconcile and the rendered manifest
+  # never carries these fields → permanent OutOfSync that no apply settles
+  # (server-side apply re-renders without the field, K8s re-injects defaults).
+  # Ignoring the paths is the only way to silence the ghost; we accept the
+  # K8s 1.34 defaults verified live 2026-05-23. Re-verify against the apps/v1
+  # StatefulSetSpec server-defaults table when bumping K8s minor.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: pyroscope
+      namespace: observability
+      jsonPointers:
+        - /spec/persistentVolumeClaimRetentionPolicy
+        - /spec/revisionHistoryLimit
+        - /spec/updateStrategy
   revisionHistoryLimit: 10
 ---
 # =============================================================================

@@ -52,9 +52,12 @@ class Config:
     redis_host: str = "localhost"
     redis_port: int = 6379
     # Auth credentials — populated from environment only (pipeline-secrets
-    # Secret injects VALKEY_PASSWORD and QDRANT_API_KEY into every pod).
+    # Secret injects CLICKHOUSE_USER / CLICKHOUSE_PASSWORD / VALKEY_PASSWORD
+    # / QDRANT_API_KEY into every pod).
     # Never set a YAML default: the YAML file is baked into the image and
     # must not carry runtime secrets.
+    clickhouse_user: str = "default"
+    clickhouse_password: str = ""
     redis_password: str = ""
     qdrant_api_key: str = ""
 
@@ -169,6 +172,10 @@ def load_config(path: str | None = None) -> Config:
     )
     config.clickhouse_database = os.getenv(
         "CLICKHOUSE_DATABASE", config.clickhouse_database
+    )
+    config.clickhouse_user = os.getenv("CLICKHOUSE_USER", config.clickhouse_user)
+    config.clickhouse_password = os.getenv(
+        "CLICKHOUSE_PASSWORD", config.clickhouse_password
     )
     config.redis_host = os.getenv("VALKEY_HOST", config.redis_host)
     config.redis_port = int(os.getenv("VALKEY_PORT", str(config.redis_port)))

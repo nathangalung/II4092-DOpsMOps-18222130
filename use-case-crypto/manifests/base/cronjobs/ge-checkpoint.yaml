@@ -1,0 +1,258 @@
+# =============================================================================
+# GE CHECKPOINT — Periodic Data Quality Validation (Great Expectations)
+# =============================================================================
+# Runs a Great Expectations suite against ClickHouse silver tables every 6h
+# (offset :15 so it lands after retrain-on-drift fires at :00).  Pushes
+# validation results to the platform MinIO `great-expectations` bucket
+# (mirroring the platform configmap store layout) and a pass/fail gauge to
+# Pushgateway so SRE dashboards record every probe.
+#
+# Design intent (per platform/components/data-processing/great-expectations
+# configmap header): Great Expectations is a Python LIBRARY, not a server.
+# Use-cases import it in their workloads.  This CronJob is the use-case's
+# concrete exec path — the platform layer ships only the config template.
+#
+# Suite shape: smoke-grade invariants on silver.stg_ohlcv (the foundational
+# staging view rendered by dbt).  Catches obvious ingestion regressions
+# (zero close prices, null timestamps) without standing in for the full
+# expectation library that lives under each use-case's analytics layer.
+#
+# Dependencies:
+#   - ClickHouse `clickhouse-platform.storage.svc:8123` (clickhouse-connect
+#     SQLAlchemy dialect via great_expectations[clickhouse]).
+#   - MinIO `minio.storage.svc:9000` bucket `great-expectations`
+#     (boto3 endpoint_url + TupleS3StoreBackend for validation results).
+#   - Pushgateway `pushgateway.observability.svc:9091`.
+#   - Secret `pipeline-secrets` (ExternalSecret from OpenBao) supplies
+#     CLICKHOUSE_USER / CLICKHOUSE_PASSWORD + S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ge-checkpoint
+  labels:
+    app: ge-checkpoint
+    component: data-quality
+    mlops-platform.io/use-case: crypto
+spec:
+  schedule: "15 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    # Kueue admission: Job-level label routes through batch-queue → cluster
+    # cohort.  ge-checkpoint is short-lived and lightweight, but routing it
+    # through Kueue keeps the data-quality probe visible in the same admission
+    # budget as the rest of the use-case's batch surface.
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: crypto-batch-queue
+    spec:
+      backoffLimit: 1
+      # 600→1800: uv resolves great-expectations[clickhouse,s3] +
+      # boto3 + clickhouse-connect on cold cache; first fire pays
+      # ~5-10 min for the resolver alone on IO-saturated sda.
+      activeDeadlineSeconds: 1800
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: ge-checkpoint
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: push-helper
+              configMap:
+                name: push-helper
+                defaultMode: 0555
+            - name: tmp
+              emptyDir: {}
+          containers:
+            - name: ge-checkpoint
+              # UV image — same pattern as retrain-on-drift workflow.  Driver
+              # script is a PEP 723 inline-metadata file in /tmp; uv resolves
+              # great_expectations + clickhouse-connect into an ephemeral venv
+              # cached under /tmp/.uv-cache. No pip ever runs.
+              image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: UV_CACHE_DIR
+                  value: /tmp/.uv-cache
+                - name: UV_LINK_MODE
+                  value: copy
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse-platform.storage.svc.cluster.local
+                - name: CLICKHOUSE_HTTP_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_DB
+                  value: silver
+                - name: MINIO_ENDPOINT
+                  value: http://minio.storage.svc.cluster.local:9000
+                - name: MINIO_BUCKET
+                  value: great-expectations
+                - name: GE_ASSET_SCHEMA
+                  value: silver
+                - name: GE_ASSET_TABLE
+                  value: stg_ohlcv
+                - name: GE_SUITE_NAME
+                  value: silver_ohlcv_smoke
+                - name: PUSHGATEWAY
+                  value: http://pushgateway.observability.svc.cluster.local:9091
+                - name: JOB_NAME
+                  value: ge_checkpoint
+                - name: USE_CASE
+                  value: crypto
+              envFrom:
+                - secretRef:
+                    name: pipeline-secrets
+              command: ["/bin/sh", "-ceu"]
+              args:
+                - |
+                  . /scripts/push_job_metrics.sh
+                  cat > /tmp/ge_check.py <<'PYEOF'
+                  # /// script
+                  # requires-python = ">=3.13,<3.14"
+                  # dependencies = [
+                  #   "great-expectations[clickhouse,s3]==1.17.0",
+                  #   "clickhouse-connect==0.9.4",
+                  #   "boto3==1.40.65",
+                  #   "requests==2.32.3",
+                  # ]
+                  # ///
+                  import os
+                  import sys
+                  import time
+
+                  import requests
+
+                  import great_expectations as gx
+                  from great_expectations import expectations as gxe
+
+                  ch_user = os.environ["CLICKHOUSE_USER"]
+                  ch_pw   = os.environ["CLICKHOUSE_PASSWORD"]
+                  ch_host = os.environ["CLICKHOUSE_HOST"]
+                  ch_port = os.environ["CLICKHOUSE_HTTP_PORT"]
+                  ch_db   = os.environ["CLICKHOUSE_DB"]
+                  schema  = os.environ["GE_ASSET_SCHEMA"]
+                  table   = os.environ["GE_ASSET_TABLE"]
+                  suite_name = os.environ["GE_SUITE_NAME"]
+
+                  # Use the clickhouse-connect SQLAlchemy dialect that the
+                  # platform GE configmap also points at — keeps connection
+                  # strings interchangeable across use-cases.
+                  conn = (
+                      f"clickhousedb+connect://{ch_user}:{ch_pw}"
+                      f"@{ch_host}:{ch_port}/{ch_db}"
+                  )
+
+                  # Ephemeral GE context — the CronJob does not persist a
+                  # project dir between runs, and the platform configmap is
+                  # cross-namespace anyway. Validation results are pushed to
+                  # MinIO via boto3 directly below; the in-process result is
+                  # the truth source for the Pushgateway gauge.
+                  context = gx.get_context(mode="ephemeral")
+
+                  ds = context.data_sources.add_sql(
+                      name="clickhouse_silver", connection_string=conn
+                  )
+                  asset = ds.add_table_asset(
+                      name=table, table_name=table, schema_name=schema
+                  )
+                  batch_def = asset.add_batch_definition_whole_table("default")
+                  batch = batch_def.get_batch()
+
+                  suite = gx.ExpectationSuite(name=suite_name)
+                  suite.add_expectation(gxe.ExpectTableRowCountToBeBetween(min_value=1))
+                  suite.add_expectation(
+                      gxe.ExpectColumnValuesToNotBeNull(column="timestamp")
+                  )
+                  suite.add_expectation(
+                      gxe.ExpectColumnValuesToBeBetween(
+                          column="close", min_value=0, strict_min=True
+                      )
+                  )
+                  suite.add_expectation(
+                      gxe.ExpectColumnValuesToBeBetween(column="volume", min_value=0)
+                  )
+
+                  result = batch.validate(suite)
+                  success = 1 if result.success else 0
+                  evaluated = result.statistics.get("evaluated_expectations", 0)
+                  successful = result.statistics.get("successful_expectations", 0)
+                  print(
+                      f"GE checkpoint {suite_name}: success={result.success} "
+                      f"({successful}/{evaluated} expectations passed)"
+                  )
+
+                  # Persist the validation result JSON to MinIO under the
+                  # same `validations/` prefix the platform configmap uses,
+                  # so DataDocs / GE CLI inspectors see a unified history.
+                  import boto3
+                  s3 = boto3.client(
+                      "s3",
+                      endpoint_url=os.environ["MINIO_ENDPOINT"],
+                      aws_access_key_id=os.environ["S3_ACCESS_KEY_ID"],
+                      aws_secret_access_key=os.environ["S3_SECRET_ACCESS_KEY"],
+                      region_name="us-east-1",
+                  )
+                  key = (
+                      f"validations/{os.environ['USE_CASE']}/"
+                      f"{suite_name}/{int(time.time())}.json"
+                  )
+                  s3.put_object(
+                      Bucket=os.environ["MINIO_BUCKET"],
+                      Key=key,
+                      Body=result.describe().encode("utf-8"),
+                      ContentType="application/json",
+                  )
+                  print(f"validation result uploaded: s3://{os.environ['MINIO_BUCKET']}/{key}")
+
+                  # Pushgateway gauge — one point per probe, success bit and
+                  # ratio of passed expectations. SRE dashboard reads
+                  # `crypto_ge_checkpoint_success` and alerts on sustained 0.
+                  metric = (
+                      "# TYPE crypto_ge_checkpoint_success gauge\n"
+                      f"crypto_ge_checkpoint_success {success}\n"
+                      "# TYPE crypto_ge_checkpoint_pass_ratio gauge\n"
+                      f"crypto_ge_checkpoint_pass_ratio "
+                      f"{(successful / evaluated) if evaluated else 0}\n"
+                      "# TYPE crypto_ge_checkpoint_evaluated gauge\n"
+                      f"crypto_ge_checkpoint_evaluated {evaluated}\n"
+                  )
+                  requests.post(
+                      f"{os.environ['PUSHGATEWAY']}/metrics/job/"
+                      f"{os.environ['JOB_NAME']}/use_case/{os.environ['USE_CASE']}/"
+                      f"suite/{suite_name}",
+                      data=metric,
+                      timeout=10,
+                  ).raise_for_status()
+
+                  sys.exit(0 if success else 2)
+                  PYEOF
+                  run_and_push uv run /tmp/ge_check.py
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "384Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "768Mi"
+              volumeMounts:
+                - name: push-helper
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp

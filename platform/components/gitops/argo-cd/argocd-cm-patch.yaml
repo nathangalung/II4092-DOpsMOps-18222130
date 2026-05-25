@@ -8,7 +8,7 @@
 # `kustomize.buildOptions` from this CM and appends to every kustomize build.
 #
 # --load-restrictor LoadRestrictionsNone:
-#   use-case overlays (use-case-crypto/manifests/base/kustomization.yaml) pull
+#   use-case overlays (<usecase>/manifests/base/kustomization.yaml) pull
 #   shared platform Deployments / RBAC via relative paths that escape the
 #   build root: `../../../platform/services/base/...`. seed-gitea mirrors that
 #   subtree alongside the use-case top-level dir so the files exist in the
@@ -44,6 +44,8 @@ data:
   resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
     jsonPointers:
       - /spec/target/deletionPolicy
+      - /spec/target/template/engineVersion
+      - /spec/target/template/mergePolicy
     jqPathExpressions:
       - '.spec.data[]?.remoteRef.conversionStrategy'
       - '.spec.data[]?.remoteRef.decodingStrategy'
@@ -56,18 +58,42 @@ data:
   # this carve-out every MutatingWebhookConfiguration + ValidatingWebhookConfiguration
   # in the platform (knative-serving, istio-validator, kserve, kueue, etc.)
   # would report OutOfSync immediately after cainjector populates the bundle.
+  # Knative webhook controllers (webhook.serving.knative.dev,
+  # validation.webhook.serving.knative.dev) reconcile their own `.webhooks[].rules`
+  # at runtime — discovering CRDs registered via the knative-serving operator and
+  # rewriting the rule list. Source Helm chart ships a static rule list; live state
+  # is collapsed/expanded by the controller. Masking `.webhooks[].rules` for
+  # exactly those two webhooks (by name) lets the controller own that subtree
+  # without leaving the parent Application permanently OutOfSync. Other webhooks
+  # in the platform (Kyverno, ESO, cert-manager, gateway-api, etc.) author static
+  # rules that DO match live state and remain diff-checked.
   resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
     jqPathExpressions:
       - '.webhooks[]?.clientConfig.caBundle'
+      - 'select(.metadata.name == "webhook.serving.knative.dev") | .webhooks[]?.rules'
+  # Istio chart authors `failurePolicy: Fail` on the validating webhook but the
+  # istio control-plane reconciler flips it to `Ignore` at install-time to avoid
+  # bricking the cluster if istiod is unhealthy. The same chart cannot encode
+  # the post-install value (controller-managed), so masking the field on the
+  # one istio-validator config is the only way to silence the ghost.
   resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
     jqPathExpressions:
       - '.webhooks[]?.clientConfig.caBundle'
+      - 'select(.metadata.name == "validation.webhook.serving.knative.dev") | .webhooks[]?.rules'
+      - 'select(.metadata.name == "istio-validator-istio-system") | .webhooks[]?.failurePolicy'
   # ---------------------------------------------------------------------------
-  # CRDs: apiextensions.k8s.io/v1 server defaults two fields whenever the
-  # manifest omits them:
+  # CRDs: apiextensions.k8s.io/v1 server defaults whenever the manifest omits:
   #   spec.conversion.strategy: None     (server adds when absent)
   #   spec.preserveUnknownFields: false  (server strips when explicitly false
   #                                       because it is the v1 default)
+  #   spec.names.listKind                (server derives from kind+"List" when
+  #                                       absent; the flink-kubernetes-operator
+  #                                       1.14.0 chart ships CRDs without it)
+  #   spec.versions[*].additionalPrinterColumns[*].priority   (server strips
+  #                                       when value is 0 because 0 is the
+  #                                       default ordering priority; the flink
+  #                                       chart authors explicitly set 0, which
+  #                                       k8s normalises by removing it)
   # The opposite happens for cert-manager-injected conversion webhooks where
   # the live bundle differs from the placeholder shipped in Git.
   resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
@@ -76,6 +102,8 @@ data:
     jqPathExpressions:
       - '.spec.conversion | select(.strategy == "None")'
       - '.spec.conversion.webhook.clientConfig.caBundle'
+      - '.spec.names.listKind'
+      - '.spec.versions[]?.additionalPrinterColumns[]?.priority'
   # ---------------------------------------------------------------------------
   # Aggregated ClusterRole `.rules` is owned by kube-controller-manager — it
   # walks `aggregationRule.clusterRoleSelectors` and unions matching child
@@ -93,6 +121,442 @@ data:
   # auto-scaled Deployment (istio-ingressgateway, cluster-local-gateway,
   # kube-prometheus-stack-operator HA replicas, etc.) flaps OutOfSync each
   # time the HPA decision changes replica count.
+  # ---------------------------------------------------------------------------
+  # Istio operator post-apply label injection: when an IstioOperator CR or the
+  # sail-operator reconciles, it stamps gateway / istiod Deployments with
+  # operator-ownership labels that the source manifests never declare. Source
+  # in platform/components/security/istio-* authors Deployments canonically
+  # (no operator labels); the operator then patches them at runtime, bumping
+  # `.metadata.generation` to 2 and triggering perpetual OutOfSync. The four
+  # label keys below are operator-injected only (non-istio Deployments do not
+  # carry them) so masking globally is safe. `managedFieldsManagers` carve-out
+  # cannot help here because the operator strips `.metadata.managedFields` on
+  # patch (verified 2026-05-21: `kubectl get deploy istio-ingressgateway -n
+  # istio-system -o json | jq .metadata.managedFields` returns null).
   resource.customizations.ignoreDifferences.apps_Deployment: |
     managedFieldsManagers:
       - kube-controller-manager
+      - k3s
+    jsonPointers:
+      # Server-default fields K8s apps/v1 writes on create when the manifest
+      # omits them. Helm charts that don't render these (altinity-clickhouse-
+      # operator, istio gateways, knative-serving, alloy, others) end up with
+      # permanent OutOfSync ghost diff: rendered manifest omits → server
+      # injects default → ArgoCD diffs live-vs-rendered → OutOfSync. Masking
+      # the paths globally is safe because (a) K8s never writes anything but
+      # the documented default into a never-set field, (b) any source that
+      # DOES set the field to the same default already matches live, and
+      # (c) a source that sets a non-default value still mismatches live
+      # only on first apply (which Argo applies successfully) — the mask
+      # silences the ghost only after live converges to source. Values are
+      # the K8s 1.34 defaults verified live 2026-05-23.
+      - /spec/revisionHistoryLimit       # default 10
+      - /spec/progressDeadlineSeconds    # default 600
+      # HPA-driven replicas drift: kube-controller-manager (or k3s embedded
+      # controller-manager) owns /spec/replicas on HPA-targeted Deployments.
+      # The managedFieldsManagers carve-out above SHOULD cover it, but many
+      # operators (istio, kserve, altinity-chop) strip .metadata.managedFields
+      # on patch, leaving no owner attribution for ArgoCD to match against.
+      # Universal /spec/replicas mask is safe: ArgoCD apply still creates the
+      # initial Deployment at source-declared replicas; HPA then scales as
+      # needed. Source authors single-node mandate replicas: 1 per #302 but
+      # HPA maxReplicas: 3-5 lets workload scale on real load.
+      # Field-verified 2026-05-23: metadata-envoy-deployment HPA scaled
+      # 1→3 on cpu 110%, manager=k3s, managedFields stripped on Deployment.
+      - /spec/replicas
+    jqPathExpressions:
+      - '.metadata.labels."install.operator.istio.io/owning-resource"'
+      - '.metadata.labels."operator.istio.io/component"'
+      - '.metadata.labels."service.istio.io/canonical-name"'
+      - '.metadata.labels."service.istio.io/canonical-revision"'
+      - '.metadata.labels."istio.io/dataplane-mode"'
+      - '.metadata.labels."istio.io/rev"'
+      - '.metadata.annotations."deployment.kubernetes.io/revision"'
+      - '.spec.template.metadata.labels."service.istio.io/canonical-name"'
+      - '.spec.template.metadata.labels."service.istio.io/canonical-revision"'
+      - '.spec.template.metadata.labels."istio.io/dataplane-mode"'
+      - '.spec.template.metadata.labels."istio.io/rev"'
+      # Altinity ClickHouse operator stamps these on the clickhouse-operator
+      # Deployment post-apply (chop version + commit + build date) — source
+      # chart 0.26.3 doesn't ship them, operator patches at runtime.
+      - '.metadata.labels."clickhouse.altinity.com/app"'
+      - '.metadata.labels."clickhouse.altinity.com/chop"'
+      - '.metadata.labels."clickhouse.altinity.com/chop-commit"'
+      - '.metadata.labels."clickhouse.altinity.com/chop-date"'
+      # API-server-defaulted `resourceFieldRef.divisor: "0"` on every env entry
+      # using downward-API resource references. Verified 2026-05-23 against
+      # altinity-clickhouse-operator 0.26.3 Deployment via ArgoCD REST API
+      # /api/v1/applications/altinity-clickhouse-operator/managed-resources:
+      # normalizedLiveState had 8 occurrences of `"divisor": "0"`, source
+      # render (helm template) had 0 → 112-char ghost drift = perma-OutOfSync.
+      # k8s api-server defaults `divisor` to Quantity("0") when omitted in
+      # any resourceFieldRef; chart-rendered manifests almost always omit it
+      # because the literal Quantity "0" is the documented default. Masking
+      # globally is safe because every conformant manifest that *does* set
+      # divisor sets it to a non-zero value that still mismatches "0" if the
+      # source author wanted a different divisor — ArgoCD apply lands the
+      # source-declared value, live converges, ghost vanishes.
+      - '.spec.template.spec.containers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor'
+      - '.spec.template.spec.initContainers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor'
+      # `rollme` pod-template annotation: helm-chart pattern that random-stamps
+      # `.spec.template.metadata.annotations.rollme` on every render to trigger
+      # a Deployment rollout. Chaos-mesh 2.8.2 + several other charts use this
+      # to roll pods on cert-manager Secret rotation (the chart re-renders with
+      # a new random string when its source Secret data changes). ArgoCD diff
+      # sees old rollme in source vs new in live → permanent OutOfSync on every
+      # cert rotation. Masking is safe: rollme has no functional effect beyond
+      # forcing a rollout, and the cert-manager-managed Secret itself is the
+      # source of truth for the actual cert material. Apps that intentionally
+      # use rollme to gate rollout still apply it via source-driven sync.
+      - '.spec.template.metadata.annotations.rollme'
+  # ---------------------------------------------------------------------------
+  # external-secrets.io/v1alpha1 PushSecret webhook injects defaults on apply
+  # symmetric to ExternalSecret above:
+  #   spec.deletionPolicy:          None
+  #   spec.updatePolicy:            Replace
+  #   spec.data[*].conversionStrategy: None     (set on each data entry, not
+  #                                              under .match.remoteRef like
+  #                                              ExternalSecret does)
+  # Source authors PushSecret in the canonical short form; without this
+  # carve-out the parent Application reports OutOfSync forever despite the
+  # resource being functionally correct (`status.conditions: Ready -
+  # PushSecret synced successfully`). Field-validated 2026-05-21 on
+  # platform-storage `postgresql-app-to-openbao` PushSecret.
+  resource.customizations.ignoreDifferences.external-secrets.io_PushSecret: |
+    jsonPointers:
+      - /spec/deletionPolicy
+      - /spec/updatePolicy
+    jqPathExpressions:
+      - '.spec.data[]?.conversionStrategy'
+  # ---------------------------------------------------------------------------
+  # CNPG Cluster — two distinct drift sources, both masked here:
+  #
+  # 1. `.spec.bootstrap` is consumed exactly once at initdb on the first
+  #    reconcile of a fresh cluster — once `cnpg.io/clusterStatus` has
+  #    progressed past Bootstrap, the bootstrap fields are immutable (the
+  #    CNPG admission webhook rejects PATCH on them with
+  #    `spec.bootstrap.initdb: forbidden field is immutable after cluster
+  #    creation`). Editing `bootstrap.initdb.postInitApplicationSQL` in Git
+  #    for nuke+phase-full reproducibility (e.g. adding a new logical
+  #    database) then leaves Argo permanently OutOfSync on a field it
+  #    cannot actually patch. Ignoring the whole `bootstrap` subtree lets
+  #    the source stay declarative for fresh-cluster init while accepting
+  #    the immutability on warm clusters; live databases are added
+  #    idempotently via init-Jobs (see
+  #    platform/components/storage/postgresql/pipeline-db-init.yaml).
+  #
+  # 2. The CNPG admission webhook (mutating) injects ~30 defaults on every
+  #    apply that the source never declared. Because mutating-webhook
+  #    additions get attributed to the *requester* in managed-fields (not
+  #    to the operator), `managedFieldsManagers: [manager]` carves out
+  #    nothing on `.spec` (verified via kubectl --show-managed-fields:
+  #    `manager` only owns `.status`, while `.spec` is split between
+  #    `argocd-controller` and `kubectl`). The carve-out must enumerate
+  #    the defaulted paths explicitly. The list below was field-derived
+  #    by diffing rendered source against live on 2026-05-21 with CNPG
+  #    1.29.0 + PostgreSQL 18-standard-trixie. When bumping CNPG minor,
+  #    re-diff and amend.
+  resource.customizations.ignoreDifferences.postgresql.cnpg.io_Cluster: |
+    jsonPointers:
+      - /spec/bootstrap
+      - /spec/enablePDB
+      - /spec/enableSuperuserAccess
+      - /spec/failoverDelay
+      - /spec/logLevel
+      - /spec/maxSyncReplicas
+      - /spec/minSyncReplicas
+      - /spec/postgresGID
+      - /spec/postgresUID
+      - /spec/primaryUpdateMethod
+      - /spec/primaryUpdateStrategy
+      - /spec/smartShutdownTimeout
+      - /spec/startDelay
+      - /spec/stopDelay
+      - /spec/switchoverDelay
+      - /spec/probes
+      - /spec/replicationSlots
+      - /spec/monitoring/disableDefaultQueries
+      - /spec/monitoring/enablePodMonitor
+      - /spec/storage/resizeInUseVolumes
+      - /spec/walStorage/resizeInUseVolumes
+    jqPathExpressions:
+      - '.spec.managed.roles[]?.connectionLimit'
+      - '.spec.managed.roles[]?.inherit'
+      - '.spec.monitoring.customQueriesConfigMap[]? | select(.name=="cnpg-default-monitoring")'
+      - '.spec.plugins[]?.enabled'
+      - '.spec.postgresql.syncReplicaElectionConstraint'
+      - '.spec.postgresql.parameters.archive_mode'
+      - '.spec.postgresql.parameters.archive_timeout'
+      - '.spec.postgresql.parameters.dynamic_shared_memory_type'
+      - '.spec.postgresql.parameters.full_page_writes'
+      - '.spec.postgresql.parameters.log_destination'
+      - '.spec.postgresql.parameters.log_directory'
+      - '.spec.postgresql.parameters.log_filename'
+      - '.spec.postgresql.parameters.log_rotation_age'
+      - '.spec.postgresql.parameters.log_rotation_size'
+      - '.spec.postgresql.parameters.log_truncate_on_rotation'
+      - '.spec.postgresql.parameters.logging_collector'
+      - '.spec.postgresql.parameters.max_parallel_workers'
+      - '.spec.postgresql.parameters.max_worker_processes'
+      - '.spec.postgresql.parameters.shared_memory_type'
+      - '.spec.postgresql.parameters.shared_preload_libraries'
+      - '.spec.postgresql.parameters.ssl_max_protocol_version'
+      - '.spec.postgresql.parameters.ssl_min_protocol_version'
+      - '.spec.postgresql.parameters.wal_keep_size'
+      - '.spec.postgresql.parameters.wal_log_hints'
+      - '.spec.postgresql.parameters.wal_receiver_timeout'
+      - '.spec.postgresql.parameters.wal_sender_timeout'
+  # ---------------------------------------------------------------------------
+  # KEDA admission webhook (keda-operator-webhook) defaults ~12 advanced
+  # fields on every ScaledObject apply. Use-cases declare ScaledObjects
+  # under use-case-*/manifests/base/scaling/scaledobjects.yaml. After
+  # `keda-operator-admission` mutates them, Git's terse form differs from
+  # the live object on the carved-out paths below, leaving the use-case
+  # Argo Application permanently OutOfSync (#341).
+  # Field-validated 2026-05-21 against KEDA 2.18.x.
+  resource.customizations.ignoreDifferences.keda.sh_ScaledObject: |
+    jsonPointers:
+      - /spec/advanced/restoreToOriginalReplicaCount
+      - /spec/advanced/horizontalPodAutoscalerConfig/name
+    jqPathExpressions:
+      - '.spec.triggers[]?.useCachedMetrics'
+  # KEDA ScaledJob mirrors ScaledObject defaults plus jobTargetRef pad fields.
+  resource.customizations.ignoreDifferences.keda.sh_ScaledJob: |
+    jsonPointers:
+      - /spec/failedJobsHistoryLimit
+      - /spec/successfulJobsHistoryLimit
+      - /spec/maxReplicaCount
+      - /spec/minReplicaCount
+      - /spec/pollingInterval
+      - /spec/rolloutStrategy
+      - /spec/scalingStrategy
+    jqPathExpressions:
+      - '.spec.triggers[]?.metricType'
+  # ---------------------------------------------------------------------------
+  # Flink Kubernetes Operator webhook defaults ~15 fields on FlinkDeployment
+  # spec (jobManager/taskManager replicas defaults, restart-strategy
+  # full config block, ingress class, podTemplate defaults). Without this
+  # carve-out the crypto FlinkDeployment (flink/flinkdeployment.yaml)
+  # reports OutOfSync after the operator mutates it.
+  resource.customizations.ignoreDifferences.flink.apache.org_FlinkDeployment: |
+    jsonPointers:
+      - /spec/jobManager/resource/ephemeralStorage
+      - /spec/taskManager/resource/ephemeralStorage
+      - /spec/restartNonce
+    jqPathExpressions:
+      - '.spec.flinkConfiguration."kubernetes.operator.user-artifacts.base.dir"'
+      - '.spec.flinkConfiguration."kubernetes.internal.jobmanager.entrypoint.args"'
+  # ---------------------------------------------------------------------------
+  # Argo Rollouts webhook defaults strategy.canary/blueGreen sub-fields.
+  # The crypto ml-bridge Rollout uses `strategy.canary` with explicit
+  # steps; the operator pads scale-down/abort-defaults that Git omits.
+  resource.customizations.ignoreDifferences.argoproj.io_Rollout: |
+    jsonPointers:
+      - /spec/progressDeadlineSeconds
+      - /spec/revisionHistoryLimit
+      - /spec/restartAt
+      - /spec/strategy/canary/scaleDownDelaySeconds
+      - /spec/strategy/canary/abortScaleDownDelaySeconds
+    jqPathExpressions:
+      - '.spec.strategy.canary.steps[]?.setWeight'
+      - '.spec.template.spec.containers[]?.resources | select(. == {})'
+      - '.spec.template.spec.containers[]?.ports[]?.protocol'
+      - '.spec.template.spec.containers[]?.terminationMessagePath'
+      - '.spec.template.spec.containers[]?.terminationMessagePolicy'
+      - '.spec.template.spec.containers[]?.imagePullPolicy'
+      - '.spec.template.spec.dnsPolicy'
+      - '.spec.template.spec.restartPolicy'
+      - '.spec.template.spec.schedulerName'
+      - '.spec.template.spec.terminationGracePeriodSeconds'
+  # ---------------------------------------------------------------------------
+  # Katib Experiment webhook defaults trial budget + parallelism + algorithm
+  # settings. Our flaml-automl-hpo Experiment authors objective + parameters
+  # + algorithm name only.
+  resource.customizations.ignoreDifferences.kubeflow.org_Experiment: |
+    jsonPointers:
+      - /spec/maxFailedTrialCount
+      - /spec/parallelTrialCount
+      - /spec/resumePolicy
+      - /spec/metricsCollectorSpec
+      - /spec/trialTemplate/retain
+    jqPathExpressions:
+      - '.spec.algorithm.algorithmSettings'
+      - '.spec.objective.metricStrategies'
+      - '.spec.earlyStopping'
+  # ---------------------------------------------------------------------------
+  # Strimzi cluster-operator webhook defaults config blocks on every KafkaTopic
+  # and KafkaUser. Use-case-crypto declares 4 KafkaTopics + 1 KafkaUser via
+  # cross-namespace (kafka-topics/, kafka-users/). Strimzi enriches each with
+  # status + spec defaults.
+  resource.customizations.ignoreDifferences.kafka.strimzi.io_KafkaTopic: |
+    jsonPointers:
+      - /spec/replicas
+      - /spec/partitions
+    jqPathExpressions:
+      - '.spec.config["min.insync.replicas"]'
+      - '.spec.config["retention.ms"]'
+  resource.customizations.ignoreDifferences.kafka.strimzi.io_KafkaUser: |
+    jqPathExpressions:
+      - '.spec.template.secret.metadata.labels'
+      - '.spec.authorization.acls[]?.operations'
+  # ---------------------------------------------------------------------------
+  # Sloth operator (sloth.slok.dev) writes back compiled PrometheusRule
+  # references + status. Source PrometheusServiceLevel authors SLOs in raw
+  # form; operator-generated annotations + labels drift.
+  resource.customizations.ignoreDifferences.sloth.slok.dev_PrometheusServiceLevel: |
+    jsonPointers:
+      - /metadata/annotations
+    jqPathExpressions:
+      - '.spec.slos[]?.alerting.annotations'
+      - '.spec.slos[]?.alerting.labels'
+  # ---------------------------------------------------------------------------
+  # ClickHouseInstallation (Altinity CHI operator) — the operator rewrites
+  # `.spec.configuration.clusters[*].layout` to expand zk + shard topology,
+  # and adds operator-version annotations to .metadata. The source
+  # platform/components/storage/clickhouse/installation.yaml declares the
+  # canonical shape; operator-injected expansion is functionally equivalent.
+  resource.customizations.ignoreDifferences.clickhouse.altinity.com_ClickHouseInstallation: |
+    jsonPointers:
+      - /spec/templating
+      - /spec/reconciling
+    jqPathExpressions:
+      - '.metadata.annotations["clickhouse-operator/version"]'
+      - '.spec.configuration.clusters[]?.zookeeper'
+      - '.spec.configuration.clusters[]?.layout.replicas'
+  # ---------------------------------------------------------------------------
+  # Tekton mutating admission webhook injects `computeResources: {}` into
+  # every step + sidecar of every Task (and every embedded taskSpec inside
+  # Pipeline.spec.tasks/finally). Source Tasks/Pipelines omit the empty
+  # struct, so live state diverges cosmetically. Also pads imagePullPolicy,
+  # terminationMessage* defaults on step containers.
+  resource.customizations.ignoreDifferences.tekton.dev_Task: |
+    jqPathExpressions:
+      - '.spec.steps[]?.computeResources'
+      - '.spec.steps[]?.resources'
+      - '.spec.steps[]?.imagePullPolicy'
+      - '.spec.steps[]?.terminationMessagePath'
+      - '.spec.steps[]?.terminationMessagePolicy'
+      - '.spec.sidecars[]?.computeResources'
+      - '.spec.sidecars[]?.resources'
+      - '.spec.stepTemplate?.computeResources'
+      - '.spec.params[]?.type'
+      - '.spec.results[]?.type'
+  resource.customizations.ignoreDifferences.tekton.dev_Pipeline: |
+    jqPathExpressions:
+      - '.spec.tasks[]?.taskSpec.steps[]?.computeResources'
+      - '.spec.tasks[]?.taskSpec.steps[]?.resources'
+      - '.spec.tasks[]?.taskSpec.steps[]?.imagePullPolicy'
+      - '.spec.tasks[]?.taskSpec.steps[]?.terminationMessagePath'
+      - '.spec.tasks[]?.taskSpec.steps[]?.terminationMessagePolicy'
+      - '.spec.tasks[]?.taskSpec.sidecars[]?.computeResources'
+      - '.spec.tasks[]?.taskSpec.stepTemplate?.computeResources'
+      - '.spec.finally[]?.taskSpec.steps[]?.computeResources'
+      - '.spec.finally[]?.taskSpec.steps[]?.resources'
+      - '.spec.tasks[]?.taskRef.kind'
+      - '.spec.finally[]?.taskRef.kind'
+      - '.spec.params[]?.type'
+      - '.spec.results[]?.type'
+  resource.customizations.ignoreDifferences.tekton.dev_PipelineRun: |
+    jsonPointers:
+      - /spec/timeouts
+    jqPathExpressions:
+      - '.spec.taskRunSpecs[]?.computeResources'
+  resource.customizations.ignoreDifferences.tekton.dev_TaskRun: |
+    jsonPointers:
+      - /spec/timeout
+    jqPathExpressions:
+      - '.spec.computeResources'
+  # ---------------------------------------------------------------------------
+  # Tekton Triggers EventListener controller pads `.spec.resources` with
+  # default deployment+service shape (replicas, serviceType, kubernetesResource
+  # container defaults). Source declares triggers/interceptors only.
+  resource.customizations.ignoreDifferences.triggers.tekton.dev_EventListener: |
+    jsonPointers:
+      - /spec/resources
+      - /spec/namespaceSelector
+    jqPathExpressions:
+      - '.spec.triggers[]?.bindings[]?.kind'
+      - '.spec.triggers[]?.interceptors[]?.ref.kind'
+  # ---------------------------------------------------------------------------
+  # StatefulSet — server-default ghost drift, symmetric to apps_Deployment.
+  # apps/v1 StatefulSetSpec defaults whenever the source omits:
+  #   spec.persistentVolumeClaimRetentionPolicy: {Retain, Retain}
+  #   spec.revisionHistoryLimit:                 10
+  #   spec.updateStrategy.rollingUpdate.partition: 0
+  #   spec.podManagementPolicy:                  OrderedReady (chart may set Parallel)
+  # Most charts (pyroscope 2.0.1, openbao 0.18.x, opensearch 3.x) leave at least
+  # one of these unset → server injects → ArgoCD diff engine flags forever even
+  # with ServerSideDiff=true. Field-verified 2026-05-23 against K8s 1.34.
+  # /spec/replicas is HPA-managed when a HorizontalPodAutoscaler targets the
+  # STS — kube-controller-manager owns the field via SSA; the
+  # `managedFieldsManagers` carve-out drops it from the diff. k3s' embedded
+  # controller-manager also takes ownership transiently during reconcile —
+  # adding `k3s` mirrors the apps_Deployment block above. Re-verify the
+  # default table when bumping K8s minor.
+  #
+  # volumeClaimTemplates server-injected fields (verified live 2026-05-23 on
+  # pyroscope-2.0.1, openbao-0.18, opensearch-3.x):
+  #   .apiVersion           → "v1"                  (TypeMeta injected on persist)
+  #   .kind                 → "PersistentVolumeClaim" (TypeMeta injected on persist)
+  #   .spec.volumeMode      → "Filesystem"          (PVC default when omitted)
+  #   .status               → {phase: Pending|Bound} (controller-managed)
+  #   .metadata.creationTimestamp  → set on first apply
+  #   .metadata.annotations: {}    → server strips empty maps
+  # Source helm charts ship VCTs in canonical short form (metadata.name + spec
+  # only); without these carve-outs every chart-backed STS reports OutOfSync
+  # forever. Cannot use managedFieldsManagers carve-out for VCT subfields
+  # because STS rewrites managedFields on every reconcile (operators strip
+  # ownership attribution to allow surge updates).
+  resource.customizations.ignoreDifferences.apps_StatefulSet: |
+    managedFieldsManagers:
+      - kube-controller-manager
+      - k3s
+    jsonPointers:
+      - /spec/persistentVolumeClaimRetentionPolicy
+      - /spec/revisionHistoryLimit
+      - /spec/updateStrategy
+      - /spec/replicas
+    jqPathExpressions:
+      - '.spec.volumeClaimTemplates[]?.apiVersion'
+      - '.spec.volumeClaimTemplates[]?.kind'
+      - '.spec.volumeClaimTemplates[]?.spec.volumeMode'
+      - '.spec.volumeClaimTemplates[]?.status'
+      - '.spec.volumeClaimTemplates[]?.metadata.creationTimestamp'
+      - '.spec.volumeClaimTemplates[]?.metadata.annotations | select(. == {})'
+  # ---------------------------------------------------------------------------
+  # DaemonSet — server-default ghost drift, symmetric to apps_Deployment.
+  # apps/v1 DaemonSetSpec defaults whenever the source omits:
+  #   spec.revisionHistoryLimit:                 10
+  #   spec.updateStrategy: {RollingUpdate, maxUnavailable: 1}
+  #   spec.minReadySeconds:                      0
+  # Field-verified 2026-05-23 with chaos-daemon (chaos-mesh 2.8.2) leaving
+  # platform-security/chaos-mesh permanently OutOfSync on the rendered chart.
+  resource.customizations.ignoreDifferences.apps_DaemonSet: |
+    jsonPointers:
+      - /spec/revisionHistoryLimit
+      - /spec/updateStrategy
+      - /spec/minReadySeconds
+    jqPathExpressions:
+      # `rollme` pod-template annotation — same helm-chart pattern as the
+      # apps_Deployment rollme mask above. Chaos-mesh chaos-daemon DaemonSet
+      # gets a fresh random rollme each chart render, triggering OutOfSync on
+      # every cert-manager rotation of chaos-mesh-chaosd-client-certs Secret.
+      - '.spec.template.metadata.annotations.rollme'
+  # ---------------------------------------------------------------------------
+  # Secret — cert-manager + external-secrets + Strimzi + helm-hook charts that
+  # rotate `.data` at runtime. The source ships an empty secret or no secret at
+  # all (chart-template seed); the runtime owner (cert-manager Certificate /
+  # ExternalSecret / Strimzi cluster-operator) populates `.data` post-apply.
+  # Without this carve-out every rotation flaps the parent Application
+  # OutOfSync until the next manual sync. The carve-out is namespace-agnostic
+  # — Secrets that are statically declared in Git (e.g. config-only secrets
+  # without a managing controller) are still diff-checked on every other field
+  # (metadata, type, immutable, stringData). field-verified 2026-05-23 against
+  # chaos-mesh-chaosd-client-certs (cert-manager-managed) and the openbao
+  # / kafka cluster CA rotations.
+  resource.customizations.ignoreDifferences.Secret: |
+    managedFieldsManagers:
+      - cert-manager-certificates-issuing
+      - cert-manager
+      - external-secrets
+      - strimzi-cluster-operator

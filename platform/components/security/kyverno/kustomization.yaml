@@ -63,6 +63,21 @@ helmCharts:
           resources:
             requests: { cpu: 200m, memory: 384Mi }
             limits:   { cpu: 2000m, memory: 1Gi }
+          # Bumped 2026-05-20 — single-node k3s kine sqlite under load can
+          # take >10s on a `PUT /apis/coordination.k8s.io/v1/.../leases/kyverno`
+          # request. Default retryPeriod=2s + renewDeadline=10s (client-go
+          # default, not configurable in kyverno 1.17.1) means the renewal
+          # gets queued behind admission-load → context deadline exceeded
+          # → "leadership lost, stopped leading" → graceful exit 0 → kubelet
+          # restart. Observed: 177 restarts over 4d10h (~36min cycle, exit 0).
+          # Bumping retryPeriod 2s→10s reduces renewal churn (fewer in-flight
+          # attempts competing with admission webhooks) and gives slack on
+          # the apiserver. replicas=1 + forceFailurePolicyIgnore=true means
+          # the brief webhook gap during the still-eventual restart is
+          # tolerated. Kyverno chart 3.7.1 doesn't expose a disable-leader-
+          # election flag — RetryPeriod is the only knob.
+          extraArgs:
+            leaderElectionRetryPeriod: 10s
         # Probes tuned for kine-bound cold-start (CEL engine warm-up + policy
         # tree hydration). Field-stabilised 2026-04-28 — flat restart count.
         livenessProbe:
@@ -104,6 +119,23 @@ helmCharts:
         enabled: false
       policyReports:
         enabled: true
+      # ---------------------------------------------------------------------------
+      # kyverno-api subchart (CRDs in policies.kyverno.io v1beta1 group) ships
+      # `annotations: {}` and `labels: {}` in its values.yaml. The CRD templates
+      # render via `{{- include "kyverno-api.labels" . | nindent 4 }}` which
+      # `toYaml`s the empty map to literal `{}`. K8s server-side apply then
+      # normalizes the `{}` to absent/null on persist, and ArgoCD's diff engine
+      # sees `{}` (rendered) vs absent (live) for every CRD → 9 OutOfSync rows
+      # on platform-security forever. Populating non-empty values means the
+      # chart renders real label/annotation entries that survive the K8s
+      # round-trip. Keys chosen are stable and side-effect-free (no sync-wave,
+      # no operator-targeted strategies). Field-validated 2026-05-21.
+      kyverno-api:
+        labels:
+          app.kubernetes.io/part-of: kyverno
+          app.kubernetes.io/managed-by: kustomize-helm
+        annotations:
+          kyverno.io/source: helm-chart-3.7.1
 
 resources:
   - namespace.yaml

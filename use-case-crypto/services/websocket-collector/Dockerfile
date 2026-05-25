@@ -8,13 +8,24 @@
 #
 # Build command (from repo root):
 #   docker build \
-#     -f use-case-crypto/services/ingestion/websocket-collector/Dockerfile \
+#     -f use-case-crypto/services/websocket-collector/Dockerfile \
 #     -t crypto-websocket-collector:latest \
 #     .
 # =============================================================================
 
-FROM rust:1.95-alpine3.23 AS builder
-RUN for i in 1 2 3 4 5; do apk add --no-cache musl-dev cmake make pkgconfig openssl-dev openssl-libs-static g++ mold clang curl-dev zlib-dev zlib-static && break || sleep 5; done
+FROM rust:1.95-slim-trixie AS builder
+
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    cmake \
+    build-essential \
+    mold \
+    clang \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold"
 
 WORKDIR /build
@@ -25,17 +36,25 @@ COPY platform/services/ingestion/websocket-collector \
      platform/services/ingestion/websocket-collector
 
 # Copy the crypto binary crate (this is the one under active development).
-COPY use-case-crypto/services/ingestion/websocket-collector \
-     use-case-crypto/services/ingestion/websocket-collector
+COPY use-case-crypto/services/websocket-collector \
+     use-case-crypto/services/websocket-collector
 
-WORKDIR /build/use-case-crypto/services/ingestion/websocket-collector
+WORKDIR /build/use-case-crypto/services/websocket-collector
 RUN cargo build --release --bin crypto-websocket-collector
 
-FROM alpine:3.23
-RUN for i in 1 2 3 4 5; do apk add --no-cache ca-certificates && break || sleep 5; done
+FROM debian:trixie-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3t64 \
+    libcurl4t64 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -u 1000 -m -s /usr/sbin/nologin app
+
 COPY --from=builder \
-     /build/use-case-crypto/services/ingestion/websocket-collector/target/release/crypto-websocket-collector \
+     /build/use-case-crypto/services/websocket-collector/target/release/crypto-websocket-collector \
      /usr/local/bin/
-USER 1000
+
+USER 1000:1000
 EXPOSE 8080
 CMD ["crypto-websocket-collector"]

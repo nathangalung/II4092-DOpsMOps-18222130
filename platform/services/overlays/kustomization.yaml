@@ -1,12 +1,12 @@
 # =============================================================================
-# GENERIC OVERLAY — Platform-only deployment (no domain use-case)
+# PLATFORM OVERLAY — Platform-only deployment (no domain use-case)
 # =============================================================================
 # Deploys all 18 services with GENERIC naming to ml-pipeline namespace.
 # Services get infrastructure endpoints from pipeline-config ConfigMap
 # plus minimal domain defaults from configmap-domain.yaml.
 #
 # Usage:
-#   kubectl kustomize services/overlays/generic | kubectl apply -f -
+#   kubectl kustomize services/overlays | kubectl apply -f -
 #
 # To add a domain use-case on top, use the use-case overlay instead:
 #   cd ../use-case-<domain> && make deploy

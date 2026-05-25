@@ -49,8 +49,14 @@ spec:
           limits:   { cpu: 500m, memory: 512Mi }
         # Single-node bootstrap; bump to 2 (active/standby) post-stabilization.
         replicas: 1
+        # Strimzi 0.51.0 sets STRIMZI_LEADER_ELECTION_ENABLED env from this
+        # toggle. With replicas=1 LE adds zero safety; the controller's lease
+        # renew loop collapses under kine INSERT spikes on single-node k3s
+        # (1-3s/op against 185MB SQLite state.db), driving 146+ `Leader Elector
+        # is already stopped` restarts. Re-enable when replicas > 1 AND k3s
+        # embedded-etcd migration (task #331) lands.
         leaderElection:
-          enable: true
+          enable: false
         # PSA `restricted:latest` namespace label on data-ingestion rejects the
         # default Strimzi pod spec (no securityContext set on the operator
         # container).  Inject baseline-restricted profile so the new ReplicaSet

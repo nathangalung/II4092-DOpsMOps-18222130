@@ -12,6 +12,32 @@ make build-images
 make deploy
 ```
 
+## Reusing This Directory For Another Domain
+
+This use-case directory is a template. Single source of truth for the
+identifier prefix is `config/project.yaml` → `project.namespace`. To
+re-brand `crypto` to e.g. `stock`:
+
+```bash
+# 1. Edit the canonical config
+$EDITOR config/project.yaml      # change: namespace: "use-case-stock"
+
+# 2. Propagate everywhere
+make usecase-configure           # rewrites identifiers + renames files
+
+# 3. Review + deploy
+git diff                         # sanity-check the rewrite
+make usecase-build && make usecase-up
+```
+
+`scripts/configure-use-case.sh` performs a word-boundary-safe sed sweep
+across YAML/Python/Rust/Go/SQL/Mill/Dockerfile/Makefile files plus a
+filename rename pass. Vendor names containing the OLD prefix (e.g.
+`cryptopanic`, third-party API) are preserved. Java sources under
+`use-case-crypto/services/processing/stream-processor/src/main/java/com/usecase/functions/`
+use a domain-neutral package; the script does NOT touch package
+declarations — replicate that pattern for other languages if needed.
+
 ## How to Enable/Disable Services
 
 ### Method 1: Edit config/services.yaml
@@ -70,7 +96,7 @@ use-case-crypto/
 ### Add New Model
 
 1. Update `manifests/base/configmaps/models.yaml` with the new env vars (MODEL_TYPE, TASK_TYPE, etc.).
-2. See `services/training/README.md` for custom model code if needed.
+2. See `services/trainer/README.md` for custom model code if needed.
 
 ### Add New Features
 
@@ -99,7 +125,7 @@ Each service has a README with:
 | ---------- | -------------------------------------------------------------- |
 | Ingestion  | [services/ingestion/README.md](services/ingestion/README.md)   |
 | Processing | [services/processing/README.md](services/processing/README.md) |
-| Training   | [services/training/README.md](services/training/README.md)     |
+| Training   | [services/trainer/README.md](services/trainer/README.md)     |
 | Dashboard  | [services/dashboard/README.md](services/dashboard/README.md)   |
 
 ## Example Configurations

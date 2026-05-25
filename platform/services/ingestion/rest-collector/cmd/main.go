@@ -325,7 +325,7 @@ func backfillHistorical(
 //
 //   1. A single "historical refresh" loop per data source/symbol that
 //      re-fetches the latest window via FetchHistorical at
-//      cfg.Polling.HistoricalRefreshInterval. This keeps the OHLCV
+//      cfg.Polling.HistoricalRefreshInterval. This keeps the
 //      time-series up to date without re-running the full backfill.
 //
 //   2. One dedicated goroutine per (data_source, endpoint, symbol)

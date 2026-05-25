@@ -84,6 +84,10 @@ metadata:
   namespace: data-governance
   annotations:
     argocd.argoproj.io/hook: Sync
+    # BeforeHookCreation cleans the previous Job before next Sync. Without
+    # this Argo leaves the Complete Job in place and reports OutOfSync on
+    # the stale resource (status.* drift) forever.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   # SystemUpdate runs Liquibase schema migrations + OpenSearch index
   # bootstraps.  Empirical timing on this single-node cluster with the

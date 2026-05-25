@@ -39,7 +39,7 @@ if [ "$NO_CACHE" = "true" ]; then
 fi
 
 # =============================================================================
-# SERVICE DEFINITIONS - All 18 services
+# SERVICE DEFINITIONS - All 17 services
 # =============================================================================
 # Format: "name:context_path:dockerfile_relative_path"
 
@@ -61,14 +61,14 @@ analyzer:quality/analyzer:Dockerfile
 SERVICE_GROUPS["processing"]="
 batch-processing:processing/batch:Dockerfile
 feature-engine:processing/stream/feature-engine:Dockerfile
-flink-job:processing/stream/flink-job:Dockerfile
+stream-processor:processing/stream-processor:Dockerfile
 vector-processing:processing/vector:Dockerfile
 "
 
 # Training services (2)
 SERVICE_GROUPS["training"]="
-trainer:training/trainer:Dockerfile
-drift-detector:training/drift:Dockerfile
+trainer:trainer:Dockerfile
+drift-detector:quality/drift:Dockerfile
 "
 
 # Serving services (3)
@@ -78,10 +78,9 @@ feature-cache:serving/feature-cache:Dockerfile
 inference-engine:serving/inference-engine:Dockerfile
 "
 
-# Automation services (2)
+# Automation services (1)
 SERVICE_GROUPS["automation"]="
 materialization:automation/materialization:Dockerfile
-retraining:automation/retraining:Dockerfile
 "
 
 # Dashboard services (3)
@@ -238,7 +237,7 @@ show_help() {
     echo "  processing  - Batch, Feature engine, Flink, Vector"
     echo "  training    - Trainer, Drift detector"
     echo "  serving     - Gateway, Feature cache, Inference engine"
-    echo "  automation  - Materialization, Retraining"
+    echo "  automation  - Materialization (retrain-on-drift = Argo CronWorkflow, not an image)"
     echo "  dashboard   - Backend, ML bridge, Frontend"
     echo ""
     echo "Examples:"

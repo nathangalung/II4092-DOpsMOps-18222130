@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: mlflow
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:

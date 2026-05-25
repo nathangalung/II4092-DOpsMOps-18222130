@@ -3,42 +3,17 @@
 
 \begin{center}
 
-    \textbf{Implementasi Sistem Smart Scale Berbasis IoT dengan Arsitektur Desentralisasi untuk Optimalisasi Rantai Pasok Jeruk di Tingkat Lapak} \\
+    \textbf{Pengembangan Arsitektur Platform DataOps dan MLOps Terintegrasi pada Kubernetes dengan Pemanfaatan Open Source Tools} \\
     \vspace{0.4cm}
     oleh \\
     \vspace{0.4cm}
-    John Doe\\
-    123456789\\
+    Bryan P. Hutagalung\\
+    18219000\\
 \end{center}
 
 
 \begin{spacing}{1.0}
-Proses manual dalam rantai pasok jeruk di tingkat lapak, yang mencakup sortir,
-timbang, dan catat, terbukti tidak efisien, memakan waktu, dan rentan terhadap
-kesalahan. Meskipun solusi berbasis Internet of Things (IoT) dapat mengatasi
-masalah ini, arsitektur terpusat konvensional berbasis cloud justru menimbulkan
-masalah baru berupa latensi tinggi yang menghambat alur kerja real-time.
-Penelitian ini bertujuan untuk merancang dan mengimplementasikan sebuah
-purwarupa sistem smart scale berbasis IoT dengan pendekatan desentralisasi (edge
-computing) untuk meminimalkan latensi dan meningkatkan efisiensi operasional.
-Metode yang digunakan adalah Model Purwarupa, yang diwujudkan dalam bentuk
-perangkat keras dengan arsitektur prosesor ganda (Raspberry Pi 5 dan ESP32) yang
-mampu mengintegrasikan fungsi timbang dan analisis kualitas citra secara
-simultan. Hasil evaluasi menunjukkan bahwa purwarupa dengan arsitektur edge
-computing yang diimplementasikan mampu memberikan respons 43,5\% lebih cepat
-(latensi rata-rata 18,05 detik) dibandingkan dengan simulasi arsitektur terpusat.
-Selain itu, sistem ini berhasil meningkatkan efisiensi waktu kerja secara
-keseluruhan sebesar 58,32\% jika dibandingkan dengan metode manual
-konvensional. Pengujian Penerimaan Pengguna (UAT) yang melibatkan 30
-partisipan juga menunjukkan penerimaan yang sangat positif, dengan skor rata-rata
-untuk kemudahan penggunaan (5,0/5,0), kejelasan antarmuka (4,87/5,0) dan
-persepsi kinerja (4,95/5,0). Kesimpulannya, implementasi sistem smart scale
-dengan arsitektur desentralisasi terbukti merupakan solusi yang valid dan efektif
-untuk menjawab permasalahan latensi dan inefisiensi di lapak. Sistem ini tidak
-hanya unggul secara teknis dalam hal performa, tetapi juga fungsional dan dapat
-diterima dengan baik oleh pengguna akhir, serta berpotensi besar untuk modernisasi
-rantai pasok agribisnis.
+Pengembangan model \textit{machine learning} ke tahap produksi masih bersinggungan dengan fragmentasi \textit{tool} dan pemisahan kerja antara tim data dan tim model. Praktik DataOps memperkuat kualitas dan kecepatan alur data, sementara MLOps memperkuat kehandalan siklus hidup model, namun kedua praktik tersebut sering tumbuh terpisah sehingga \textit{lineage}, deteksi \textit{drift}, dan penyajian fitur batch–\textit{streaming} tidak konsisten lintas siklus. Penelitian ini mengembangkan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes dengan memanfaatkan perangkat \textit{open source}, sehingga satu bidang kendali menyatukan ingestasi data, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola data. Metode yang digunakan adalah \textit{Design Science Research Methodology} (DSRM) yang melingkupi identifikasi masalah, penyusunan tujuan artefak, perancangan tujuh lapis arsitektur, implementasi berbasis GitOps, serta uji jalan menggunakan \textit{use case} pasar aset kripto sebagai instans verifikasi. Arsitektur ini menempatkan Kubernetes sebagai bidang orkestrasi, Apache Kafka dan Apache Flink untuk \textit{streaming}, Apache Spark untuk pemrosesan \textit{batch}, Feast sebagai \textit{feature store} ganda dengan ClickHouse \textit{offline} dan Redis Stack \textit{online} beserta pencarian vektor HNSW, MLflow dan Kubeflow untuk siklus hidup model, KServe untuk penyajian, serta DataHub untuk katalog dan \textit{lineage}. Mekanisme deteksi \textit{drift} berbasis indikator \textit{Population Stability Index} dan Kolmogorov-Smirnov memicu \textit{retraining} secara otomatis melalui Argo CronWorkflow, sementara \textit{point-in-time correctness} dijaga oleh Feast pada fase pelatihan dan penyajian \textit{online}. Argo CD menyatukan praktik GitOps untuk reproduksibilitas \textit{deployment} dari satu sumber kebenaran berbasis Git, dan Prometheus, Grafana, OpenTelemetry, Loki, serta Grafana Tempo menutup kebutuhan observabilitas pada tiga lapis metrik, log, dan \textit{trace}. Hasil rancangan dan implementasi inti menunjukkan bahwa platform berhasil menyatukan komponen DataOps dan MLOps dalam satu siklus yang berkesinambungan; angka evaluasi kuantitatif akan dilengkapi pada laporan akhir setelah seluruh tahap pengujian beban dan kualitas selesai.
 
-Kata kunci: Smart Scale, Internet of Things, Edge Computing, Rantai Pasok Jeruk.
+Kata kunci: DataOps, MLOps, Kubernetes, Feature Store, Drift Detection, GitOps, Open Source.
 \end{spacing}
-

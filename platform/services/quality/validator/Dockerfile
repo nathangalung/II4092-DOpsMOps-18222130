@@ -1,19 +1,33 @@
-FROM rust:1.95-alpine3.23 AS builder
-
-RUN for i in 1 2 3 4 5; do apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static curl-dev zlib-dev zlib-static cmake make g++ mold clang && break || sleep 5; done
-ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold"
+FROM rust:1.95-slim-trixie AS builder
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    cmake \
+    build-essential \
+    mold \
+    clang \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold"
 
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
 
 RUN cargo build --release
 
-FROM alpine:3.23
+FROM debian:trixie-slim
 
-RUN for i in 1 2 3 4 5; do apk add --no-cache ca-certificates libgcc && break || sleep 5; done && \
-    addgroup -g 1000 -S app && adduser -u 1000 -S app -G app
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3t64 \
+    libcurl4t64 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -u 1000 -m -s /usr/sbin/nologin app
 
 WORKDIR /app
 

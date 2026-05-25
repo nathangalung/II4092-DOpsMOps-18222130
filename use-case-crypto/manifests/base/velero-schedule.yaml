@@ -16,6 +16,12 @@
 apiVersion: velero.io/v1
 kind: Schedule
 metadata:
+  # Bare `hourly` — overlays/local applies `namePrefix: crypto-` (see
+  # kustomize-config/name-reference.yaml), so the rendered Schedule lands as
+  # `crypto-hourly`, matching the live Schedule that has been producing
+  # Backups since 2026-05-15. Setting `crypto-hourly` here would double-prefix
+  # to `crypto-crypto-hourly` and orphan 100+ historical Backups under the
+  # old name.
   name: hourly
   namespace: velero
   labels:
@@ -24,7 +30,11 @@ metadata:
     usecase: crypto
 spec:
   schedule: "0 * * * *"          # top of every hour
-  useOwnerReferencesInBackup: false
+  # useOwnerReferencesInBackup=true puts an ownerReference (Schedule → Backup)
+  # on every created Backup, so Argo CD does not list those Backups as
+  # extraneous "orphans" under crypto-use-case-local (Argo respects ownerRefs
+  # and tracks only the parent Schedule, not its generated Backups).
+  useOwnerReferencesInBackup: true
   template:
     ttl: "168h"                  # 7 days
     includedNamespaces:

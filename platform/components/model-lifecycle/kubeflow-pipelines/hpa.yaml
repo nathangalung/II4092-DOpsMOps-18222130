@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: cache-server
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -34,7 +34,7 @@ spec:
     kind: Deployment
     name: metadata-envoy-deployment
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -58,13 +58,11 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: metadata-writer
+  # Singleton writer — subscribes to Argo workflow events and inserts into
+  # MLMD without leader election. Two replicas = duplicate MLMD inserts.
+  # Upstream KFP standalone keeps replicas:1 for this reason.
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 300
-    scaleUp:
-      stabilizationWindowSeconds: 60
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:
@@ -84,7 +82,7 @@ spec:
     kind: Deployment
     name: ml-pipeline-ui
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -109,12 +107,55 @@ spec:
     kind: Deployment
     name: ml-pipeline-visualizationserver
   minReplicas: 1
-  maxReplicas: 1 # Single-pod bootstrap; bump for production load.
+  maxReplicas: 3
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
     scaleUp:
       stabilizationWindowSeconds: 60
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-pipeline
+  namespace: model-lifecycle
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-pipeline
+  # API server holds in-memory run/experiment caches in KFP standalone; HA
+  # not supported by upstream chart. Single replica until KFP 2.x clustered
+  # mode is wired.
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: metadata-grpc-deployment
+  namespace: model-lifecycle
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: metadata-grpc-deployment
+  minReplicas: 1
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:

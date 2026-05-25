@@ -3,7 +3,8 @@ kind: Kustomization
 
 resources:
   - deployment.yaml
-  # - hpa.yaml  # opt-in: make install-hpa COMPONENT=<name> NS=<ns>
+  - hpa.yaml       # online serving — horizontal scale on request volume
+  - vpa.yaml       # offline materialize — VPA(Off) advisory rightsize
   - externalsecret.yaml
   # Stub feature_store.yaml + render script (ADR-013). Use-case overlays
   # patch this same ConfigMap to add their feature_views/entities payload.

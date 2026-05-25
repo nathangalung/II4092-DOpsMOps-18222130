@@ -1,10 +1,149 @@
-% ==========================================
-% BAB IV PERANCANGAN
-% ==========================================
+% Bab perancangan arsitektur platform
+% Empat sub-sistem mengikuti tujuan
 \cleardoublepage
-\chapter{PERANCANGAN}
+\chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS TERINTEGRASI}
 \label{chap:perancangan}
-Ilustrasikan desain konsep solusi dalam bentuk model konseptual dan penjelasan secara ringkas, 
-beserta perbedaannya dengan sistem saat ini. Ilustrasi harus dapat dibandingkan (\textit{before} and \textit{after}). 
-Karena masih berupa proposal, bab ini hanya berisi gambar desain konsep solusi tersebut dan 
-penjelasan perbandingannya dengan gambar sistem yang ada saat ini (yang tergambar di awal Bab \ref{chap:analisis-masalah}).
+
+Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, kemudian dilanjutkan dengan perancangan empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}: arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan pelatihan ulang otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini menutup pembahasan dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus reproduksibel.
+
+\section{Gambaran Umum Platform}
+\label{sec:gambaran-umum-platform}
+
+Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal dan menyatukan komponen DataOps dan MLOps di atasnya. Gambar~\ref{fig:integrate-general} memperlihatkan arsitektur terintegrasi yang menggantikan kondisi fragmentasi pada Gambar~\ref{fig:fragment-general} dari Bab~\ref{chap:analisis-masalah}. Komponen yang sebelumnya berdiri sendiri pada perangkat lunak yang berbeda kini terhubung melalui satu bidang kendali, satu sumber kebenaran berbasis Git, dan satu antarmuka observabilitas.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/Integrate_General_Arch.png}
+    \caption{\raggedright Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
+    \label{fig:integrate-general}
+\end{figure}
+
+Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek. Pertama, bidang kendali yang sebelumnya tersebar pada bermacam \textit{tool} digabungkan ke dalam \textit{control plane} Kubernetes yang sama. Kedua, sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh Argo CD \autocite{argocd2024}. Ketiga, antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan di Grafana dengan Prometheus \autocite{prometheus2024}, Loki \autocite{loki2024}, dan Grafana Tempo \autocite{tempo2024} sebagai sumber tiga pilar observabilitas.
+
+\section{Perancangan Arsitektur Terintegrasi}
+\label{sec:arsitektur-terintegrasi}
+
+Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps terintegrasi pada Kubernetes. Arsitektur disusun dalam tujuh lapis yang saling terhubung melalui kontrak antarmuka eksplisit. Tujuh lapis yang dimaksud adalah lapisan infrastruktur, lapisan ingestasi data, lapisan pemrosesan, lapisan penyimpanan fitur, lapisan siklus hidup model, lapisan penyajian model, dan lapisan tata kelola serta observabilitas.
+
+\subsection{Pandangan per Peran Pengguna}
+\label{subsec:pandangan-per-peran}
+
+Empat peran utama mempunyai akses yang berbeda pada platform yang sama. Gambar~\ref{fig:integrate-busus} menyajikan pandangan untuk peran \textit{business user}, Gambar~\ref{fig:integrate-dateng} untuk peran \textit{data engineer}, Gambar~\ref{fig:integrate-datsci} untuk peran \textit{data scientist}, dan Gambar~\ref{fig:integrate-mleng} untuk peran \textit{machine learning engineer}. Setiap peran berinteraksi dengan satu antarmuka yang sama, sehingga konteks dapat berpindah dari pelaporan ke katalog, dari katalog ke eksperimen, dan dari eksperimen ke penyebaran model tanpa berganti aplikasi.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Integrate_BusUs_Arch.png}
+    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Business User}}
+    \label{fig:integrate-busus}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Integrate_DatEng_Arch.png}
+    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
+    \label{fig:integrate-dateng}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Integrate_DatSci_Arch.png}
+    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
+    \label{fig:integrate-datsci}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Integrate_MLEng_Arch.png}
+    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
+    \label{fig:integrate-mleng}
+\end{figure}
+
+\subsection{Lapisan Infrastruktur dan Bidang Kendali}
+\label{subsec:lapisan-infra}
+
+Lapisan infrastruktur menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas \textit{manifest}. Argo CD menjadi satu-satunya jalur perubahan, menarik konfigurasi dari Git dan menerapkan ke \textit{cluster} melalui prinsip GitOps \autocite{limoncelli2022gitops}. Kebijakan keamanan dijalankan dalam dua lapis: Kyverno \autocite{kyverno2024} pada lapis admisi Kubernetes, dan Falco \autocite{falco2025} pada lapis \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai citra dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal.
+
+\subsection{Lapisan Ingestasi dan Pemrosesan Data}
+\label{subsec:lapisan-data}
+
+Lapisan ingestasi menggunakan Apache Kafka \autocite{apachekafka2024} sebagai bus pesan utama. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal, dan \textit{Karapace} digunakan sebagai registri skema. Lapisan pemrosesan dibagi menjadi dua jalur. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}. Jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola. Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan format Apache Iceberg sebagai \textit{table format}, sedangkan Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus.
+
+\subsection{Lapisan Siklus Hidup Model dan Penyajian}
+\label{subsec:lapisan-model}
+
+Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan, validasi data, dan pemicu pelatihan ulang.
+
+\subsection{Lapisan Tata Kelola dan Observabilitas}
+\label{subsec:lapisan-tata-kelola}
+
+Lapisan tata kelola menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada lapisan \textit{batch} dan \textit{stream}. Lapisan observabilitas menggunakan Prometheus untuk metrik, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan dasbor khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost menutup pemantauan biaya per beban kerja.
+
+\section{Perancangan Sub-sistem Tata Kelola Data}
+\label{sec:tata-kelola}
+
+Bagian ini menjawab T-2 dengan merancang sub-sistem tata kelola data yang konsisten lintas siklus data, fitur, dan model. Tata kelola yang dimaksud mencakup katalog metadata, \textit{lineage}, pengujian kontrak data, dan kontrol akses berbasis identitas.
+
+\subsection{Katalog Metadata dan \textit{Lineage}}
+\label{subsec:katalog-lineage}
+
+DataHub menjadi pusat katalog metadata. Sumber metadata datang dari beberapa komponen: Kafka untuk \textit{topic} dan skema, ClickHouse \autocite{clickhouse2024} untuk tabel pada \textit{warehouse}, MinIO dan Apache Iceberg dengan katalog Lakekeeper \autocite{lakekeeper2025} untuk \textit{dataset} pada \textit{data lake}, Feast \autocite{feast2024} untuk definisi fitur, MLflow untuk \textit{experiment} dan model, serta Kubeflow Pipelines untuk \textit{pipeline}. Sambungan \textit{lineage} antar komponen dikirim melalui peristiwa OpenLineage \autocite{openlineage2025} sehingga DataHub dapat merangkai grafik ketertelusuran yang seragam dari ingestasi sampai prediksi. Identitas pengguna katalog dirambatkan dari \textit{identity provider} pusat yang dipakai bersama oleh seluruh antarmuka platform.
+
+\subsection{Kontrak Data dan Kualitas}
+\label{subsec:kontrak-data}
+
+Great Expectations memberi struktur untuk mendeklarasikan ekspektasi kualitas data, termasuk tipe kolom, batas nilai, dan jumlah baris minimum. Ekspektasi dijalankan pada dua titik: setelah ingestasi pada lapisan \textit{bronze} dan setelah transformasi pada lapisan \textit{silver} dan \textit{gold}. Hasil pengujian dipublikasikan ke DataHub sehingga kualitas data tertampil bersama metadata lain. \textcite{chien2022improve} memberi panduan agar metrik kualitas dipakai sebagai dasar pengambilan keputusan, bukan sekadar indikator pasif. \textcite{bernardo2024data} dan \textcite{stoyanovich2020responsible} memberi konteks yang melebihi aspek teknis, yakni pertanggungjawaban data sebagai bagian dari tata kelola platform.
+
+\subsection{Identitas dan Kontrol Akses}
+\label{subsec:identitas-akses}
+
+Kontrol akses berbasis identitas menggunakan dex \autocite{dex2025} sebagai \textit{identity provider} OIDC dan oauth2-proxy \autocite{oauth2proxy2025} sebagai \textit{reverse proxy} yang menegakkan otentikasi pada antarmuka aplikasi. Identitas berlaku konsisten dari antarmuka pengguna ke \textit{API} hingga ke akses data pada \textit{warehouse} dan \textit{lake}, dengan token OIDC yang sama dipakai oleh DataHub, MLflow, Grafana, Argo CD, dan Kubeflow Pipelines. Kebijakan otorisasi pada level kontainer dan beban kerja ditegakkan oleh Kyverno \autocite{kyverno2024} pada lapis admisi Kubernetes, antara lain wajibnya \textit{resource limits}, larangan \textit{privileged container} di luar pengecualian eksplisit, dan kepatuhan label \textit{Pod Security Standards}. Apa yang dibahas oleh \textcite{ahmad2024mlops} tentang strategi keamanan MLOps menjadi rujukan utama, karena banyak ancaman MLOps timbul dari ketidakhadiran kontrol akses yang konsisten di antara lapisan.
+
+\section{Perancangan Sub-sistem Deteksi \textit{Drift} dan \textit{Continuous Training}}
+\label{sec:drift-ct}
+
+Bagian ini menjawab T-3 dengan merancang sub-sistem deteksi \textit{drift} pada fitur dan label yang otomatis memicu pelatihan ulang pada saat melewati ambang batas. Sub-sistem ini menjawab kombinasi \textit{drift} dan \textit{temporal leakage} yang menjadi salah satu rumusan masalah.
+
+\subsection{Pengukuran \textit{Drift}}
+\label{subsec:pengukuran-drift}
+
+Dua indikator utama dipilih sebagai detektor. \textit{Population Stability Index} (PSI) dipakai untuk fitur kategorikal dan kontinu dengan \textit{binning}, sedangkan uji Kolmogorov-Smirnov dipakai untuk distribusi nilai kontinu \autocite{reis2016kdd}. Pengukuran dilakukan pada jendela waktu yang bergerak dan dibandingkan dengan jendela referensi. Tingkat \textit{drift} dikategorikan menjadi \textit{stable}, \textit{moderate}, dan \textit{severe} dengan ambang yang dapat dikonfigurasi per fitur. \textcite{bayram2022concept}, \textcite{lu2019learning}, dan \textcite{hinder2023model} menjadi rujukan untuk penyusunan kebijakan keluarga detektor dan respons platform.
+
+\subsection{Alur Pelatihan Ulang Otomatis}
+\label{subsec:retrain}
+
+Alur pelatihan ulang dijalankan oleh Argo CronWorkflow yang berperan sebagai \textit{control loop}. \textit{Workflow} ini menjalankan \textit{job} pengukuran \textit{drift}, kemudian memutuskan apakah pemicu pelatihan diperlukan. Jika diperlukan, \textit{workflow} memicu \textit{pipeline} pelatihan pada Kubeflow Pipelines. \textit{Pipeline} pelatihan menarik fitur dari Feast dengan operasi \texttt{get\_historical\_features} yang menjamin \textit{point-in-time correctness}, kemudian menulis model yang dihasilkan ke MLflow. Evidently \autocite{evidently2025} dijalankan sebagai pelapor pelengkap yang menghasilkan ringkasan distribusi fitur dan kinerja model dalam bentuk \textit{report} yang dapat diaudit. Validasi kualitas model dijalankan sebelum penyebaran. Apabila lulus validasi, Argo Rollouts \autocite{argorollouts2025} mengelola promosi versi baru pada KServe dengan strategi \textit{canary} berbasis analisis metrik Prometheus, sehingga pengembalian otomatis dapat dilakukan ketika \textit{signal} kinerja menurun. \textcite{cespedes2024efficient} memberi contoh penerapan deteksi \textit{drift} pada lingkungan \textit{serverless}, dan pendekatan yang serupa diadaptasi ke lingkungan Kubernetes pada platform ini.
+
+\subsection{Mekanisme Penanganan Kasus Khusus}
+\label{subsec:kasus-khusus}
+
+Sub-sistem ini melayani tiga kasus khusus. Pertama, ketika \textit{drift} terdeteksi pada fitur tetapi label belum tersedia, \textit{workflow} hanya melakukan pelatihan ulang setelah label berjalan cukup lama. Kedua, ketika \textit{drift} terjadi karena perubahan distribusi sementara, ambang dihitung dengan jendela bergulir agar tidak memicu pelatihan ulang yang tidak perlu. Ketiga, ketika model baru gagal lulus validasi, KServe mempertahankan versi lama dan \textit{workflow} mencatat kegagalan ke MLflow.
+
+\section{Perancangan Sub-sistem Layanan Fitur \textit{Dual-Store}}
+\label{sec:feature-store-dual}
+
+Bagian ini menjawab T-4 dengan merancang sub-sistem layanan fitur yang menyatukan fitur tabular, fitur deret waktu, dan \textit{embedding} berdimensi tinggi dalam satu kontrak data dari satu sumber kebenaran. Feast digunakan sebagai \textit{framework} layanan fitur yang menyatukan kontrak antara \textit{offline} dan \textit{online}.
+
+\subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
+\label{subsec:offline-online}
+
+\textit{Offline store} menggunakan ClickHouse untuk fitur tabular dan deret waktu yang dipakai pada fase pelatihan. ClickHouse dipilih karena kemampuan kompresi tinggi, latensi kueri rendah untuk \textit{aggregation}, dan kompatibilitas dengan kontrak Feast. \textit{Online store} menggunakan Redis Stack \autocite{redis2024} untuk fitur yang dipakai pada fase \textit{inference} dengan target latensi p99 di bawah sepuluh milidetik. Redis Stack juga menyediakan dukungan \textit{vector search} HNSW pada modul Redis Search, sehingga fitur \textit{embedding} dapat dilayani dengan kontrak yang sama dengan fitur tabular.
+
+\subsection{Dukungan \textit{Vector Embeddings} dan HNSW}
+\label{subsec:vektor-embedding}
+
+\textit{Embedding} dihasilkan oleh model BERT \autocite{devlin2019bert} untuk teks atau model OpenAI \autocite{openai2022embedding} untuk konteks bahasa umum, dan disimpan sebagai fitur dengan dimensi yang konsisten antara fase pelatihan dan fase \textit{inference}. Pencarian tetangga terdekat menggunakan HNSW \autocite{malkov2020efficient} yang memberi keseimbangan baik antara waktu kueri dan kualitas. \textcite{bruch2023hybrid} dan \textcite{campese2024coherence} memberi rujukan untuk fungsi peleburan hasil pencarian pada konteks \textit{hybrid retrieval}, sehingga \textit{embedding} dapat digabung dengan fitur tabular untuk membentuk \textit{request} \textit{inference} yang lengkap.
+
+\subsection{Jaminan \textit{Point-in-Time Correctness}}
+\label{subsec:jaminan-pit}
+
+Feast menjamin \textit{point-in-time correctness} melalui operasi \texttt{get\_historical\_features}. Operasi ini melakukan \textit{point-in-time join} antara entitas dan riwayat fitur dengan menggunakan \texttt{event\_timestamp} dan \texttt{created\_timestamp}, sehingga nilai fitur yang dipakai pada saat pelatihan identik dengan nilai yang akan tersedia pada saat \textit{inference} di waktu yang sama. \textcite{vela2022temporal} dan \textcite{wang2021leakage} memperlihatkan dampak buruk \textit{temporal leakage} pada validitas evaluasi model, dan Feast mencegah kebocoran tersebut secara struktural pada level kontrak data.
+
+\subsection{Aliran Materialisasi Fitur}
+\label{subsec:materialisasi-fitur}
+
+Materialisasi fitur dilakukan dengan dua jalur. Jalur \textit{batch} menjalankan transformasi pada ClickHouse atau Spark, kemudian Feast memuat hasilnya ke \textit{online store} secara periodik melalui operasi \texttt{materialize}. Jalur \textit{stream} menggunakan Flink untuk menghitung fitur \textit{real-time} yang ditulis langsung ke Redis Stack dan dipublikasikan ke ClickHouse pada saat yang sama, sehingga \textit{offline} dan \textit{online} tetap konsisten. \textcite{jain2025integrating} menyoroti pentingnya integrasi DataOps dengan MLOps untuk menjaga konsistensi seperti ini pada skala produksi.
+
+\section{Alur Kerja \textit{End-to-End}}
+\label{sec:alur-e2e}
+
+Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan. Pertama, data baru masuk melalui Kafka, divalidasi oleh Great Expectations, kemudian disimpan pada \textit{warehouse} ClickHouse dan \textit{data lake} MinIO dengan katalog Lakekeeper. Kedua, fitur dihitung pada Flink atau Spark, lalu diregistrasi pada Feast dan dimaterialisasi ke ClickHouse sebagai \textit{offline store} dan Redis Stack sebagai \textit{online store}. Ketiga, Argo CronWorkflow mengukur \textit{drift} dan, jika ambang dilewati, memicu \textit{pipeline} pelatihan Kubeflow Pipelines. Pelatihan menggunakan \texttt{get\_historical\_features} untuk menjamin konsistensi temporal. Hasil pelatihan ditulis ke MLflow. Keempat, validasi model dijalankan, lalu Argo Rollouts mempromosikan versi KServe baru dengan strategi \textit{canary} berbasis analisis metrik. Kelima, perubahan pada konfigurasi disinkronkan dari Git oleh Argo CD, sedangkan pengamatan kondisi sistem dipantau oleh Prometheus, Loki, dan Grafana Tempo melalui Grafana. Siklus ini berputar setiap kali data baru masuk atau \textit{drift} terdeteksi, sehingga platform terus menerus menjaga akurasi model di lingkungan produksi. \textcite{rodrigues2025architecture} memberi rujukan tambahan untuk arsitektur pembelajaran \textit{near real-time} pada lingkungan yang serupa.

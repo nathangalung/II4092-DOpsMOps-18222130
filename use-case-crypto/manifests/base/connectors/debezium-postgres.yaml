@@ -18,6 +18,19 @@ metadata:
   name: debezium-registration
   labels:
     app: debezium-cdc
+  annotations:
+    # ArgoCD PostSync hook — runs AFTER kafka-connect Deployment is
+    # Synced+Healthy. `BeforeHookCreation` deletes any prior hook Job from
+    # the previous Sync before creating a fresh one; `HookSucceeded`
+    # removes the Job after a successful run so Argo doesn't track it as
+    # part of sync state. Without these hook annotations the Job's
+    # `ttlSecondsAfterFinished` deletes it after 5min and the parent
+    # crypto-use-case-local Application reports Missing forever. The
+    # registration POSTs to /connectors with idempotent semantics — re-
+    # invoking returns 409 Conflict which the script accepts as success
+    # — so re-running on each Sync is safe. Field-validated 2026-05-21.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   backoffLimit: 5
   ttlSecondsAfterFinished: 300
@@ -89,7 +102,14 @@ spec:
               : "${DB_USERNAME:?POSTGRES_USERNAME missing from pipeline-secrets}"
               : "${DB_PASSWORD:?POSTGRES_PASSWORD missing from pipeline-secrets}"
               echo "Registering Debezium PostgreSQL CDC connector..."
-              HTTP_CODE=$(curl -sf -o /tmp/response.txt -w "%{http_code}" \
+              # -s (silent) but NOT -f (--fail): with -f curl exits 22 on HTTP
+              # 4xx/5xx before writing the response body or capturing the code,
+              # so the script terminates with a bare "exit 22" and no
+              # diagnosis. Without -f, curl always returns 0 for transport
+              # success regardless of HTTP status, so $HTTP_CODE captures the
+              # real status and the body lands in /tmp/response.txt for the
+              # error branch to print.
+              HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
                 -X PUT \
                 http://kafka-connect.data-ingestion.svc.cluster.local:8083/connectors/pipeline-postgres-cdc/config \
                 -H "Content-Type: application/json" \
@@ -114,7 +134,13 @@ spec:
                 }")
 
               echo "Response code: $HTTP_CODE"
-              cat /tmp/response.txt
+              # Kafka Connect echoes the full submitted config in the response
+              # body, including `database.password`. Redact before logging so
+              # the plaintext PG password never lands in pod logs (which are
+              # readable by anyone with `pods/log` get, and survive in audit/
+              # log-aggregation pipelines). Applies to both success and
+              # failure paths.
+              sed -E 's/("(database\.password|password)"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"***REDACTED***"/g' /tmp/response.txt
               echo ""
 
               if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then

@@ -53,10 +53,10 @@ services:
       enabled: true
       language: rust
       description: "Real-time streaming feature computation"
-    flink_job:
+    stream_processor:
       enabled: true
       language: java
-      description: "Apache Flink stream processing"
+      description: "Apache Flink stream processing (Trade/Orderbook feature functions)"
     vector:
       enabled: true
       language: python
@@ -103,10 +103,9 @@ services:
       enabled: true
       language: python
       description: "Feast feature materialization"
-    retraining:
-      enabled: true
-      language: python
-      description: "Automatic model retraining orchestration"
+    # Retrain-on-drift orchestration lives in the Argo CronWorkflow
+    # `retrain-on-drift` (manifests/base/workflows/), not a Python service —
+    # ClickHouse `gold.drift_metrics` polling + KFP API submit is shell-only.
 
   # ---------------------------------------------------------------------------
   # DASHBOARD — Web UI for monitoring

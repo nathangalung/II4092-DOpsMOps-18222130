@@ -13,7 +13,7 @@ Some `use-case-crypto` manifests still reference the pre-operator hostnames
 for ClickHouse (3 files). Migrate them once the platform CHI is reconciling
 (gated on default StorageClass being present per platform §0):
 
-- `use-case-crypto/manifests/base/configmap-feast.yaml:56`
+- `use-case-crypto/manifests/base/configmaps/feast.yaml:56`
 - `use-case-crypto/manifests/base/configmaps/sources.yaml:46`
 - `use-case-crypto/manifests/base/katib/experiment-lightgbm.yaml:88`
 
@@ -81,7 +81,7 @@ kubectl -n use-case-crypto get experiments -l parent=flaml-automl-hpo
 
 New manifest:
 
-- `use-case-crypto/manifests/base/observability/slos-crypto.yaml` — three
+- `use-case-crypto/manifests/base/observability/slos.yaml` — three
   `sloth.slok.dev/v1 PrometheusServiceLevel` CRs:
   - `crypto-prediction-freshness` (99.5%, 30d)
   - `crypto-pipeline-lag` (99.0%, 7d)
@@ -147,8 +147,8 @@ New manifest:
   - ServiceAccount `crypto-flink`, Role + RoleBinding (scoped to the ns)
   - ExternalSecret `crypto-flink-s3` (MinIO access/secret → Vault
     `secret/platform/minio/root`)
-  - `flink.apache.org/v1beta1 FlinkDeployment crypto-flink-job`
-    (application mode, Flink 2.2.0, jarURI `local:///opt/flink/usrlib/crypto-flink-job.jar`,
+  - `flink.apache.org/v1beta1 FlinkDeployment crypto-stream-processor`
+    (application mode, Flink 2.2.0, jarURI `local:///opt/flink/usrlib/crypto-stream-processor.jar`,
     entryClass `io.mlops.crypto.flink.CryptoStreamJob`)
   - Checkpoints to `s3://flink-checkpoints/crypto/` at 60s interval
   - `pipeline.openlineage.url` → DataHub GMS; `pipeline.openlineage.namespace=crypto`
@@ -158,7 +158,7 @@ New manifest:
 ADR-025 follow-up (2026-04-21): the legacy `flink-job` Deployment is now
 DELETED from `platform/services/base/deployments/`, along with the
 scale-to-0 patch in `use-case-crypto/manifests/base/patches/`. Operator-
-managed pods carry `app: crypto-flink-job` + `component: jobmanager|taskmanager`;
+managed pods carry `app: crypto-stream-processor` + `component: jobmanager|taskmanager`;
 PDBs, the PodMonitor, and NetworkPolicies target those labels directly.
 The FlinkDeployment `podTemplate` now declares named ports `metrics`
 (9249) and `jm-rest` (8081).
@@ -166,18 +166,18 @@ The FlinkDeployment `podTemplate` now declares named ports `metrics`
 Verification:
 
 ```bash
-kubectl -n use-case-crypto get flinkdeployment crypto-flink-job
-kubectl -n use-case-crypto get pods -l app=crypto-flink-job          # 1 JM + N TM
-kubectl -n use-case-crypto logs -l component=jobmanager --tail=50    # should see OL events
-kubectl -n use-case-crypto port-forward svc/crypto-flink-job-rest 8081:8081
+kubectl -n use-case-crypto get flinkdeployment crypto-stream-processor
+kubectl -n use-case-crypto get pods -l app=crypto-stream-processor          # 1 JM + N TM
+kubectl -n use-case-crypto logs -l component=jobmanager --tail=50           # should see OL events
+kubectl -n use-case-crypto port-forward svc/crypto-stream-processor-rest 8081:8081
 curl -s http://127.0.0.1:8081/jobs | jq
 # Savepoint round-trip:
-kubectl -n use-case-crypto annotate flinkdeployment crypto-flink-job \
+kubectl -n use-case-crypto annotate flinkdeployment crypto-stream-processor \
   flinkdeployments.flink.apache.org/savepointTrigger=manual-test --overwrite
 # PodMonitor scrape check:
-kubectl -n use-case-crypto get podmonitor crypto-flink-job
+kubectl -n use-case-crypto get podmonitor crypto-stream-processor
 # PDB targeting the JobManager:
-kubectl -n use-case-crypto get pdb crypto-flink-job-jobmanager-pdb
+kubectl -n use-case-crypto get pdb crypto-stream-processor-jobmanager-pdb
 ```
 
 Kafka consumer-group integrity: the FlinkDeployment uses a dedicated
@@ -205,7 +205,7 @@ Change:
       `feature-engine|validator|analyzer` (ADR-025 dropped `flink-job` —
       Airflow does not call the Flink JM directly)
     - `allow-kfp-to-training-targets` names
-      `feature-engine|crypto-flink-job|ml-bridge`
+      `feature-engine|crypto-stream-processor|ml-bridge`
     - `allow-model-serving-to-serving-tier` names
       `gateway|ml-bridge`
   - `allow-ingress-to-gateway` scoped to `app: gateway` + port 8080 only.
@@ -224,7 +224,7 @@ curl -sk https://crypto.example.com/api/v1/healthz -o /dev/null -w '%{http_code}
 kubectl -n use-case-crypto get networkpolicy
 # Flink scrape:
 kubectl -n observability exec deploy/prometheus-operator-prometheus-0 -- \
-  wget -qO- http://crypto-flink-job-rest.use-case-crypto.svc.cluster.local:9249/metrics | head -20
+  wget -qO- http://crypto-stream-processor-rest.use-case-crypto.svc.cluster.local:9249/metrics | head -20
 ```
 
 Rollback: `git revert`. With AuthZ removed the gateway admits admin paths;
@@ -300,7 +300,7 @@ until the next cron window.
 
 Change:
 
-- `use-case-crypto/dags/crypto_lakehouse_dag.py` — added helpers
+- `use-case-crypto/dags/lakehouse.py` — added helpers
   `_ol_dataset`, `_ol_event`, `_ol_emit`, `_ol_run_id` and variables
   `OPENLINEAGE_URL`, `OPENLINEAGE_NAMESPACE`. Wired into four
   PythonOperator callables (LakeFS branch create/merge/delete + Trino
@@ -379,13 +379,13 @@ use-case-crypto/manifests/base/patches/ml-bridge-disable-deployment.yaml    (sca
 The Flink Kubernetes Operator labels its pods `app: <deployment-name>` +
 `component: jobmanager|taskmanager`. Selectors are NOT rewritten by
 kustomize namePrefix, so the `app:` value is the literal FlinkDeployment
-`metadata.name` (`crypto-flink-job`):
+`metadata.name` (`crypto-stream-processor`):
 
 | File | Was | Now |
 |---|---|---|
-| `use-case-crypto/manifests/base/hpa/autoscaling.yaml` | `flink-job-pdb` selecting `app: flink-job` | `flink-job-jobmanager-pdb` selecting `app: crypto-flink-job, component: jobmanager` |
-| `use-case-crypto/manifests/base/observability/servicemonitors-crypto.yaml` | ServiceMonitor selecting `app: flink-job` on port `metrics` (8083) | **PodMonitor** selecting `app: crypto-flink-job, component: jobmanager` on named port `metrics` (9249) |
-| `use-case-crypto/manifests/base/network-policies.yaml` | port 8083 on Prometheus scrape; `flink-job` in `allow-airflow-to-processing` + `allow-kfp-to-training-targets` selectors | port 8083 removed; `allow-airflow-to-processing` drops `flink-job` (Airflow does not call Flink JM); `allow-kfp-to-training-targets` uses `crypto-flink-job` |
+| `use-case-crypto/manifests/base/hpa/autoscaling.yaml` | `flink-job-pdb` selecting `app: flink-job` | `stream-processor-jobmanager-pdb` selecting `app: crypto-stream-processor, component: jobmanager` |
+| `use-case-crypto/manifests/base/observability/servicemonitors.yaml` | ServiceMonitor selecting `app: flink-job` on port `metrics` (8083) | **PodMonitor** selecting `app: crypto-stream-processor, component: jobmanager` on named port `metrics` (9249) |
+| `use-case-crypto/manifests/base/network-policies.yaml` | port 8083 on Prometheus scrape; `flink-job` in `allow-airflow-to-processing` + `allow-kfp-to-training-targets` selectors | port 8083 removed; `allow-airflow-to-processing` drops `flink-job` (Airflow does not call Flink JM); `allow-kfp-to-training-targets` uses `crypto-stream-processor` |
 | `use-case-crypto/manifests/base/flink/flinkdeployment.yaml` | podTemplate had no named container ports | Added `ports: [{name: metrics, 9249}, {name: jm-rest, 8081}]` so PodMonitor can scrape by port name |
 
 ### 13.4 — Use-case verification
@@ -400,7 +400,7 @@ kubectl kustomize use-case-crypto/manifests/overlays/local-data >/dev/null
 ! grep -rn "deployments/flink-job.yaml" use-case-crypto
 
 # FlinkDeployment + rescoped PDB + PodMonitor admitted:
-kubectl -n use-case-crypto get flinkdeployment crypto-flink-job
-kubectl -n use-case-crypto get pdb crypto-flink-job-jobmanager-pdb
-kubectl -n use-case-crypto get podmonitor crypto-flink-job
+kubectl -n use-case-crypto get flinkdeployment crypto-stream-processor
+kubectl -n use-case-crypto get pdb crypto-stream-processor-jobmanager-pdb
+kubectl -n use-case-crypto get podmonitor crypto-stream-processor
 ```

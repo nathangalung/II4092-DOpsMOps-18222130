@@ -1,0 +1,39 @@
+# =============================================================================
+# VerticalPodAutoscaler — Valkey (single-replica cache, advisory only)
+# =============================================================================
+# Valkey runs as a single Deployment replica (KV cache fronting feature-store
+# online layer and Airflow result-backend). Horizontal scaling is not
+# applicable to single-master KV cache. VPA(Off) recommends memory-resident
+# working-set sizing so cache evictions don't thrash the platform.
+#
+# updateMode: Off — operator promotes recommendations into deployment.yaml.
+# Auto mode would evict the cache pod on every recommendation refresh,
+# wiping in-memory state and forcing downstream consumers (feast-online,
+# airflow) to refill from Postgres on every restart.
+# =============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: valkey
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: valkey
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: valkey
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: valkey
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: 100m
+          memory: 128Mi
+        maxAllowed:
+          cpu: 1
+          memory: 2Gi

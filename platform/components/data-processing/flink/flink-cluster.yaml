@@ -52,10 +52,18 @@ spec:
             # system implementation for scheme 's3'`.
             - name: ENABLE_BUILT_IN_PLUGINS
               value: "flink-s3-fs-hadoop-2.2.0.jar"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
       securityContext:
         runAsNonRoot: true
         runAsUser: 9999
         fsGroup: 9999
+        seccompProfile:
+          type: RuntimeDefault
   jobManager:
     replicas: 1
     resource:

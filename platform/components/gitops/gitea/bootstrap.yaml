@@ -310,47 +310,11 @@ data:
       echo "  branches present, skipping seed"
     fi
 
-    # =============================================================================
-    # Use-case overlay repos: each use-case is its own gitops source-of-truth.
-    # Per ADR-013, the platform repo must NOT know about specific use-cases —
-    # so the use-case overlay (use-case-crypto/) ships its own ArgoCD AppProject
-    # + ApplicationSet which point at `http://gitea.gitops.svc.cluster.local:3000/platform/<use-case>.git`.
-    # Bootstrap creates each repo here so seed-gitea.sh can force-push the
-    # use-case tree on first run without manual provisioning.
-    # =============================================================================
-    for usecase in use-case-crypto; do
-      echo "==> ensure repo 'platform/${usecase}'"
-      uc_code=$(curl -sS -o /tmp/uc -w '%{http_code}' \
-        -u "$ADMIN_USER:$ADMIN_PASS" \
-        -H 'Content-Type: application/json' \
-        -X POST "$GITEA/api/v1/orgs/platform/repos" \
-        -d "{\"name\":\"${usecase}\",\"auto_init\":true,\"default_branch\":\"main\",\"private\":false,\"description\":\"Use-case overlay (domain-specific). Synced by ArgoCD ApplicationSet in argocd/.\"}")
-      case "$uc_code" in
-        201|409) echo "  repo platform/${usecase} -> $uc_code (ok)" ;;
-        *) echo "ERROR: repo create returned $uc_code"; cat /tmp/uc; exit 1 ;;
-      esac
-      uc_branches_code=$(curl -sS -o /tmp/uc_branches -w '%{http_code}' \
-        -u "$ADMIN_USER:$ADMIN_PASS" \
-        "$GITEA/api/v1/repos/platform/${usecase}/branches")
-      uc_branches_body=$(cat /tmp/uc_branches)
-      if [ "$uc_branches_code" = "200" ] && \
-         { [ "$uc_branches_body" = "null" ] || [ "$uc_branches_body" = "[]" ]; }; then
-        # Base64 of "# Use-case overlay\nManaged by ArgoCD AppSet.\n"
-        uc_seed_b64="IyBVc2UtY2FzZSBvdmVybGF5Ck1hbmFnZWQgYnkgQXJnb0NEIEFwcFNldC4K"
-        uc_seed_code=$(curl -sS -o /tmp/uc_seed -w '%{http_code}' \
-          -u "$ADMIN_USER:$ADMIN_PASS" \
-          -H 'Content-Type: application/json' \
-          -X POST "$GITEA/api/v1/repos/platform/${usecase}/contents/README.md" \
-          -d "{\"branch\":\"main\",\"content\":\"$uc_seed_b64\",\"message\":\"chore: seed main branch (gitea bootstrap)\"}")
-        case "$uc_seed_code" in
-          201) echo "  seeded ${usecase} main with README.md (HTTP 201)" ;;
-          422) echo "  ${usecase} README.md already exists on main (422 ok)" ;;
-          *) echo "ERROR: seed POST returned $uc_seed_code"; cat /tmp/uc_seed; exit 1 ;;
-        esac
-      else
-        echo "  ${usecase} branches present, skipping seed"
-      fi
-    done
+    # Per ADR-013 the platform repo MUST NOT know about specific use-cases.
+    # Use-case overlay repos (`platform/<use-case>`) are provisioned by
+    # scripts/seed-gitea.sh — an operator-host script outside platform/ that
+    # is allowed to enumerate use-cases. seed-gitea.sh creates each repo
+    # idempotently right before it force-pushes the working tree.
 
     echo "==> bootstrap done"
 ---

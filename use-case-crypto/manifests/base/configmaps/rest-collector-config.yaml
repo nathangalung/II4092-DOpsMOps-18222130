@@ -31,8 +31,28 @@ data:
       batch_size: 100
       flush_timeout_ms: 1000
 
+    # -------------------------------------------------------------------------
+    # Historical backfill — Coinbase exchange-api `/products/{symbol}/candles`.
+    # The Coinbase candle endpoint exposes six granularity buckets in seconds:
+    # 60 / 300 / 900 / 3600 / 21600 / 86400. Sub-minute (per-second) candles
+    # are NOT available from Coinbase Exchange REST; per-second resolution at
+    # ingest is the websocket-collector path (ticker + matches over the
+    # public WS feed) with Flink aggregating sub-second event-time windows
+    # into bronze.crypto_tick. The candle endpoint here provides the dense
+    # 1-minute OHLCV baseline that backstops the websocket stream for both
+    # cold-start and gap-recovery (websocket gap > N seconds → re-pull the
+    # missing candle range).
+    #
+    # start_date 2026-01-01 gives ~5 months of 1-minute candles from clean
+    # year-start (training-data alignment with calendar quarter boundaries
+    # used by the dbt silver/gold marts).
+    #
+    # batch_days=1 + concurrent_fetches=4 + max_records=300 + granularity=60
+    # = 24 requests/day, 5h per request, 4-wide → ~6 sequential rounds/day
+    # of backfill ≈ 1s/day at 150ms rate-limit. 5 months backfills in <3 min.
+    # -------------------------------------------------------------------------
     history:
-      start_date: "2026-03-01T00:00:00Z"
+      start_date: "2026-01-01T00:00:00Z"
       end_date: ""
       backfill_on_start: true
       batch_days: 1
@@ -54,7 +74,10 @@ data:
         symbols:
           - BTC-USD
           - ETH-USD
-        granularity: 3600
+        # 60 = 1-minute candles, the minimum Coinbase Exchange REST supports.
+        # Sub-minute resolution must come from websocket-collector (real-time
+        # ticker + matches) aggregated by Flink, not from candles.
+        granularity: 60
         max_records: 300
         rate_limit_ms: 150
 

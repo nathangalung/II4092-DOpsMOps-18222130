@@ -44,7 +44,7 @@ type KafkaConfig struct {
 	BatchSize    int      `mapstructure:"batch_size"`
 	FlushTimeout int      `mapstructure:"flush_timeout_ms"`
 	// Security wiring — matches the platform's pipeline-config /
-	// crypto-app-consumer envFrom contract (KAFKA_* env keys). Empty
+	// <usecase>-app-consumer envFrom contract (KAFKA_* env keys). Empty
 	// SecurityProtocol leaves the producer on PLAINTEXT (platform default).
 	SecurityProtocol string `mapstructure:"security_protocol"`
 	SASLMechanism    string `mapstructure:"sasl_mechanism"`
@@ -88,7 +88,7 @@ type EndpointConfig struct {
 //
 //   Kind: one of "object" (single JSON object), "array_of_objects"
 //         (JSON list of objects), "array_of_arrays" (JSON list of
-//         positional arrays like OHLCV candles).
+//         positional arrays like time-series candles).
 //   FieldMapping:   json_field -> output_key, used for object /
 //                   array_of_objects. Only listed fields are copied.
 //   ArrayFields:    positional field names for array_of_arrays. Entry

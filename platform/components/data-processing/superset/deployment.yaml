@@ -126,8 +126,8 @@ spec:
           # usable for any use-case without further extension):
           #   * psycopg2-binary       — Postgres (Superset metastore + CNPG
           #                              app DB + MLflow tracking schema)
-          #   * clickhouse-connect    — direct ClickHouse access (OHLCV /
-          #                              feature tables; faster than going
+          #   * clickhouse-connect    — direct ClickHouse access (time-series
+          #                              / feature tables; faster than going
           #                              through Trino for narrow scans)
           #   * trino                 — federated catalog (Iceberg / Postgres
           #                              / ClickHouse joins on the data
@@ -172,6 +172,13 @@ spec:
               description = "DB-driver overlay for apache/superset"
               requires-python = ">=3.10,<3.13"
               dependencies = [
+                  # SQLAlchemy pin MUST match Superset 6.0.0's own constraint
+                  # (>=1.4,<2). Without this pin, trino[sqlalchemy]'s transitive
+                  # dep resolves to SQLAlchemy 2.x and overrides the base image's
+                  # 1.4.x via PYTHONPATH=/extra-libs, breaking
+                  #   from sqlalchemy.orm import eagerload  (removed in 2.0)
+                  # → superset CLI crashes at import time, pod Init:Error loop.
+                  "sqlalchemy>=1.4,<2",
                   "psycopg2-binary>=2.9,<3",
                   "clickhouse-connect>=0.8,<1",
                   "trino[sqlalchemy]>=0.336.0,<1",

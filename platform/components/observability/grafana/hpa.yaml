@@ -1,0 +1,56 @@
+# =============================================================================
+# HorizontalPodAutoscaler — Grafana (stateless web, CPU + memory)
+# =============================================================================
+# Per platform/scalability/README.md per-component table: Grafana is a
+# stateless dashboard server. HPA scales horizontally on CPU/memory load
+# (query bursts from heavy dashboards or many concurrent users).
+#
+# Single-node sizing: max 3 replicas — sufficient headroom for query bursts
+# without overcommitting node memory. minReplicas: 1 satisfies idle-1 invariant.
+# =============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: grafana
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: grafana
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60
+      selectPolicy: Min

@@ -96,7 +96,7 @@ spec:
         # Scale up when any partition's lag exceeds 1,000 messages.
         # Target is lag per replica; at 10 replicas the group can
         # buffer up to ~10k before we hit the SLO-burn alert
-        # (crypto-pipeline-lag, observability/slos-crypto.yaml).
+        # (crypto-pipeline-lag, observability/slos.yaml).
         lagThreshold: "1000"
         offsetResetPolicy: latest
 ---
@@ -234,7 +234,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: gateway
-  minReplicaCount: 2
+  # Single-node platform mandate: idle = 1 replica.
+  # Load triggers (prometheus rps, cpu, memory) scale up to 20 on real demand.
+  minReplicaCount: 1
   maxReplicaCount: 20
   pollingInterval: 15
   cooldownPeriod: 300

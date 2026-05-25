@@ -442,7 +442,7 @@ spec:
             #      creates the schema on first run and is a no-op on subsequent
             #      runs; the command is only available when the FAB provider is
             #      installed (see apache-airflow-providers-fab>=3.6.1 in
-            #      platform/services/orchestration/airflow/pyproject.toml).
+            #      platform/services/airflow/pyproject.toml).
             #   3. `airflow users create …`  — idempotent admin-user bootstrap.
             #      The `users` subcommand is provided by the FAB auth manager;
             #      it exists ONLY when FAB is enabled (see ConfigMap

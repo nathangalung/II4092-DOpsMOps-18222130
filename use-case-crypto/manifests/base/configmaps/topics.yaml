@@ -18,8 +18,25 @@ data:
   KAFKA_SSL_CA_LOCATION: "/etc/kafka/ca/ca.crt"
 
   # --- Kafka topics ---
+  # KAFKA_TOPIC is the *producer* default for any collector that falls back
+  # to pipeline-config (e.g. websocket-collector overlay also pins it via
+  # patch — see manifests/base/patches/websocket-collector.yaml). The
+  # rest-collector overlay sets KAFKA_TOPIC=crypto.rest.raw on its own
+  # container so REST output lands on its dedicated topic (independent
+  # KEDA lag trigger). Consumers/validators read VALIDATOR_INPUT_TOPICS
+  # below, NOT this KAFKA_TOPIC — separating producer-default from
+  # consumer-fan-in avoids the "comma in a topic name" producer corruption.
   KAFKA_TOPIC: "crypto.ws.raw"
   KAFKA_OUTPUT_TOPIC: "crypto.validated"
+
+  # Validator fan-in: CSV of input topics the data-quality validator
+  # subscribes to with a single consumer group. Matches the two KEDA lag
+  # triggers in manifests/base/scaling/scaledobjects.yaml so the
+  # rest-collector REST stream (Coinbase candles + ticker/trades polling,
+  # see manifests/base/configmaps/rest-collector-config.yaml) is no longer
+  # orphaned alongside the websocket-collector WS stream. Read by
+  # platform/services/quality/validator (src/main.rs splits on comma).
+  VALIDATOR_INPUT_TOPICS: "crypto.ws.raw,crypto.rest.raw"
 
   # --- Service topic aliases ---
   INPUT_TOPIC: "crypto.validated"
@@ -57,16 +74,16 @@ data:
   # --- Flink stream wiring (consumed by platform StreamJob via reflection) ---
   # Platform ships com.pipeline.functions.FeatureFunction (time-series primitive).
   # Use-case-crypto ships Trade/Orderbook microstructure functions through the
-  # crypto-flink-job overlay image — see use-case-crypto/services/processing/flink-job.
+  # crypto-stream-processor overlay image — see use-case-crypto/services/processing/stream-processor.
   ENABLED_STREAMS: "time_series,trades,orderbook"
   STREAM_TIME_SERIES_TOPIC: "crypto.validated"
   STREAM_TIME_SERIES_FUNCTION: "com.pipeline.functions.FeatureFunction"
   STREAM_TIME_SERIES_GROUP: "flink-time-series"
   STREAM_TRADES_TOPIC: "crypto.trades.v1"
-  STREAM_TRADES_FUNCTION: "com.usecase.crypto.functions.TradeFeatureFunction"
+  STREAM_TRADES_FUNCTION: "com.usecase.functions.TradeFeatureFunction"
   STREAM_TRADES_GROUP: "flink-trades"
   STREAM_ORDERBOOK_TOPIC: "crypto.orderbook.v1"
-  STREAM_ORDERBOOK_FUNCTION: "com.usecase.crypto.functions.OrderbookFeatureFunction"
+  STREAM_ORDERBOOK_FUNCTION: "com.usecase.functions.OrderbookFeatureFunction"
   STREAM_ORDERBOOK_GROUP: "flink-orderbook"
 
   # --- Sentiment batch processing (writable targets → gold layer) ---

@@ -59,6 +59,9 @@ spec:
     - "https://argoproj.github.io/argo-helm"
     - "https://downloads.apache.org/flink/flink-kubernetes-operator-1.14.0/"
     - "https://kubeflow.github.io/spark-operator"
+    # Fairwinds VPA recommender chart (4.11.0) — advisory-only, single-node
+    # uses updateMode=Off to avoid restart-storm IO cascade (#160/166/169).
+    - "https://charts.fairwinds.com/stable"
   destinations:
     - { namespace: "*", server: https://kubernetes.default.svc }
   clusterResourceWhitelist:

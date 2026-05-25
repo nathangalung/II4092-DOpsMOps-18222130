@@ -14395,6 +14395,12 @@ spec:
             - --v=2
             - --cluster-resource-namespace=$(POD_NAMESPACE)
             - --leader-election-namespace=kube-system
+            # Single-replica controller on kine-backed k3s. Controller-runtime
+            # 5s lease-renew context deadline collapses under kine INSERT
+            # spikes (1-3s/op against 185MB SQLite state.db), churning 102+
+            # `leader election lost` restarts. Disable LE — single replica
+            # adds zero safety. Re-enable when replicas > 1 + embedded etcd.
+            - --leader-elect=false
             - --acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.17.4
             - --max-concurrent-challenges=60
           env:
@@ -14491,6 +14497,9 @@ spec:
         - args:
             - --v=2
             - --leader-election-namespace=kube-system
+            # See cert-manager-controller block above — same kine 5s LE
+            # collapse problem (53+ cainjector restarts). Single replica.
+            - --leader-elect=false
           env:
             - name: POD_NAMESPACE
               valueFrom:

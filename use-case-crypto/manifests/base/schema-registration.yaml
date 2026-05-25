@@ -68,9 +68,15 @@ metadata:
   name: schema-registration
   labels:
     app: schema-registration
+  annotations:
+    # ArgoCD PostSync hook — see debezium-postgres.yaml for full rationale.
+    # Idempotent registration against karapace /subjects REST API; subjects
+    # are versioned and re-registration of identical schemas is a no-op.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
-  ttlSecondsAfterFinished: 300
-  backoffLimit: 3
+  ttlSecondsAfterFinished: 900
+  backoffLimit: 2
   template:
     metadata:
       labels:

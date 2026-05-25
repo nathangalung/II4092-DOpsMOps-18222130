@@ -65,9 +65,16 @@ spec:
           # cert-manager issues the webhook cert (prerequisite).
           certManager:
             enable: true
-          # Webhook hits the same lease-renew issue as the controller (chart
-          # 2.5.0 doesn't surface lease params for the webhook block — see
-          # the controller block above for the chosen values).
+          # Chart 2.5.0 exposes only the LE boolean for the webhook block
+          # (lease/renew/retry durations are hardcoded — see controller block
+          # comment). Webhook runs single-replica on kine-backed k3s; the
+          # controller-runtime 5s default lease-renew context timeout collapses
+          # under kine INSERT spikes (1-3s/op against 185MB SQLite state.db),
+          # churning ~222 `leader election lost` restarts. With replicas=1 LE
+          # adds zero safety — flip to false. Bump back to true only when
+          # replicas > 1 AND a chart release exposes the lease timing knobs.
+          leaderElection:
+            enable: false
           resources:
             # Single-pod bootstrap; bump for production load.
             requests: { cpu: 50m, memory: 128Mi }

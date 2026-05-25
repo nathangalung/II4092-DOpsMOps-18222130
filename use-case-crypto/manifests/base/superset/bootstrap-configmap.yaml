@@ -83,6 +83,7 @@ data:
     """
     from __future__ import annotations
 
+    import http.cookiejar
     import json
     import logging
     import os
@@ -117,7 +118,11 @@ data:
     TRINO_HOST = os.environ.get(
         "TRINO_HOST", "trino.data-processing.svc.cluster.local"
     )
-    TRINO_PORT = int(os.environ.get("TRINO_PORT", "8080"))
+    # Platform Trino Service exposes port 8085 (http-server.http.port=8085 in
+    # platform/components/data-processing/trino/deployment.yaml, NOT the
+    # upstream default 8080). Keep this default in sync if the platform
+    # value ever changes.
+    TRINO_PORT = int(os.environ.get("TRINO_PORT", "8085"))
     TRINO_CATALOG = os.environ.get("TRINO_CATALOG", "iceberg")
     TRINO_SCHEMA = os.environ.get("TRINO_SCHEMA", "default")
 
@@ -209,12 +214,25 @@ data:
     # HTTP helpers — pure stdlib, session-aware (login JWT + CSRF token)
     # ────────────────────────────────────────────────────────────────────────
     class Session:
-        """Minimal Superset REST client."""
+        """Minimal Superset REST client.
+
+        Cookie persistence is required: Superset's CSRF middleware
+        (Flask-WTF) double-checks the X-CSRFToken header against the
+        session cookie set by `/api/v1/security/csrf_token/`. urllib
+        does NOT persist cookies across requests by default, so without
+        an explicit CookieJar every POST after login fails with
+        `400 The CSRF session token is missing` even when the header is
+        present. Field-validated 2026-05-20 against Superset 4.x.
+        """
 
         def __init__(self, base: str) -> None:
             self.base = base
             self.access_token: str | None = None
             self.csrf_token: str | None = None
+            self._jar = http.cookiejar.CookieJar()
+            self._opener = urllib.request.build_opener(
+                urllib.request.HTTPCookieProcessor(self._jar)
+            )
 
         def _request(
             self,
@@ -240,7 +258,7 @@ data:
                 url, data=data, headers=headers, method=method
             )
             try:
-                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+                with self._opener.open(req, timeout=30) as resp:  # noqa: S310
                     raw = resp.read()
                     return json.loads(raw) if raw else {}
             except urllib.error.HTTPError as exc:
@@ -257,6 +275,11 @@ data:
             }
             resp = self._request("POST", "/api/v1/security/login", body=payload)
             self.access_token = resp["access_token"]
+            # GET /api/v1/security/csrf_token/ AFTER login because:
+            # (a) the endpoint requires Authorization: Bearer <JWT>
+            # (b) the response sets the `session` cookie our CookieJar
+            #     now captures, which Superset's CSRF middleware
+            #     cross-checks against the X-CSRFToken header on POSTs.
             csrf = self._request("GET", "/api/v1/security/csrf_token/")
             self.csrf_token = csrf.get("result")
 
@@ -353,6 +376,13 @@ data:
         log.info("authenticated to superset as %s", ADMIN_USER)
 
         existing_dbs = session.list_database_names()
+        # Backends like Trino can be flapping in a single-node dev cluster
+        # — its registration depends on the coordinator being able to
+        # answer `SHOW SCHEMAS` during Superset's test_connection probe.
+        # Skip+log on failure so a broken backend never blocks the whole
+        # bootstrap (which is a hook Job; a failed hook blocks Argo sync
+        # of every other resource in this app — superset-bootstrap is the
+        # last-mile data-source registrar, not a critical-path component).
         for spec in DATABASES:
             name = spec["database_name"]
             if name in existing_dbs:
@@ -361,18 +391,23 @@ data:
             try:
                 session.create_database(spec)
             except Exception as exc:  # noqa: BLE001
-                log.error("failed to create database %r: %s", name, exc)
-                return 3
+                log.warning("could not register database %r: %s", name, exc)
+                continue
             log.info("created database %r", name)
 
-        # Resolve database IDs after potential creates
-        db_id_by_name = {
-            name: session.get_database_id(name)
-            for name in {d["database_name"] for d in DATABASES}
-        }
+        # Resolve database IDs after potential creates. A database may be
+        # absent (we skip-on-error above), so look it up defensively.
+        db_id_by_name: dict[str, int] = {}
+        for name in {d["database_name"] for d in DATABASES}:
+            try:
+                db_id_by_name[name] = session.get_database_id(name)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("database %r not present, skipping its datasets: %s", name, exc)
 
         existing_keys = session.list_dataset_keys()
         for ds in DATASETS:
+            if ds["database"] not in db_id_by_name:
+                continue
             db_id = db_id_by_name[ds["database"]]
             key = (db_id, ds["schema"], ds["table_name"])
             if key in existing_keys:

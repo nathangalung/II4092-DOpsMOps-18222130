@@ -85,6 +85,9 @@ resources:
   # ===========================================================================
   - namespace.yaml
   - configmaps/feast.yaml
+  # Runtime override for the image-baked /dbt/profiles.yml — fixes `secure`
+  # type (bool not env_var string). Mounted into dbt Pods at /tmp/dbt-profiles.
+  - configmaps/dbt-profile.yaml
   # Declarative rest-collector config — defines Coinbase data source and
   # per-endpoint polling (ticker, trades, ...). Mounted by the rest-collector
   # patch at /etc/rest-collector/config.yaml.

@@ -40,7 +40,6 @@ fi
 # Python: Generate using grpcio-tools via UV
 echo -e "\n${GREEN}Python:${NC} Generating Python proto files..."
 mkdir -p "$PROJECT_DIR/services/dashboard/ml-bridge/src/proto"
-mkdir -p "$PROJECT_DIR/services/training/trainer/src/proto"
 
 if command -v uv &> /dev/null; then
     # UV mandate (project policy): no `python -m`. Wrap the grpcio-tools

@@ -24,6 +24,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
+# = profiler disabled, service runs unchanged.
+if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
+    import pyroscope
+
+    pyroscope.configure(
+        application_name=f"{os.environ.get('USE_CASE', 'platform')}.processing.vector",
+        server_address=os.environ["PYROSCOPE_SERVER_ADDRESS"],
+        tags={
+            "use_case": os.environ.get("USE_CASE", "platform"),
+            "service": "processing.vector",
+        },
+    )
+
 DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "SAMPLE-001")
 
 

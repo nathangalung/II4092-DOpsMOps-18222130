@@ -12,18 +12,18 @@
 % 
 %
 % Petunjuk penggunaan:
-% 1. Ada 2 file utama, yaitu TA.tex (file ini) dan daftar-pustaka.bib (file daftar pustaka).
-% 2. Sunting TA.tex sesuai dengan kebutuhan Anda.
+% 1. Ada 2 file utama, yaitu report.tex (file ini) dan daftar-pustaka.bib (file daftar pustaka).
+% 2. Sunting report.tex sesuai dengan kebutuhan Anda.
 % 3. Sunting atau generate isi daftar-pustaka.bib dengan referensi yang Anda gunakan, sesuai dengan format BibLaTeX.
 % 4. Simpan kedua file tersebut dalam satu folder yang sama.
-% 5. Kompilasi file TA.tex menggunakan XeLaTeX dan Biber (lihat urutan cara kompilasi di bawah).
-% 6. Hasil kompilasi adalah file TA.pdf yang siap dicetak.
-% 
+% 5. Kompilasi file report.tex menggunakan XeLaTeX dan Biber (lihat urutan cara kompilasi di bawah).
+% 6. Hasil kompilasi adalah file report.pdf yang siap dicetak.
+%
 % Urutan cara kompilasi (melalui command line):
-% 1. xelatex TA.tex
-% 2. biber TA      
-% 3. xelatex  TA.tex
-% 4. xelatex  TA.tex
+% 1. xelatex report.tex
+% 2. biber report
+% 3. xelatex  report.tex
+% 4. xelatex  report.tex
 %
 % Catatan:
 % - Pastikan Anda telah menginstal paket-paket LaTeX yang diperlukan, termasuk
@@ -90,7 +90,11 @@
 \usepackage[skip=12pt]{parskip} % for spacing between paragraphs
 \usepackage{longtable} % for long tables
 \usepackage{booktabs} % for better table rules
-\usepackage[bahasai]{datetime2} % for date formatting in Indonesian
+% Indonesian date formatting (vanilla LaTeX, no datetime2 dependency so we
+% don't drag in tracklang.sty which isn't bundled in every TeX Live setup).
+\newcommand{\bulanID}{\ifcase\month\or Januari\or Februari\or Maret\or April\or Mei\or Juni\or Juli\or Agustus\or September\or Oktober\or November\or Desember\fi}
+\renewcommand{\today}{\number\day~\bulanID~\number\year}
+\newcommand{\todayMonthYear}{\bulanID~\number\year}
 \usepackage{geometry} % for page margins
 \usepackage{algorithm} % for algorithms
 \usepackage{algorithmicx} % for algorithmic environment
@@ -100,7 +104,9 @@
 \usepackage{array} % for better arrays (eg. in tabular environment)
 \usepackage{threeparttable} % for tables with notes
 \usepackage{tabularx} % for tables with adjustable-width columns
-\usepackage{xcolor} % for color definitions
+\usepackage{multirow} % for multi-row cells in tables
+\usepackage[table]{xcolor} % for color definitions (table option for \cellcolor)
+\usepackage{colortbl} % \cellcolor in tabular cells
 \usepackage[title,titletoc]{appendix} % for appendix management
 \usepackage{csquotes} % for context-sensitive quotation facilities
 \usepackage[hidelinks]{hyperref} % for hyperlinks
@@ -195,24 +201,6 @@
 \setlength{\cftsubsecnumwidth}{2.8em}
 \setlength{\cftsubsubsecindent}{7.0em}
 \setlength{\cftsubsubsecnumwidth}{3.2em}
-
-% --- Ubah nama bulan ke Bahasa Indonesia ---
-\renewcommand*{\DTMbahasaimonthname}[1]{%
-  \ifcase#1 %
-    \or Januari%  % 1st month
-    \or Februari%  % 2nd month
-    \or Maret%  % 3rd month
-    \or April%  % 4th month
-    \or Mei%  % 5th month
-    \or Juni%  % 6th month
-    \or Juli%  % 7th month
-    \or Agustus%  % 8th month
-    \or September%  % 9th month
-    \or Oktober%  % 10th month
-    \or November%  % 11th month
-    \or Desember%  % 12th month
-  \fi
-}
 
 % --- Atur margin halaman untuk single-sided format (satu muka) ---
 \geometry{
@@ -343,12 +331,12 @@
 
 % ==========================================
 
-\input{1 Halaman Judul.tex}
-\input{2 Lembar Pengesahan.tex}
-\input{3 Pernyataan Orisinalitas.tex}
-\input{4 Pernyataan Penggunaan AI.tex}
-\input{5 Abstrak.tex}
-\input{6 Kata Pengantar.tex}
+\input{frontmatter/01_Halaman_Judul.tex}
+\input{frontmatter/02_Lembar_Pengesahan.tex}
+\input{frontmatter/03_Pernyataan_Orisinalitas.tex}
+\input{frontmatter/04_Pernyataan_Penggunaan_AI.tex}
+\input{frontmatter/05_Abstrak.tex}
+\input{frontmatter/06_Kata_Pengantar.tex}
 % ==========================================
 % --- Atur margin halaman untuk double-sided format (bolak-balik) ---
 % --- Comment baris di bawah ini jika ingin tetap menggunakan single-sided format ---
@@ -365,15 +353,15 @@
 % ==========================================
 
 
-\input{7 Daftar Isi.tex}
-%\input{7a Daftar Lampiran.tex} % Optional. Daftar lampiran sudah ada di dalam daftar isi.
-\input{8 Daftar Gambar.tex}
-\input{9 Daftar Tabel.tex}
-\input{10 Daftar Persamaan.tex}
-\input{11 Daftar Algoritma.tex}
-\input{12 Daftar Listing.tex}
-\input{13 Daftar Simbol.tex}
-\input{14 Daftar Singkatan.tex}
+\input{frontmatter/07_Daftar_Isi.tex}
+%\input{frontmatter/07a_Daftar_Lampiran.tex} % Optional. Daftar lampiran sudah ada di dalam daftar isi.
+\input{frontmatter/08_Daftar_Gambar.tex}
+\input{frontmatter/09_Daftar_Tabel.tex}
+\input{frontmatter/10_Daftar_Persamaan.tex}
+\input{frontmatter/11_Daftar_Algoritma.tex}
+\input{frontmatter/12_Daftar_Listing.tex}
+\input{frontmatter/13_Daftar_Simbol.tex}
+\input{frontmatter/14_Daftar_Singkatan.tex}
 
 
 % ==========================================
@@ -387,19 +375,19 @@
 \renewcommand{\cftchapleader}{\bfseries\cftdotfill{\cftchapdotsep}}
 % ==========================================
 
-\input{Bab I - Pendahuluan.tex}
+\input{chapters/Bab_1.tex}
 
-\input{Bab II - Studi.tex}
+\input{chapters/Bab_2.tex}
 
-\input{Bab III - Analisis.tex}
+\input{chapters/Bab_3.tex}
 
-\input{Bab IV - Perancangan.tex}
+\input{chapters/Bab_4.tex}
 
-\input{Bab V - Implementasi.tex}
+\input{chapters/Bab_5.tex}
 
-\input{Bab VI - Evaluasi.tex}
+\input{chapters/Bab_6.tex}
 
-\input{Bab VII - Penutup.tex}
+\input{chapters/Bab_7.tex}
 
 
 
@@ -419,8 +407,8 @@
   %\makeatletter 
   %\renewcommand{\thechapter}{\@Alph\c@chapter} 
   %\makeatother
-\input{Lampiran-A.tex}
-\input{Lampiran-B.tex}
+\input{appendices/Lampiran_A.tex}
+\input{appendices/Lampiran_B.tex}
 \end{appendices}
 \backmatter
 

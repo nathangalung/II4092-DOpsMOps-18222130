@@ -165,10 +165,20 @@ spec:
   serviceName: openbao
   # Single-node bootstrap; Raft quorum needs odd N — scale to 3 (or 5) for HA.
   replicas: 1
+  # Server-defaults made explicit so ArgoCD diff stays clean. The K8s
+  # StatefulSet controller writes these on create whenever the manifest omits
+  # them; without them in Git the parent platform-security Application
+  # reports OutOfSync forever on cosmetic null-vs-default drift. Values are
+  # the K8s 1.34 defaults (verified live 2026-05-23). When bumping K8s minor
+  # re-verify against the apps/v1 StatefulSetSpec server-defaults table.
   podManagementPolicy: Parallel
+  revisionHistoryLimit: 10
   updateStrategy:
     type: RollingUpdate
     rollingUpdate: { partition: 0 }
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
   selector:
     matchLabels:
       app: openbao
@@ -240,6 +250,13 @@ spec:
               port: 8200
             initialDelaySeconds: 10
             periodSeconds: 5
+            # timeoutSeconds: 5 — bumped 2026-05-20. Single-node k3s
+            # kine sqlite under IO pressure (PSI >50%) causes openbao
+            # `/v1/sys/health` to take >1s. Default 1s flapped Ready=False
+            # and dropped openbao-0 from headless Service endpoints →
+            # ESO ClusterSecretStore queries failed → cascade. 5s gives
+            # slack; failureThreshold=2 still catches real liveness loss.
+            timeoutSeconds: 5
             failureThreshold: 2
           livenessProbe:
             httpGet:

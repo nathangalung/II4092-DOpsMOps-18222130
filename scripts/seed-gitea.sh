@@ -60,10 +60,19 @@ if [[ ! -d "${PLATFORM_DIR}" ]]; then
   exit 2
 fi
 
-echo "==> seed-gitea: waiting for gitea-bootstrap Job to complete (timeout 900s)"
-# 900s, not 300s: cold-start chains image pull + gitea probes + DB init + bootstrap
-# script. Observed ~6m on a fresh cluster (#191 sandbox churn extends it further).
-kubectl -n "${NAMESPACE}" wait --for=condition=complete --timeout=900s "job/${BOOTSTRAP_JOB}"
+if kubectl -n "${NAMESPACE}" get "job/${BOOTSTRAP_JOB}" >/dev/null 2>&1; then
+  echo "==> seed-gitea: waiting for gitea-bootstrap Job to complete (timeout 900s)"
+  # 900s, not 300s: cold-start chains image pull + gitea probes + DB init + bootstrap
+  # script. Observed ~6m on a fresh cluster (#191 sandbox churn extends it further).
+  kubectl -n "${NAMESPACE}" wait --for=condition=complete --timeout=900s "job/${BOOTSTRAP_JOB}"
+else
+  # Post-bootstrap re-runs (operator pushing an ongoing source change): the
+  # bootstrap Job has been GC'd long ago. We still need to push, so verify
+  # gitea itself is up and proceed.
+  echo "==> seed-gitea: bootstrap Job absent (post-bootstrap rerun); checking gitea Service"
+  kubectl -n "${NAMESPACE}" wait --for=condition=Available --timeout=120s "deployment/${SERVICE}" \
+    || { echo "ERROR: gitea Deployment not Available in ${NAMESPACE}" >&2; exit 2; }
+fi
 
 echo "==> seed-gitea: reading admin creds from secret/${ADMIN_SECRET}"
 ADMIN_USER=$(kubectl -n "${NAMESPACE}" get secret "${ADMIN_SECRET}" -o jsonpath='{.data.username}' | base64 -d)
@@ -132,12 +141,24 @@ for target in "${SEED_TARGETS[@]}"; do
     continue
   fi
 
-  echo "==> seed-gitea: verifying repo ${ORG}/${repo_name} exists"
-  if ! curl -fsS -u "${ADMIN_USER}:${ADMIN_PASS}" \
-          "http://localhost:${LOCAL_PORT}/api/v1/repos/${ORG}/${repo_name}" >/dev/null; then
-    echo "ERROR: repo ${ORG}/${repo_name} not found — gitea-bootstrap Job did not provision it" >&2
-    exit 2
-  fi
+  # ADR-013: platform's gitea-bootstrap creates only `platform/platform`.
+  # Per-use-case repos are provisioned here (operator-host scope is allowed
+  # to enumerate use-cases). Idempotent: 201 on create, 409 on already-exists.
+  echo "==> seed-gitea: ensuring repo ${ORG}/${repo_name}"
+  uc_code=$(curl -sS -o /tmp/seed-gitea-uc.json -w '%{http_code}' \
+    -u "${ADMIN_USER}:${ADMIN_PASS}" \
+    -H 'Content-Type: application/json' \
+    -X POST "http://localhost:${LOCAL_PORT}/api/v1/orgs/${ORG}/repos" \
+    -d "{\"name\":\"${repo_name}\",\"auto_init\":true,\"default_branch\":\"main\",\"private\":false,\"description\":\"Synced by ArgoCD (managed by seed-gitea.sh).\"}" || echo 000)
+  case "${uc_code}" in
+    201) echo "    repo ${ORG}/${repo_name} created (HTTP 201)" ;;
+    409|422) echo "    repo ${ORG}/${repo_name} already exists (HTTP ${uc_code})" ;;
+    *)
+      echo "ERROR: repo create for ${ORG}/${repo_name} returned ${uc_code}" >&2
+      cat /tmp/seed-gitea-uc.json >&2 || true
+      exit 2
+      ;;
+  esac
 
   workdir="${WORKDIR_ROOT}/${repo_name}"
   mkdir -p "${workdir}"

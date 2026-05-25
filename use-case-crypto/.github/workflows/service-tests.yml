@@ -1,5 +1,19 @@
 name: Service Tests
 
+# Use-case-crypto CI matrix.  Tests only the services that actually live
+# under use-case-crypto/services/ — domain-agnostic siblings (analyzer,
+# trainer, drift, vector, gateway, inference-engine, etc.) are owned and
+# tested by the platform repo (ADR-013).
+#
+# Buildable + testable services in use-case-crypto:
+#   - services/dashboard/ml-bridge       (Python, uv)
+#   - services/dashboard/backend         (Go)
+#   - services/dashboard/frontend        (TypeScript, bun)
+#   - services/websocket-collector       (Rust, depends on platform crate via path)
+#   - services/processing/stream-processor (Java, Mill)
+#   - services/retraining                (Python, app.py only — image build, no unit tests)
+#   - services/processing/batch          (dbt-style transformers overlay, no unit tests)
+
 on:
   push:
     branches: [main, develop]
@@ -10,21 +24,13 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Python Services Tests
   python-tests:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         service:
-          - services/automation/materialization
-          - services/automation/retraining
           - services/dashboard/ml-bridge
-          - services/processing/batch
-          - services/processing/vector
-          - services/quality/analyzer
-          - services/training/drift
-          - services/training/trainer
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +61,6 @@ jobs:
           flags: python-${{ matrix.service }}
           fail_ci_if_error: false
 
-  # Go Services Tests
   go-tests:
     runs-on: ubuntu-latest
     strategy:
@@ -63,7 +68,6 @@ jobs:
       matrix:
         service:
           - services/dashboard/backend
-          - services/ingestion/rest-collector
 
     steps:
       - uses: actions/checkout@v4
@@ -88,18 +92,18 @@ jobs:
           flags: go-${{ matrix.service }}
           fail_ci_if_error: false
 
-  # Rust Services Tests
+  # Rust use-case binary depends on the platform crate via a relative path
+  # (`../../../platform/services/ingestion/websocket-collector`).  CI must
+  # therefore check out both trees; in the mono-repo layout that's the
+  # default `actions/checkout` behaviour, in a split-repo future it would
+  # require an additional checkout step targeting the platform repo.
   rust-tests:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         service:
-          - services/ingestion/websocket-collector
-          - services/processing/stream/feature-engine
-          - services/quality/validator
-          - services/serving/feature-cache
-          - services/serving/gateway
+          - services/websocket-collector
 
     steps:
       - uses: actions/checkout@v4
@@ -127,7 +131,9 @@ jobs:
           flags: rust-${{ matrix.service }}
           fail_ci_if_error: false
 
-  # Java/Flink Tests (Mill build tool)
+  # Mill build; the flink test module is configured in build.mill even
+  # though no test classes ship yet (the stream-processor assembly is
+  # layered on top of platform's flink-job image, integration tests run there).
   java-tests:
     runs-on: ubuntu-latest
 
@@ -147,10 +153,9 @@ jobs:
           sudo mv mill /usr/local/bin/mill
 
       - name: Run tests
-        working-directory: services/processing/stream/flink-job
+        working-directory: services/processing/stream-processor
         run: mill flink.test
 
-  # TypeScript/React Frontend Tests
   frontend-tests:
     runs-on: ubuntu-latest
 
@@ -178,27 +183,6 @@ jobs:
           flags: frontend
           fail_ci_if_error: false
 
-  # C++ Inference Engine Tests
-  cpp-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libgrpc++-dev protobuf-compiler-grpc
-
-      - name: Build and test
-        working-directory: services/serving/inference-engine
-        run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
-          make -j$(nproc)
-          ctest --output-on-failure || true
-
-  # Summary job that depends on all tests
   test-summary:
     runs-on: ubuntu-latest
     needs:
@@ -208,24 +192,22 @@ jobs:
         rust-tests,
         java-tests,
         frontend-tests,
-        cpp-tests,
       ]
     if: always()
 
     steps:
       - name: Check test results
         run: |
-          echo "Python tests: ${{ needs.python-tests.result }}"
-          echo "Go tests: ${{ needs.go-tests.result }}"
-          echo "Rust tests: ${{ needs.rust-tests.result }}"
-          echo "Java tests: ${{ needs.java-tests.result }}"
+          echo "Python tests:   ${{ needs.python-tests.result }}"
+          echo "Go tests:       ${{ needs.go-tests.result }}"
+          echo "Rust tests:     ${{ needs.rust-tests.result }}"
+          echo "Java tests:     ${{ needs.java-tests.result }}"
           echo "Frontend tests: ${{ needs.frontend-tests.result }}"
-          echo "C++ tests: ${{ needs.cpp-tests.result }}"
 
-          if [ "${{ needs.python-tests.result }}" = "failure" ] || \
-             [ "${{ needs.go-tests.result }}" = "failure" ] || \
-             [ "${{ needs.rust-tests.result }}" = "failure" ] || \
-             [ "${{ needs.java-tests.result }}" = "failure" ] || \
+          if [ "${{ needs.python-tests.result }}"   = "failure" ] || \
+             [ "${{ needs.go-tests.result }}"       = "failure" ] || \
+             [ "${{ needs.rust-tests.result }}"     = "failure" ] || \
+             [ "${{ needs.java-tests.result }}"     = "failure" ] || \
              [ "${{ needs.frontend-tests.result }}" = "failure" ]; then
             echo "Some tests failed"
             exit 1

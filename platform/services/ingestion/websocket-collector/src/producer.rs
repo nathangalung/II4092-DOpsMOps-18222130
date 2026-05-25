@@ -19,14 +19,15 @@ pub struct KafkaProducer {
 
 impl KafkaProducer {
     pub fn new(config: &KafkaConfig) -> Result<Self> {
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", &config.brokers)
+        let mut cc = ClientConfig::new();
+        cc.set("bootstrap.servers", &config.brokers)
             .set("message.timeout.ms", "5000")
             .set("compression.type", "lz4")
             .set("linger.ms", "5")
             .set("batch.size", "65536")
-            .set("acks", "1")
-            .create()?;
+            .set("acks", "1");
+        config.apply_security(&mut cc);
+        let producer: FutureProducer = cc.create()?;
 
         Ok(Self {
             producer,
@@ -100,6 +101,7 @@ mod tests {
             topic: "test-topic".to_string(),
             batch_size: 500,
             flush_interval_ms: 100,
+            ..Default::default()
         };
 
         assert_eq!(config.brokers, "localhost:9092");

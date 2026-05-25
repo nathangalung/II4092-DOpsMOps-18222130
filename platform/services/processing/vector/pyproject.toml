@@ -12,6 +12,9 @@ dependencies = [
     "clickhouse-connect>=0.11.0",
     "pyyaml>=6.0.2",
     "prometheus-client>=0.24.0",
+    # Continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS env
+    # (set by platform pipeline-config ConfigMap; see main.py init block).
+    "pyroscope-io>=0.8.7",
 ]
 
 [[tool.uv.index]]

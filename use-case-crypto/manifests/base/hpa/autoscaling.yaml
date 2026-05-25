@@ -168,22 +168,22 @@ spec:
       app: feature-engine
 ---
 # ADR-023/025: targets the JobManager pod created by the Flink Operator
-# for the crypto-flink-job FlinkDeployment. Operator-managed pods carry
+# for the crypto-stream-processor FlinkDeployment. Operator-managed pods carry
 # `app: <deployment-name>` + `component: jobmanager|taskmanager`; selector
 # labels are NOT rewritten by kustomize namePrefix, so the app value is
 # the hard-coded FlinkDeployment name.  The PDB resource name picks up
-# the `crypto-` prefix in each overlay (→ crypto-flink-job-jobmanager-pdb).
+# the `crypto-` prefix in each overlay (→ crypto-stream-processor-jobmanager-pdb).
 # minAvailable: 1 keeps the single JM up during drains; TaskManagers are
 # replaceable and do not need PDB protection.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: flink-job-jobmanager-pdb
+  name: stream-processor-jobmanager-pdb
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: crypto-flink-job
+      app: crypto-stream-processor
       component: jobmanager
 ---
 apiVersion: policy/v1

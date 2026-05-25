@@ -46,7 +46,7 @@ spec:
       description: dbt selector (graph operator `+` runs downstream models)
     - name: karapace-url
       type: string
-      default: http://karapace-schema-registry.data-ingestion.svc.cluster.local:8081
+      default: http://karapace.data-ingestion.svc.cluster.local:8081
     - name: schema-subjects
       type: string
       default: "crypto.validated-value,crypto.features.v1-value"
@@ -186,7 +186,7 @@ spec:
       # pipeline (Dockerfile.dbt at repo root). Tag is overridden by the
       # PipelineRun caller; `latest` is acceptable for in-cluster development
       # but Kyverno policy (P2-11) will block it in non-dev clusters.
-      image: localhost:5000/crypto-dbt:latest
+      image: localhost:5000/crypto-dbt-project:latest
       # envFrom pulls every key from pipeline-config (CLICKHOUSE_HOST,
       # CLICKHOUSE_PORT, CLICKHOUSE_DB, DBT_SCHEMA, …) so adding new env
       # for dbt no longer requires editing this Tekton Task. Secrets stay

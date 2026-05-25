@@ -22,5 +22,11 @@ JOB=openbao-bootstrap
 
 if kubectl -n "$NS" get job "$JOB" >/dev/null 2>&1; then
   echo "    [pre-apply] deleting prior $NS/$JOB Job (immutable spec.template)"
+  # ArgoCD attaches `argocd.argoproj.io/hook-finalizer` on PostSync Jobs and
+  # only removes it via its own hook-GC. When kubectl bypasses ArgoCD to
+  # delete (this hook path), the finalizer is orphan and `delete --wait=true`
+  # hangs forever. Strip finalizers first so the delete can complete.
+  kubectl -n "$NS" patch job "$JOB" --type=merge \
+    -p '{"metadata":{"finalizers":null}}' >/dev/null 2>&1 || true
   kubectl -n "$NS" delete job "$JOB" --ignore-not-found --wait=true
 fi

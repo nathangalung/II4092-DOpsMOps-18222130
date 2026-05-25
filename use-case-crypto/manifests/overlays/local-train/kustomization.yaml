@@ -26,10 +26,7 @@ images:
     newTag: latest
   - name: drift-detector
     newName: localhost:5000/crypto-drift-detector
-    newTag: latest
-  - name: retraining
-    newName: localhost:5000/crypto-retraining
-    newTag: latest
+    newTag: v2026.05.22
   - name: materialization
     newName: localhost:5000/crypto-materialization
     newTag: latest

@@ -1,7 +1,132 @@
-% ==========================================
-% BAB V IMPLEMENTASI
-% ==========================================
+% Bab implementasi platform
+% Konfigurasi inti dan verifikasi
 \cleardoublepage
-\chapter{IMPLEMENTASI}
+\chapter{IMPLEMENTASI PLATFORM}
 \label{chap:implementasi}
-asdfasdf
+
+Bab ini membahas implementasi platform DataOps dan MLOps terintegrasi sesuai rancangan pada Bab~\ref{chap:perancangan}. Pembahasan dimulai dari lingkungan implementasi yang menjadi dasar penyebaran komponen, kemudian dilanjutkan dengan implementasi empat sub-sistem mengikuti urutan pemenuhan tujuan T-1 sampai T-4. Bab ini ditutup dengan verifikasi jalur eksekusi menggunakan satu \textit{use case} sebagai instans pengujian. Penjabaran detail biner dan konfigurasi disimpan pada repositori platform, sehingga bab ini menyajikan pokok-pokok implementasi yang penting untuk membangun pemahaman atas bentuk akhir dari rancangan.
+
+\section{Lingkungan Implementasi}
+\label{sec:lingkungan}
+
+Lingkungan implementasi platform dibangun pada satu \textit{cluster} Kubernetes \autocite{kubernetes2024} berbasis k3s yang berjalan pada satu \textit{node}. Pilihan ini memenuhi kebutuhan eksekusi pada lingkungan terbatas tanpa mengubah pola penyebaran yang dapat dipakai pada \textit{cluster} produksi dengan banyak \textit{node}. Distribusi k3s membawa \textit{control plane} ringan, \textit{containerd} sebagai \textit{runtime}, dan beberapa \textit{add-on} bawaan yang dapat dinonaktifkan agar tidak berbenturan dengan komponen pilihan platform.
+
+\subsection{Konfigurasi Dasar \textit{Cluster}}
+\label{subsec:cluster}
+
+\textit{Cluster} menjalankan komponen dasar berikut: Istio \autocite{istio2024} sebagai \textit{service mesh} dengan mTLS dalam mode \textit{strict} pada lalu lintas internal, APISIX \autocite{apisix2025} sebagai \textit{API gateway} pada perbatasan \textit{mesh}, kontrol akses jaringan menggunakan \textit{NetworkPolicy} pada level Kubernetes, dan Kyverno \autocite{kyverno2024} sebagai \textit{policy engine} pada lapis admisi. Falco \autocite{falco2025} memantau perilaku \textit{runtime} pada level \textit{kernel}, sedangkan Trivy Operator \autocite{trivy2025} memindai citra dan beban kerja secara berkala. \textit{Storage class} bawaan menggunakan \textit{local-path provisioner} untuk \textit{persistent volume} berbasis penyimpanan lokal, dengan Velero \autocite{velero2025} melakukan pencadangan terjadwal ke MinIO. Chaos Mesh \autocite{chaosmesh2025} disiapkan untuk uji ketahanan dengan eksperimen \textit{fault injection} yang terbatas pada \textit{namespace} tertentu. Konfigurasi sumber daya memberi prioritas pada satu replika \textit{idle} per beban kerja, sementara \textit{Horizontal Pod Autoscaler}, \textit{Vertical Pod Autoscaler} dalam mode rekomendasi, dan KEDA \textit{ScaledObject} disiapkan pada \textit{template} agar penskalaan dapat aktif ketika beban nyata datang.
+
+\subsection{Manajemen Rahasia dan Identitas}
+\label{subsec:rahasia-identitas}
+
+OpenBao \autocite{openbao2025} bertindak sebagai penyimpan rahasia. \textit{External Secrets Operator} bertugas menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin nilai rahasia ke dalam berkas \textit{manifest}. Identitas pengguna dikelola oleh dex \autocite{dex2025} sebagai \textit{identity provider} OIDC, dengan oauth2-proxy \autocite{oauth2proxy2025} sebagai \textit{reverse proxy} yang menegakkan otentikasi pada antarmuka aplikasi seperti DataHub, MLflow, Grafana, Argo CD, dan Kubeflow Pipelines. Kebijakan otorisasi pada \textit{cluster} dijalankan oleh Kyverno \autocite{kyverno2024} pada lapis admisi, dengan aturan yang mewajibkan \textit{resource limits}, melarang \textit{privileged container} di luar pengecualian eksplisit, dan memaksa kepatuhan label \textit{Pod Security Standards}.
+
+\subsection{Pola GitOps}
+\label{subsec:gitops}
+
+Argo CD \autocite{argocd2024} menjadi satu-satunya jalur perubahan pada \textit{cluster}. Repositori Git pada Gitea \autocite{gitea2025} bertindak sebagai sumber kebenaran konfigurasi. Setiap perubahan dilakukan melalui \textit{commit} pada repositori dan diterapkan ke \textit{cluster} oleh Argo CD melalui rekonsiliasi. Pola ini menjamin reproduksibilitas dan menghasilkan jejak audit untuk setiap perubahan. \textit{Pipeline} CI yang dijalankan oleh Tekton \autocite{tekton2024} membangun \textit{image} dan menjalankan pengujian sebelum \textit{commit} menjadi sumber penyebaran.
+
+\section{Implementasi Arsitektur Terintegrasi}
+\label{sec:impl-arsitektur}
+
+Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:arsitektur-terintegrasi}. Komponen disusun ke dalam \textit{namespace} per lapisan dan dihubungkan melalui kontrak \textit{API} yang stabil.
+
+\subsection{Lapisan Ingestasi}
+\label{subsec:impl-ingestasi}
+
+Apache Kafka \autocite{apachekafka2024} diterapkan menggunakan operator Strimzi. \textit{Kafka Connect} digunakan untuk integrasi dengan basis data eksternal melalui Debezium dan untuk \textit{sink} ke Apache Iceberg pada MinIO \autocite{minio2024} dengan katalog Lakekeeper \autocite{lakekeeper2025}. \textit{Karapace} berperan sebagai registri skema dengan dukungan Avro dan JSON Schema. Lalu lintas masuk dari konsumen di luar \textit{mesh} dilewatkan melalui \textit{API gateway} APISIX \autocite{apisix2025} dengan mTLS yang dijembatani pada perbatasan.
+
+\subsection{Lapisan Pemrosesan}
+\label{subsec:impl-pemrosesan}
+
+Pemrosesan \textit{stream} menggunakan operator Flink yang mengelola \textit{FlinkDeployment}. Pemrosesan \textit{batch} menggunakan operator Spark dan dijalankan sebagai \textit{SparkApplication}. Transformasi pada \textit{warehouse} menggunakan dbt yang dijalankan sebagai \textit{Job} pada Tekton. Airflow \autocite{airflow2024} menjalankan \textit{pipeline} data berorientasi \textit{batch} yang tidak masuk ke dalam jalur pelatihan.
+
+\subsection{Lapisan Penyimpanan}
+\label{subsec:impl-penyimpanan}
+
+\textit{Warehouse} kolumnar menggunakan ClickHouse \autocite{clickhouse2024} dengan operator ClickHouse pada satu \textit{shard}. \textit{Data lake} menggunakan MinIO sebagai \textit{object store} dan Apache Iceberg sebagai \textit{table format}, dengan Lakekeeper \autocite{lakekeeper2025} sebagai katalog Iceberg REST dan Trino \autocite{trino2024} sebagai \textit{query engine}. Penyimpanan \textit{online} menggunakan Valkey untuk \textit{cache}, sedangkan Redis Stack \autocite{redis2024} menjadi penyimpanan utama \textit{online store} fitur. Penyimpanan relasional menggunakan PostgreSQL melalui operator CNPG, dan MySQL melalui operator yang sesuai untuk komponen yang memerlukan \textit{engine} berbeda. Apache Superset \autocite{superset2025} disiapkan sebagai antarmuka BI untuk peran \textit{business user} dengan koneksi ke ClickHouse, Trino, dan MySQL melalui SQLAlchemy.
+
+\subsection{Lapisan Siklus Hidup Model dan Penyajian}
+\label{subsec:impl-model}
+
+MLflow \autocite{mlflow2024} dijalankan dengan basis data PostgreSQL dan \textit{artifact store} pada MinIO. Kubeflow Pipelines \autocite{kubeflow2024} dijalankan pada \textit{namespace} terpisah dengan dukungan multi-\textit{tenant}, dilengkapi Kubeflow Notebooks untuk lingkungan eksperimen interaktif dan Kubeflow Trainer untuk pelatihan terdistribusi. KServe \autocite{kserve2024} dipakai untuk \textit{inference} dengan dukungan \textit{runtime} MLflow, scikit-learn, dan ONNX, dan dengan Knative Serving \autocite{knative2025} sebagai bidang \textit{serverless} bawaan yang menyediakan penskalaan ke nol. Argo Workflows berperan sebagai \textit{orchestrator} \textit{job} di luar Kubeflow Pipelines, sedangkan Argo Rollouts \autocite{argorollouts2025} mengelola promosi versi model dengan strategi \textit{canary} dan \textit{progressive analysis} berbasis metrik Prometheus.
+
+\subsection{Lapisan Observabilitas}
+\label{subsec:impl-observability}
+
+Prometheus \autocite{prometheus2024} mengumpulkan metrik dari semua komponen dengan \textit{ServiceMonitor} dan \textit{PodMonitor}. Loki \autocite{loki2024} mengumpulkan log melalui Alloy. Grafana Tempo \autocite{tempo2024} menerima \textit{trace} dari OpenTelemetry Collector yang tersebar pada \textit{node}. Grafana \autocite{grafana2024} menggabungkan ketiganya pada satu antarmuka. Sloth \autocite{sloth2025} menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus sehingga \textit{error budget} dapat dipantau bersama metrik lain. Pushgateway berperan sebagai titik kumpul metrik untuk \textit{job} berdurasi pendek yang berjalan di luar siklus \textit{scrape}. OpenCost dipakai untuk pemantauan biaya per beban kerja, sedangkan Pyroscope mengumpulkan profil \textit{CPU} dan memori secara berkelanjutan.
+
+\section{Implementasi Sub-sistem Tata Kelola Data}
+\label{sec:impl-tata-kelola}
+
+Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:tata-kelola}.
+
+\subsection{Katalog Metadata dan \textit{Lineage}}
+\label{subsec:impl-katalog}
+
+DataHub \autocite{datahub2024} dijalankan dengan komponen GMS, \textit{frontend}, dan beberapa pekerjaan \textit{ingest}, dengan OpenSearch sebagai \textit{search backend} dan PostgreSQL sebagai \textit{metadata backend}. \textit{Job ingest} berjalan secara berkala sebagai \textit{CronJob} untuk menarik metadata dari Kafka, ClickHouse, MinIO dan Iceberg, Feast, MLflow, dan Kubeflow Pipelines. Hasil \textit{ingest} menyatukan \textit{lineage} antar lapisan, mulai dari \textit{topic} pada Kafka hingga model yang dilayani oleh KServe. OpenLineage \autocite{openlineage2025} dipakai sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}, baik Airflow maupun Kubeflow Pipelines, agar grafik ketertelusuran di DataHub tersusun dengan kosa kata yang seragam.
+
+\subsection{Kontrak Data dan Kualitas}
+\label{subsec:impl-kualitas}
+
+Great Expectations \autocite{greatexpectations2024} mendefinisikan ekspektasi kualitas data pada lapisan \textit{bronze} setelah ingestasi dan pada lapisan \textit{silver} dan \textit{gold} setelah transformasi. Setiap \textit{expectation suite} disimpan pada repositori Git dan dijalankan oleh \textit{CronJob} yang membaca hasil ke DataHub. Pengujian yang gagal akan menutup jalur \textit{promotion} ke lapisan berikutnya dan memunculkan peringatan pada Grafana.
+
+\subsection{Kontrol Akses}
+\label{subsec:impl-akses}
+
+Kontrol akses pada lapis jaringan menggunakan \textit{NetworkPolicy} dengan kebijakan \textit{default-deny} per \textit{namespace} dan pengecualian yang dideklarasikan secara eksplisit. Kontrol akses pada lapis aplikasi menggunakan dex \autocite{dex2025} sebagai \textit{identity provider} OIDC dan oauth2-proxy \autocite{oauth2proxy2025} sebagai \textit{reverse proxy} yang menegakkan otentikasi pada antarmuka aplikasi. Kyverno \autocite{kyverno2024} menerapkan kebijakan pada lapis admisi, antara lain wajibnya \textit{resource limits}, larangan \textit{privileged container} di luar pengecualian eksplisit, kepatuhan label, dan penegakan label \textit{Pod Security Standards}. Falco \autocite{falco2025} memantau peristiwa \textit{runtime} pada level \textit{kernel} untuk mendeteksi pelanggaran kebijakan keamanan setelah \textit{pod} berjalan.
+
+\section{Implementasi Sub-sistem Deteksi \textit{Drift} dan \textit{Continuous Training}}
+\label{sec:impl-drift}
+
+Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:drift-ct}.
+
+\subsection{Detektor \textit{Drift}}
+\label{subsec:impl-detektor}
+
+Detektor \textit{drift} diimplementasikan sebagai \textit{service} Python yang membaca fitur dari ClickHouse dengan jendela waktu yang dapat dikonfigurasi. Indikator PSI dihitung dengan \textit{binning} adaptif, dan uji Kolmogorov-Smirnov dijalankan dengan ambang yang dapat disesuaikan per fitur \autocite{reis2016kdd, bayram2022concept, lu2019learning}. Hasil pengukuran ditulis ke ClickHouse sebagai tabel \texttt{drift\_multi\_scale} dan dipublikasikan ke Pushgateway agar dapat diserap oleh Prometheus. Evidently \autocite{evidently2025} dijalankan sebagai pelapor pelengkap yang menghasilkan ringkasan distribusi fitur dan kinerja model dalam bentuk \textit{report} \textit{HTML} yang dapat diaudit dan dilampirkan pada katalog DataHub.
+
+\subsection{\textit{Control Loop} Pelatihan Ulang}
+\label{subsec:impl-control-loop}
+
+\textit{Control loop} dijalankan oleh Argo CronWorkflow dengan jadwal yang dapat dikonfigurasi per model. \textit{Workflow} menjalankan dua langkah utama: pengukuran \textit{drift} dan pemicu \textit{pipeline} pelatihan. Pemicu pelatihan mengirim permintaan ke Kubeflow Pipelines dengan parameter versi data dan versi model dasar. \textit{Pipeline} pelatihan menarik fitur dari Feast dengan \texttt{get\_historical\_features}, menjalankan pelatihan pada \textit{job} dengan sumber daya yang dialokasikan oleh Kueue \autocite{kueue2024}, menulis metrik ke MLflow, dan mendaftarkan model baru ke registri MLflow. Validasi model dijalankan sebelum penyebaran dengan membandingkan metrik kandidat terhadap model produksi pada \textit{holdout set}. Jika lulus validasi, Argo Rollouts \autocite{argorollouts2025} memperbarui \textit{InferenceService} KServe dengan model baru memakai strategi \textit{canary} dan analisis metrik Prometheus, sehingga pengembalian otomatis dapat dilakukan ketika kinerja menurun.
+
+\subsection{Penanganan Kasus Khusus}
+\label{subsec:impl-kasus-khusus}
+
+Tiga kasus khusus ditangani pada implementasi. Pertama, jendela tunggu label diatur per model agar pelatihan ulang tidak dipicu sebelum label tersedia cukup. Kedua, ambang \textit{drift} dihitung dengan jendela bergulir untuk meredam fluktuasi singkat. Ketiga, ketika validasi gagal, KServe menahan versi lama dan \textit{workflow} mencatat kejadian ke MLflow sebagai \textit{run} yang gagal divalidasi.
+
+\section{Implementasi Sub-sistem Layanan Fitur \textit{Dual-Store}}
+\label{sec:impl-feast}
+
+Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:feature-store-dual}.
+
+\subsection{Konfigurasi Feast}
+\label{subsec:impl-feast-config}
+
+Feast \autocite{feast2024} dikonfigurasi dengan \texttt{feature\_store.yaml} yang menentukan \textit{provider} Kubernetes, \textit{offline store} ClickHouse, \textit{online store} Redis Stack, dan registri pada MinIO. Definisi fitur ditulis dalam Python pada modul \texttt{feature\_definitions.py} dan didaftarkan ke registri melalui \texttt{feast apply}. Materialisasi fitur ke \textit{online store} dijalankan oleh \textit{job} berkala yang membaca dari ClickHouse dengan rentang waktu yang sesuai. \textcite{jain2025integrating} memperlihatkan pentingnya integrasi DataOps pada saat materialisasi seperti ini agar konsistensi antar lapisan tidak bergeser.
+
+\subsection{Dukungan \textit{Vector Embeddings}}
+\label{subsec:impl-vektor}
+
+\textit{Vector embedding} disimpan sebagai fitur dengan tipe \texttt{Array(Float32)} pada ClickHouse dan sebagai \textit{vector field} pada Redis Stack. Pengindeksan HNSW diaktifkan pada Redis Search melalui \texttt{FT.CREATE} dengan parameter \texttt{M}, \texttt{EF\_CONSTRUCTION}, dan \texttt{EF\_RUNTIME} yang dapat dikonfigurasi. \textit{Service} \textit{vector-embedding} membungkus model penghasil \textit{embedding} dan menyajikan \textit{API} yang dipanggil oleh \textit{stream processor} pada saat \textit{event} masuk \autocite{malkov2020efficient, devlin2019bert, openai2022embedding}.
+
+\subsection{Materialisasi dan \textit{Point-in-Time Correctness}}
+\label{subsec:impl-pit}
+
+\texttt{get\_historical\_features} dijalankan pada \textit{pipeline} pelatihan dengan kolom \texttt{event\_timestamp} pada \textit{entity dataframe}. Feast melakukan \textit{point-in-time join} pada ClickHouse menggunakan kueri dengan klausa \texttt{ASOF JOIN}, sehingga nilai fitur yang dipakai pada saat pelatihan identik dengan nilai yang tersedia pada saat itu \autocite{vela2022temporal, wang2021leakage}. Materialisasi ke \textit{online store} berjalan secara berkala dengan \texttt{feast materialize-incremental}, dan \textit{stream materializer} pada Flink menulis fitur \textit{real-time} ke Redis Stack secara bersamaan dengan penulisan ke ClickHouse.
+
+\section{Verifikasi Implementasi}
+\label{sec:verifikasi}
+
+Verifikasi jalur eksekusi dilakukan dengan satu \textit{use case} pada domain pasar aset kripto sebagai instans pengujian. Pemilihan ini tidak mengubah sifat domain-agnostik dari platform, karena seluruh kode dan konfigurasi platform tetap berada pada repositori platform, sedangkan kode dan konfigurasi spesifik domain tinggal pada direktori \texttt{use-case-crypto/} yang terpisah dari platform. Direktori \texttt{use-case-crypto/services/} memuat tiga kelompok layanan: \texttt{websocket-collector/} sebagai produsen \textit{event} pasar, \texttt{processing/} dengan subdirektori \texttt{batch/}, \texttt{feature-store/}, dan \texttt{stream-processor/} sebagai pengolah dan penyaji fitur, serta \texttt{dashboard/} dengan subdirektori \texttt{backend/}, \texttt{frontend/}, dan \texttt{ml-bridge/} sebagai antarmuka pengguna dan jembatan \textit{inference}. \textit{Manifest} Kubernetes domain disimpan pada \texttt{use-case-crypto/manifests/} dengan pola \textit{base+overlays} \textit{Kustomize}.
+
+\subsection{Lingkup Verifikasi}
+\label{subsec:lingkup-verifikasi}
+
+Verifikasi mencakup lima jalur. Pertama, jalur ingestasi diuji dengan \textit{stream} dari sumber eksternal yang masuk ke Kafka melalui layanan \texttt{websocket-collector} pada \textit{use case}. Kedua, jalur pemrosesan diuji dengan \texttt{stream-processor} berbasis Flink yang menulis fitur agregasi ke ClickHouse dan Redis Stack. Ketiga, jalur pelatihan diuji dengan \textit{pipeline} Kubeflow yang membaca fitur dari Feast dan menulis model ke MLflow. Keempat, jalur penyajian diuji dengan \textit{InferenceService} KServe yang memuat model dari MLflow, dengan promosi versi yang dikelola oleh Argo Rollouts. Kelima, jalur pelatihan ulang diuji dengan menjalankan \textit{drift-detector} dan memicu \textit{retrain-on-drift} \textit{workflow}. Uji ketahanan pendek menggunakan Chaos Mesh \autocite{chaosmesh2025} untuk menyuntikkan \textit{fault} pada \textit{pod} terpilih, dan pencadangan dijalankan terjadwal oleh Velero \autocite{velero2025} ke MinIO sebagai langkah disiplin pemulihan.
+
+\subsection{Pengamatan Hasil Awal}
+\label{subsec:pengamatan-awal}
+
+Hasil pengamatan awal memperlihatkan bahwa kelima jalur berjalan sesuai rancangan. \textit{End-to-end} jalur dari ingestasi sampai \textit{inference} berhasil melayani permintaan, \textit{point-in-time join} berhasil dijalankan pada pelatihan, dan \textit{control loop} pelatihan ulang berhasil dipicu setelah \textit{drift} buatan disuntikkan pada salah satu fitur. Penilaian kuantitatif terhadap latensi penyajian, \textit{throughput} pemrosesan, dan tingkat ketepatan deteksi \textit{drift} dilakukan pada tahap selanjutnya dan akan dilaporkan pada laporan akhir setelah seluruh tahap pengujian beban selesai.

@@ -4,7 +4,7 @@
 # in platform-registry before the feast CronJob's initContainer tries to
 # pull it.
 # =============================================================================
-# Background (full rationale in image-build/build-resources.yaml header):
+# Background (full rationale in build-resources.yaml header):
 #   `acryldata/datahub-ingestion:v1.5.0.3` ships the DataHub feast SOURCE
 #   plugin but not the `feast` python package itself. We sidecar-overlay
 #   the missing deps via PYTHONPATH; the deps are baked into a tiny image
@@ -17,8 +17,8 @@
 #      namespace; common/registry).
 #   3. Skip-if-present: query /v2/datahub-feast-deps/tags/list. If 1.5.0.1
 #      is already there (re-apply without nuke), exit clean.
-#   4. Otherwise: drop any stale build Job, render + apply image-build/
-#      via kustomize, wait up to 900s for the kaniko Job to complete.
+#   4. Otherwise: drop any stale build Job, apply build-resources.yaml
+#      directly, wait up to 900s for the kaniko Job to complete.
 # =============================================================================
 set -euo pipefail
 
@@ -63,8 +63,10 @@ kubectl -n "${NS}" wait --for=delete "job/${JOB_NAME}" --timeout=60s 2>/dev/null
 # Apply the build bundle. server-side+force-conflicts matches what
 # apply-component.sh uses for the main render, so SSA field ownership
 # stays consistent if this same component later updates the bundle.
-kustomize build "${DIR}/image-build" \
-  | kubectl apply --server-side --force-conflicts -f -
+# Direct -f apply (no kustomize layer): single file, no transforms needed,
+# and parent kustomization.yaml intentionally excludes this bundle to keep
+# `kubectl apply -k ../` from blowing up on partial-namespace state.
+kubectl apply --server-side --force-conflicts -f "${DIR}/build-resources.yaml"
 
 # Wait for build by polling the registry for the published tag, NOT by
 # `kubectl wait --for=condition=complete job/...`. Field-observed in this

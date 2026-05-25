@@ -22,8 +22,6 @@ resources:
   - kubeflow-pipelines
   - kubeflow-trainer
   - mlflow
-  - kubeflow-metadata/hpa.yaml
-  - kubeflow-pipeline-api/hpa.yaml
   # ExternalName alias `minio-service.kubeflow` — required by KFP v2
   # launcher's hardcoded minio:// URL scheme.  Lives in namespace `kubeflow`.
   - minio-service-kubeflow.yaml

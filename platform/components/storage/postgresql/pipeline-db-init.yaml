@@ -1,0 +1,220 @@
+# =============================================================================
+# pipeline DB schema bootstrap — domain-agnostic CDC source
+# =============================================================================
+# CNPG's postInitApplicationSQL only runs on cluster initdb (first boot).
+# Existing clusters that bootstrapped before `CREATE DATABASE pipeline` landed
+# in cluster.yaml need a second hook to create the DB + schema.  This Job
+# closes that gap and is also harmless on a fresh cluster (idempotent guards
+# everywhere).
+#
+# Responsibilities:
+#   1. Idempotently create the `pipeline` database (CREATE...IF NOT EXISTS via
+#      `\gexec` because CREATE DATABASE has no IF NOT EXISTS in PG).
+#   2. Apply platform/services/base/database/init_postgres.sql against it
+#      (CREATE SCHEMA / CREATE TABLE / CREATE INDEX / DO are all IF NOT
+#      EXISTS or NOT EXISTS-guarded).
+#
+# Use-cases extend the schema via their own idempotent Job in
+# `use-case-<name>/manifests/base/database/`.  The platform Job stays
+# domain-agnostic (matches the strict platform/ purity invariant).
+#
+# Auth: connects as the CNPG-owned `platform` superuser-equivalent role
+# (postgresql-app Secret).  ALTER ROLE platform WITH CREATEDB was granted in
+# cluster.yaml postInitApplicationSQL, so the bootstrap CREATE DATABASE call
+# succeeds without invoking the disabled `postgres` superuser.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-db-init-sql
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: pipeline-db-init
+data:
+  # init_postgres.sql is the single source of truth (platform/services/base/
+  # database/init_postgres.sql); kustomize replaces this body with the file
+  # contents via configMapGenerator.behavior=replace if needed.  Keeping the
+  # inline copy makes the Job apply standalone (no kustomize required for
+  # direct kubectl apply during partial-nuke recovery).
+  init_postgres.sql: |
+    CREATE SCHEMA IF NOT EXISTS pipeline;
+
+    CREATE TABLE IF NOT EXISTS pipeline.runs (
+        id SERIAL PRIMARY KEY,
+        run_type VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'running',
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMPTZ,
+        records_processed BIGINT DEFAULT 0,
+        error_message TEXT,
+        metadata JSONB DEFAULT '{}'
+    );
+    CREATE INDEX IF NOT EXISTS idx_runs_type_status ON pipeline.runs(run_type, status);
+    CREATE INDEX IF NOT EXISTS idx_runs_started ON pipeline.runs(started_at DESC);
+
+    CREATE TABLE IF NOT EXISTS pipeline.quality_checks (
+        id SERIAL PRIMARY KEY,
+        run_id INTEGER REFERENCES pipeline.runs(id),
+        check_name VARCHAR(100) NOT NULL,
+        table_name VARCHAR(100) NOT NULL,
+        layer VARCHAR(10) DEFAULT 'bronze',
+        passed BOOLEAN NOT NULL,
+        metric_value DOUBLE PRECISION,
+        threshold DOUBLE PRECISION,
+        details JSONB DEFAULT '{}',
+        checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_quality_checks_run ON pipeline.quality_checks(run_id);
+    CREATE INDEX IF NOT EXISTS idx_quality_checks_table ON pipeline.quality_checks(table_name, checked_at DESC);
+
+    CREATE TABLE IF NOT EXISTS pipeline.predictions (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        predicted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        target_timestamp TIMESTAMPTZ NOT NULL,
+        predicted_price DOUBLE PRECISION,
+        predicted_direction VARCHAR(10),
+        confidence DOUBLE PRECISION,
+        model_version VARCHAR(50),
+        actual_price DOUBLE PRECISION,
+        feedback VARCHAR(20)
+    );
+    CREATE INDEX IF NOT EXISTS idx_predictions_symbol_time ON pipeline.predictions(symbol, predicted_at DESC);
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'pipeline_pub') THEN
+            EXECUTE 'CREATE PUBLICATION pipeline_pub FOR TABLES IN SCHEMA pipeline';
+        END IF;
+    END
+    $$;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-db-init
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: pipeline-db-init
+  annotations:
+    # Re-run on every ConfigMap change (kustomize hashes ConfigMap name when
+    # configMapGenerator is used; manual edits to the inline SQL above also
+    # cycle the Job via Argo's "self-healing on spec drift" behaviour with the
+    # ttlSecondsAfterFinished cleanup below).
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: mlops-platform
+        app.kubernetes.io/component: pipeline-db-init
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 26          # CNPG image uses uid 26 (postgres)
+        runAsGroup: 26
+        fsGroup: 26
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-postgres
+          image: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+          env:
+            - name: PGHOST
+              value: postgresql-rw.storage.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: postgresql-app, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgresql-app, key: password } }
+            - name: PGDATABASE
+              value: platform
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "Waiting for CNPG primary -rw to accept connections..."
+              for i in $(seq 1 60); do
+                if psql -At -c 'SELECT 1' >/dev/null 2>&1; then
+                  echo "Postgres up after ${i}s"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "ERROR: postgres -rw never became reachable" >&2
+              exit 1
+      containers:
+        - name: init
+          image: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          env:
+            - name: PGHOST
+              value: postgresql-rw.storage.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: postgresql-app, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgresql-app, key: password } }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              # CREATE DATABASE has no IF NOT EXISTS in PostgreSQL.  Standard
+              # idiom: SELECT against pg_database, then \gexec only when row is
+              # absent — safe on every re-run.  Database created without
+              # template1 contamination so it stays a clean pipeline DB.
+              echo "Ensuring database 'pipeline' exists..."
+              psql -d platform -At <<'SQL'
+              SELECT 'CREATE DATABASE pipeline OWNER ' || current_user
+              WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'pipeline')
+              \gexec
+              SQL
+
+              echo "Applying pipeline schema from /sql/init_postgres.sql..."
+              psql -d pipeline -v ON_ERROR_STOP=1 -f /sql/init_postgres.sql
+
+              echo "Verifying objects..."
+              psql -d pipeline -At -c "SELECT 'table:' || schemaname || '.' || tablename
+                                      FROM pg_tables WHERE schemaname = 'pipeline' ORDER BY 1"
+              psql -d pipeline -At -c "SELECT 'publication:' || pubname FROM pg_publication WHERE pubname='pipeline_pub'"
+              echo "pipeline DB bootstrap complete"
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: sql
+          configMap:
+            name: pipeline-db-init-sql
+            items:
+              - key: init_postgres.sql
+                path: init_postgres.sql
+        - name: tmp
+          emptyDir: {}

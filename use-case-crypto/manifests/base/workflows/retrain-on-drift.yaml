@@ -3,9 +3,12 @@
 # =============================================================================
 # ADR-017.  Closes the MLOps feedback loop:
 #
-#   every 6h  →  query gold.drift_metrics (last 6h window)
-#             →  if PSI or KS score exceeds threshold for any feature,
-#                trigger the KFP retraining_pipeline recurring run.
+#   every 6h  →  query gold.drift_multi_scale (last 6h window)
+#             →  if PSI or KS score exceeds threshold for any feature
+#                AND drift-detector flagged the row trigger_retrain=1
+#                (i.e. the scale is configured for retraining — minute
+#                scale stays out of the loop by config), trigger the KFP
+#                retraining_pipeline recurring run.
 #             →  emit a Prometheus exemplar via Pushgateway so the SRE
 #                dashboard records every trigger event.
 #
@@ -16,7 +19,8 @@
 # CronWorkflow lives under use-case-crypto/.
 #
 # Dependencies (platform-provided):
-#   - ClickHouse `clickhouse-platform.storage.svc` → `gold.drift_metrics` MergeTree.
+#   - ClickHouse `clickhouse-platform.storage.svc` → `gold.drift_multi_scale`
+#     ReplicatedMergeTree (producer: platform/services/quality/drift/main.py).
 #   - KFP API at `ml-pipeline.model-lifecycle.svc:8888`.
 #   - Pushgateway `pushgateway.observability.svc:9091`.
 #   - ExternalSecret `retrain-on-drift` provisions CLICKHOUSE_USER /
@@ -72,12 +76,14 @@ spec:
           value: "0.15"                       # KS  > 0.15 => distribution shift
         - name: lookback-hours
           value: "6"
-        - name: kfp-pipeline-id
-          # The retraining_pipeline ID; KFP exposes this via
-          # ml-pipeline:8888/apis/v2beta1/pipelines. Populate the literal here
-          # after `kfp pipeline list` on first bootstrap.
-          value: "retraining_pipeline"
-        - name: kfp-experiment
+        - name: kfp-pipeline-name
+          # display_name of the uploaded KFP Pipeline resource. The
+          # decide-and-trigger step resolves this to a UUID at runtime via
+          # the v2beta1 filter API — no static bootstrap UUID required.
+          # `pipelines/submit_recurring.py` uploads under this exact name.
+          value: "crypto-retraining_pipeline"
+        - name: kfp-experiment-name
+          # display_name of the KFP Experiment; also resolved at runtime.
           value: "crypto-retraining"
     templates:
       - name: main
@@ -108,7 +114,10 @@ spec:
             - name: feature-max
               valueFrom: { path: /tmp/feature-max.txt }
         container:
-          image: clickhouse/clickhouse-client:26.3.10.60
+          # clickhouse/clickhouse-client publishes only legacy 21.x tags on Docker Hub;
+          # the server image ships /usr/bin/clickhouse-client and tracks the same tag
+          # as the platform StatefulSet (platform/components/storage/clickhouse/installation.yaml).
+          image: clickhouse/clickhouse-server:26.3.10.60
           command: [sh, -ceu]
           envFrom:
             - secretRef: { name: retrain-on-drift }
@@ -117,11 +126,12 @@ spec:
               LOOKBACK="{{workflow.parameters.lookback-hours}}"
               QUERY="
                 SELECT
-                  max(psi) AS psi_max,
-                  max(ks)  AS ks_max,
-                  argMax(feature, psi + ks) AS feature_max
-                FROM gold.drift_metrics
+                  max(psi_value)     AS psi_max,
+                  max(ks_statistic)  AS ks_max,
+                  argMax(feature_name, psi_value + ks_statistic) AS feature_max
+                FROM gold.drift_multi_scale
                 WHERE timestamp >= now() - INTERVAL ${LOOKBACK} HOUR
+                  AND trigger_retrain = 1
               "
               RESULT=$(clickhouse-client \
                 --host clickhouse-platform.storage.svc.cluster.local \
@@ -146,10 +156,20 @@ spec:
             limits:   { cpu: 250m, memory: 256Mi }
           securityContext:
             allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem: true blocks writing /tmp/{psi,ks,feature}-max.txt
+            # outputs that the Argo wait container scrapes via outputs.parameters.path.
+            # Mount an emptyDir at /tmp so the step writes there without losing
+            # the read-only rootfs hardening on the rest of the container.
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
             capabilities: { drop: [ALL] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+        volumes:
+          - name: tmp
+            emptyDir: {}
 
       # Compare metrics to thresholds; if either is exceeded, POST to the
       # KFP API to kick off a recurring run. Always push a Prometheus metric
@@ -186,30 +206,85 @@ spec:
               export FEATURE="{{inputs.parameters.feature-max}}"
               export PSI_TH="{{workflow.parameters.drift-threshold-psi}}"
               export KS_TH="{{workflow.parameters.drift-threshold-ks}}"
-              export PIPELINE="{{workflow.parameters.kfp-pipeline-id}}"
-              export EXPERIMENT="{{workflow.parameters.kfp-experiment}}"
+              export PIPELINE_NAME="{{workflow.parameters.kfp-pipeline-name}}"
+              export EXPERIMENT_NAME="{{workflow.parameters.kfp-experiment-name}}"
 
               cat > /tmp/decide.py <<'PYEOF'
               # /// script
               # requires-python = ">=3.13,<3.14"
               # dependencies = ["requests==2.32.3"]
               # ///
-              import os, time
+              import json
+              import os
+              import time
+
               import requests
 
               psi = float(os.environ["PSI"])
               ks  = float(os.environ["KS"])
-              psi_th = float(os.environ["PSI_TH"])
-              ks_th  = float(os.environ["KS_TH"])
+              psi_th = float(os.environ["PSI_TH"])  # emitted as gauge for SRE cross-check
+              ks_th  = float(os.environ["KS_TH"])   # emitted as gauge for SRE cross-check
               feature = os.environ["FEATURE"]
-              pipeline = os.environ["PIPELINE"]
-              experiment = os.environ["EXPERIMENT"]
+              pipeline_name = os.environ["PIPELINE_NAME"]
+              experiment_name = os.environ["EXPERIMENT_NAME"]
+              kfp_api = os.environ["KFP_API"]
               triggered = 0
 
-              if psi > psi_th or ks > ks_th:
+
+              def _resolve(endpoint: str, name: str, id_key: str) -> str:
+                  """Resolve KFP resource UUID by display_name via filter API.
+
+                  Tolerates grpc-gateway camelCase vs snake_case JSON emission
+                  (e.g. `pipeline_id` vs `pipelineId`, `pipelines` vs
+                  unchanged) so the workflow does not silently KeyError if
+                  the KFP server flips serialization defaults.
+                  """
+                  flt = json.dumps({
+                      "predicates": [{
+                          "operation": "EQUALS",
+                          "key": "display_name",
+                          "stringValue": name,
+                      }],
+                  })
+                  resp = requests.get(
+                      f"{kfp_api}/apis/v2beta1/{endpoint}",
+                      params={"filter": flt},
+                      timeout=30,
+                  )
+                  resp.raise_for_status()
+                  body = resp.json()
+                  items = body.get(endpoint) or body.get(_camel(endpoint)) or []
+                  if not items:
+                      raise RuntimeError(
+                          f"KFP {endpoint} not found: {name!r}. "
+                          f"Run `uv run pipelines/submit_recurring.py` to register."
+                      )
+                  first = items[0]
+                  return first.get(id_key) or first[_camel(id_key)]
+
+
+              def _camel(snake: str) -> str:
+                  head, *tail = snake.split("_")
+                  return head + "".join(t.title() for t in tail)
+
+
+              # Producer gate is authoritative: the SQL `trigger_retrain = 1`
+              # filter only returns rows where main.py already decided the
+              # drift event warrants retraining (per-scale config + thresholds
+              # in pipeline-config). Workflow must NOT re-threshold — that
+              # would silently drop KS-only drift, since the producer uses
+              # `ks_pvalue < alpha` while we read max(ks_statistic) here.
+              # Sentinel "none" means the lookback window had zero qualifying
+              # rows (measure-drift defaults FEATURE to "none" when the
+              # ClickHouse result is empty).
+              if feature and feature != "none":
+                  pipeline_id = _resolve("pipelines", pipeline_name, "pipeline_id")
+                  experiment_id = _resolve(
+                      "experiments", experiment_name, "experiment_id"
+                  )
                   body = {
                       "display_name": f"crypto-retrain-{int(time.time())}",
-                      "pipeline_version_reference": {"pipeline_id": pipeline},
+                      "pipeline_version_reference": {"pipeline_id": pipeline_id},
                       "runtime_config": {
                           "parameters": {
                               "trigger_reason": {"string_value": f"drift({feature})"},
@@ -217,17 +292,24 @@ spec:
                               "ks_observed":    {"number_value": ks},
                           }
                       },
-                      "experiment_id": experiment,
+                      "experiment_id": experiment_id,
                   }
                   r = requests.post(
-                      f"{os.environ['KFP_API']}/apis/v2beta1/runs",
+                      f"{kfp_api}/apis/v2beta1/runs",
                       json=body, timeout=30,
                   )
                   r.raise_for_status()
-                  print(f"Triggered KFP run: {r.json().get('run_id')}")
+                  print(
+                      f"Triggered KFP run: {r.json().get('run_id')} "
+                      f"(pipeline_id={pipeline_id}, experiment_id={experiment_id})"
+                  )
                   triggered = 1
               else:
-                  print(f"Drift within tolerance (psi={psi}, ks={ks}); no retrain.")
+                  print(
+                      f"No producer-flagged drift in lookback window "
+                      f"(psi_max={psi}, ks_stat_max={ks}, feature={feature!r}); "
+                      f"no retrain."
+                  )
 
               # Push exemplar to Prometheus through Pushgateway so the SRE
               # dashboard gets a point for every probe (triggered or not).
@@ -236,6 +318,10 @@ spec:
                   f"crypto_retrain_on_drift_psi {psi}\n"
                   "# TYPE crypto_retrain_on_drift_ks gauge\n"
                   f"crypto_retrain_on_drift_ks {ks}\n"
+                  "# TYPE crypto_retrain_on_drift_psi_threshold gauge\n"
+                  f"crypto_retrain_on_drift_psi_threshold {psi_th}\n"
+                  "# TYPE crypto_retrain_on_drift_ks_threshold gauge\n"
+                  f"crypto_retrain_on_drift_ks_threshold {ks_th}\n"
                   "# TYPE crypto_retrain_on_drift_triggered gauge\n"
                   f"crypto_retrain_on_drift_triggered {triggered}\n"
               )

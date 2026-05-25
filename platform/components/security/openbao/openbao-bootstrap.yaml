@@ -446,6 +446,15 @@ spec:
                 --from-literal=BAO_APPROLE_SECRET="$KES_SECRET_ID" \
                 --dry-run=client -o yaml | kubectl apply -f -
 
+              # Strip stale Argo tracking-id inherited from a previous
+              # ExternalSecret-managed incarnation of this Secret. The
+              # parent platform-security Application reports OutOfSync as
+              # an "extra resource" when the tracking-id kind=ExternalSecret
+              # mismatches the live Secret kind. Trailing `-` is the
+              # `kubectl annotate` remove syntax; `|| true` keeps idempotent.
+              kubectl -n security annotate secret kes-openbao-auth \
+                argocd.argoproj.io/tracking-id- 2>/dev/null || true
+
               unset KES_ROLE_ID KES_SECRET_ID
 
               # Per-usecase bootstrap ServiceAccounts need to WRITE under
@@ -785,7 +794,7 @@ spec:
               # MLflow tracking server basic-auth credentials.  Not enabled
               # by default on the platform (the MLflow server is reached
               # through Istio AuthorizationPolicy instead), but consumed by
-              # the `services/overlays/generic/pipeline-secrets` ExternalSecret
+              # the `services/overlays/pipeline-secrets` ExternalSecret
               # and honoured when MLFLOW_AUTH_CONFIG_PATH is set on the server.
               ensure_kv secret/platform/mlflow/tracking \
                 username=admin \

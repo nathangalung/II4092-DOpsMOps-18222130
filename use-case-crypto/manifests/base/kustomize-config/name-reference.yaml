@@ -108,3 +108,26 @@ nameReference:
         kind: FlinkDeployment
       - path: spec/taskManager/podTemplate/spec/containers/envFrom/configMapRef/name
         kind: FlinkDeployment
+
+  # Argo Rollouts (argoproj.io/v1alpha1) is also opaque to kustomize. The
+  # canary's `spec.strategy.canary.steps[].analysis.templates[].templateName`
+  # references a sibling AnalysisTemplate by metadata.name; without this rule
+  # `namePrefix: crypto-` renames the AnalysisTemplate to
+  # `crypto-success-rate-p99` but leaves the Rollout's templateName pointing
+  # at `success-rate-p99`, and the Argo Rollouts controller fails with
+  # `InvalidSpec: AnalysisTemplate 'success-rate-p99' not found`.
+  #
+  # Same pattern as FlinkDeployment for the pod template's configMapRef.
+  # The pipeline-secrets envFrom is intentionally left out — it's an
+  # ExternalSecret `target.name` literal that must keep its raw name (mirrors
+  # the FlinkDeployment carve-out comment above).
+  - kind: AnalysisTemplate
+    fieldSpecs:
+      - path: spec/strategy/canary/steps/analysis/templates/templateName
+        kind: Rollout
+  - kind: ConfigMap
+    fieldSpecs:
+      - path: spec/template/spec/containers/envFrom/configMapRef/name
+        kind: Rollout
+      - path: spec/template/spec/initContainers/envFrom/configMapRef/name
+        kind: Rollout

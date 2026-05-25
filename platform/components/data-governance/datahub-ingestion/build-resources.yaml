@@ -1,0 +1,238 @@
+# =============================================================================
+# datahub-feast-deps image build (ADR-013 / task #201).
+# =============================================================================
+# Problem: `acryldata/datahub-ingestion:v1.5.0.3` (the upstream image used by
+# every datahub-ingest-* CronJob) ships the DataHub `feast` source plugin
+# (`datahub.ingestion.source.feast`) but NOT the `feast` python package itself
+# — i.e. the `[feast]` extra is documented but never installed in the public
+# image. Running `datahub ingest -c feast.yml` aborts with
+#   PipelineInitError: Did not find a registered class for feast
+# because `from feast import ...` raises ModuleNotFoundError.
+#
+# We can't `pip install feast` at runtime: the main container has
+# readOnlyRootFilesystem=true (Kyverno + PSA-restricted-audit), and the
+# upstream image's venv lives on the rootfs.
+#
+# Fix: build a tiny "deps-only" image once at component-apply time. It does
+# `uv pip install --target=/feast-deps "feast<1,>=0.34.0" dask[dataframe]<2024.7.0
+# flask-openid<2.0.0 numpy<2`, leaving a 395MB site-packages tree at
+# /feast-deps. The CronJob picks it up via an initContainer that cp -a's
+# /feast-deps onto a shared emptyDir, then the main `datahub-ingestion`
+# container imports those packages via PYTHONPATH=/shared.
+#
+# This image is built from `ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim`
+# specifically because docker.io blob storage (Cloudflare R2) is blocked from
+# this air-gapped cluster's egress, while ghcr.io is a separate CDN that
+# remains reachable. (Field-verified 2026-05-11 via kaniko probe Job:
+# FROM alpine:3.21 failed DNS lookup of r2.cloudflarestorage.com; FROM
+# ghcr.io/astral-sh/uv:... succeeded.)
+#
+# The destination — `registry.platform-registry.svc.cluster.local:5000` —
+# is the in-cluster CNCF Distribution v3 registry (platform/components/
+# common/registry). k3s containerd is bootstrap-configured via
+# /etc/rancher/k3s/registries.yaml to trust this hostname over plain HTTP,
+# so the CronJob's image pull just works without auth or TLS plumbing.
+#
+# Idempotency: pre-apply.sh checks the registry's /v2/<repo>/tags/list
+# endpoint BEFORE applying these resources. If the tag is present (e.g.
+# we're on a phase-full re-run that didn't `make nuke`), the build Job is
+# skipped entirely. After `make nuke` wipes the local-path-provisioner PVCs
+# (registry-data lives on `local-path` per ADR-031; hostPath dir is removed
+# by the SC reclaimPolicy=Delete), the tag is gone and the build re-runs
+# cleanly. ~5 min wall-clock per build.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datahub-feast-deps-build-context
+  namespace: data-governance
+  labels:
+    app.kubernetes.io/name: datahub-feast-deps
+    app.kubernetes.io/component: image-build
+    app.kubernetes.io/part-of: datahub-ingestion
+data:
+  # Project-style uv install (project mandate: no `uv pip`, no `uv run python`).
+  # Pinned constraints match acryl-datahub[feast]==1.5.0.1's extra definition
+  # at github.com/datahub-project/datahub/blob/v1.5.0.1/metadata-ingestion/setup.py.
+  # We let `uv sync` populate `.venv/lib/python3.10/site-packages` from a
+  # tiny in-image pyproject.toml, then cp -a that tree to `/feast-deps`. The
+  # CronJob's initContainer copies `/feast-deps` onto a shared emptyDir; the
+  # main `datahub-ingestion` container picks the packages up via PYTHONPATH=
+  # /shared so the upstream readOnlyRootFilesystem venv is unmodified.
+  Dockerfile: |
+    FROM ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim
+    WORKDIR /build
+    # UV_HTTP_TIMEOUT bumped from default 30s → 180s: this build runs inside a
+    # kaniko Job whose only network egress is via CoreDNS → host systemd-resolved
+    # → upstream. Field-observed (#211, 2026-05-12): transient EAI_AGAIN on
+    # pypi.org under cluster startup load failed the build deterministically
+    # within kaniko's 30s read window. 180s tolerates a 3-retry DNS backoff
+    # cycle while staying well below pre-apply.sh's 900s overall deadline.
+    # UV_CONCURRENT_DOWNLOADS=4 keeps parallel pulls modest so one slow mirror
+    # doesn't stall the entire resolve. UV_LINK_MODE=copy avoids hardlink errors
+    # across kaniko's overlay snapshots (cross-device link failure otherwise).
+    # UV_NO_PROGRESS keeps kaniko log noise down; UV_COMPILE_BYTECODE caches
+    # .pyc at install time so the CronJob doesn't pay first-import compile.
+    ENV UV_HTTP_TIMEOUT=180 \
+        UV_CONCURRENT_DOWNLOADS=4 \
+        UV_LINK_MODE=copy \
+        UV_NO_PROGRESS=1 \
+        UV_COMPILE_BYTECODE=1
+    COPY pyproject.toml .
+    RUN uv sync --no-dev
+    RUN mkdir -p /feast-deps && cp -a .venv/lib/python3.10/site-packages/. /feast-deps/
+  # Standalone pyproject.toml. `uv sync` reads this, resolves the deps, writes
+  # uv.lock at build time (no need to commit a lockfile for this throwaway
+  # build image), and installs into .venv/. Keeping the deps here instead of
+  # in the Dockerfile keeps the source of truth declarative (PEP 621) and
+  # lets a future dependency bump touch only this block.
+  pyproject.toml: |
+    [project]
+    name = "datahub-feast-deps"
+    version = "1.5.0.1"
+    description = "PYTHONPATH overlay for acryldata/datahub-ingestion[feast] runtime"
+    requires-python = "==3.10.*"
+    dependencies = [
+        # `[clickhouse]` extra pulls clickhouse-connect + the
+        # ClickhouseOfflineStore plugin registration. Without it,
+        # `type: clickhouse` in feature_store.yaml fails with
+        # `FeastOfflineStoreInvalidName: Offline Store Class 'clickhouse'
+        # should end with the string OfflineStore`. The Feast Deployment
+        # uses the same extra (see feast/deployment.yaml). Field-validated
+        # 2026-05-20 against the failing datahub-ingest-feast CronJob.
+        "feast[clickhouse]>=0.34.0,<1",
+        "dask[dataframe]<2024.7.0",
+        "flask-openid<2.0.0",
+        "numpy<2",
+    ]
+    [tool.uv]
+    package = false
+---
+# Kaniko build Job. Single-shot; pre-apply.sh deletes any prior Job (TTL or
+# failed-and-stuck) before applying so re-runs converge. backoffLimit:3 →
+# tolerates transient DNS / pypi-mirror hiccups during phase-full cluster
+# bring-up (CoreDNS + host resolved both warming concurrently). Deterministic
+# kaniko failures (syntax error, OOM, hard registry 4xx) still surface within
+# ~3 attempts × ~5min each ≈ 15 min, well under pre-apply.sh 900s deadline
+# per attempt budget. Pair with UV_HTTP_TIMEOUT=180 above for per-attempt
+# resilience and the pod-level dnsConfig below for resolver-attempt budget.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datahub-feast-deps-build
+  namespace: data-governance
+  labels:
+    app.kubernetes.io/name: datahub-feast-deps
+    app.kubernetes.io/component: image-build
+    app.kubernetes.io/part-of: datahub-ingestion
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 1800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datahub-feast-deps
+        app.kubernetes.io/component: image-build
+      annotations:
+        # Istio sidecar wraps every outbound in its own mTLS, which races
+        # with the kaniko init's iptables setup and produces hung pulls
+        # against ghcr.io. The kafka-connect build pattern hits the same
+        # issue (platform/components/data-ingestion/kafka-connect/deployment.yaml
+        # `buildPod` block). Opt out of mesh capture for build pods.
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: Never
+      # dnsPolicy ClusterFirst is default, kept explicit here so dnsConfig
+      # additions below are interpreted as ADDITIONS to /etc/resolv.conf, not
+      # replacements. options ndots:2/attempts:5/timeout:5 makes glibc's
+      # resolver retry up to 5x with 5s per try before raising EAI_AGAIN
+      # — the failure mode field-observed in #211 where pypi.org resolution
+      # gave up after one transient miss. ndots:2 keeps short-name lookups
+      # cheap (no search-domain expansion for names with one dot already).
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+          - { name: ndots,    value: "2" }
+          - { name: attempts, value: "5" }
+          - { name: timeout,  value: "5" }
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      # ConfigMap volumes mount each key as a relative symlink into a
+      # ..data/<ts>/<key> hidden directory; kaniko's COPY preserves source
+      # symlinks AS symlinks rather than following them, so the resulting
+      # image contains `/build/pyproject.toml -> ..data/pyproject.toml`
+      # whose target lives only in the (now-gone) build pod's volume.
+      # Subsequent `RUN uv sync --no-dev` resolves cwd, finds a dangling
+      # symlink, and aborts with "No pyproject.toml found in current
+      # directory or any parent directory" (field-observed 2026-05-14 in
+      # kaniko log: build succeeded through COPY, failed at first RUN).
+      # Fix: dereference the ConfigMap mount into a regular-file emptyDir
+      # before handing it to kaniko as build context.  `cp -L` follows the
+      # symlinks so /workspace/{Dockerfile,pyproject.toml} are plain files
+      # that kaniko's tar packer reads byte-for-byte into the image.
+      initContainers:
+        - name: prep-context
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - 'cp -L /cm/Dockerfile /cm/pyproject.toml /workspace/ && ls -la /workspace/'
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - { name: cm,        mountPath: /cm }
+            - { name: workspace, mountPath: /workspace }
+      containers:
+        - name: kaniko
+          # Quay's strimzi/kaniko-executor mirror — already cached on node
+          # from kafka-connect's KafkaConnect Build (Strimzi uses the same
+          # image internally). Saves an extra pull from gcr.io/kaniko-project.
+          image: quay.io/strimzi/kaniko-executor:0.51.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --context=dir:///workspace
+            - --dockerfile=/workspace/Dockerfile
+            - --destination=registry.platform-registry.svc.cluster.local:5000/datahub-feast-deps:1.5.0.1
+            # platform-registry serves plain HTTP (no TLS, no auth, cluster-
+            # internal only). Without these flags kaniko tries HTTPS first
+            # and fails on cert verify.
+            - --insecure
+            - --skip-tls-verify
+            - --verbosity=info
+            # Single-snapshot mode: take one filesystem diff at end-of-build
+            # instead of per-RUN. Cuts build time from ~3min to ~90s for a
+            # one-RUN Dockerfile (we have exactly one RUN: the uv install).
+            - --single-snapshot
+            # No layer cache: keeps the registry tidy (no <none>:<digest>
+            # accumulation across nuke cycles) and the build is short
+            # enough that caching isn't worth the cache-coherency risk.
+            - --cache=false
+          securityContext:
+            # Kaniko chowns /kaniko/Dockerfile during init — needs UID 0.
+            # PSA enforce=baseline on data-governance permits root; the
+            # audit/warn=restricted label produces warnings only (non-blocking).
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            # 4Gi memory headroom for 80-package uv resolve + push. Lower
+            # limits (2Gi) OOMed during the snapshot phase on the field probe.
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: "2",  memory: 4Gi }
+          volumeMounts:
+            - { name: workspace, mountPath: /workspace }
+      volumes:
+        - name: cm
+          configMap:
+            name: datahub-feast-deps-build-context
+        - name: workspace
+          emptyDir: {}

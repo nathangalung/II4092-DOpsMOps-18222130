@@ -7,3 +7,6 @@ resources:
   - helm-release.yaml
   - prometheus-rules.yaml
   - alertmanager-configs.yaml
+  - peerauthentication.yaml
+  # Advisory VPA — recommends rightsize on prometheus STS without restarts.
+  - vpa.yaml

@@ -1,37 +1,126 @@
-% ============================================================================================
-% BAB III ANALISIS MASALAH
-% Pembagian subbab tidak rigid dan dapat bervariasi. Bab ini minimal berisi analisis kebutuhan
-% fungsional dan nonfungsional, analisis berbagai alternatif solusi yang dapat ditawarkan, dan
-% metode pemilihan solusi yang diusulkan.
-% ============================================================================================
+% Bab analisis masalah
+% Kebutuhan fungsional dan nonfungsional
+% Alternatif solusi dan pemilihan
 \cleardoublepage
 \chapter{ANALISIS MASALAH}
 \label{chap:analisis-masalah}
-Bab ini membahas analisis masalah yang ada pada sistem saat ini, analisis kebutuhan yang diperlukan
-untuk menyelesaikan masalah tersebut, serta analisis pemilihan solusi yang diusulkan. Secara garis besar,
-bab ini membahas hal-hal berikut:
-\begin{enumerate}[1.]
-    \item Deskripsi hasil analisis dari persoalan yang sedang ditangani dalam TA;
-    \item Penjelasan tentang solusi yang ditawarkan (dapat berupa algoritma, konsep desain, formula, atau gabungannya) 
-    pada level konsep dan detail yang cukup untuk merealisasikan solusinya; dan
-    \item Penjelasan tentang pendekatan yang dipilih dalam menyelesaikan persoalan TA.
-\end{enumerate}
-Subbab-subbab dalam bab ini dapat disesuaikan dengan kebutuhan topik TA yang dibahas. Berikut adalah contoh pembagian subbab
-yang dapat digunakan sebagai referensi (judul subbab dapat diubah sesuai dengan hal yang hendak dibahas dalam subbab tersebut).
+
+Bab ini membahas analisis masalah pada kondisi pengembangan model \textit{machine learning} dengan dukungan data berskala produksi, kebutuhan fungsional dan nonfungsional bagi platform DataOps dan MLOps terintegrasi, serta proses pemilihan solusi yang paling sesuai dengan tujuan penelitian. Pembahasan disusun secara berurutan, mulai dari pemetaan kondisi saat ini, identifikasi masalah pengguna, formulasi kebutuhan, hingga evaluasi alternatif solusi pada \textit{control plane} Kubernetes.
 
 \section{Analisis Kondisi Saat Ini}
-Menurut \textcite{laudon2020}, gambarkan terlebih dahulu model konseptual sistem yang ada saat ini. Model konseptual ini berisi berbagai komponen atau subsitem dan interaksi antarsubsistem tersebut. Setelah itu, berikan penjelasan tentang masalah yang ada pada sistem tersebut. Paragraf berikut berisi contoh penjabaran masalah sistem informasi fasilitas kesehatan untuk pasien \autocite{pressman2019}. 
+\label{sec:kondisi-saat-ini}
+
+Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan empat peran utama, yaitu \textit{business user}, \textit{data engineer}, \textit{data scientist}, dan \textit{machine learning engineer}. \textcite{kreuzberger2023mlops} memperlihatkan bahwa peran tersebut sering bekerja pada \textit{tool} yang berbeda, sehingga muncul fragmentasi yang menghambat kolaborasi lintas tim. \textcite{paleyes2022challenges} menambahkan bahwa fragmentasi ini melahirkan integrasi yang lemah pada sambungan data dan model, dan pada akhirnya menurunkan kecepatan rilis serta kualitas keluaran.
+
+\subsection{Fragmentasi pada Peran \textit{Business User}}
+\label{subsec:kondisi-busus}
+
+Peran \textit{business user} biasanya berinteraksi dengan tumpukan visualisasi dan pelaporan yang terpisah dari sumber data analitik dan model. Gambar~\ref{fig:fragment-busus} memperlihatkan posisi peran ini pada arsitektur fragmentasi dengan akses utama melalui \textit{dashboard} dan laporan. Konsekuensinya, informasi tentang metrik \textit{drift}, kualitas data, dan kebijakan akses sering tidak tersaji dalam satu antarmuka, sehingga keputusan bisnis mengandalkan ringkasan berkala yang tidak selalu terhubung dengan kondisi sistem terkini.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Fragment_BusUs_Arch.png}
+    \caption{\raggedright Fragmentasi pada Peran \textit{Business User}}
+    \label{fig:fragment-busus}
+\end{figure}
+
+\subsection{Fragmentasi pada Peran \textit{Data Engineer}}
+\label{subsec:kondisi-dateng}
+
+\textit{Data engineer} bertanggung jawab atas ingestasi, pemrosesan, dan penyimpanan data. Gambar~\ref{fig:fragment-dateng} memperlihatkan luasnya cakupan tugas pada lapisan ingestasi, transformasi, dan tata kelola. \textcite{lamer2024data} menyoroti kompleksitas tata kelola data yang sering muncul ketika \textit{tool} ingestasi, kualitas, dan katalog tidak terintegrasi pada satu sumber kebenaran. Akibatnya, kebijakan kualitas dan \textit{lineage} antar lapisan data harus disinkronkan secara manual.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Fragment_DatEng_Arch.png}
+    \caption{\raggedright Fragmentasi pada Peran \textit{Data Engineer}}
+    \label{fig:fragment-dateng}
+\end{figure}
+
+\subsection{Fragmentasi pada Peran \textit{Data Scientist}}
+\label{subsec:kondisi-datsci}
+
+Peran \textit{data scientist} menghabiskan sebagian besar waktu pada eksperimen dan rekayasa fitur. Gambar~\ref{fig:fragment-datsci} memperlihatkan ketergantungan pada \textit{notebook}, \textit{experiment tracking}, dan \textit{feature engineering} yang sering berdiri sendiri. \textcite{anaconda2020state} dan \textcite{pimentel2019notebooks} memperlihatkan bahwa reproduksibilitas eksperimen terganggu apabila lingkungan eksekusi, versi data, dan versi kode tidak diatur dalam satu \textit{pipeline} yang sama, dan kondisi ini diperburuk oleh \textit{technical debt} yang khas pada sistem \textit{machine learning} sebagaimana dipetakan oleh \textcite{sculley2015hidden}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Fragment_DatSci_Arch.png}
+    \caption{\raggedright Fragmentasi pada Peran \textit{Data Scientist}}
+    \label{fig:fragment-datsci}
+\end{figure}
+
+\subsection{Fragmentasi pada Peran \textit{Machine Learning Engineer}}
+\label{subsec:kondisi-mleng}
+
+\textit{Machine learning engineer} bertugas membawa model dari fase eksperimen ke fase produksi. Gambar~\ref{fig:fragment-mleng} memperlihatkan kebutuhan pada \textit{model registry}, \textit{serving}, dan pemantauan model. \textcite{rella2022mlops} memperlihatkan dampak buruk yang muncul ketika siklus hidup model tidak terhubung dengan kontrol versi data dan fitur. Akibatnya, mekanisme \textit{rollback}, \textit{canary}, dan \textit{retraining} tidak konsisten antar tim.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/Fragment_MLEng_Arch.png}
+    \caption{\raggedright Fragmentasi pada Peran \textit{Machine Learning Engineer}}
+    \label{fig:fragment-mleng}
+\end{figure}
+
+\subsection{Pandangan Umum Kondisi Fragmentasi}
+\label{subsec:kondisi-umum}
+
+Gambar~\ref{fig:fragment-general} menggabungkan empat peran tersebut dalam satu pandangan menyeluruh. \textcite{najafabadi2024analysis} dan \textcite{burgueno2025toward} memperlihatkan bahwa fragmentasi tidak hanya muncul pada antarmuka tim, tetapi juga pada bidang kendali infrastruktur, kebijakan akses, dan observabilitas. Kondisi inilah yang menjadi titik tolak penelitian, karena empat masalah inti yang dirumuskan pada Bab~\ref{chap:pendahuluan} pada hakikatnya merupakan konsekuensi dari fragmentasi tersebut, yaitu fragmentasi \textit{tool}, ketidakkonsistenan tata kelola, kombinasi \textit{drift} dan \textit{temporal leakage}, serta keterbatasan dalam menyajikan fitur multimoda dari satu sumber kebenaran.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/Fragment_General_Arch.png}
+    \caption{\raggedright Pandangan Umum Fragmentasi DataOps dan MLOps}
+    \label{fig:fragment-general}
+\end{figure}
+
 \section{Analisis Kebutuhan}
-\lipsum[4]
+\label{sec:analisis-kebutuhan}
+
+Setelah pemetaan kondisi saat ini, kebutuhan platform dirumuskan dalam dua kategori: kebutuhan fungsional yang menggambarkan fitur yang harus dimiliki platform, dan kebutuhan nonfungsional yang menggambarkan kualitas atributif yang harus dipenuhi. Identifikasi kebutuhan menggunakan empat rumusan masalah dari Bab~\ref{chap:pendahuluan} sebagai titik berangkat.
+
 \subsection{Identifikasi Masalah Pengguna}
-\lipsum[5]
+\label{subsec:identifikasi-masalah}
+
+Identifikasi masalah pengguna dijabarkan dengan menelusuri empat rumusan masalah. Pertama, pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga fragmentasi \textit{tool} dapat dikurangi. Kedua, pengguna pada peran \textit{data engineer} dan \textit{data steward} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas. Ketiga, pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{wang2021leakage}. Keempat, pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, sebagaimana diperlihatkan oleh \textcite{devlin2019bert}, \textcite{openai2022embedding}, dan \textcite{malkov2020efficient}.
+
 \subsection{Kebutuhan Fungsional}
-\lipsum[6]
+\label{subsec:kf}
+
+Tabel~\ref{tab:kebutuhan_fungsional} menyajikan empat belas kebutuhan fungsional. Manajemen fitur terpusat, penyajian fitur ganda \textit{online}-\textit{offline}, jaminan validitas temporal, dan dukungan \textit{vector embedding} merangkum kebutuhan pada lapisan fitur. Otomatisasi \textit{pipeline} pelatihan, otomatisasi penerapan model, pelacakan eksperimen, dan registri model merangkum kebutuhan pada siklus hidup model. Pemantauan \textit{drift} otomatis, \textit{governance} dan penemuan, pemrosesan \textit{batch} dan \textit{stream}, konfigurasi deklaratif, API dan SDK terpadu, serta manajemen sumber daya merangkum kebutuhan pada lapisan operasional. Daftar ini dipetakan langsung pada empat rumusan masalah dan empat tujuan dari Bab~\ref{chap:pendahuluan}.
+
+\input{tables/kebutuhan_fungsional.tex}
+
 \subsection{Kebutuhan Nonfungsional}
-\lipsum[7]
+\label{subsec:knf}
+
+Tabel~\ref{tab:kebutuhan_nonfungsional} menyajikan dua belas kebutuhan nonfungsional yang berperan sebagai pembatas kualitas. Kinerja latensi rendah dan \textit{throughput} tinggi menyangkut performa penyajian fitur dan \textit{stream processing}. Skalabilitas horizontal, keandalan, dan toleransi kesalahan menyangkut kemampuan platform mengikuti pertumbuhan beban. Konsistensi dan kebenaran menjamin tidak ada kebocoran temporal. \textit{Observability} mengikat metrik, log, dan \textit{trace} pada satu antarmuka. Keamanan mengikat autentikasi, otorisasi, enkripsi, dan \textit{audit logging}. Ekstensibilitas dan modularitas memberi ruang bagi penggantian komponen tanpa mengganggu komponen lain. Kemudahan penggunaan, efisiensi sumber daya, portabilitas, dan kemudahan pemeliharaan menutup daftar dengan menyoroti aspek operasional jangka panjang. Target metrik untuk lapisan inferensi mengikuti panduan \textcite{bondi2000characteristics} terkait karakteristik skalabilitas dan pengaruhnya pada kinerja.
+
+\input{tables/kebutuhan_nonfungsional.tex}
 
 \section{Analisis Pemilihan Solusi}
+\label{sec:pemilihan-solusi}
+
+Bagian ini menyusun alternatif solusi yang dapat memenuhi kebutuhan fungsional dan nonfungsional, kemudian memilih solusi terbaik dengan menggunakan skor pemenuhan kebutuhan. Skor 0 berarti tidak terpenuhi, skor 1 berarti terpenuhi sebagian, dan skor 2 berarti terpenuhi penuh.
+
 \subsection{Alternatif Solusi}
-\lipsum[8]
+\label{subsec:alternatif-solusi}
+
+Empat alternatif solusi dipertimbangkan untuk membangun platform DataOps dan MLOps terintegrasi.
+
+\textbf{Alternatif A: Layanan Terkelola dari Penyedia \textit{Cloud}.} Pendekatan ini menggunakan rangkaian layanan terkelola pada satu penyedia, mencakup layanan ingestasi, \textit{warehouse}, \textit{feature store}, pelatihan, dan penyajian. Kelebihannya berupa kecepatan adopsi dan integrasi bawaan antar layanan, sebagaimana dibahas oleh \textcite{li2023managed}. Kekurangannya berupa keterikatan terhadap satu penyedia, biaya operasional pada beban tinggi, dan keterbatasan dalam menyesuaikan komponen pada level rendah.
+
+\textbf{Alternatif B: Tumpukan \textit{Open Source} pada Kubernetes.} Pendekatan ini merangkai komponen \textit{open source} di atas Kubernetes sebagai bidang orkestrasi. \textcite{lakka2025kubernetes} dan \textcite{burgueno2025toward} memperlihatkan rancangan serupa pada lingkungan \textit{multi-cloud} dan \textit{edge}. Kelebihannya berupa fleksibilitas, transparansi versi, portabilitas, dan kemampuan menegakkan pola GitOps. Kekurangannya berupa kebutuhan tata kelola yang lebih ketat dan kurva belajar yang lebih panjang dibandingkan layanan terkelola.
+
+\textbf{Alternatif C: Pengembangan Kustom dari Awal.} Pendekatan ini membangun setiap lapisan secara mandiri tanpa banyak menggunakan komponen yang sudah jadi. Kelebihannya berupa kontrol penuh atas perilaku setiap komponen. Kekurangannya berupa biaya pengembangan dan pemeliharaan yang sangat besar, ketergantungan pada tim yang sangat kompeten, dan risiko menciptakan ulang masalah yang sudah diselesaikan oleh pustaka \textit{open source} yang teruji.
+
+\textbf{Alternatif D: Hibrida antara Layanan Terkelola dan \textit{Open Source}.} Pendekatan ini menggunakan beberapa layanan terkelola, terutama pada lapisan dasar seperti penyimpanan dan jaringan, dipadukan dengan komponen \textit{open source} pada lapisan DataOps dan MLOps. Kelebihannya berupa keseimbangan antara kecepatan adopsi dan fleksibilitas. Kekurangannya berupa kompleksitas integrasi antara dua jenis komponen dan kebutuhan kontrak antar lapisan yang harus dirancang dengan saksama.
+
 \subsection{Analisis Penentuan Solusi}
-\lipsum[9]
+\label{subsec:penentuan-solusi}
+
+Tabel~\ref{tab:evaluasi_kf} menyajikan evaluasi pemenuhan kebutuhan fungsional dan Tabel~\ref{tab:evaluasi_knf} menyajikan evaluasi pemenuhan kebutuhan nonfungsional. Skor total ditampilkan pada baris terakhir Tabel~\ref{tab:evaluasi_knf}. Alternatif B memperoleh skor total tertinggi, yaitu 49 dari 52, diikuti oleh Alternatif A dan Alternatif D dengan skor 43, dan Alternatif C dengan skor 30.
+
+\input{tables/evaluasi_kf.tex}
+
+\input{tables/evaluasi_knf.tex}
+
+Alternatif B unggul terutama pada kebutuhan yang menyangkut jaminan validitas temporal, dukungan \textit{vector embeddings}, pemantauan \textit{drift} otomatis, ekstensibilitas, dan portabilitas. Alternatif A unggul pada kemudahan penggunaan dan kemudahan pemeliharaan, tetapi tertinggal pada konsistensi temporal, dukungan \textit{vector embeddings} pada \textit{feature store}, dan portabilitas. Alternatif C unggul pada kontrol penuh tetapi kalah pada hampir semua kebutuhan operasional. Alternatif D mendekati Alternatif A tetapi tertinggal pada portabilitas dan ekstensibilitas. Berdasarkan skor pemenuhan kebutuhan dan analisis komparatif yang sejalan dengan \textcite{burgueno2025toward}, \textcite{najafabadi2024analysis}, dan \textcite{lakka2025kubernetes}, Alternatif B dipilih sebagai solusi yang akan dirancang pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}.

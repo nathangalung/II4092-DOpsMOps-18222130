@@ -20,10 +20,12 @@
 #     on this classpath)
 #
 # Build order (handled atomically by `make usecase-crypto-build` from repo root):
-#   1. platform-build-services builds flink-job:latest (Mill + JDK 25 → fat JAR)
-#   2. use-case-crypto build-processing builds crypto-flink-job:latest from
-#      services/processing/flink-job/Dockerfile (FROM flink-job:latest, adds
-#      crypto extension JAR to /app/extensions/ classpath).
+#   1. platform-build-services builds flink-job:latest
+#      (Mill 1.1.5 + eclipse-temurin:21-jdk-alpine → fat JAR;
+#       Java 21 matches Flink 2.2's officially supported runtime line)
+#   2. use-case-crypto build-processing builds crypto-stream-processor:latest from
+#      services/processing/stream-processor/Dockerfile (FROM flink-job:latest, adds
+#      crypto extension JAR to /opt/flink/usrlib/ classpath).
 #
 # Operator reconciliation:
 #   The operator in flink-operator namespace watches cluster-wide
@@ -56,13 +58,23 @@ kind: Role
 metadata:
   name: flink
   namespace: use-case-crypto
+# Verbs required by Flink-native Kubernetes application-mode RM:
+#   - configmaps: HA lease persistence + JM<->TM config exchange
+#   - pods: full CRUD because the JM directly drives TM pod lifecycle (no
+#     Deployment controller in between — it's an "ActiveResourceManager")
+#   - services: create JM REST + RPC ClusterIPs at startup
+#   - events: emit operator-visible events (optional but expected)
+#   - deployments.apps: GET only — JM reads its own Deployment to derive the
+#     owner reference stamped on every TM pod (so they GC when the JM is gone)
+#   - leases: kubernetes-HA leader election (high-availability.type=kubernetes)
+# Spec source: https://nightlies.apache.org/flink/flink-docs-release-2.2/docs/deployment/resource-providers/native_kubernetes/#rbac
 rules:
   - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+    resources: ["pods", "services", "configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -109,7 +121,7 @@ spec:
 apiVersion: flink.apache.org/v1beta1
 kind: FlinkDeployment
 metadata:
-  name: flink-job
+  name: stream-processor
   namespace: use-case-crypto
   labels:
     app.kubernetes.io/part-of: mlops-platform
@@ -122,17 +134,44 @@ spec:
   # top of `flink:2.2.0-scala_2.12-java21`, adding the crypto jar under
   # /opt/flink/usrlib/ and enabling the S3 hadoop + prometheus reporter
   # plugins at image-build time.
-  image: crypto-flink-job:latest
-  imagePullPolicy: IfNotPresent
+  #
+  # imagePullPolicy: Always — the `:latest` tag is rebuilt + re-pushed to
+  # `localhost:5000` on every `make usecase-crypto-build`. With IfNotPresent
+  # kubelet kept the cached layer (containerd image-id) and silently ran a
+  # stale jar that pre-dated VALKEY_PASSWORD / KAFKA_SASL_* env reads, so
+  # the TM tried PLAINTEXT to Valkey and got NOAUTH despite the Secret being
+  # populated. Always forces a registry digest check at each pod create.
+  image: crypto-stream-processor:latest
+  imagePullPolicy: Always
   flinkVersion: v2_2
   serviceAccount: flink
 
   flinkConfiguration:
     # Parallelism is sized to match the broker partition count on the
-    # crypto.validated topic (see manifests/base/kafka-topics/crypto.validated.yaml
+    # crypto.validated topic (see manifests/base/kafka-topics/validated.yaml
     # — partitions: 6). Each TM slot consumes one partition.
     parallelism.default: "2"
     taskmanager.numberOfTaskSlots: "4"
+
+    # Flink Kubernetes Operator's job-autoscaler (default ON in operator 1.13+)
+    # was rewriting parallelism.default 2 → 4 mid-flight, which spun up a
+    # second TM pod and inflated the JM's ExecutionGraph footprint (3 streams
+    # × parallelism 4 = 12 sub-tasks worth of state). That violated the
+    # single-node CLAUDE.md invariant ("1 replica idle, scale-out on load")
+    # because the autoscaler was reacting to backpressure noise on idle
+    # topics, not real load. Disable here; a future ScaledObject (KEDA on
+    # lag metric) is the right place for use-case-aware autoscaling.
+    job.autoscaler.enabled: "false"
+
+    # JM heap headroom — Flink Kubernetes Operator derives
+    # jobmanager.memory.process.size from jobManager.resource.memory; the
+    # JVM internal layout (metaspace + overhead + off-heap) then leaves heap
+    # = process - ~25%. At 4 GiB process the heap is ~3 GiB and RSS hit 96 %
+    # of limit under 3-stream graph build → bumped container to 6 GiB
+    # (~4.5 GiB heap). Off-heap raised to absorb Kafka AdminClient direct
+    # buffers + S3 multipart upload buffers.
+    jobmanager.memory.off-heap.size: "256m"
+    jobmanager.memory.jvm-overhead.fraction: "0.15"
 
     # State backend + checkpoint/savepoint storage → MinIO
     state.backend.type: rocksdb
@@ -142,6 +181,38 @@ spec:
     execution.checkpointing.mode: EXACTLY_ONCE
     execution.checkpointing.timeout: "600000"          # 10m
     execution.checkpointing.min-pause-between-checkpoints: "30000"
+
+    # Heartbeat + restart tuning (2026-05-20 #349 TM recycle storm). TM pods
+    # were recycling every ~30 min during the #307 ClickHouse IO cascade:
+    # node PSI 88% → kubelet pod-eviction-grace expired → TM lost → JM
+    # rescheduled → fixed-delay restart hammered with no back-off. Defaults
+    # (heartbeat.timeout=50s, fixed-delay restart) are too tight for a
+    # single-node cluster under transient disk pressure. Three knobs:
+    #   1. Triple heartbeat timeout to 180s so a TM with a stuck disk-write
+    #      gets one more chance before JM declares it dead.
+    #   2. Switch to exponential-delay restart so a flapping job backs off
+    #      from 10s → 5m instead of the 1s fixed default, breaking the loop.
+    #   3. reset-backoff-threshold=1h — if the job runs clean for 1h the
+    #      restart counter resets, so a transient incident doesn't leave us
+    #      stuck at the 5-min ceiling forever.
+    heartbeat.timeout: "180000"
+    heartbeat.interval: "30000"
+    restart-strategy.type: exponential-delay
+    restart-strategy.exponential-delay.initial-backoff: "10 s"
+    restart-strategy.exponential-delay.max-backoff: "5 min"
+    restart-strategy.exponential-delay.backoff-multiplier: "2.0"
+    restart-strategy.exponential-delay.reset-backoff-threshold: "1 h"
+    restart-strategy.exponential-delay.jitter-factor: "0.1"
+
+    # S3 client tuning to avoid the "list ConnectException, stale event"
+    # cascade observed on JM at #349: hadoop-aws default connection pool is
+    # tiny (15) and request timeout is unbounded, so any MinIO hiccup during
+    # checkpoint listing blocked the JM heartbeat thread, which the operator
+    # then misread as a dead leader and recycled. 100-conn pool + 60s
+    # request timeout fails fast and lets the next checkpoint cycle recover.
+    s3.connection.maximum: "100"
+    s3.connection.request.timeout: "60000"
+    s3.socket.timeout: "60000"
 
     # Kubernetes-native HA (lease-based leader election).
     # kubernetes.cluster-id is implicitly set by flink-kubernetes-operator from
@@ -169,10 +240,22 @@ spec:
 
   podTemplate:
     spec:
+      # Kafka client trust store (Strimzi cluster-internal listener uses the
+      # platform-kafka cluster CA; client mounts the PEM cert at
+      # /etc/kafka/ca/ca.crt → consumed by ssl.truststore.location).
+      # crypto-app-consumer is the user-namespace replica of the Strimzi
+      # KafkaUser secret, re-emitted by ExternalSecrets (ADR-008).
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: crypto-app-consumer
+            items:
+              - key: ca.crt
+                path: ca.crt
       containers:
         - name: flink-main-container
           # Declare the Prometheus reporter port (9249) as a named port so
-          # the crypto-flink-job PodMonitor can scrape it. 8081 is the
+          # the crypto-stream-processor PodMonitor can scrape it. 8081 is the
           # JobManager REST API port that the operator also binds on JMs.
           ports:
             - name: metrics
@@ -190,6 +273,15 @@ spec:
                 name: pipeline-secrets
             - secretRef:
                 name: flink-s3-secret
+            # SCRAM credentials for the Strimzi KafkaUser bound to ACLs on
+            # crypto.* topics. Provides KAFKA_SASL_USERNAME / _PASSWORD env
+            # consumed by StreamJob.kafkaSecurityProperties().
+            - secretRef:
+                name: crypto-app-consumer
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/kafka/ca
+              readOnly: true
           env:
             # Bridge envFrom keys → Flink's hadoop-S3 plugin expects
             # AWS_* variables.
@@ -202,7 +294,7 @@ spec:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector-gateway.observability.svc.cluster.local:4317"
             - name: OTEL_SERVICE_NAME
-              value: "crypto-flink-job"
+              value: "crypto-stream-processor"
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "service.namespace=use-case-crypto,deployment.environment=local"
           # Container-level securityContext satisfies Kyverno
@@ -224,31 +316,42 @@ spec:
 
   jobManager:
     replicas: 1
+    # JM memory escalation history:
+    #   1600m (operator default) → OOMKilled mid-ExecutionGraph build
+    #   2560m → OOMKilled again
+    #   4096m → JM Ready but RSS hovered 96% of limit (3924/4096 MiB) with
+    #           autoscaler-inflated parallelism=4 × 3 streams
+    #   6144m → current. Paired with job.autoscaler.enabled=false +
+    #           jvm-overhead.fraction=0.15 above to leave ~4.5 GiB heap and
+    #           true off-heap headroom. JM is HA-via-lease (not HPA-scaled),
+    #           so memory grows vertically here, not horizontally.
     resource:
-      memory: "1600m"
-      cpu: 0.5
+      memory: "6144m"
+      cpu: 1
 
   taskManager:
     # Single-node platform invariant (CLAUDE.md): one pod per workload at
     # idle, scale-out only on load. 4 slots per TM gives 4-way intra-pod
     # parallelism (CPU multiplexing) without breaching the replica ceiling.
+    # Memory bumped 2048m → 3072m: 4 slots × ~768m off-heap (RocksDB block
+    # cache + network buffers) + JVM heap headroom for three feature operators.
     replicas: 1
     resource:
-      memory: "2048m"
-      cpu: 1
+      memory: "3072m"
+      cpu: 2
 
-  # Application-mode job block — operator submits the crypto jar's main
+  # Application-mode job block — operator submits the platform jar's main
   # class and manages lifecycle.  The jar is baked into the image at
-  # /opt/flink/usrlib/crypto-flink-job.jar (local:// protocol).
+  # /opt/flink/usrlib/crypto-stream-processor.jar (local:// protocol).
   job:
-    # Platform fat jar baked at /opt/flink/usrlib/crypto-flink-job.jar by the
-    # crypto-flink-job Dockerfile (FROM flink-job:latest AS platform_jar →
+    # Platform fat jar baked at /opt/flink/usrlib/crypto-stream-processor.jar by the
+    # crypto-stream-processor Dockerfile (FROM flink-job:latest AS platform_jar →
     # COPY /app/flink-job.jar). The crypto extension jar sits beside it at
     # /opt/flink/usrlib/crypto-extensions.jar and is auto-picked-up by
     # StandaloneApplicationClusterEntryPoint's usrlib classpath scan, so the
-    # platform StreamJob can resolve com.usecase.crypto.functions.* via
+    # platform StreamJob can resolve com.usecase.functions.* via
     # reflection at job-graph build time.
-    jarURI: local:///opt/flink/usrlib/crypto-flink-job.jar
+    jarURI: local:///opt/flink/usrlib/crypto-stream-processor.jar
     entryClass: com.pipeline.StreamJob
     args: []
     parallelism: 2

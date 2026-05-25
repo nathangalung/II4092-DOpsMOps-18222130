@@ -2,6 +2,7 @@
 //! All validation rules (schema, bounds, columns) are configurable via env vars.
 
 use anyhow::Result;
+use rdkafka::ClientConfig;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -14,11 +15,46 @@ pub struct Config {
     pub health_port: u16,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct KafkaConfig {
     pub brokers: String,
     pub input_topic: String,
     pub output_topic: String,
+    /// Optional SASL/SSL — set to "SASL_SSL" by use-cases needing auth.
+    /// Platform default (None) keeps PLAINTEXT to stay domain-agnostic.
+    #[serde(default)]
+    pub security_protocol: Option<String>,
+    #[serde(default)]
+    pub sasl_mechanism: Option<String>,
+    #[serde(default)]
+    pub sasl_username: Option<String>,
+    #[serde(default)]
+    pub sasl_password: Option<String>,
+    #[serde(default)]
+    pub ssl_ca_location: Option<String>,
+}
+
+impl KafkaConfig {
+    /// Apply security settings to an rdkafka ClientConfig builder.
+    /// No-op when security_protocol is unset.
+    pub fn apply_security(&self, cfg: &mut ClientConfig) {
+        let Some(proto) = self.security_protocol.as_deref() else {
+            return;
+        };
+        cfg.set("security.protocol", proto);
+        if let Some(m) = &self.sasl_mechanism {
+            cfg.set("sasl.mechanisms", m);
+        }
+        if let Some(u) = &self.sasl_username {
+            cfg.set("sasl.username", u);
+        }
+        if let Some(p) = &self.sasl_password {
+            cfg.set("sasl.password", p);
+        }
+        if let Some(ca) = &self.ssl_ca_location {
+            cfg.set("ssl.ca.location", ca);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,11 +106,36 @@ impl Config {
         if let Ok(v) = std::env::var("KAFKA_BROKERS") {
             cfg.kafka.brokers = v;
         }
-        if let Ok(v) = std::env::var("KAFKA_TOPIC") {
+        // VALIDATOR_INPUT_TOPICS (CSV) is the canonical fan-in input env —
+        // separating consumer semantics from the producer-output KAFKA_TOPIC
+        // that collector Deployments use. Falls back to KAFKA_TOPIC for
+        // back-compat with stand-alone validator deployments that haven't
+        // adopted the dedicated env yet.
+        if let Ok(v) = std::env::var("VALIDATOR_INPUT_TOPICS") {
+            cfg.kafka.input_topic = v;
+        } else if let Ok(v) = std::env::var("KAFKA_TOPIC") {
             cfg.kafka.input_topic = v;
         }
         if let Ok(v) = std::env::var("KAFKA_OUTPUT_TOPIC") {
             cfg.kafka.output_topic = v;
+        }
+        // SASL/SSL security config — only populated when the deploying
+        // use-case sets these env vars. Platform default leaves them None
+        // and the rdkafka client runs PLAINTEXT.
+        if let Ok(v) = std::env::var("KAFKA_SECURITY_PROTOCOL") {
+            cfg.kafka.security_protocol = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_MECHANISM") {
+            cfg.kafka.sasl_mechanism = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_USERNAME") {
+            cfg.kafka.sasl_username = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SASL_PASSWORD") {
+            cfg.kafka.sasl_password = Some(v);
+        }
+        if let Ok(v) = std::env::var("KAFKA_SSL_CA_LOCATION") {
+            cfg.kafka.ssl_ca_location = Some(v);
         }
         if let Ok(v) = std::env::var("VALIDATOR_SCHEMA") {
             cfg.schema = v;
@@ -143,12 +204,42 @@ mod tests {
             brokers: "test:9092".to_string(),
             input_topic: "input".to_string(),
             output_topic: "output".to_string(),
+            ..Default::default()
         };
 
         let cloned = kafka.clone();
         assert_eq!(kafka.brokers, cloned.brokers);
         assert_eq!(kafka.input_topic, cloned.input_topic);
         assert_eq!(kafka.output_topic, cloned.output_topic);
+    }
+
+    #[test]
+    fn test_apply_security_noop_when_unset() {
+        let kafka = KafkaConfig::default();
+        let mut cc = ClientConfig::new();
+        kafka.apply_security(&mut cc);
+        assert!(cc.get("security.protocol").is_none());
+    }
+
+    #[test]
+    fn test_apply_security_sets_sasl_ssl_fields() {
+        let kafka = KafkaConfig {
+            brokers: "b:9093".into(),
+            input_topic: "raw".into(),
+            output_topic: "validated".into(),
+            security_protocol: Some("SASL_SSL".into()),
+            sasl_mechanism: Some("SCRAM-SHA-512".into()),
+            sasl_username: Some("user".into()),
+            sasl_password: Some("pass".into()),
+            ssl_ca_location: Some("/etc/kafka/ca/ca.crt".into()),
+        };
+        let mut cc = ClientConfig::new();
+        kafka.apply_security(&mut cc);
+        assert_eq!(cc.get("security.protocol"), Some("SASL_SSL"));
+        assert_eq!(cc.get("sasl.mechanisms"), Some("SCRAM-SHA-512"));
+        assert_eq!(cc.get("sasl.username"), Some("user"));
+        assert_eq!(cc.get("sasl.password"), Some("pass"));
+        assert_eq!(cc.get("ssl.ca.location"), Some("/etc/kafka/ca/ca.crt"));
     }
 
     #[test]

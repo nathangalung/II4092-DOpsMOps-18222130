@@ -29,7 +29,7 @@
 #   - Vendor names: `cryptopanic`, `coinbase`, `coingecko` (third-party domains)
 #   - Java package `com.usecase.crypto.functions.*` (renaming a Java package
 #     requires moving .java files and updating imports; do that in a follow-up
-#     refactor scoped to services/processing/flink-job/src/).
+#     refactor scoped to services/processing/stream-processor/src/).
 #   - `.git/` (history is never rewritten)
 #
 # Usage:

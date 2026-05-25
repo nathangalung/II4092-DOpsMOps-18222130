@@ -62,16 +62,28 @@ async fn consume_and_validate(
     use rdkafka::ClientConfig;
     use rdkafka::Message;
 
-    let consumer: StreamConsumer = ClientConfig::new()
+    let mut consumer_cfg = ClientConfig::new();
+    consumer_cfg
         .set("bootstrap.servers", &cfg.kafka.brokers)
         .set("group.id", "validator")
-        .set("auto.offset.reset", "earliest")
-        .create()?;
+        .set("auto.offset.reset", "earliest");
+    cfg.kafka.apply_security(&mut consumer_cfg);
+    let consumer: StreamConsumer = consumer_cfg.create()?;
 
-    consumer.subscribe(&[&cfg.kafka.input_topic])?;
+    // KAFKA_TOPIC accepts a comma-separated list so a single validator
+    // Deployment can fan-in from multiple raw sources. Trimming guards
+    // against whitespace from ConfigMap-templated values.
+    let topics: Vec<&str> = cfg
+        .kafka
+        .input_topic
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    consumer.subscribe(&topics)?;
     info!(
-        "Consuming from {} -> producing to {}",
-        cfg.kafka.input_topic, cfg.kafka.output_topic
+        "Consuming from {:?} -> producing to {}",
+        topics, cfg.kafka.output_topic
     );
 
     let mut count: u64 = 0;

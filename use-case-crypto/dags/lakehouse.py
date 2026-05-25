@@ -147,7 +147,7 @@ def _ol_run_id(context: dict) -> str:
 
 # ─────────────────────────────────────────────────────────────
 # Configuration — read from Airflow Variables (declarative, not hardcoded).
-# See crypto_data_pipeline.py for the full Variable contract; this DAG
+# See data_pipeline.py for the full Variable contract; this DAG
 # uses the same `USE_CASE`-derived knobs so a clone needs no body edits.
 # ─────────────────────────────────────────────────────────────
 # NOTE: Variable is imported above (alongside OpenLineage helpers).
@@ -539,7 +539,7 @@ with DAG(
     # ── Step 4: Run Evidently data quality report after merge ───────
     evidently_report = k8s_pod(
         "evidently_report",
-        image=_image("evidently-reporter"),
+        image=_image("drift-reporter"),
         cmds=["uv", "run", "main.py"],
         cpu_req="100m",
         mem_req="256Mi",

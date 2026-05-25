@@ -1,112 +1,91 @@
-\cleardoublepage % memastikan bab baru dimulai di halaman ganjil (kanan)
+\cleardoublepage
 \chapter{PENDAHULUAN}
 \label{chap:pendahuluan}
-% --- Latar Belakang ---
+
+% Pendahuluan platform DataOps MLOps
 \section{Latar Belakang}
-Subbab ini menjelaskan dasar pemikiran, motivasi, kebutuhan, alasan, atau urgensi pemilihan masalah tugas akhir. Subbab ini berisi penjelasan ringkas tentang kondisi atau situasi yang ada saat ini terkait dengan topik yang dibahas. Tujuan utamanya adalah untuk memberikan informasi secukupnya kepada pembaca agar memahami topik yang akan dibahas. Dalam subbab ini, jelaskan hal-hal berikut ini:
-\begin{enumerate}
-\item	Kondisi atau situasi topik yang dibahas beserta permasalahannya, misalnya tentang pengelolaan informasi di fasilitas kesehatan daerah pedesaan saat ini dan masalah yang dihadapi, berdasarkan hasil survei atau wawancara dengan pihak terkait.
-\item	Urgensi atau pentingnya penyelesaian masalah tersebut, misalnya dampak negatif yang ditimbulkan jika masalah tersebut tidak diselesaikan.
-\item	Berbagai solusi yang telah diterapkan maupun solusi yang memungkinkan untuk diterapkan untuk menyelesaikan masalah tersebut, berdasarkan hasil studi literatur, wawancara dengan pihak terkait, atau kunjungan lapangan.
-\item   Kelemahan atau kekurangan dari solusi yang telah diterapkan atau yang memungkinkan untuk diterapkan tersebut, yang menjadi dasar pemikiran dalam merumuskan masalah tugas akhir.
-\end{enumerate}
-Latar belakang dapat ditulis dalam 2-3 halaman. Penulisan latar belakang masalah yang baik akan mengantarkan pembaca kepada pemahaman yang jelas tentang topik yang akan dibahas, 
-sehingga pembaca dapat mengikuti pembahasan pada subbab-subbab berikutnya dengan baik. Oleh karena itu, 
-penulis diharapkan melakukan investigasi yang mendalam untuk mengumpulkan fakta-fakta yang relevan dengan topik yang dibahas, 
-baik melalui studi literatur, wawancara dengan pihak terkait, maupun kunjungan lapangan. Hasil studi ini dijelaskan secara \emph{ringkas} di dalam subbab ini.
-Penjelasan hasil studi literatur yang komprehensif dapat dijabarkan di Bab II Studi Literatur secara sistematis.
+\label{sec:latar-belakang}
 
-Dalam menulis latar belakang, hindari penulisan yang bersifat terlalu umum atau terlalu luas cakupannya sehingga sulit untuk dihubungkan dengan topik yang dibahas dalam tugas akhir,
-seperti:
-\begin{enumerate}
-    \item "Pentingnya teknologi informasi dalam kehidupan manusia."
-    \item "Perkembangan pesat teknologi \emph{artificial intelligence} di era digital."
-    \item "Tantangan dalam pengelolaan data besar (\emph{big data}) di berbagai sektor industri."
-    \item "Peran teknologi informasi dalam meningkatkan kualitas layanan kesehatan."
-\end{enumerate}
-Penulisan yang terlalu umum atau luas cakupannya akan menyulitkan penulis dalam merumuskan masalah, tujuan, metodologi, dan evaluasi tugas akhir.
+Praktik \textit{machine learning} pada lingkungan produksi tidak lagi diukur dari ketepatan model semata, melainkan dari kemampuan organisasi memindahkan model dari laptop \textit{data scientist} ke layanan yang berjalan stabil, terpantau, dan dapat diperbarui ketika data berubah. \textcite{sculley2015hidden} menunjukkan bahwa kode model hanya berperan sebagai bagian kecil dari sistem \textit{machine learning} di lapangan; sisanya berupa pengelolaan data, konfigurasi, pemantauan, layanan, dan perekaman \textit{lineage}. \textcite{paleyes2022challenges} memperkuat temuan tersebut dengan memetakan tantangan utama yang muncul ketika model dipasang di produksi, dari persoalan kualitas data hingga pemeliharaan model setelah penyebaran.
 
-Jika ada referensi yang digunakan dalam penulisan latar belakang, cantumkan referensi tersebut dengan benar menggunakan \texttt{biblatex} sesuai dengan contoh penulisan kutipan dan daftar pustaka yang telah disediakan dalam template ini.
-Sebagai contoh, pada paragraf berikut ini terdapat kutipan dari dua referensi yang berbeda \autocite{laudon2020, pressman2019}. 
-Ada dua format penulisan sitasi yang dapat digunakan, yaitu format naratif dan format parentetik.
-Contoh penulisan kutipan dengan format naratif adalah sebagai berikut:
-\begin{displayquote}
-Menurut \textcite{laudon2020}, sistem informasi adalah kombinasi dari teknologi informasi dan aktivitas orang yang menggunakan teknologi tersebut untuk mendukung operasi dan manajemen organisasi.
-\end{displayquote}
-Contoh penulisan kutipan dengan format parentetik adalah sebagai berikut:
-\begin{displayquote}
-    Sistem informasi merupakan kombinasi dari teknologi informasi dan aktivitas orang yang menggunakan teknologi tersebut untuk mendukung operasi dan manajemen organisasi \autocite{laudon2020}.
-\end{displayquote}
-% --- Rumusan Masalah ---
+Praktik DevOps yang diadaptasi oleh komunitas \textit{machine learning} kemudian dikenal sebagai MLOps. \textcite{kreuzberger2023mlops} mendefinisikan MLOps sebagai disiplin yang menyatukan rekayasa perangkat lunak, operasional, dan ilmu data untuk mengotomasi siklus hidup model dari eksperimen ke produksi. Pada saat yang sama, DataOps tumbuh sebagai pendekatan serupa untuk \textit{pipeline} data: penekanan pada kolaborasi antar peran, kualitas data, dan iterasi cepat ditarik dari prinsip DevOps dan diterapkan pada penyiapan data. \textcite{rella2022mlops} mendokumentasikan bahwa MLOps dan DataOps secara konseptual sejalan, tetapi implementasinya kerap terpecah menjadi dua tumpukan teknologi yang berbeda. Akibatnya, model yang membutuhkan data segar dan terkurasi sering kali menerima data yang berasal dari \textit{pipeline} yang tidak sinkron dengan \textit{pipeline} pelatihan; perubahan skema di sisi data tidak terbaca otomatis di sisi model; dan kegagalan kualitas data di \textit{batch} subuh tidak menjadi sinyal yang memicu pemeriksaan ulang model yang sudah dilayani.
+
+Pemicu pertama pengembangan Tugas Akhir ini bersumber dari fragmentasi \textit{tool}. Survei pemetaan arsitektur MLOps oleh \textcite{najafabadi2024analysis} menemukan lebih dari empat puluh \textit{tool} yang biasa dirangkai untuk mendukung satu platform produksi. Organisasi yang berinvestasi pada platform dalam negeri sering menyusun rangkaian \textit{tool} yang serupa, namun karena tiap \textit{tool} berdiri sendiri-sendiri, integrasi antar komponen menjadi pekerjaan rekayasa berulang. \textcite{burgueno2025toward} menyoroti bahwa biaya integrasi pada arsitektur MLOps \textit{open source} dapat menyamai biaya pengembangan model itu sendiri, terlebih ketika tim juga harus menjaga konsistensi versi pustaka dan kontrak data lintas komponen. \textcite{jain2025integrating} secara eksplisit menempatkan integrasi DataOps dan MLOps sebagai prasyarat skalabilitas, namun belum banyak arsitektur referensi yang menyatukan keduanya dalam satu bidang kendali pada Kubernetes.
+
+Pemicu kedua menyentuh tata kelola data. \textcite{bernardo2024data} memetakan tata kelola sebagai gabungan katalog, kualitas, kepemilikan, dan keamanan; semuanya membutuhkan ditegakkannya kontrak antara penghasil data dan konsumen data. Tata kelola yang baik di sisi data tidak otomatis terbawa ke sisi model: ketika sebuah \textit{feature} ditulis ulang oleh tim data, tim model perlu mengetahui perubahan tersebut sebelum melakukan \textit{retraining}, dan ketika model dihentikan layanannya, lineage data harus mencerminkan bahwa konsumen tersebut sudah tidak ada. \textcite{stoyanovich2020responsible} menggarisbawahi bahwa tanggung jawab atas data tidak bisa berhenti pada lapis penyimpanan saja, melainkan harus mengikuti seluruh siklus dari produksi data hingga prediksi yang dilayani. Tanpa platform yang menempatkan tata kelola sebagai komponen kelas pertama, \textit{lineage} antara data, fitur, dan model menjadi terputus dan kepatuhan terhadap kebijakan akses sulit dibuktikan.
+
+Pemicu ketiga adalah \textit{drift} dan kebocoran temporal. \textcite{vela2022temporal} memperlihatkan bahwa degradasi performa model lintas waktu adalah hal yang umum, bukan kasus istimewa. \textcite{lu2019learning} memberikan tinjauan luas tentang \textit{concept drift}, dan \textcite{bayram2022concept} memetakan keluarga detektor performansi yang dapat dipasang pada \textit{pipeline} produksi. Namun, mendeteksi \textit{drift} tidak cukup; \textit{pipeline} pelatihan juga harus terbebas dari kebocoran temporal yang muncul ketika fitur dengan referensi waktu masa depan tercampur ke dalam kumpulan data pelatihan masa lalu. \textcite{wang2021leakage} mengilustrasikan dampak kebocoran temporal pada \textit{backtesting} keuangan, dan implikasinya berlaku umum: setiap domain yang menggabungkan data \textit{batch} dengan data \textit{streaming} berisiko menghasilkan model yang “bocor” karena ketidakkonsistenan referensi waktu antara saat pelatihan dan saat penyajian. Tanpa \textit{point-in-time correctness} yang ditegakkan oleh layanan fitur, kesalahan ini hampir mustahil dideteksi dari log model saja.
+
+Pemicu keempat berkaitan dengan fitur multimoda. Fitur tabular klasik bertumpang tindih dengan fitur agregat \textit{rolling window} dan dengan fitur \textit{embedding} berdimensi tinggi yang dihasilkan oleh model bahasa seperti BERT \autocite{devlin2019bert} atau model \textit{embedding} OpenAI \autocite{openai2022embedding}. Pencarian terdekat untuk \textit{embedding} memerlukan struktur indeks khusus, dan \textcite{malkov2020efficient} menempatkan \textit{Hierarchical Navigable Small World} (HNSW) sebagai opsi tepat-guna untuk pencarian pendekatan tetangga terdekat. Saat fitur tabular, fitur \textit{rolling}, dan fitur vektor dilayani dengan kontrak yang berbeda-beda, biaya pemeliharaan kontrak \textit{pipeline} meningkat tajam dan layanan model rawan tidak konsisten antara saat pelatihan dan saat penyajian \textit{online}. \textcite{lamer2024data} dan \textcite{li2023managed} menunjukkan bahwa \textit{feature store} berperan sebagai jembatan kontrak antara dua mode tersebut; tetapi sebagian besar implementasi \textit{open source} masih membutuhkan integrasi tangan dengan basis data dan sistem pencarian vektor secara terpisah.
+
+Empat tekanan tersebut menggerakkan pengembangan sebuah platform yang menyatukan praktik DataOps dan MLOps di atas Kubernetes dengan komponen \textit{open source}. Kubernetes dipilih karena perannya sebagai standar \textit{de facto} bagi orkestrasi beban kerja \textit{cloud-native} dan karena adopsi luasnya pada ekosistem \textit{tool} yang dibutuhkan, sebagaimana didokumentasikan oleh \textcite{lakka2025kubernetes}. Pemanfaatan komponen \textit{open source} dipilih agar arsitektur dapat ditiru tanpa keterikatan pada satu penyedia layanan, sekaligus mempermudah audit teknis. Rancangan platform sengaja dijaga \textit{domain-agnostic} agar dapat diadaptasi pada beragam domain tanpa perubahan pada lapis kendali.
+
 \section{Rumusan Masalah}
-Rumusan Masalah berisi masalah utama yang dibahas dalam tugas akhir. Rumusan masalah yang baik memiliki struktur sebagai berikut:
-\begin{enumerate}
-\item	Pokok persoalan dari kondisi atau situasi yang ada saat ini. Dengan kata lain, jelaskan kelemahan atau kekurangan dari kondisi, situasi, atau solusi yang dijelaskan pada latar belakang. Ini merupakan pokok rumusan masalah.
-\item	Elaborasi lebih lanjut urgensi penyelesaian masalah tersebut (mengapa penting untuk diselesaikan dan akibat yang dapat terjadi jika tidak diselesaikan).
-\item	Usulan singkat terkait dengan solusi yang ditawarkan untuk menyelesaikan persoalan.
-Penting untuk diperhatikan bahwa persoalan yang dideskripsikan pada subbab ini akan dipertanggungjawabkan di bab Evaluasi (apakah terselesaikan atau tidak).
-\end{enumerate}
-Hindari penulisan rumusan masalah yang terlalu umum atau terlalu luas cakupannya sehingga sulit untuk diselesaikan dalam jangka waktu pelaksanaan tugas akhir, 
-seperti:
-\begin{enumerate}
-    \item "Bagaimana cara meningkatkan kualitas layanan kesehatan di Indonesia?"
-    \item "Bagaimana cara mengoptimalkan penggunaan energi di perkotaan?"
-    \item "Bagaimana cara mengurangi kemacetan lalu lintas di kota besar?"
-    \item "Bagaimana cara membangun sistem irigasi sawah menggunakan \emph{AI}?"
-\end{enumerate}
-Rumusan masalah yang baik dan spesifik akan memudahkan penulis dalam menentukan tujuan, metodologi, dan evaluasi tugas akhir.
+\label{sec:rumusan-masalah}
 
-Selain itu, hindari menuliskan pertanyaan yang merupakan sebuah keniscayaan yang harus dijawab atau dikerjakan 
-dalam pelaksanaan tugas akhir, seperti:
-\begin{enumerate}
-    \item "Bagaimana cara melakukan analisis kebutuhan sistem informasi rumah sakit?"
-    \item "Bagaimana cara merancang basis data untuk aplikasi X?"
-    \item "Bagaimana cara mengimplementasikan \textit{large language model} untuk deteksi penyakit Y?"
-    \item "Bagaimana cara menguji sistem penyiraman tanaman berbasis IoT yang akan dibuat?"
-\end{enumerate}
-Kegiatan analisis, perancangan, implementasi, dan pengujian merupakan tahapan yang harus dilakukan dalam pelaksanaan tugas akhir,
-sehingga pertanyaan-pertanyaan tersebut tidak perlu dimasukkan ke dalam rumusan masalah.
+Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaikan oleh platform yang dikembangkan.
 
-% --- Tujuan ---
+\begin{enumerate}[label=\textbf{RM-\arabic*}, leftmargin=2.4cm]
+    \item \textbf{Fragmentasi tumpukan teknologi DataOps dan MLOps.} \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model masih dirakit secara terpisah sehingga integrasi memerlukan biaya rekayasa berulang dan menimbulkan duplikasi konsep antara \textit{pipeline} data dan \textit{pipeline} model. Persoalan ini berakibat pada lemahnya konsistensi kontrak data antara fase pelatihan dan fase penyajian, serta tingginya beban pemeliharaan ketika ada perubahan versi salah satu komponen.
+    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data–fitur–model.} Katalog metadata, \textit{lineage}, dan kontrol kualitas sering dijalankan sebagai proses pasca-fakta, terpisah dari \textit{pipeline} produksi data dan dari pencatatan eksperimen model. Akibatnya, ketika sebuah fitur diperbarui atau sebuah model dihentikan, perubahan tersebut tidak otomatis tercermin pada katalog dan riwayat kepemilikan, sehingga sulit memenuhi kewajiban audit dan reproduksibilitas.
+    \item \textbf{Deteksi \textit{drift} yang tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}.} Tanda-tanda perubahan distribusi data, perubahan hubungan masukan-keluaran, dan pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
+    \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran.} Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train–serving skew} membesar.
+\end{enumerate}
+
 \section{Tujuan}
-Tuliskan \textbf{tujuan utama} dan/atau tujuan detail yang akan dicapai dalam pelaksanaan tugas akhir. 
-Fokuskan isi subbab ini pada hasil akhir yang ingin diperoleh setelah tugas akhir diselesaikan 
-terkait dengan penyelesaian persoalan pada rumusan masalah. 
-Penting untuk diperhatikan bahwa tujuan yang dideskripsikan pada subbab ini akan dipertanggungjawabkan 
-di akhir pelaksanaan tugas akhir. Oleh karena itu, tuliskan juga \emph{kriteria keberhasilan} tugas akhir ini.
+\label{sec:tujuan}
 
-% --- Batasan Masalah ---
+Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan masalah, dengan luaran berupa artefak teknis yang dapat ditunjukkan dan dipakai ulang.
+
+\begin{enumerate}[label=\textbf{T-\arabic*}, leftmargin=2.4cm]
+    \item Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan lapis ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps.
+    \item Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model.
+    \item Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}.
+    \item Mengembangkan layanan fitur \textit{dual-store} \textit{offline}–\textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian.
+\end{enumerate}
+
+Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut: pertama, seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual; kedua, seluruh \textit{sub-sistem} berkomunikasi melalui kontrak yang ditegakkan oleh layanan tata kelola dan layanan fitur; ketiga, mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi.
+
 \section{Batasan Masalah}
-Tuliskan batasan-batasan yang diambil dalam pelaksanaan tugas akhir. Batasan ini dapat dihindari (bersifat opsional, tidak perlu ada) jika topik atau judul tugas akhir dibuat cukup spesifik.
+\label{sec:batasan}
 
-% --- Metodologi Pengerjaan TA ---
+Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut.
+
+\begin{enumerate}[label=\textbf{B-\arabic*}, leftmargin=2.4cm]
+    \item Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan; karena itu pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}.
+    \item Platform berjalan di atas Kubernetes dengan distribusi \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian. Setiap beban kerja diatur minimal satu replika ketika \textit{idle} dan diskalakan oleh \textit{Horizontal Pod Autoscaler} (HPA), \textit{Vertical Pod Autoscaler} (VPA), atau Kubernetes Event-driven Autoscaling (KEDA) ketika beban nyata muncul.
+    \item Seluruh komponen yang digunakan berbasis \textit{open source}. Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026.
+    \item Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan; aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes.
+    \item Evaluasi end-to-end seperti pengukuran latensi penuh, throughput, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan; angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap.
+\end{enumerate}
+
 \section{Metodologi}
-Tuliskan semua tahapan yang akan dilalui selama pelaksanaan tugas akhir. 
-Tahapan ini spesifik untuk menyelesaikan persoalan tugas akhir. 
-Berikut adalah contoh metodologi pengerjaan tugas akhir yang dapat diikuti, yaitu meliputi tahapan, langkah-langkah, 
-atau tata cara melakukan:
-\begin{enumerate}
-\item	Investigasi pengumpulan fakta di latar belakang untuk merumuskan masalah.
-\item	Pencarian, pengelompokan, dan penapisan literatur atau sumber informasi untuk mengumpulkan informasi yang relevan tentang topik yang diangkat, termasuk teori (konsep atau teori apa saja yang perlu dicari), hal-hal yang telah dicapai oleh orang lain (cara mencari dan kata kuncinya), dan berbagai informasi pendukung, untuk mencari solusi terhadap masalah yang dibahas. Gunakan metodologi yang tepat dalam menggali informasi dan dokumentasikan prosesnya (termasuk rekaman wawancara atau survei) di dalam Lampiran, termasuk tautan ke video atau foto. Hasil penggalian informasi ini akan dijelaskan secara sistematis di Bab II Studi Literatur.
-\item   Analisis kebutuhan pengguna dan sistem berdasarkan hasil investigasi dan studi literatur. Jelaskan metode yang digunakan untuk melakukan analisis kebutuhan, misalnya wawancara, survei, observasi, atau studi kasus. Hasil analisis kebutuhan ini akan dijelaskan secara rinci di Bab III Analisis.
-\item   Perancangan solusi berdasarkan hasil analisis kebutuhan. Jelaskan metode yang digunakan untuk melakukan perancangan, misalnya menggunakan diagram UML, ERD, atau prototyping. Hasil perancangan ini akan dijelaskan secara rinci di Bab IV Perancangan.
-\item   Implementasi solusi berdasarkan hasil perancangan. Jelaskan teknologi, bahasa pemrograman, atau alat yang digunakan untuk mengimplementasikan solusi. Hasil implementasi ini akan dijelaskan secara rinci di Bab V Implementasi.
-\item   Evaluasi terhadap solusi yang telah diimplementasikan. Jelaskan metode pengujian, metrik evaluasi, atau studi kasus yang digunakan untuk menilai keberhasilan solusi. Hasil evaluasi ini akan dijelaskan secara rinci di Bab VI Evaluasi.
-\item   Penarikan kesimpulan dan saran berdasarkan hasil pelaksanaan tugas akhir. Hasil kesimpulan dan saran ini akan dijelaskan secara rinci di Bab VII Kesimpulan dan Saran. 
-\vfill % memaksa konten di atas untuk berada di bagian atas halaman dan menyisakan ruang kosong di bawah konten ini akibat berakhirnya section ini
+\label{sec:metodologi}
+
+Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang diperkenalkan oleh \textcite{peffers2007dsrm} dan diadaptasi untuk pengembangan platform perangkat lunak. Pemilihan DSRM mengikuti pertimbangan bahwa luaran utama Tugas Akhir berupa artefak teknis berupa rancangan dan implementasi platform, sementara penilaian artefak dilakukan dengan demonstrasi pada \textit{use case} verifikasi---pola yang persis dianjurkan oleh DSRM untuk penelitian yang menghasilkan artefak. Tahapan yang dijalankan meliputi enam fase berikut.
+
+\begin{enumerate}[label=\arabic*., leftmargin=1.4cm]
+    \item \textbf{Identifikasi masalah dan motivasi.} Studi literatur mengenai praktik DataOps, MLOps, dan tata kelola data dilakukan untuk menyusun peta tantangan. Pengamatan pada studi kasus produksi yang terdokumentasi dipakai untuk mempertajam keempat rumusan masalah.
+    \item \textbf{Penetapan tujuan artefak.} Tujuan dirumuskan sebagai daftar artefak teknis yang harus dapat dipasang, dioperasikan, dan diaudit. Tujuan dipetakan satu lawan satu terhadap rumusan masalah untuk menghindari ketidaksinkronan antara persoalan dan capaian.
+    \item \textbf{Perancangan dan pengembangan artefak.} Arsitektur tujuh lapis dirancang sebagai bidang kendali deklaratif berbasis Kubernetes. Untuk setiap lapis dilakukan pemilihan komponen \textit{open source} berdasarkan kriteria fungsi, dukungan ekosistem, kompatibilitas versi April 2026, dan kemampuan diorkestrasi oleh Argo CD dengan praktik GitOps.
+    \item \textbf{Demonstrasi.} Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari \textit{use case} pasar aset kripto sebagai instans verifikasi. Aliran data \textit{streaming}, transformasi fitur, pelatihan model, penyajian model, dan deteksi \textit{drift} dijalankan dalam satu lingkaran tertutup. \textit{Use case} ini dipilih sebagai instans verifikasi karena pasar aset kripto beroperasi 24 jam sehari dengan volatilitas harga yang tinggi, sehingga menghasilkan aliran \textit{event} \textit{streaming} yang kontinu, distribusi fitur yang berubah cepat, dan kebutuhan fitur multimoda (tabular, agregat \textit{rolling window}, dan \textit{embedding} vektor). Kondisi tersebut menguji jalur ingestasi, materialisasi fitur, dan deteksi \textit{drift} secara end-to-end tanpa menjadikan domain kripto sebagai fokus penelitian.
+    \item \textbf{Evaluasi.} Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional (apakah semua kebutuhan fungsional berjalan), nonfungsional (skalabilitas, ketersediaan, \textit{observability}, keamanan, dan biaya), serta tata kelola (lineage tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif dilaporkan pada Bab Evaluasi.
+    \item \textbf{Komunikasi.} Hasil rancangan dan implementasi didokumentasikan pada laporan Tugas Akhir ini, beserta repositori sumber yang menjadi acuan reproduksi.
 \end{enumerate}
 
-% --- Sistematika Penulisan ---
 \section{Sistematika Penulisan}
-Tuliskan gambaran umum isi dari setiap bab yang ada dalam laporan tugas akhir. Sistematika penulisan ini memberikan panduan bagi pembaca tentang struktur dan alur pembahasan dalam laporan tugas akhir. Berikut adalah contoh sistematika penulisan yang dapat diikuti:
-\begin{enumerate}
-\item	Bab I Pendahuluan: Berisi latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi, dan sistematika penulisan laporan tugas akhir       .
-\item	Bab II Studi Literatur: Berisi kajian pustaka yang relevan dengan topik tugas akhir, termasuk teori-teori, konsep-konsep, dan hasil-hasil penelitian sebelumnya yang                mendukung pelaksanaan tugas akhir.
-\item	Bab III Analisis: Berisi penjelasan tentang analisis masalah dan kebutuhan pengguna serta berbagai alternatif solusinya.
-\item   Bab IV Perancangan: Berisi penjelasan tentang perancangan solusi yang diusulkan, misalnya arsitektur sistem, desain basis data, antarmuka pengguna, dan sebagainya.
-\item	Bab V Implementasi: Berisi penjelasan tentang proses implementasi solusi yang diusulkan, termasuk langkah-langkah yang diambil, teknologi yang digunakan, dan hasil yang diperoleh.
-\item	Bab VI Evaluasi: Berisi analisis dan evaluasi terhadap solusi yang diimplementasikan, termasuk metode pengujian, hal-hal yang disiapkan sebelum pengujian, hasil pengujian, dan penilaian kinerja.                  
-\item   Bab VII Kesimpulan dan Saran: Berisi kesimpulan dari hasil pelaksanaan tugas akhir dan saran untuk pengembangan lebih lanjut.
-\item   Daftar Pustaka: Berisi daftar referensi yang digunakan dalam penyusunan laporan tugas akhir.
-\item   Lampiran: Berisi dokumen-dokumen pendukung seperti kode program, data lengkap hasil pengujian, rekaman wawancara, dan lain-lain. 
+\label{sec:sistematika}
+
+Laporan Tugas Akhir disusun atas tujuh bab dengan urutan sebagai berikut.
+
+\begin{enumerate}[label=Bab \Roman*., leftmargin=1.4cm]
+    \item \textbf{Pendahuluan.} Bab ini memuat latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi penelitian, serta sistematika penulisan.
+    \item \textbf{Studi Literatur.} Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka–Flink–Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan.
+    \item \textbf{Analisis.} Bab ini memetakan kondisi sistem yang ada saat ini, menyusun kebutuhan fungsional dan nonfungsional, membandingkan alternatif solusi per lapis arsitektur, dan menutup dengan pemilihan komponen yang dipakai oleh platform.
+    \item \textbf{Perancangan Arsitektur Platform DataOps dan MLOps Terintegrasi.} Bab ini menjabarkan gambaran umum arsitektur, perancangan tiap \textit{sub-sistem} yang menjawab keempat tujuan, dan alur kerja end-to-end yang menghubungkan komponen.
+    \item \textbf{Implementasi Platform.} Bab ini memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab IV, lengkap dengan praktik GitOps, manajemen rahasia, kebijakan jaringan, dan otomasi \textit{continuous training}.
+    \item \textbf{Evaluasi.} Bab ini berisi metode evaluasi, hasil pengukuran, dan pembahasan hasil terhadap kebutuhan fungsional dan nonfungsional yang ditetapkan pada Bab III.
+    \item \textbf{Kesimpulan dan Saran.} Bab ini menyimpulkan jawaban atas keempat tujuan dan memberikan saran pengembangan lanjutan.
 \end{enumerate}
+
+Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung seperti manifes Kubernetes, kontrak data, serta tangkapan layar antarmuka observabilitas.

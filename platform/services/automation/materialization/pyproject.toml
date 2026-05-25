@@ -7,11 +7,10 @@ dependencies = [
     # Feast with ClickHouse offline store + Valkey online store (Redis-RESP wire protocol).
     # Feast extra is named `redis`; Valkey 9 is drop-in compatible (BSD-3-Clause vs Redis 8 AGPL).
     "feast[clickhouse,redis]>=0.61.0",
-    # ClickHouse + PostgreSQL drivers (Feast contrib needs psycopg for SQL registry)
+    # ClickHouse driver (feast[clickhouse] pulls it transitively; explicit floor for security).
     "clickhouse-connect>=0.14.0",
+    # PG driver for Feast SQL registry (feature_store.yaml: registry_type: sql).
     "psycopg[binary,pool]>=3.2.0",
-    "pyyaml>=6.0.3",
-    "prometheus-client>=0.24.1",
 ]
 
 [build-system]

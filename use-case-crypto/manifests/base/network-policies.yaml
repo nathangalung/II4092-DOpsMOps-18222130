@@ -21,7 +21,7 @@
 #   - Stage 2  validator ← Kafka (egress only)
 #   - Stage 3  feature-engine ← Kafka + Airflow batch trigger (see
 #                `allow-airflow-to-processing`; Flink stream processing is
-#                owned by the FlinkDeployment CR, label `app: crypto-flink-job`)
+#                owned by the FlinkDeployment CR, label `app: crypto-stream-processor`)
 #   - Stage 5  ml-bridge → MLflow (egress only; ingress needed from
 #                dashboard-frontend + gateway, both intra-ns)
 #
@@ -75,7 +75,7 @@ spec:
         - protocol: TCP
           port: 9090
         - protocol: TCP
-          port: 9249    # Flink JM/TM Prometheus reporter (crypto-flink-job)
+          port: 9249    # Flink JM/TM Prometheus reporter (crypto-stream-processor)
         - protocol: TCP
           port: 50053   # gRPC metrics
   policyTypes:
@@ -83,7 +83,7 @@ spec:
 ---
 # Allow Istio ingressgateway to reach the crypto gateway on 8080 ONLY.
 # Other pods (feature-cache, dashboard-*, ml-bridge, analyzer,
-# crypto-flink-job) MUST NOT be reachable from istio-system directly —
+# crypto-stream-processor) MUST NOT be reachable from istio-system directly —
 # they are accessed via the in-namespace gateway which proxies after
 # AuthorizationPolicy.
 apiVersion: networking.k8s.io/v1
@@ -138,8 +138,8 @@ spec:
       - key: app
         operator: In
         # ADR-023/025: `flink-job` removed — stream processing uses the
-        # FlinkDeployment CR (`app: crypto-flink-job`). Airflow DAGs do
-        # not call Flink directly; if that changes, add `crypto-flink-job`
+        # FlinkDeployment CR (`app: crypto-stream-processor`). Airflow DAGs do
+        # not call Flink directly; if that changes, add `crypto-stream-processor`
         # here and bind it to port 8081 (JobManager REST).
         values: [feature-engine, validator, analyzer]
   ingress:
@@ -155,7 +155,7 @@ spec:
 # FlinkDeployment JobManager (to submit Flink jobs on 8081), and
 # ml-bridge (to register the resulting model).  NO access to gateway /
 # dashboard / cache.  The FlinkDeployment lives in this namespace with
-# `app: crypto-flink-job` (the CR's metadata.name); selectors target that
+# `app: crypto-stream-processor` (the CR's metadata.name); selectors target that
 # label directly (kustomize namePrefix does not rewrite selector values).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -166,7 +166,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [feature-engine, crypto-flink-job, ml-bridge]
+        values: [feature-engine, crypto-stream-processor, ml-bridge]
   ingress:
     - from:
         - namespaceSelector:
@@ -177,7 +177,7 @@ spec:
 ---
 # KServe + Knative — inference routing runs in front of gateway (which
 # hosts the crypto web UI) and can reach ml-bridge (which proxies model
-# metadata).  NO access to feature-engine / validator / crypto-flink-job.
+# metadata).  NO access to feature-engine / validator / crypto-stream-processor.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

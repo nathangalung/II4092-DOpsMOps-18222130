@@ -1,8 +1,14 @@
 \cleardoublepage
-\chapter{HASIL SURVEI LAPANGAN}
-\section{Foto Survei Lokasi 1}
-Teks survei lokasi 1.
-\section{Foto Survei Lokasi 2}
-Teks survei lokasi 2.
-\section{Transkrip Wawancara dengan Narasumber}
-Teks transkrip wawancara.
+\chapter{HASIL VERIFIKASI USE CASE}
+\label{appx:verifikasi}
+
+Lampiran ini akan diisi dengan tangkapan layar dan keluaran perintah yang membuktikan jalur ujung ke ujung pada \textit{use case} pasar aset kripto setelah evaluasi pada Bab~\ref{chap:evaluasi} terkonsolidasi. Bukti yang direncanakan meliputi:
+
+\begin{enumerate}
+    \item Status sinkronisasi Argo CD untuk seluruh \textit{Application} platform dan \textit{use case} pada kondisi \textit{Synced/Healthy}.
+    \item Hasil eksekusi \textit{pipeline} pelatihan dari Kubeflow Pipelines beserta \textit{run id} pada MLflow.
+    \item Hasil eksekusi \textit{CronWorkflow retrain-on-drift} ketika ambang batas dilewati.
+    \item Hasil panggilan \texttt{get\_online\_features} terhadap Feast untuk fitur tabular dan fitur vektor.
+    \item Hasil panggilan prediksi terhadap \textit{InferenceService} KServe pada \textit{model-serving} dengan respons HTTP yang valid.
+    \item Cuplikan dasbor Grafana yang menunjukkan kelengkapan jejak \textit{OpenTelemetry} dari ingestasi hingga prediksi.
+\end{enumerate}

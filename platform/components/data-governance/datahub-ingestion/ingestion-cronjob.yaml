@@ -403,7 +403,7 @@ spec:
           #   runtime install of feast is blocked: the main container has
           #   readOnlyRootFilesystem=true and the upstream image's venv lives
           #   on the rootfs. So we maintain a tiny deps-only sidecar image
-          #   (image-build/) that bakes `feast<1` + dask + flask-openid + numpy<2
+          #   (build-resources.yaml) that bakes `feast<1` + dask + flask-openid + numpy<2
           #   into /feast-deps via `uv sync` (#211 — strict uv mandate; no
           #   `uv pip`) against an inline pyproject.toml, then the init
           #   below cp -a's that tree onto an emptyDir shared with the main
@@ -426,8 +426,22 @@ spec:
               # (which the main container needs since it runs as UID 1000
               # and depends on the world-read bits `uv sync` sets on
               # .venv/lib/python3.10/site-packages) without touching mtimes.
+              #
+              # Extract flags:
+              #   --strip-components=1 = drop the leading `./` so the root
+              #                          archive entry becomes empty and GNU
+              #                          tar skips it entirely. Without this,
+              #                          tar tries to chmod/utime the dest
+              #                          dir `.` (= `/shared`, the emptyDir
+              #                          mount root owned by root mode 0755),
+              #                          which a non-root UID 1000 cannot do
+              #                          → EPERM. `--no-overwrite-dir` does
+              #                          NOT prevent this in GNU tar 1.34.
+              #   -m                   = don't restore mtime (overlayfs utime
+              #                          would also EPERM on emptyDir).
+              #   -xpf -               = extract, preserve file perms, stdin.
               command: ["sh", "-c"]
-              args: ["cd /feast-deps && tar cf - . | (cd /shared && tar xpf -) && echo 'feast-deps seeded into /shared'"]
+              args: ["cd /feast-deps && tar cf - . | (cd /shared && tar --strip-components=1 -xpmf -) && echo 'feast-deps seeded into /shared'"]
               volumeMounts:
                 - { name: shared-deps, mountPath: /shared }
               resources:

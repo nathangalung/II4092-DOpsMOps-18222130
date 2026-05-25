@@ -43,3 +43,7 @@ resources:
   - pushgateway
   - sloth
   - pyroscope
+  # VPA (Fairwinds 4.11.0) — recommender-only advisory autoscaler.
+  # Owns autoscaling.k8s.io VerticalPodAutoscaler CRs across the platform.
+  # See helm-release.yaml header for single-node `updateMode: Off` policy.
+  - vertical-pod-autoscaler

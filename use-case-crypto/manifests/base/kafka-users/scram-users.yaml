@@ -117,6 +117,14 @@ spec:
           name: analyzer
           patternType: literal
         operations: [Describe, Read]
+      # Flink consumer groups follow the `flink-{stream-name}` pattern emitted
+      # by com.pipeline.StreamJob. Prefix-scoped so any new stream wired via
+      # ENABLED_STREAMS env inherits ACL without re-applying KafkaUser.
+      - resource:
+          type: group
+          name: flink-
+          patternType: prefix
+        operations: [Describe, Read]
       # Transactional producers (idempotent writes from feature-engine)
       - resource:
           type: transactionalId
@@ -171,4 +179,55 @@ spec:
           type: group
           name: kafka-connect-cluster
           patternType: literal
+        operations: [Describe, Read]
+---
+# ----------------------------------------------------------------------------
+# clickhouse  —  ClickHouse Kafka engine consumer (bronze + cdc.predictions)
+# ----------------------------------------------------------------------------
+# ClickHouse bronze layer pulls `crypto.*` topics via the Kafka table engine
+# (init_clickhouse.sql) and `cdc.pipeline.predictions` via gold layer. Each
+# `Kafka()` table belongs to a unique consumer group (clickhouse_bronze_<topic>
+# or clickhouse_cdc_<topic>) so offsets don't collide with feature-engine /
+# analyzer.
+#
+# Read-only — ClickHouse never publishes back to Kafka. No transactionalId
+# resource needed.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: clickhouse
+  namespace: data-ingestion
+  labels:
+    strimzi.io/cluster: platform-kafka
+    app.kubernetes.io/part-of: mlops-platform
+    usecase: crypto
+    role: clickhouse-bronze
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: crypto.
+          patternType: prefix
+        operations: [Describe, Read]
+      - resource:
+          type: topic
+          name: cdc.pipeline.predictions
+          patternType: literal
+        operations: [Describe, Read]
+      # Each bronze table uses a unique `clickhouse_bronze_<topic>` group
+      # (kafka_group_name in init_clickhouse.sql). Prefix-scoped so adding a
+      # new bronze table doesn't require a KafkaUser change.
+      - resource:
+          type: group
+          name: clickhouse_bronze_
+          patternType: prefix
+        operations: [Describe, Read]
+      - resource:
+          type: group
+          name: clickhouse_cdc_
+          patternType: prefix
         operations: [Describe, Read]

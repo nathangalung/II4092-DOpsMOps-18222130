@@ -28,6 +28,7 @@ FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1
+ENV UV_COMPILE_BYTECODE_TIMEOUT=600
 ENV UV_LINK_MODE=copy
 
 # Install all dependencies (Airflow + providers) from locked pyproject.toml

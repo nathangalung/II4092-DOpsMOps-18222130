@@ -6,3 +6,5 @@ kind: Kustomization
 resources:
   - cluster.yaml
   - queries-configmap.yaml
+  # Domain-agnostic CDC source DB + schema; idempotent and safe on every reapply.
+  - pipeline-db-init.yaml

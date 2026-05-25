@@ -15,24 +15,60 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
+    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 300
+      # 600→1800: see supplementary.yaml header. Paired with IfNotPresent
+      # below so only the first cold-cache fire absorbs the long pull.
+      activeDeadlineSeconds: 1800
       template:
         metadata:
           labels:
             app: supplementary-coingecko
         spec:
           restartPolicy: OnFailure
+          # PodSecurity "restricted" baseline, paired with Dockerfile
+          # USER 1000:1000.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumes:
             - name: push-helper
               configMap:
                 name: push-helper
                 defaultMode: 0555
+            # rest-collector binary opens /etc/rest-collector/config.yaml at
+            # startup; without the mount the Job crashes on `open ... no such
+            # file` before any HTTP fetch fires (mirrors the long-running
+            # rest-collector Deployment patch).
+            - name: rest-collector-config
+              configMap:
+                name: crypto-rest-collector-config
+            # Kafka SASL_SSL CA — required by librdkafka producer in rest-collector
+            # (KAFKA_SSL_CA_LOCATION=/etc/kafka/ca/ca.crt). patches/kafka-sasl.yaml
+            # only patches Deployments; CronJobs embed the mount directly.
+            - name: kafka-ca
+              secret:
+                secretName: crypto-app-consumer
+                items:
+                  - key: ca.crt
+                    path: ca.crt
           containers:
             - name: rest-collector
               image: rest-collector:latest
+              # IfNotPresent — see #167 / #402.
               imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
               # Wrap the Go binary in a shell that captures rc + duration
               # and emits to Pushgateway on exit (success or failure).
               command: ["/bin/sh", "-c"]
@@ -46,6 +82,8 @@ spec:
                     name: pipeline-config
                 - secretRef:
                     name: pipeline-secrets
+                - secretRef:
+                    name: crypto-app-consumer
               env:
                 - name: HISTORY_BACKFILL_ON_START
                   value: "false"
@@ -82,6 +120,12 @@ spec:
               volumeMounts:
                 - name: push-helper
                   mountPath: /scripts
+                  readOnly: true
+                - name: rest-collector-config
+                  mountPath: /etc/rest-collector
+                  readOnly: true
+                - name: kafka-ca
+                  mountPath: /etc/kafka/ca
                   readOnly: true
               resources:
                 requests:

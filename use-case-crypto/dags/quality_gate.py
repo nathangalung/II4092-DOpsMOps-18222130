@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────
 # Configuration — from Airflow Variables with USE_CASE-derived defaults.
-# See crypto_data_pipeline.py for the full Variable contract.
+# See data_pipeline.py for the full Variable contract.
 # ─────────────────────────────────────────────────────────────
 USE_CASE = Variable.get("USE_CASE", default_var="crypto")
 NAMESPACE = Variable.get(

@@ -38,14 +38,17 @@ helmCharts:
       # bootstrap (minio-root, velero-minio, postgres-*, openbao-*).
       # Bump higher for HA once leader-election is validated.
       replicaCount: 1
-      leaderElect: true
-      # NOTE: ES 2.3.0 controller binary (chart maps `extraArgs` → container
-      # `args:`) does NOT bind --leader-elect-lease-duration et al. Attempted
-      # bump caused `Error: unknown flag: --leader-elect-lease-duration` →
-      # CrashLoopBackOff. Leader-election uses controller-runtime defaults
-      # (15s/10s/2s). Historical `leader election lost` storm root-caused to
-      # IO pressure under the pre-ADR-031 CSI sidecar stack (#214/#243 fixed);
-      # defaults adequate on healed single-node local-path cluster.
+      # Leader-election disabled — single-replica controller on kine-backed
+      # k3s. Controller-runtime's hardcoded 5s lease-renew context timeout
+      # collapses under any kine INSERT latency spike (observed 1-3s/op
+      # against 185MB SQLite state.db), churning ~220 cert-controller and
+      # ~37 main-controller restarts with `leader election lost`. The chart
+      # binary doesn't bind --leader-elect-lease-duration / renew-deadline
+      # flags (verified — unknown flag → CrashLoop), so the only knob is the
+      # boolean. With replicaCount=1 LE adds zero safety; bump back to true
+      # only when replicaCount > 1 (and ideally after k3s embedded-etcd
+      # migration drops the kine bottleneck — task #331).
+      leaderElect: false
       resources:
         requests: { cpu: 100m, memory: 128Mi }
         limits:   { cpu: 500m, memory: 256Mi }

@@ -171,7 +171,7 @@ def create_retrain_job(batch_api: client.BatchV1Api, symbol: str, reason: str) -
         # S3 credentials: read from platform-agnostic S3_* env vars,
         # but pass as AWS_* to the trainer (MLflow uses AWS SDK internally).
         # The retraining deployment mounts the `pipeline-secrets` ExternalSecret
-        # (see services/overlays/generic/secrets.yaml), so S3_* is guaranteed
+        # (see services/overlays/secrets.yaml), so S3_* is guaranteed
         # to be set at runtime.  Fail fast if missing rather than falling back
         # to a plaintext default (ADR-008: no embedded credentials).
         client.V1EnvVar(

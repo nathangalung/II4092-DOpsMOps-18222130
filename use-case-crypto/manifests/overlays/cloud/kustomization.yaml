@@ -72,7 +72,7 @@ images:
   - name: trainer
     newName: crypto-trainer
     newTag: v1.0.0
-  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-flink-job:latest`;
+  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-stream-processor:latest`;
   # kustomize image transformer cannot rewrite it because the operator CR is
   # outside the set kustomize rewrites. Image is published by the build pipeline.
   # Serving

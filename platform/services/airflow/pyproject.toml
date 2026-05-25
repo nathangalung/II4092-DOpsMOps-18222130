@@ -19,8 +19,8 @@ dependencies = [
     # /auth/token (no BasicAuth).  3.6.1 is the first 2026 release
     # (Apr 12 2026) and requires apache-airflow >=3.0.2.
     "apache-airflow-providers-fab>=3.6.1",
-    "psycopg2-binary>=2.9.10",
-    "asyncpg>=0.30.0",
+    # psycopg2-binary pulled transitively by apache-airflow[postgres] extra;
+    # no DAG/script imports asyncpg, so omitted.
     "clickhouse-connect",
     "requests",
 ]

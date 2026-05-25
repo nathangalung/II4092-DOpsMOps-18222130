@@ -1,0 +1,38 @@
+# =============================================================================
+# VerticalPodAutoscaler — MySQL (single-replica RDBMS, advisory only)
+# =============================================================================
+# MySQL backs DataHub GMS + KServe metadata. Single-replica stateful workload;
+# horizontal scaling not applicable (would need ClusterSet or InnoDB Cluster).
+# VPA(Off) recommends right-sized requests/limits based on observed connection
+# count + InnoDB buffer pool pressure.
+#
+# updateMode: Off only — Auto mode would evict the mysqld pod on every
+# recommendation refresh, dropping connections + risking redo-log corruption
+# during forced restart on a low-IO single-node.
+# =============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: mysql
+  namespace: storage
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: mysql
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mysql
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: mysql
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: 200m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 2
+          memory: 4Gi

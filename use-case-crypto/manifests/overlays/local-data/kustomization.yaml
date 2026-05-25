@@ -44,7 +44,7 @@ images:
     newName: localhost:5000/crypto-feature-engine
     newTag: latest
   # ADR-023/025: the FlinkDeployment CR hardcodes the image reference
-  # (`image: crypto-flink-job:latest`); kustomize image transformers can't
+  # (`image: crypto-stream-processor:latest`); kustomize image transformers can't
   # match it because the operator CR is outside the set they rewrite.
   # The build pipeline tags/pushes the image, and the CR pulls by name.
   - name: batch-processing
@@ -71,19 +71,28 @@ replicas:
     count: 1
 
 patches:
-  # Use IfNotPresent pull policy (works for both minikube and k3s with local registry)
+  # Always — forces registry digest check on each pod create. IfNotPresent
+  # silently ran stale cached containerd layers after `make usecase-crypto-
+  # build` re-pushed `:latest`, hiding new env-var reads (VALKEY_PASSWORD,
+  # KAFKA_SASL_*) and producing NOAUTH at Valkey + SASL handshakes failures.
   - target:
       kind: Deployment
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
   - target:
       kind: CronJob
     patch: |-
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Always
+  - target:
+      kind: Rollout
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
 
   # Reduce resources for VPS (limited node resources)
   - target:

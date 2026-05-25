@@ -25,7 +25,7 @@ data:
   CLICKHOUSE_PORT: "8123"
   # Default ClickHouse database. Use-case overlays set specific databases
   # via schema.yaml patches when they organise data with schema prefixes
-  # (e.g., TRAINING_DB: "gold", DATA_TABLE: "bronze.<domain>_ohlcv").
+  # (e.g., TRAINING_DB: "gold", DATA_TABLE: "bronze.<domain>_<table>").
   CLICKHOUSE_DB: "features"
 
   # --- Storage (OLTP — CNPG primary via -rw service; ADR-011) ---
@@ -81,6 +81,12 @@ data:
 
   # --- Observability ---
   PROMETHEUS_PUSHGATEWAY: "pushgateway.observability.svc.cluster.local:9091"
+  # Pyroscope continuous profiling HTTP push endpoint. Python services with
+  # `pyroscope-io` initialised at module load (drift, trainer, processing/batch,
+  # processing/vector) read this env and emit pprof samples every 10s. Leaving
+  # this unset (e.g. in tests / local dev without an envFrom) disables the
+  # profiler at import — the services run unchanged.
+  PYROSCOPE_SERVER_ADDRESS: "http://pyroscope.observability.svc.cluster.local:4040"
   # OTLP endpoint — services emit traces/metrics/logs to the OTel gateway,
   # which fans out to Tempo (traces), kube-prometheus-stack (metrics via
   # remote_write), and Loki (logs).  The legacy JAEGER_ENDPOINT was removed

@@ -1,0 +1,103 @@
+# =============================================================================
+# Fairwinds Vertical Pod Autoscaler — recommender-only (advisory) — 2026-04
+# =============================================================================
+# Why this chart:
+#   kubernetes/autoscaler upstream ships the VPA but provides no helm chart;
+#   Fairwinds republishes the same controller binaries (recommender, updater,
+#   admission-controller) as the de-facto community chart with sane defaults
+#   for resource limits, RBAC, and PriorityClass. Chart 4.11.0 (April 2026
+#   release) packages upstream VPA 1.4.x.
+#
+# Single-node platform stance — advisory only:
+#   Platform-wide policy is `updateMode: Off` (see VerticalPodAutoscaler CRs
+#   under each component dir). VPA publishes Recommendation.target on the CR
+#   status; nothing rewrites Pod resources at runtime. This lets us:
+#     1. Surface rightsizing guidance in Grafana (vpa_recommendations metric).
+#     2. Avoid the single-node restart storm that `updateMode: Auto` triggers
+#        when N pods need eviction simultaneously — root cause of IO cascade
+#        regression #160/166/169.
+#     3. Keep deterministic resource requests in source manifests (GitOps).
+#
+# Controller topology — recommender only:
+#   - recommender:           enabled (computes & publishes target on CR status)
+#   - updater:               DISABLED — would evict pods on Auto mode, unused
+#   - admissionController:   DISABLED — only relevant on Initial/Auto modes
+#   This keeps platform footprint minimal (single 100m/256Mi pod).
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vertical-pod-autoscaler
+  namespace: gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: vertical-pod-autoscaler
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: platform
+  source:
+    repoURL: https://charts.fairwinds.com/stable
+    chart: vpa
+    # Chart 4.11.0 (2026-04) packages upstream VPA 1.4.x — April 2026 latest stable.
+    targetRevision: 4.11.0
+    helm:
+      releaseName: vertical-pod-autoscaler
+      values: |
+        # Default tag pin via chart appVersion (1.4.x).
+        recommender:
+          enabled: true
+          replicaCount: 1
+          extraArgs:
+            # Sample window — match Prometheus scrape interval for accuracy.
+            # Default 1m is acceptable; 30s gives sharper recommendations on bursty workloads.
+            pod-recommendation-min-cpu-millicores: "25"
+            pod-recommendation-min-memory-mb: "32"
+            # Limit growth aggressiveness — single-node node has hard memory caps.
+            target-cpu-percentile: "0.9"
+            target-memory-percentile: "0.9"
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            fsGroup: 65534
+            seccompProfile: { type: RuntimeDefault }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+        # Updater & admission controller intentionally disabled — see header.
+        updater:
+          enabled: false
+        admissionController:
+          enabled: false
+        # CRDs installed by chart — same group as VPAs in component dirs
+        # (autoscaling.k8s.io/v1 VerticalPodAutoscaler).
+        rbac:
+          create: true
+        metrics-server:
+          # metrics-server already installed as a separate Argo app
+          # (platform-common) — do not double-install.
+          enabled: false
+        # PriorityClass for recommender pod — system-cluster-critical ensures
+        # eviction order keeps autoscaling control plane online during
+        # resource pressure on single-node.
+        priorityClassName: system-cluster-critical
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated: { prune: false, selfHeal: false, allowEmpty: false }
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 5m }
+  revisionHistoryLimit: 10

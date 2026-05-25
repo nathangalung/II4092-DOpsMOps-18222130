@@ -8,3 +8,9 @@
 .serena/
 .env
 *.env.local
+
+# Build/runtime artefacts
+dbt/logs/
+dbt/.user.yml
+**/.pytest_cache/
+**/.mypy_cache/

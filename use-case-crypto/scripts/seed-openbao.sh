@@ -1,15 +1,15 @@
 #!/bin/bash
 # =============================================================================
-# seed-crypto-openbao.sh
+# seed-openbao.sh
 # =============================================================================
 # Reads a crypto `.env` file and creates a K8s Secret `openbao-crypto-seed` in
 # namespace `security`. The crypto bootstrap Job
-# (use-case-crypto/manifests/base/openbao/openbao-bootstrap-crypto.yaml) consumes
+# (use-case-crypto/manifests/base/openbao/bootstrap.yaml) consumes
 # this Secret on first run. Missing keys fall back to `REPLACE_ME` so pods
 # crash-loop loudly rather than silently authenticating with empty tokens.
 #
 # Usage:
-#   ./use-case-crypto/scripts/seed-crypto-openbao.sh [path/to/use-case-crypto/.env]
+#   ./use-case-crypto/scripts/seed-openbao.sh [path/to/use-case-crypto/.env]
 #
 # Default: use-case-crypto/.env at repo root.
 #
@@ -98,4 +98,4 @@ trap 'rm -f "$tmp"' EXIT
 kubectl apply -f "$tmp"
 
 echo "[ok] wrote $SECRET_NAME in namespace $NAMESPACE with ${#seeds[@]} key(s)"
-echo "[next] kubectl apply -k use-case-crypto/manifests/overlays/local  # triggers openbao-bootstrap-crypto Job"
+echo "[next] kubectl apply -k use-case-crypto/manifests/overlays/local  # triggers crypto-openbao-bootstrap-crypto Job"
