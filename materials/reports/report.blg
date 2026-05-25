@@ -1,23 +1,23 @@
 [0] Config.pm:307> INFO - This is Biber 2.19
 [0] Config.pm:310> INFO - Logfile is 'report.blg'
-[102] biber:340> INFO - === Mon May 25, 2026, 09:14:13
-[126] Biber.pm:419> INFO - Reading 'report.bcf'
-[359] Biber.pm:979> INFO - Found 102 citekeys in bib section 0
-[452] Biber.pm:4419> INFO - Processing section 0
-[464] Biber.pm:4610> INFO - Looking for bibtex file 'daftar-pustaka.bib' for section 0
-[469] bibtex.pm:1713> INFO - LaTeX decoding ...
-[582] bibtex.pm:1519> INFO - Found BibTeX data source 'daftar-pustaka.bib'
-[1817] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'level = 4' with 'level = 2'
-[1817] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[1817] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'variable = shifted' with 'variable = non-ignorable'
-[1817] Biber.pm:4239> INFO - Sorting list 'cms/global//global/global' of type 'entry' with template 'cms' and locale 'indonesian'
-[1817] Biber.pm:4245> INFO - No sort tailoring available for locale 'indonesian'
-[1953] bbl.pm:660> INFO - Writing 'report.bbl' with encoding 'UTF-8'
-[2046] bbl.pm:763> INFO - Output to report.bbl
-[2046] Biber.pm:131> WARN - legacy month field 'December' in entry 'openai2022embedding' is not an integer - this will probably not sort properly.
-[2046] Biber.pm:131> WARN - ISBN '978-1-4920-3819-5' in entry 'stopford2018designing' is invalid - run biber with '--validate_datamodel' for details.
-[2046] Biber.pm:131> WARN - legacy month field 'January' in entry 'mcknight2020gigaom' is not an integer - this will probably not sort properly.
-[2046] Biber.pm:131> WARN - legacy month field 'February' in entry 'chien2022improve' is not an integer - this will probably not sort properly.
-[2046] Biber.pm:131> WARN - legacy month field 'June' in entry 'ahmad2024mlops' is not an integer - this will probably not sort properly.
-[2046] Biber.pm:131> WARN - legacy month field 'July' in entry 'anaconda2020state' is not an integer - this will probably not sort properly.
-[2046] Biber.pm:133> INFO - WARNINGS: 6
+[105] biber:340> INFO - === Mon May 25, 2026, 10:36:13
+[130] Biber.pm:419> INFO - Reading 'report.bcf'
+[331] Biber.pm:979> INFO - Found 102 citekeys in bib section 0
+[347] Biber.pm:4419> INFO - Processing section 0
+[382] Biber.pm:4610> INFO - Looking for bibtex file 'daftar-pustaka.bib' for section 0
+[387] bibtex.pm:1713> INFO - LaTeX decoding ...
+[502] bibtex.pm:1519> INFO - Found BibTeX data source 'daftar-pustaka.bib'
+[1757] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'variable = shifted' with 'variable = non-ignorable'
+[1757] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'level = 4' with 'level = 2'
+[1757] UCollate.pm:68> INFO - Overriding locale 'indonesian' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[1757] Biber.pm:4239> INFO - Sorting list 'cms/global//global/global' of type 'entry' with template 'cms' and locale 'indonesian'
+[1757] Biber.pm:4245> INFO - No sort tailoring available for locale 'indonesian'
+[1890] bbl.pm:660> INFO - Writing 'report.bbl' with encoding 'UTF-8'
+[1944] bbl.pm:763> INFO - Output to report.bbl
+[1945] Biber.pm:131> WARN - legacy month field 'December' in entry 'openai2022embedding' is not an integer - this will probably not sort properly.
+[1945] Biber.pm:131> WARN - ISBN '978-1-4920-3819-5' in entry 'stopford2018designing' is invalid - run biber with '--validate_datamodel' for details.
+[1945] Biber.pm:131> WARN - legacy month field 'January' in entry 'mcknight2020gigaom' is not an integer - this will probably not sort properly.
+[1945] Biber.pm:131> WARN - legacy month field 'February' in entry 'chien2022improve' is not an integer - this will probably not sort properly.
+[1945] Biber.pm:131> WARN - legacy month field 'June' in entry 'ahmad2024mlops' is not an integer - this will probably not sort properly.
+[1945] Biber.pm:131> WARN - legacy month field 'July' in entry 'anaconda2020state' is not an integer - this will probably not sort properly.
+[1945] Biber.pm:133> INFO - WARNINGS: 6

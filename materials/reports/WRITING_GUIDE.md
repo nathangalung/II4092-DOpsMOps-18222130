@@ -207,11 +207,14 @@ Tabel perbandingan: tiap subbab dengan alternatif diakhiri \input{tables/<file>_
 **Bab III — Analisis Masalah**
 
 ```
-- III.1 Analisis Kondisi Saat Ini             : pemetaan praktik dan keterbatasan
-- III.2 Beban Operasional dan Finansial       : configure-from-0 + biaya berlangganan + trade-off
-- III.3 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
-- III.4 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
+- III.1 Analisis Kondisi Saat Ini             : tiga sumber tekanan, diurutkan sesuai pemicu pada Bab I
+  - III.1.1 Beban Konfigurasi Platform dari Nol     : configure-from-0
+  - III.1.2 Biaya Berlangganan Layanan Terkelola    : cloud subscription + trade-off waktu lawan anggaran
+  - III.1.3 Efek Domino Fragmentasi Lintas Peran    : pandangan umum fragmentasi DataOps + MLOps (per peran ke Lampiran C)
+- III.2 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
+- III.3 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
 Catatan:
+  - Urutan sub-sub-section di III.1 mengikuti urutan pemicu pada Bab I Latar Belakang.
   - KF berorientasi kemampuan (apa yang dilakukan platform).
   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.

@@ -118,12 +118,14 @@ Pembagian subbab tidak rigid. Bab III minimal berisi:
 2. Analisis berbagai alternatif solusi yang dapat ditawarkan.
 3. Metode pemilihan solusi yang diusulkan.
 
-Struktur yang dipakai pada laporan ini:
+Struktur yang dipakai pada laporan ini (revisi 2026-05; subbab Beban Operasional sebelumnya dilebur menjadi sub-sub-subbab di dalam III.1 agar Analisis Masalah berfokus pada satu rantai tekanan yang sejalan dengan urutan pemicu pada Bab I Latar Belakang):
 
-- III.1 Analisis Kondisi Saat Ini (pandangan umum fragmentasi DataOps + MLOps; rincian per peran dipindahkan ke Lampiran C agar bab tetap ramping).
-- III.2 Beban Operasional dan Finansial Pengembangan Platform (configure-from-0, biaya berlangganan layanan terkelola, trade-off waktu lawan anggaran).
-- III.3 Analisis Kebutuhan (identifikasi masalah pengguna, kebutuhan fungsional KF-1..KF-n, kebutuhan nonfungsional KNF-1..KNF-n).
-- III.4 Analisis Pemilihan Solusi (alternatif solusi, analisis penentuan solusi).
+- III.1 Analisis Kondisi Saat Ini (tiga sumber tekanan yang diurutkan sesuai pemicu pada Bab I Latar Belakang).
+  - III.1.1 Beban Konfigurasi Platform dari Nol (configure-from-0).
+  - III.1.2 Biaya Berlangganan Layanan Terkelola (cloud subscription + trade-off waktu lawan anggaran).
+  - III.1.3 Efek Domino Fragmentasi Lintas Peran (pandangan umum fragmentasi DataOps + MLOps; rincian per peran dipindahkan ke Lampiran C agar bab tetap ramping).
+- III.2 Analisis Kebutuhan (identifikasi masalah pengguna, kebutuhan fungsional KF-1..KF-n, kebutuhan nonfungsional KNF-1..KNF-n).
+- III.3 Analisis Pemilihan Solusi (alternatif solusi, analisis penentuan solusi).
 
 ## 5. Bab IV Perancangan – Panduan Template Asli
 
