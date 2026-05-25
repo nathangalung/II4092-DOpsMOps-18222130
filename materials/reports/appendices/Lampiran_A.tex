@@ -17,4 +17,4 @@ Repositori \textit{use case} pasar aset kripto memuat berkas \textit{overlay} Ku
 \section{Contoh Berkas Konfigurasi Feast}
 \label{appx:feast-config}
 
-Berkas \texttt{feature\_store.yaml} mendeklarasikan \textit{registry} pada MinIO, \textit{offline store} pada ClickHouse, dan \textit{online store} pada Redis Stack dengan dukungan vektor. Berkas ini diolah oleh layanan fitur pada saat \textit{materialization} batch maupun \textit{streaming}; rincian sintaks dijelaskan pada Subbab~\ref{sec:impl-feast}.
+Berkas \texttt{feature\_store.yaml} mendeklarasikan \textit{registry} \textit{file-based} pada MinIO, \textit{offline store} pada ClickHouse, \textit{online store} fitur tabular pada Valkey melalui protokol RESP, dan indeks vektor pada Qdrant secara terpisah. Berkas ini diolah oleh layanan fitur pada saat \textit{materialization} batch maupun \textit{streaming}; rincian sintaks dijelaskan pada Subbab~\ref{sec:impl-feast}.

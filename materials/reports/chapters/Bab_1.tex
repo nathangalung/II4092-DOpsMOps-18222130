@@ -1,8 +1,22 @@
+% ============================================================
+% BAB I — PENDAHULUAN
+% Template (ITB STI TA + Proposal.tex):
+%   - I.1 Latar Belakang       : Motivasi dan tantangan (4 pemicu utama)
+%   - I.2 Rumusan Masalah      : 4 butir, dirujuk RM-1..RM-4
+%   - I.3 Tujuan               : 4 butir, dirujuk T-1..T-4 (satu lawan satu RM)
+%   - I.4 Batasan Masalah      : 5 butir, dirujuk B-1..B-5
+%   - I.5 Metodologi           : DSRM 6 fase (Peffers et al. 2007)
+%   - I.6 Sistematika Penulisan: ringkasan Bab I-VII
+% Gaya enumerate mengikuti Proposal.tex:
+%   - vspace{0.5em} sebelum \begin{enumerate}
+%   - bare \begin{enumerate} (tanpa label kustom)
+%   - tiap item: \textbf{Judul} \n\n paragraf
+%   - vspace{0.5em} antar paragraf dan antar item
+% Rantai keterhubungan: RM-N ↔ T-N ↔ Bab IV.N+1 ↔ Bab V.N+1 ↔ Kesimpulan ke-N
+% ============================================================
 \cleardoublepage
 \chapter{PENDAHULUAN}
 \label{chap:pendahuluan}
-
-% Pendahuluan platform DataOps MLOps
 \section{Latar Belakang}
 \label{sec:latar-belakang}
 
@@ -23,25 +37,61 @@ Empat tekanan tersebut menggerakkan pengembangan sebuah platform yang menyatukan
 \section{Rumusan Masalah}
 \label{sec:rumusan-masalah}
 
-Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaikan oleh platform yang dikembangkan.
+Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaikan oleh platform yang dikembangkan. Keempat butir di bawah ini selanjutnya dirujuk dengan singkatan RM-1 hingga RM-4 pada bab-bab berikutnya.
 
-\begin{enumerate}[label=\textbf{RM-\arabic*}, leftmargin=2.4cm]
-    \item \textbf{Fragmentasi tumpukan teknologi DataOps dan MLOps.} \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model masih dirakit secara terpisah sehingga integrasi memerlukan biaya rekayasa berulang dan menimbulkan duplikasi konsep antara \textit{pipeline} data dan \textit{pipeline} model. Persoalan ini berakibat pada lemahnya konsistensi kontrak data antara fase pelatihan dan fase penyajian, serta tingginya beban pemeliharaan ketika ada perubahan versi salah satu komponen.
-    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data–fitur–model.} Katalog metadata, \textit{lineage}, dan kontrol kualitas sering dijalankan sebagai proses pasca-fakta, terpisah dari \textit{pipeline} produksi data dan dari pencatatan eksperimen model. Akibatnya, ketika sebuah fitur diperbarui atau sebuah model dihentikan, perubahan tersebut tidak otomatis tercermin pada katalog dan riwayat kepemilikan, sehingga sulit memenuhi kewajiban audit dan reproduksibilitas.
-    \item \textbf{Deteksi \textit{drift} yang tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}.} Tanda-tanda perubahan distribusi data, perubahan hubungan masukan-keluaran, dan pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
-    \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran.} Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train–serving skew} membesar.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Fragmentasi tumpukan teknologi DataOps dan MLOps}
+
+    \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model masih dirakit secara terpisah sehingga integrasi memerlukan biaya rekayasa berulang dan menimbulkan duplikasi konsep antara \textit{pipeline} data dan \textit{pipeline} model. Persoalan ini berakibat pada lemahnya konsistensi kontrak data antara fase pelatihan dan fase penyajian, serta tingginya beban pemeliharaan ketika ada perubahan versi salah satu komponen.
+
+    \vspace{0.5em}
+
+    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data--fitur--model}
+
+    Katalog metadata, \textit{lineage}, dan kontrol kualitas sering dijalankan sebagai proses pasca-fakta, terpisah dari \textit{pipeline} produksi data dan dari pencatatan eksperimen model. Akibatnya, ketika sebuah fitur diperbarui atau sebuah model dihentikan, perubahan tersebut tidak otomatis tercermin pada katalog dan riwayat kepemilikan, sehingga sulit memenuhi kewajiban audit dan reproduksibilitas.
+
+    \vspace{0.5em}
+
+    \item \textbf{Deteksi \textit{drift} yang tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}}
+
+    Tanda-tanda perubahan distribusi data, perubahan hubungan masukan--keluaran, dan pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
+
+    \vspace{0.5em}
+
+    \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran}
+
+    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train--serving skew} membesar.
 \end{enumerate}
 
 \section{Tujuan}
 \label{sec:tujuan}
 
-Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan masalah, dengan luaran berupa artefak teknis yang dapat ditunjukkan dan dipakai ulang.
+Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan masalah, dengan luaran berupa artefak teknis yang dapat ditunjukkan dan dipakai ulang. Keempat tujuan di bawah ini selanjutnya dirujuk dengan singkatan T-1 hingga T-4 pada bab-bab berikutnya.
 
-\begin{enumerate}[label=\textbf{T-\arabic*}, leftmargin=2.4cm]
-    \item Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan lapis ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps.
-    \item Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model.
-    \item Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}.
-    \item Mengembangkan layanan fitur \textit{dual-store} \textit{offline}–\textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Arsitektur platform DataOps dan MLOps terintegrasi}
+
+    Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan lapis ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps.
+
+    \vspace{0.5em}
+
+    \item \textbf{Sub-sistem tata kelola data}
+
+    Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model.
+
+    \vspace{0.5em}
+
+    \item \textbf{Sub-sistem deteksi \textit{drift} terotomasi}
+
+    Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Layanan fitur \textit{dual-store} \textit{offline}--\textit{online}}
+
+    Mengembangkan layanan fitur \textit{dual-store} \textit{offline}--\textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian.
 \end{enumerate}
 
 Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut: pertama, seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual; kedua, seluruh \textit{sub-sistem} berkomunikasi melalui kontrak yang ditegakkan oleh layanan tata kelola dan layanan fitur; ketiga, mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi.
@@ -49,14 +99,37 @@ Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut: pertama,
 \section{Batasan Masalah}
 \label{sec:batasan}
 
-Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut.
+Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Kelima batasan di bawah ini selanjutnya dirujuk dengan singkatan B-1 hingga B-5 pada bab-bab berikutnya.
 
-\begin{enumerate}[label=\textbf{B-\arabic*}, leftmargin=2.4cm]
-    \item Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan; karena itu pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}.
-    \item Platform berjalan di atas Kubernetes dengan distribusi \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian. Setiap beban kerja diatur minimal satu replika ketika \textit{idle} dan diskalakan oleh \textit{Horizontal Pod Autoscaler} (HPA), \textit{Vertical Pod Autoscaler} (VPA), atau Kubernetes Event-driven Autoscaling (KEDA) ketika beban nyata muncul.
-    \item Seluruh komponen yang digunakan berbasis \textit{open source}. Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026.
-    \item Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan; aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes.
-    \item Evaluasi end-to-end seperti pengukuran latensi penuh, throughput, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan; angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Fokus pada lapis kendali platform}
+
+    Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan; karena itu pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Lingkungan Kubernetes \textit{k3s} satu \textit{node}}
+
+    Platform berjalan di atas Kubernetes dengan distribusi \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian. Setiap beban kerja diatur minimal satu replika ketika \textit{idle} dan diskalakan oleh \textit{Horizontal Pod Autoscaler} (HPA), \textit{Vertical Pod Autoscaler} (VPA), atau \textit{Kubernetes Event-driven Autoscaling} (KEDA) ketika beban nyata muncul.
+
+    \vspace{0.5em}
+
+    \item \textbf{Komponen \textit{open source} dengan patokan versi April 2026}
+
+    Seluruh komponen yang digunakan berbasis \textit{open source}. Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026.
+
+    \vspace{0.5em}
+
+    \item \textbf{Cakupan keamanan terbatas pada akses antar layanan internal}
+
+    Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan; aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes.
+
+    \vspace{0.5em}
+
+    \item \textbf{Evaluasi kuantitatif menyusul setelah implementasi inti}
+
+    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan; angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap.
 \end{enumerate}
 
 \section{Metodologi}
@@ -64,13 +137,45 @@ Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut.
 
 Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang diperkenalkan oleh \textcite{peffers2007dsrm} dan diadaptasi untuk pengembangan platform perangkat lunak. Pemilihan DSRM mengikuti pertimbangan bahwa luaran utama Tugas Akhir berupa artefak teknis berupa rancangan dan implementasi platform, sementara penilaian artefak dilakukan dengan demonstrasi pada \textit{use case} verifikasi---pola yang persis dianjurkan oleh DSRM untuk penelitian yang menghasilkan artefak. Tahapan yang dijalankan meliputi enam fase berikut.
 
-\begin{enumerate}[label=\arabic*., leftmargin=1.4cm]
-    \item \textbf{Identifikasi masalah dan motivasi.} Studi literatur mengenai praktik DataOps, MLOps, dan tata kelola data dilakukan untuk menyusun peta tantangan. Pengamatan pada studi kasus produksi yang terdokumentasi dipakai untuk mempertajam keempat rumusan masalah.
-    \item \textbf{Penetapan tujuan artefak.} Tujuan dirumuskan sebagai daftar artefak teknis yang harus dapat dipasang, dioperasikan, dan diaudit. Tujuan dipetakan satu lawan satu terhadap rumusan masalah untuk menghindari ketidaksinkronan antara persoalan dan capaian.
-    \item \textbf{Perancangan dan pengembangan artefak.} Arsitektur tujuh lapis dirancang sebagai bidang kendali deklaratif berbasis Kubernetes. Untuk setiap lapis dilakukan pemilihan komponen \textit{open source} berdasarkan kriteria fungsi, dukungan ekosistem, kompatibilitas versi April 2026, dan kemampuan diorkestrasi oleh Argo CD dengan praktik GitOps.
-    \item \textbf{Demonstrasi.} Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari \textit{use case} pasar aset kripto sebagai instans verifikasi. Aliran data \textit{streaming}, transformasi fitur, pelatihan model, penyajian model, dan deteksi \textit{drift} dijalankan dalam satu lingkaran tertutup. \textit{Use case} ini dipilih sebagai instans verifikasi karena pasar aset kripto beroperasi 24 jam sehari dengan volatilitas harga yang tinggi, sehingga menghasilkan aliran \textit{event} \textit{streaming} yang kontinu, distribusi fitur yang berubah cepat, dan kebutuhan fitur multimoda (tabular, agregat \textit{rolling window}, dan \textit{embedding} vektor). Kondisi tersebut menguji jalur ingestasi, materialisasi fitur, dan deteksi \textit{drift} secara end-to-end tanpa menjadikan domain kripto sebagai fokus penelitian.
-    \item \textbf{Evaluasi.} Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional (apakah semua kebutuhan fungsional berjalan), nonfungsional (skalabilitas, ketersediaan, \textit{observability}, keamanan, dan biaya), serta tata kelola (lineage tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif dilaporkan pada Bab Evaluasi.
-    \item \textbf{Komunikasi.} Hasil rancangan dan implementasi didokumentasikan pada laporan Tugas Akhir ini, beserta repositori sumber yang menjadi acuan reproduksi.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Identifikasi masalah dan motivasi}
+
+    Studi literatur mengenai praktik DataOps, MLOps, dan tata kelola data dilakukan untuk menyusun peta tantangan. Pengamatan pada studi kasus produksi yang terdokumentasi dipakai untuk mempertajam keempat rumusan masalah.
+
+    \vspace{0.5em}
+
+    \item \textbf{Penetapan tujuan artefak}
+
+    Tujuan dirumuskan sebagai daftar artefak teknis yang harus dapat dipasang, dioperasikan, dan diaudit. Tujuan dipetakan satu lawan satu terhadap rumusan masalah untuk menghindari ketidaksinkronan antara persoalan dan capaian.
+
+    \vspace{0.5em}
+
+    \item \textbf{Perancangan dan pengembangan artefak}
+
+    Arsitektur tujuh lapis dirancang sebagai bidang kendali deklaratif berbasis Kubernetes. Untuk setiap lapis dilakukan pemilihan komponen \textit{open source} berdasarkan kriteria fungsi, dukungan ekosistem, kompatibilitas versi April 2026, dan kemampuan diorkestrasi oleh Argo CD dengan praktik GitOps.
+
+    \vspace{0.5em}
+
+    \item \textbf{Demonstrasi}
+
+    Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari \textit{use case} pasar aset kripto sebagai instans verifikasi. Aliran data \textit{streaming}, transformasi fitur, pelatihan model, penyajian model, dan deteksi \textit{drift} dijalankan dalam satu lingkaran tertutup.
+
+    \vspace{0.5em}
+
+    \textit{Use case} ini dipilih sebagai instans verifikasi karena pasar aset kripto beroperasi 24 jam sehari dengan volatilitas harga yang tinggi, sehingga menghasilkan aliran \textit{event} \textit{streaming} yang kontinu, distribusi fitur yang berubah cepat, dan kebutuhan fitur multimoda (tabular, agregat \textit{rolling window}, dan \textit{embedding} vektor). Kondisi tersebut menguji jalur ingestasi, materialisasi fitur, dan deteksi \textit{drift} secara \textit{end-to-end} tanpa menjadikan domain kripto sebagai fokus penelitian.
+
+    \vspace{0.5em}
+
+    \item \textbf{Evaluasi}
+
+    Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional (apakah semua kebutuhan fungsional berjalan), nonfungsional (skalabilitas, ketersediaan, \textit{observability}, keamanan, dan biaya), serta tata kelola (\textit{lineage} tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif dilaporkan pada Bab Evaluasi.
+
+    \vspace{0.5em}
+
+    \item \textbf{Komunikasi}
+
+    Hasil rancangan dan implementasi didokumentasikan pada laporan Tugas Akhir ini, beserta repositori sumber yang menjadi acuan reproduksi.
 \end{enumerate}
 
 \section{Sistematika Penulisan}
@@ -78,14 +183,47 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
 Laporan Tugas Akhir disusun atas tujuh bab dengan urutan sebagai berikut.
 
-\begin{enumerate}[label=Bab \Roman*., leftmargin=1.4cm]
-    \item \textbf{Pendahuluan.} Bab ini memuat latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi penelitian, serta sistematika penulisan.
-    \item \textbf{Studi Literatur.} Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka–Flink–Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan.
-    \item \textbf{Analisis.} Bab ini memetakan kondisi sistem yang ada saat ini, menyusun kebutuhan fungsional dan nonfungsional, membandingkan alternatif solusi per lapis arsitektur, dan menutup dengan pemilihan komponen yang dipakai oleh platform.
-    \item \textbf{Perancangan Arsitektur Platform DataOps dan MLOps Terintegrasi.} Bab ini menjabarkan gambaran umum arsitektur, perancangan tiap \textit{sub-sistem} yang menjawab keempat tujuan, dan alur kerja end-to-end yang menghubungkan komponen.
-    \item \textbf{Implementasi Platform.} Bab ini memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab IV, lengkap dengan praktik GitOps, manajemen rahasia, kebijakan jaringan, dan otomasi \textit{continuous training}.
-    \item \textbf{Evaluasi.} Bab ini berisi metode evaluasi, hasil pengukuran, dan pembahasan hasil terhadap kebutuhan fungsional dan nonfungsional yang ditetapkan pada Bab III.
-    \item \textbf{Kesimpulan dan Saran.} Bab ini menyimpulkan jawaban atas keempat tujuan dan memberikan saran pengembangan lanjutan.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Bab I Pendahuluan}
+
+    Bab ini memuat latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi penelitian, serta sistematika penulisan.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab II Studi Literatur}
+
+    Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka--Flink--Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab III Analisis}
+
+    Bab ini memetakan kondisi sistem yang ada saat ini, menyusun kebutuhan fungsional dan nonfungsional, membandingkan alternatif solusi per lapis arsitektur, dan menutup dengan pemilihan komponen yang dipakai oleh platform.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps Terintegrasi}
+
+    Bab ini menjabarkan gambaran umum arsitektur, perancangan tiap \textit{sub-sistem} yang menjawab keempat tujuan, dan alur kerja \textit{end-to-end} yang menghubungkan komponen.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab V Implementasi Platform}
+
+    Bab ini memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab IV, lengkap dengan praktik GitOps, manajemen rahasia, kebijakan jaringan, dan otomasi \textit{continuous training}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab VI Evaluasi}
+
+    Bab ini berisi metode evaluasi, hasil pengukuran, dan pembahasan hasil terhadap kebutuhan fungsional dan nonfungsional yang ditetapkan pada Bab III.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bab VII Kesimpulan dan Saran}
+
+    Bab ini menyimpulkan jawaban atas keempat tujuan dan memberikan saran pengembangan lanjutan.
 \end{enumerate}
 
 Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung seperti manifes Kubernetes, kontrak data, serta tangkapan layar antarmuka observabilitas.

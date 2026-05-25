@@ -72,7 +72,9 @@ Pemilihan Kubernetes sebagai bidang dasar memberi tiga keuntungan teknis: orkest
 \subsection{Apache Kafka}
 \label{subsec:kafka}
 
-Apache Kafka berperan sebagai \textit{distributed log} yang menyimpan kejadian dalam urutan tertentu dan memungkinkan pelanggan untuk memutar ulang aliran data dari posisi tertentu \autocite{apachekafka2024}. Kafka mendukung jaminan \textit{at-least-once} secara baku dan \textit{exactly-once} dengan transaksi, sehingga cocok untuk dipakai sebagai tulang punggung penghubung antara produsen data dan konsumen pemroses.
+Apache Kafka berperan sebagai \textit{distributed log} yang menyimpan kejadian dalam urutan tertentu dan memungkinkan pelanggan untuk memutar ulang aliran data dari posisi tertentu \autocite{apachekafka2024}. Kafka mendukung jaminan \textit{at-least-once} secara baku dan \textit{exactly-once} dengan transaksi, sehingga cocok untuk dipakai sebagai tulang punggung penghubung antara produsen data dan konsumen pemroses. Registrasi skema dipisahkan ke Karapace \autocite{karapace2025} sebagai \textit{schema registry} kompatibel-Confluent yang berlisensi Apache 2.0, dengan dukungan Avro, JSON Schema, dan Protobuf serta verifikasi kompatibilitas saat publikasi. Tabel~\ref{tab:schema_registry_comparison} merangkum perbandingan beberapa pilihan \textit{schema registry} \textit{open-source}.
+
+\input{tables/schema_registry_comparison.tex}
 
 \subsection{Apache Flink}
 \label{subsec:flink}
@@ -82,7 +84,7 @@ Apache Flink memproses aliran data dengan dukungan \textit{event-time} dan \text
 \subsection{Apache Spark}
 \label{subsec:spark}
 
-Apache Spark menyediakan kemampuan pemrosesan \textit{batch} dan \textit{micro-batch} pada skala besar \autocite{apachespark2024}. \textcite{zaharia2016spark} memberikan ringkasan arsitektur Spark sebagai mesin terpadu. Spark dipakai untuk transformasi fitur dengan referensi waktu historis dan untuk pelatihan model yang membutuhkan pemrosesan data besar.
+Apache Spark menyediakan kemampuan pemrosesan \textit{batch} dan \textit{micro-batch} pada skala besar \autocite{apachespark2024}. \textcite{zaharia2016spark} memberikan ringkasan arsitektur Spark sebagai mesin terpadu. Spark dipakai untuk transformasi fitur dengan referensi waktu historis dan untuk pelatihan model yang membutuhkan pemrosesan data besar. Transformasi SQL deklaratif pada lapisan \textit{warehouse} dikerjakan oleh dbt \autocite{dbt2025}, yang memetakan model ke berkas SQL dengan dukungan pengujian skema dan dokumentasi otomatis.
 
 \input{tables/data_processing_comparison.tex}
 
@@ -104,7 +106,7 @@ Penyimpanan jangka panjang pada \textit{data lake} memerlukan format tabel yang 
 \subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
 \label{subsec:offline-online-teori}
 
-Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}; penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten.
+Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}; penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten. ClickHouse \autocite{clickhouse2024} dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey \autocite{valkey2025} dipilih sebagai \textit{online store} karena kompatibilitas wire-protocol RESP dengan ekosistem klien Redis dan lisensi BSD yang tetap terbuka pasca-perubahan lisensi Redis.
 
 \input{tables/offline_storage_comparison.tex}
 
@@ -113,7 +115,7 @@ Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring};
 \subsection{Pencarian Vektor dan HNSW}
 \label{subsec:vektor-hnsw}
 
-Fitur \textit{embedding} berdimensi tinggi memerlukan struktur indeks pendekatan tetangga terdekat (\textit{approximate nearest neighbor}, ANN). \textcite{malkov2020efficient} memperkenalkan \textit{Hierarchical Navigable Small World} (HNSW) sebagai struktur indeks dengan keseimbangan baik antara kecepatan kueri dan kualitas hasil. Alternatif lain seperti \textit{Product Quantization} \autocite{jegou2011product} dan pencarian skala miliar dengan GPU \autocite{johnson2021billion} relevan untuk skala yang berbeda. Untuk platform ini, HNSW pada Redis Stack \autocite{redis2024} dipilih karena dukungan \textit{embedded} pada penyimpanan \textit{online} yang sama dengan fitur tabular. Tabel~\ref{tab:vector_index_comparison} merangkum perbandingan beberapa pilihan \textit{vector index} \textit{open-source} pada empat kriteria yang relevan dengan kebutuhan platform.
+Fitur \textit{embedding} berdimensi tinggi memerlukan struktur indeks pendekatan tetangga terdekat (\textit{approximate nearest neighbor}, ANN). \textcite{malkov2020efficient} memperkenalkan \textit{Hierarchical Navigable Small World} (HNSW) sebagai struktur indeks dengan keseimbangan baik antara kecepatan kueri dan kualitas hasil. Alternatif lain seperti \textit{Product Quantization} \autocite{jegou2011product} dan pencarian skala miliar dengan GPU \autocite{johnson2021billion} relevan untuk skala yang berbeda. Untuk platform ini, Qdrant \autocite{qdrant2025} dipilih sebagai \textit{vector index} terpisah dari \textit{online store} tabular karena dukungan HNSW \textit{native}, mode \textit{gRPC} berlatensi rendah, dan kemampuan filter pada \textit{payload} yang menyatu dengan kueri kemiripan. Pemisahan ini menjaga jalur fitur tabular pada protokol RESP tetap ringan, sedangkan pencarian vektor mendapat \textit{engine} yang dirancang khusus untuk dimensi tinggi. Tabel~\ref{tab:vector_index_comparison} merangkum perbandingan beberapa pilihan \textit{vector index} \textit{open-source} pada empat kriteria yang relevan dengan kebutuhan platform.
 
 \input{tables/vector_index_comparison.tex}
 
@@ -167,7 +169,9 @@ Pada platform ini, PSI dan uji Kolmogorov-Smirnov dipakai sebagai detektor utama
 \section{Observabilitas \textit{Cloud-Native}}
 \label{sec:observability}
 
-\textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas.
+\textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pyroscope \autocite{pyroscope2025} menyediakan \textit{continuous profiling} untuk profil CPU dan memori, Pushgateway \autocite{pushgateway2025} menjadi titik kumpul metrik untuk \textit{job} berdurasi pendek di luar siklus \textit{scrape}, dan OpenCost \autocite{opencost2025} memantau biaya per beban kerja pada klaster. Apache Superset \autocite{superset2025} berperan sebagai antarmuka BI yang menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu lapis dasbor; Tabel~\ref{tab:dashboarding_comparison} merangkum perbandingan beberapa pilihan \textit{BI} \textit{open-source}. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas.
+
+\input{tables/dashboarding_comparison.tex}
 
 \input{tables/monitoring_comparison.tex}
 
@@ -191,13 +195,19 @@ Untuk pengelolaan rahasia, OpenBao \autocite{openbao2025} dipakai sebagai \texti
 
 \input{tables/secrets_comparison.tex}
 
-Untuk komunikasi antar-layanan, Istio \autocite{istio2024} dipakai sebagai \textit{service mesh} yang menyediakan \textit{mutual TLS} (mTLS) seragam, kontrol L7 berbasis \texttt{VirtualService} dan \texttt{AuthorizationPolicy}, serta integrasi telemetri dengan OpenTelemetry. Tabel~\ref{tab:service_mesh_comparison} merangkum perbandingan beberapa \textit{service mesh} \textit{open-source} berdasarkan kriteria fitur, ekosistem, dan kematangan.
+Untuk komunikasi antar-layanan, Istio \autocite{istio2024} dipakai sebagai \textit{service mesh} yang menyediakan \textit{mutual TLS} (mTLS) seragam, kontrol L7 berbasis \texttt{VirtualService} dan \texttt{AuthorizationPolicy}, serta integrasi telemetri dengan OpenTelemetry. Tabel~\ref{tab:service_mesh_comparison} merangkum perbandingan beberapa \textit{service mesh} \textit{open-source} berdasarkan kriteria fitur, ekosistem, dan kematangan. Pada perbatasan \textit{mesh}, Apache APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} yang menyaring lalu lintas masuk, menerapkan kebijakan kuota, dan menjembatani mTLS terhadap konsumen di luar \textit{mesh}. Tabel~\ref{tab:api_gateway_comparison} merangkum perbandingan beberapa \textit{API gateway} \textit{open-source}.
 
 \input{tables/service_mesh_comparison.tex}
+
+\input{tables/api_gateway_comparison.tex}
 
 Untuk penegakan kebijakan, Kyverno \autocite{kyverno2024} dipakai sebagai \textit{policy engine} \textit{native} Kubernetes dengan sintaks YAML yang ringkas serta dukungan \textit{mutate}, \textit{validate}, dan \textit{generate}. Open Policy Agent (OPA) Gatekeeper \autocite{opa2024} juga umum dipakai sebagai alternatif berbasis Rego. Tabel~\ref{tab:policy_comparison} merangkum perbandingan beberapa \textit{policy engine} \textit{open-source}.
 
 \input{tables/policy_comparison.tex}
+
+Untuk pemantauan ancaman pada lapis \textit{runtime}, Falco \autocite{falco2025} dipakai sebagai detektor berbasis eBPF yang memantau \textit{syscall} dan menerbitkan peristiwa keamanan, sedangkan Trivy Operator \autocite{trivy2025} memindai \textit{image} dan beban kerja secara terjadwal. Pencadangan \textit{cluster} dan \textit{persistent volume} dijaga oleh Velero \autocite{velero2025}, dan uji ketahanan dijalankan dengan Chaos Mesh \autocite{chaosmesh2025} pada \textit{namespace} eksperimen. Tabel~\ref{tab:runtime_security_comparison} merangkum perbandingan beberapa \textit{runtime security} \textit{open-source}.
+
+\input{tables/runtime_security_comparison.tex}
 
 \section{Penelitian Terkait dan Posisi Penelitian}
 \label{sec:terkait}

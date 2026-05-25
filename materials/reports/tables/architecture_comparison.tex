@@ -38,9 +38,9 @@ Duplikasi fitur dapat ditekan, \textit{training--serving skew} berkurang melalui
 \hline
 \textit{Vector Embeddings} &
 Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
-Redis Stack dengan dukungan HNSW \textit{vector search} berlatensi rendah. &
-\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis HNSW maupun FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah; desain ini memanfaatkan prinsip serupa pada Redis Stack agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membangun layanan kustom. &
-\citereset\autocite{johnson2021billion} \\
+Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, \textit{API} \textit{gRPC}, dan filter \textit{payload}. &
+\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis HNSW maupun FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah; desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
+\citereset\autocite{johnson2021billion,qdrant2025} \\
 \hline
 Validitas Temporal &
 \textit{Point-in-time} \textit{join} dilakukan manual dan rentan kesalahan, sehingga banyak tim mengalami \textit{data leakage}. &
