@@ -1,7 +1,7 @@
 % ============================================================
 % BAB I — PENDAHULUAN
 % Template (ITB STI TA + Proposal.tex):
-%   - I.1 Latar Belakang       : Motivasi dan tantangan (4 pemicu utama)
+%   - I.1 Latar Belakang       : Motivasi dan tantangan (3 pemicu utama: configure-from-0, biaya berlangganan, efek domino fragmentasi)
 %   - I.2 Rumusan Masalah      : 4 butir, dirujuk RM-1..RM-4
 %   - I.3 Tujuan               : 4 butir, dirujuk T-1..T-4 (satu lawan satu RM)
 %   - I.4 Batasan Masalah      : 5 butir, dirujuk B-1..B-5
@@ -20,19 +20,17 @@
 \section{Latar Belakang}
 \label{sec:latar-belakang}
 
-Praktik \textit{machine learning} pada lingkungan produksi tidak lagi diukur dari ketepatan model semata, melainkan dari kemampuan organisasi memindahkan model dari laptop \textit{data scientist} ke layanan yang berjalan stabil, terpantau, dan dapat diperbarui ketika data berubah. \textcite{sculley2015hidden} menunjukkan bahwa kode model hanya berperan sebagai bagian kecil dari sistem \textit{machine learning} di lapangan; sisanya berupa pengelolaan data, konfigurasi, pemantauan, layanan, dan perekaman \textit{lineage}. \textcite{paleyes2022challenges} memperkuat temuan tersebut dengan memetakan tantangan utama yang muncul ketika model dipasang di produksi, dari persoalan kualitas data hingga pemeliharaan model setelah penyebaran.
+Praktik \textit{machine learning} pada lingkungan produksi tidak lagi diukur dari ketepatan model semata, melainkan dari kemampuan organisasi memindahkan model dari laptop \textit{data scientist} ke layanan yang berjalan stabil, terpantau, dan dapat diperbarui ketika data berubah. \textcite{sculley2015hidden} menunjukkan bahwa kode model hanya berperan sebagai bagian kecil dari sistem \textit{machine learning} di lapangan. Sisanya berupa pengelolaan data, konfigurasi, pemantauan, layanan, dan perekaman \textit{lineage}. \textcite{paleyes2022challenges} memperkuat temuan tersebut dengan memetakan tantangan utama yang muncul ketika model dipasang di produksi, dari persoalan kualitas data hingga pemeliharaan model setelah penyebaran.
 
-Praktik DevOps yang diadaptasi oleh komunitas \textit{machine learning} kemudian dikenal sebagai MLOps. \textcite{kreuzberger2023mlops} mendefinisikan MLOps sebagai disiplin yang menyatukan rekayasa perangkat lunak, operasional, dan ilmu data untuk mengotomasi siklus hidup model dari eksperimen ke produksi. Pada saat yang sama, DataOps tumbuh sebagai pendekatan serupa untuk \textit{pipeline} data: penekanan pada kolaborasi antar peran, kualitas data, dan iterasi cepat ditarik dari prinsip DevOps dan diterapkan pada penyiapan data. \textcite{rella2022mlops} mendokumentasikan bahwa MLOps dan DataOps secara konseptual sejalan, tetapi implementasinya kerap terpecah menjadi dua tumpukan teknologi yang berbeda. Akibatnya, model yang membutuhkan data segar dan terkurasi sering kali menerima data yang berasal dari \textit{pipeline} yang tidak sinkron dengan \textit{pipeline} pelatihan; perubahan skema di sisi data tidak terbaca otomatis di sisi model; dan kegagalan kualitas data di \textit{batch} subuh tidak menjadi sinyal yang memicu pemeriksaan ulang model yang sudah dilayani.
+Praktik DevOps yang diadaptasi oleh komunitas \textit{machine learning} kemudian dikenal sebagai MLOps. \textcite{kreuzberger2023mlops} mendefinisikan MLOps sebagai disiplin yang menyatukan rekayasa perangkat lunak, operasional, dan ilmu data untuk mengotomasi siklus hidup model dari eksperimen ke produksi. Pada saat yang sama, DataOps tumbuh sebagai pendekatan serupa untuk \textit{pipeline} data dengan penekanan pada kolaborasi antar peran, kualitas data, dan iterasi cepat. \textcite{rella2022mlops} mendokumentasikan bahwa MLOps dan DataOps secara konseptual sejalan, tetapi implementasinya kerap terpecah menjadi dua tumpukan teknologi yang berbeda dengan kontrak antar lapisan yang tidak seragam. \textcite{jain2025integrating} kemudian menempatkan integrasi DataOps dan MLOps sebagai prasyarat skalabilitas operasional, dengan satu bidang kendali yang menanggung ingestasi, transformasi, pelatihan, penyajian, observabilitas, dan tata kelola sekaligus. Jalan menuju bidang kendali tersebut menghadapi tiga tekanan praktis yang saling memperkuat dan menjadi pemicu pengembangan Tugas Akhir ini.
 
-Pemicu pertama pengembangan Tugas Akhir ini bersumber dari fragmentasi \textit{tool}. Survei pemetaan arsitektur MLOps oleh \textcite{najafabadi2024analysis} menemukan lebih dari empat puluh \textit{tool} yang biasa dirangkai untuk mendukung satu platform produksi. Organisasi yang berinvestasi pada platform dalam negeri sering menyusun rangkaian \textit{tool} yang serupa, namun karena tiap \textit{tool} berdiri sendiri-sendiri, integrasi antar komponen menjadi pekerjaan rekayasa berulang. \textcite{burgueno2025toward} menyoroti bahwa biaya integrasi pada arsitektur MLOps \textit{open source} dapat menyamai biaya pengembangan model itu sendiri, terlebih ketika tim juga harus menjaga konsistensi versi pustaka dan kontrak data lintas komponen. \textcite{jain2025integrating} secara eksplisit menempatkan integrasi DataOps dan MLOps sebagai prasyarat skalabilitas, namun belum banyak arsitektur referensi yang menyatukan keduanya dalam satu bidang kendali pada Kubernetes.
+Pemicu pertama adalah beban membangun platform dari nol di atas tumpukan komponen yang terfragmentasi. Survei pemetaan arsitektur MLOps oleh \textcite{najafabadi2024analysis} menemukan lebih dari empat puluh \textit{tool} yang biasa dirangkai untuk mendukung satu platform produksi, mencakup lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model. Organisasi yang menyusun rangkaian \textit{tool} tersebut sendiri menanggung kurva belajar yang panjang, kontrak data lintas komponen yang berubah-ubah, dan kebutuhan menyelaraskan versi pustaka secara berkala. \textcite{burgueno2025toward} menyoroti bahwa biaya integrasi pada arsitektur MLOps \textit{open source} dapat menyamai biaya pengembangan model itu sendiri, sebab tiap komponen berdiri sendiri-sendiri sehingga \textit{glue code} antar sistem tumbuh tanpa batas. Beban tersebut bertambah ketika tim harus pula menyatukan jalur data dengan jalur model dalam satu lingkaran operasi, sementara arsitektur referensi yang menyatukan keduanya pada satu bidang kendali Kubernetes masih terbatas.
 
-Pemicu kedua menyentuh tata kelola data. \textcite{bernardo2024data} memetakan tata kelola sebagai gabungan katalog, kualitas, kepemilikan, dan keamanan; semuanya membutuhkan ditegakkannya kontrak antara penghasil data dan konsumen data. Tata kelola yang baik di sisi data tidak otomatis terbawa ke sisi model: ketika sebuah \textit{feature} ditulis ulang oleh tim data, tim model perlu mengetahui perubahan tersebut sebelum melakukan \textit{retraining}, dan ketika model dihentikan layanannya, lineage data harus mencerminkan bahwa konsumen tersebut sudah tidak ada. \textcite{stoyanovich2020responsible} menggarisbawahi bahwa tanggung jawab atas data tidak bisa berhenti pada lapis penyimpanan saja, melainkan harus mengikuti seluruh siklus dari produksi data hingga prediksi yang dilayani. Tanpa platform yang menempatkan tata kelola sebagai komponen kelas pertama, \textit{lineage} antara data, fitur, dan model menjadi terputus dan kepatuhan terhadap kebijakan akses sulit dibuktikan.
+Pemicu kedua adalah biaya berlangganan layanan terkelola dan \textit{trade-off} antara waktu pengembangan dengan anggaran berjalan. \textcite{li2023managed} memperlihatkan bahwa layanan \textit{feature store}, pelatihan, dan penyajian terkelola dari penyedia \textit{cloud} mempercepat adopsi tetapi membebankan biaya operasional yang membesar seiring beban serta menimbulkan keterikatan terhadap satu penyedia layanan. Organisasi dengan demikian dihadapkan pada dilema: berinvestasi pada tim platform dan menanggung waktu pengembangan yang panjang sebelum jalur \textit{end-to-end} stabil, atau berlangganan layanan terkelola dengan biaya berjalan tinggi dan ruang kustomisasi yang rendah. Pilihan keduanya pun masih menyisakan beban tata kelola, sebab layanan terkelola pada lapis yang berbeda kerap memakai model identitas, protokol akses, dan format \textit{lineage} yang tidak seragam, sehingga otomasi audit lintas lapis tetap harus dirakit secara manual.
 
-Pemicu ketiga adalah \textit{drift} dan kebocoran temporal. \textcite{vela2022temporal} memperlihatkan bahwa degradasi performa model lintas waktu adalah hal yang umum, bukan kasus istimewa. \textcite{lu2019learning} memberikan tinjauan luas tentang \textit{concept drift}, dan \textcite{bayram2022concept} memetakan keluarga detektor performansi yang dapat dipasang pada \textit{pipeline} produksi. Namun, mendeteksi \textit{drift} tidak cukup; \textit{pipeline} pelatihan juga harus terbebas dari kebocoran temporal yang muncul ketika fitur dengan referensi waktu masa depan tercampur ke dalam kumpulan data pelatihan masa lalu. \textcite{wang2021leakage} mengilustrasikan dampak kebocoran temporal pada \textit{backtesting} keuangan, dan implikasinya berlaku umum: setiap domain yang menggabungkan data \textit{batch} dengan data \textit{streaming} berisiko menghasilkan model yang “bocor” karena ketidakkonsistenan referensi waktu antara saat pelatihan dan saat penyajian. Tanpa \textit{point-in-time correctness} yang ditegakkan oleh layanan fitur, kesalahan ini hampir mustahil dideteksi dari log model saja.
+Pemicu ketiga adalah efek domino fragmentasi yang merambat ke seluruh rantai DataOps dan MLOps ketika dua pemicu sebelumnya tidak dijawab pada satu bidang kendali. Konsekuensi pertama yang muncul adalah tata kelola data yang terputus dari siklus model: \textcite{bernardo2024data} memetakan tata kelola sebagai gabungan katalog, kualitas, kepemilikan, dan keamanan, sementara \textcite{stoyanovich2020responsible} menegaskan tanggung jawab atas data harus mengikuti seluruh siklus dari produksi data hingga prediksi yang dilayani, sehingga lineage antara data, fitur, dan model perlu otomatis ditegakkan. Konsekuensi kedua adalah \textit{drift} dan kebocoran temporal yang tidak tertangani: \textcite{vela2022temporal} memperlihatkan degradasi performa model lintas waktu adalah hal umum, \textcite{lu2019learning} memberikan tinjauan luas \textit{concept drift}, dan \textcite{bayram2022concept} memetakan keluarga detektor yang dapat dipasang pada \textit{pipeline} produksi, sementara \textcite{wang2021leakage} mengilustrasikan dampak kebocoran temporal yang muncul ketika fitur dengan referensi waktu masa depan tercampur ke dalam kumpulan data pelatihan masa lalu. Konsekuensi ketiga adalah fitur multimoda yang sulit dilayani dengan kontrak konsisten: fitur tabular bertumpang tindih dengan fitur agregat \textit{rolling window} dan fitur \textit{embedding} berdimensi tinggi seperti yang dihasilkan model BERT \autocite{devlin2019bert} atau model \textit{embedding} OpenAI \autocite{openai2022embedding}, dengan pencarian terdekat yang memerlukan indeks khusus seperti \textit{Hierarchical Navigable Small World} (HNSW) \autocite{malkov2020efficient}. \textcite{lamer2024data} dan \textcite{li2023managed} memperlihatkan \textit{feature store} berperan sebagai jembatan kontrak antara mode \textit{offline} dan \textit{online}, tetapi sebagian besar implementasi \textit{open source} masih membutuhkan integrasi tangan dengan basis data tabular dan sistem pencarian vektor secara terpisah. Tiga konsekuensi tersebut menunjukkan fragmentasi bukan sekadar persoalan orkestrasi \textit{tool}, melainkan merusak jaminan kebenaran, kemampuan audit, dan konsistensi penyajian fitur secara berantai.
 
-Pemicu keempat berkaitan dengan fitur multimoda. Fitur tabular klasik bertumpang tindih dengan fitur agregat \textit{rolling window} dan dengan fitur \textit{embedding} berdimensi tinggi yang dihasilkan oleh model bahasa seperti BERT \autocite{devlin2019bert} atau model \textit{embedding} OpenAI \autocite{openai2022embedding}. Pencarian terdekat untuk \textit{embedding} memerlukan struktur indeks khusus, dan \textcite{malkov2020efficient} menempatkan \textit{Hierarchical Navigable Small World} (HNSW) sebagai opsi tepat-guna untuk pencarian pendekatan tetangga terdekat. Saat fitur tabular, fitur \textit{rolling}, dan fitur vektor dilayani dengan kontrak yang berbeda-beda, biaya pemeliharaan kontrak \textit{pipeline} meningkat tajam dan layanan model rawan tidak konsisten antara saat pelatihan dan saat penyajian \textit{online}. \textcite{lamer2024data} dan \textcite{li2023managed} menunjukkan bahwa \textit{feature store} berperan sebagai jembatan kontrak antara dua mode tersebut; tetapi sebagian besar implementasi \textit{open source} masih membutuhkan integrasi tangan dengan basis data dan sistem pencarian vektor secara terpisah.
-
-Empat tekanan tersebut menggerakkan pengembangan sebuah platform yang menyatukan praktik DataOps dan MLOps di atas Kubernetes dengan komponen \textit{open source}. Kubernetes dipilih karena perannya sebagai standar \textit{de facto} bagi orkestrasi beban kerja \textit{cloud-native} dan karena adopsi luasnya pada ekosistem \textit{tool} yang dibutuhkan, sebagaimana didokumentasikan oleh \textcite{lakka2025kubernetes}. Pemanfaatan komponen \textit{open source} dipilih agar arsitektur dapat ditiru tanpa keterikatan pada satu penyedia layanan, sekaligus mempermudah audit teknis. Rancangan platform sengaja dijaga \textit{domain-agnostic} agar dapat diadaptasi pada beragam domain tanpa perubahan pada lapis kendali.
+Ketiga tekanan tersebut menggerakkan pengembangan sebuah platform yang menyatukan praktik DataOps dan MLOps di atas Kubernetes dengan komponen \textit{open source}. Kubernetes dipilih karena perannya sebagai standar \textit{de facto} bagi orkestrasi beban kerja \textit{cloud-native} dan karena adopsi luasnya pada ekosistem \textit{tool} yang dibutuhkan, sebagaimana didokumentasikan oleh \textcite{lakka2025kubernetes}. Pemanfaatan komponen \textit{open source} dipilih agar arsitektur dapat ditiru tanpa keterikatan pada satu penyedia layanan, sekaligus mempermudah audit teknis dan menurunkan biaya berlangganan jangka panjang. Rancangan platform sengaja dijaga \textit{domain-agnostic} agar dapat diadaptasi pada beragam domain tanpa perubahan pada lapis kendali, dan luaran berupa empat \textit{sub-sistem} ditujukan untuk memutus rantai konsekuensi fragmentasi yang dipetakan di atas.
 
 \section{Rumusan Masalah}
 \label{sec:rumusan-masalah}
@@ -47,7 +45,7 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 
     \vspace{0.5em}
 
-    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data--fitur--model}
+    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data, fitur, dan model}
 
     Katalog metadata, \textit{lineage}, dan kontrol kualitas sering dijalankan sebagai proses pasca-fakta, terpisah dari \textit{pipeline} produksi data dan dari pencatatan eksperimen model. Akibatnya, ketika sebuah fitur diperbarui atau sebuah model dihentikan, perubahan tersebut tidak otomatis tercermin pada katalog dan riwayat kepemilikan, sehingga sulit memenuhi kewajiban audit dan reproduksibilitas.
 
@@ -55,13 +53,13 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 
     \item \textbf{Deteksi \textit{drift} yang tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}}
 
-    Tanda-tanda perubahan distribusi data, perubahan hubungan masukan--keluaran, dan pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
+    Tanda-tanda perubahan distribusi data, perubahan hubungan antara masukan dan keluaran, serta pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
 
     \vspace{0.5em}
 
     \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran}
 
-    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train--serving skew} membesar.
+    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train-serving skew} membesar.
 \end{enumerate}
 
 \section{Tujuan}
@@ -89,12 +87,12 @@ Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan 
 
     \vspace{0.5em}
 
-    \item \textbf{Layanan fitur \textit{dual-store} \textit{offline}--\textit{online}}
+    \item \textbf{Layanan fitur \textit{dual-store} \textit{offline} dan \textit{online}}
 
-    Mengembangkan layanan fitur \textit{dual-store} \textit{offline}--\textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian.
+    Mengembangkan layanan fitur \textit{dual-store} \textit{offline} dan \textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian.
 \end{enumerate}
 
-Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut: pertama, seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual; kedua, seluruh \textit{sub-sistem} berkomunikasi melalui kontrak yang ditegakkan oleh layanan tata kelola dan layanan fitur; ketiga, mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi.
+Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut. Pertama, seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual. Kedua, seluruh \textit{sub-sistem} berkomunikasi melalui kontrak yang ditegakkan oleh layanan tata kelola dan layanan fitur. Ketiga, mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi.
 
 \section{Batasan Masalah}
 \label{sec:batasan}
@@ -105,7 +103,7 @@ Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Kelima bata
 \begin{enumerate}
     \item \textbf{Fokus pada lapis kendali platform}
 
-    Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan; karena itu pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}.
+    Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan, sehingga pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}.
 
     \vspace{0.5em}
 
@@ -123,19 +121,19 @@ Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Kelima bata
 
     \item \textbf{Cakupan keamanan terbatas pada akses antar layanan internal}
 
-    Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan; aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes.
+    Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan. Aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes.
 
     \vspace{0.5em}
 
     \item \textbf{Evaluasi kuantitatif menyusul setelah implementasi inti}
 
-    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan; angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap.
+    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan. Angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap.
 \end{enumerate}
 
 \section{Metodologi}
 \label{sec:metodologi}
 
-Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang diperkenalkan oleh \textcite{peffers2007dsrm} dan diadaptasi untuk pengembangan platform perangkat lunak. Pemilihan DSRM mengikuti pertimbangan bahwa luaran utama Tugas Akhir berupa artefak teknis berupa rancangan dan implementasi platform, sementara penilaian artefak dilakukan dengan demonstrasi pada \textit{use case} verifikasi---pola yang persis dianjurkan oleh DSRM untuk penelitian yang menghasilkan artefak. Tahapan yang dijalankan meliputi enam fase berikut.
+Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang diperkenalkan oleh \textcite{peffers2007dsrm} dan diadaptasi untuk pengembangan platform perangkat lunak. Pemilihan DSRM mengikuti pertimbangan bahwa luaran utama Tugas Akhir berupa artefak teknis berupa rancangan dan implementasi platform, sementara penilaian artefak dilakukan dengan demonstrasi pada \textit{use case} verifikasi, yaitu pola yang persis dianjurkan oleh DSRM untuk penelitian yang menghasilkan artefak. Tahapan yang dijalankan meliputi enam fase berikut.
 
 \vspace{0.5em}
 \begin{enumerate}
@@ -193,7 +191,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan sebagai berikut.
 
     \item \textbf{Bab II Studi Literatur}
 
-    Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka--Flink--Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan.
+    Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka, Flink, dan Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan.
 
     \vspace{0.5em}
 
@@ -203,13 +201,13 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan sebagai berikut.
 
     \vspace{0.5em}
 
-    \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps Terintegrasi}
+    \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps}
 
     Bab ini menjabarkan gambaran umum arsitektur, perancangan tiap \textit{sub-sistem} yang menjawab keempat tujuan, dan alur kerja \textit{end-to-end} yang menghubungkan komponen.
 
     \vspace{0.5em}
 
-    \item \textbf{Bab V Implementasi Platform}
+    \item \textbf{Bab V Implementasi Arsitektur Platform DataOps dan MLOps}
 
     Bab ini memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab IV, lengkap dengan praktik GitOps, manajemen rahasia, kebijakan jaringan, dan otomasi \textit{continuous training}.
 

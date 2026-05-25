@@ -1,7 +1,17 @@
-% Bab implementasi platform
-% Konfigurasi inti dan verifikasi
+% ============================================================
+% BAB V — IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS
+% Template (ITB STI TA + Proposal.tex):
+%   - V.1 Gambaran Umum Implementasi    : tumpukan teknologi + topologi cluster
+%   - V.2 Implementasi Sub-sistem A     : memetakan IV.2 ke manifest + konfigurasi
+%   - V.3 Implementasi Sub-sistem B     : memetakan IV.3 (governance + lineage)
+%   - V.4 Implementasi Sub-sistem C     : memetakan IV.4 (drift + PIT)
+%   - V.5 Implementasi Sub-sistem D     : memetakan IV.5 (feature store)
+%   - V.6 Verifikasi Implementasi       : use-case kripto sebagai instans pengujian
+% Rantai keterhubungan: IV.N ↔ V.N ↔ Kesimpulan ke-N
+% Catatan use-case: kripto hanya untuk verifikasi jalur, tidak mengubah sifat domain-agnostic.
+% ============================================================
 \cleardoublepage
-\chapter{IMPLEMENTASI PLATFORM}
+\chapter{IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:implementasi}
 
 Bab ini membahas implementasi platform DataOps dan MLOps terintegrasi sesuai rancangan pada Bab~\ref{chap:perancangan}. Pembahasan dimulai dari lingkungan implementasi yang menjadi dasar penyebaran komponen, kemudian dilanjutkan dengan implementasi empat sub-sistem mengikuti urutan pemenuhan tujuan T-1 sampai T-4. Bab ini ditutup dengan verifikasi jalur eksekusi menggunakan satu \textit{use case} sebagai instans pengujian. Penjabaran detail biner dan konfigurasi disimpan pada repositori platform, sehingga bab ini menyajikan pokok-pokok implementasi yang penting untuk membangun pemahaman atas bentuk akhir dari rancangan.

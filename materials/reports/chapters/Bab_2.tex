@@ -1,8 +1,23 @@
+% ============================================================
+% BAB II — STUDI LITERATUR
+% Template (ITB STI TA + Proposal.tex):
+%   - II.1 Cakupan Studi Literatur     : ruang lingkup dan peta tematik
+%   - II.2 DataOps dan MLOps           : definisi, perbedaan, integrasi
+%   - II.3 Kubernetes dan Cloud-Native : orkestrasi platform
+%   - II.4 Lapis Data dan Pemrosesan   : ingestasi, streaming, batch, lakehouse
+%   - II.5 Layanan Fitur dan Vektor    : feature store, online/offline, HNSW
+%   - II.6 Siklus Hidup Model          : pelatihan, pelacakan, penyajian
+%   - II.7 Tata Kelola dan Lineage     : katalog, kualitas, lineage
+%   - II.8 GitOps dan Observabilitas   : Argo CD, Prometheus, Grafana
+%   - II.9 Keamanan dan Kebijakan      : RBAC, secrets, policy, runtime
+%   - II.10 Sintesis dan Posisi TA     : perbandingan arsitektur saat ini vs diusulkan
+% Tabel perbandingan: tiap subbab yang menyajikan alternatif diakhiri dengan
+% \input{tables/<file>_comparison.tex} agar pemilihan tool terdokumentasi.
+% ============================================================
 \cleardoublepage
 \chapter{STUDI LITERATUR}
 \label{chap:studi-literatur}
 
-% Studi literatur DataOps MLOps
 \section{Cakupan Studi Literatur}
 \label{sec:cakupan-studi-literatur}
 
@@ -24,7 +39,7 @@ MLOps memperluas DevOps ke seluruh siklus hidup model \textit{machine learning}.
 \subsection{Tingkat Kematangan MLOps}
 \label{subsec:maturity}
 
-Beberapa kerangka kematangan diusulkan untuk menggambarkan jenjang kapabilitas tim. \textcite{googlecloud2024mlops} membagi MLOps menjadi tiga level: \textit{level 0} dengan proses manual, \textit{level 1} dengan otomasi \textit{pipeline} pelatihan, dan \textit{level 2} dengan otomasi penyebaran berbasis CI/CD/CT. Tiga level ini diilustrasikan pada Gambar~\ref{fig:mlops-level-0}, Gambar~\ref{fig:mlops-level-1}, dan Gambar~\ref{fig:mlops-level-2}. \textcite{azure2023maturity} memberi varian dengan lima level (0–4), dan \textcite{mcknight2020gigaom} menambah perspektif organisasi. Perbandingan ringkas dapat dilihat pada Tabel~\ref{tab:mlops_maturity_comparison}.
+Beberapa kerangka kematangan diusulkan untuk menggambarkan jenjang kapabilitas tim. \textcite{googlecloud2024mlops} membagi MLOps menjadi tiga level: \textit{level 0} dengan proses manual, \textit{level 1} dengan otomasi \textit{pipeline} pelatihan, dan \textit{level 2} dengan otomasi penyebaran berbasis CI/CD/CT. Tiga level ini diilustrasikan pada Gambar~\ref{fig:mlops-level-0}, Gambar~\ref{fig:mlops-level-1}, dan Gambar~\ref{fig:mlops-level-2}. \textcite{azure2023maturity} memberi varian dengan lima level dari 0 hingga 4, dan \textcite{mcknight2020gigaom} menambah perspektif organisasi. Perbandingan ringkas dapat dilihat pada Tabel~\ref{tab:mlops_maturity_comparison}.
 
 \begin{figure}[t]
   \caption{MLOps \textit{level} 0: proses manual dengan penyerahan model satu arah.}
@@ -106,7 +121,7 @@ Penyimpanan jangka panjang pada \textit{data lake} memerlukan format tabel yang 
 \subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
 \label{subsec:offline-online-teori}
 
-Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}; penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten. ClickHouse \autocite{clickhouse2024} dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey \autocite{valkey2025} dipilih sebagai \textit{online store} karena kompatibilitas wire-protocol RESP dengan ekosistem klien Redis dan lisensi BSD yang tetap terbuka pasca-perubahan lisensi Redis.
+Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}, sedangkan penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten. ClickHouse \autocite{clickhouse2024} dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey \autocite{valkey2025} dipilih sebagai \textit{online store} karena kompatibilitas wire-protocol RESP dengan ekosistem klien Redis dan lisensi BSD yang tetap terbuka pasca-perubahan lisensi Redis.
 
 \input{tables/offline_storage_comparison.tex}
 
@@ -169,7 +184,7 @@ Pada platform ini, PSI dan uji Kolmogorov-Smirnov dipakai sebagai detektor utama
 \section{Observabilitas \textit{Cloud-Native}}
 \label{sec:observability}
 
-\textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pyroscope \autocite{pyroscope2025} menyediakan \textit{continuous profiling} untuk profil CPU dan memori, Pushgateway \autocite{pushgateway2025} menjadi titik kumpul metrik untuk \textit{job} berdurasi pendek di luar siklus \textit{scrape}, dan OpenCost \autocite{opencost2025} memantau biaya per beban kerja pada klaster. Apache Superset \autocite{superset2025} berperan sebagai antarmuka BI yang menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu lapis dasbor; Tabel~\ref{tab:dashboarding_comparison} merangkum perbandingan beberapa pilihan \textit{BI} \textit{open-source}. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas.
+\textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pyroscope \autocite{pyroscope2025} menyediakan \textit{continuous profiling} untuk profil CPU dan memori, Pushgateway \autocite{pushgateway2025} menjadi titik kumpul metrik untuk \textit{job} berdurasi pendek di luar siklus \textit{scrape}, dan OpenCost \autocite{opencost2025} memantau biaya per beban kerja pada klaster. Apache Superset \autocite{superset2025} berperan sebagai antarmuka BI yang menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu lapis dasbor. Tabel~\ref{tab:dashboarding_comparison} merangkum perbandingan beberapa pilihan \textit{BI} \textit{open-source}. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas.
 
 \input{tables/dashboarding_comparison.tex}
 

@@ -172,6 +172,98 @@ Run through this list when the draft is close to done.
 - Each Bab V section refers back to the matching Bab IV section.
 - Each kesimpulan point answers exactly one tujuan.
 
+### 3.6 Per-Bab template comments (central store)
+
+Every chapter file under `chapters/` carries a fenced LaTeX comment block at the top that names the subbab layout, the link to the RM/T chain, and any standing notes for that bab. The same blocks are repeated here so the template survives even if a chapter file is rewritten end-to-end during drafting. If the inline comment ever drifts from this section, treat this section as the source of truth and resync.
+
+**Bab I — Pendahuluan**
+
+```
+- I.1 Latar Belakang         : motivasi domain-agnostic platform DataOps + MLOps
+- I.2 Rumusan Masalah        : RM-1..RM-4 (akar isu, bukan turunan tools)
+- I.3 Tujuan                 : T-1..T-4, satu lawan satu dengan RM-N
+- I.4 Batasan Masalah        : B-1..B-5 (ruang lingkup yang dijaga)
+- I.5 Metodologi             : DSRM Peffers et al. (6 fase)
+- I.6 Sistematika Penulisan  : peta bab II..VII
+Catatan: kripto hanya use-case verifikasi; tidak masuk latar belakang.
+```
+
+**Bab II — Studi Literatur**
+
+```
+- II.1 Cakupan Studi Literatur     : ruang lingkup dan peta tematik
+- II.2 DataOps dan MLOps           : definisi, perbedaan, integrasi
+- II.3 Kubernetes dan Cloud-Native : orkestrasi platform
+- II.4 Lapis Data dan Pemrosesan   : ingestasi, streaming, batch, lakehouse
+- II.5 Layanan Fitur dan Vektor    : feature store, online/offline, HNSW
+- II.6 Siklus Hidup Model          : pelatihan, pelacakan, penyajian
+- II.7 Tata Kelola dan Lineage     : katalog, kualitas, lineage
+- II.8 GitOps dan Observabilitas   : Argo CD, Prometheus, Grafana
+- II.9 Keamanan dan Kebijakan      : RBAC, secrets, policy, runtime
+- II.10 Sintesis dan Posisi TA     : perbandingan arsitektur saat ini vs diusulkan
+Tabel perbandingan: tiap subbab dengan alternatif diakhiri \input{tables/<file>_comparison.tex}.
+```
+
+**Bab III — Analisis Masalah**
+
+```
+- III.1 Analisis Kondisi Saat Ini             : pemetaan praktik dan keterbatasan
+- III.2 Beban Operasional dan Finansial       : configure-from-0 + biaya berlangganan + trade-off
+- III.3 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
+- III.4 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
+Catatan:
+  - KF berorientasi kemampuan (apa yang dilakukan platform).
+  - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
+  - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
+  - Fragmentasi per peran (busus/dateng/datsci/mleng) dirinci pada Lampiran C agar Bab III tetap ramping.
+```
+
+**Bab IV — Perancangan Arsitektur Platform DataOps dan MLOps**
+
+```
+- IV.1 Gambaran Umum Sistem        : sintesis arsitektur tujuh lapis + diagram
+- IV.2 Perancangan Sub-sistem A    : menjawab T-1 (arsitektur terintegrasi)
+- IV.3 Perancangan Sub-sistem B    : menjawab T-2 (tata kelola data)
+- IV.4 Perancangan Sub-sistem C    : menjawab T-3 (deteksi drift + PIT)
+- IV.5 Perancangan Sub-sistem D    : menjawab T-4 (feature store dual-store)
+- IV.6 Alur Kerja End-to-End       : rangkaian sub-sistem ke siklus produksi
+Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
+Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke Bab V.
+```
+
+**Bab V — Implementasi Arsitektur Platform DataOps dan MLOps**
+
+```
+- V.1 Gambaran Umum Implementasi    : tumpukan teknologi + topologi cluster
+- V.2 Implementasi Sub-sistem A     : memetakan IV.2 ke manifest + konfigurasi
+- V.3 Implementasi Sub-sistem B     : memetakan IV.3 (governance + lineage)
+- V.4 Implementasi Sub-sistem C     : memetakan IV.4 (drift + PIT)
+- V.5 Implementasi Sub-sistem D     : memetakan IV.5 (feature store)
+- V.6 Verifikasi Implementasi       : use-case kripto sebagai instans pengujian
+Rantai keterhubungan: IV.N ↔ V.N ↔ Kesimpulan ke-N
+Catatan use-case: kripto hanya untuk verifikasi jalur, tidak mengubah sifat domain-agnostic.
+```
+
+**Bab VI — Evaluasi**
+
+```
+- VI.1 Metode Evaluasi              : prosedur uji per tujuan T-1..T-4
+- VI.2 Hasil Evaluasi               : metrik kuantitatif (DORA, kualitas, drift, latensi)
+- VI.3 Pembahasan Hasil Evaluasi    : interpretasi, keterbatasan, tindak lanjut
+Rantai keterhubungan: T-N ↔ VI.1.N ↔ VI.2.N ↔ VI.3.N ↔ Kesimpulan ke-N
+Catatan pengisian: bab ini diisi setelah seluruh komponen platform berjalan
+stabil pada cluster verifikasi dan data pengamatan kuantitatif tersedia.
+```
+
+**Bab VII — Penutup**
+
+```
+- VII.1 Kesimpulan : empat poin K1..K4, satu lawan satu dengan T-1..T-4
+- VII.2 Saran      : tindak lanjut + arah pengembangan platform berikutnya
+Rantai keterhubungan: T-N ↔ K-N ; tidak menambah klaim baru di luar bab sebelumnya
+Catatan pengisian: bab ini diisi setelah hasil evaluasi pada Bab VI terkonsolidasi.
+```
+
 ## 4. Working order while drafting
 
 A drafting order that catches structural problems early:

@@ -1,7 +1,7 @@
 {
 \footnotesize
 \begin{longtable}{|m{2cm}|m{2.5cm}|m{2.5cm}|m{3cm}|m{2cm}|}
-\caption{\raggedright Perbandingan Detail Arsitektur Saat Ini dengan yang Diusulkan}
+\caption{Perbandingan Detail Arsitektur Saat Ini dengan yang Diusulkan}
 \label{tab:architecture_comparison} \\
 \hline
 \multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
@@ -27,19 +27,19 @@
 Orkestrasi &
 \textit{Compute} heterogen dengan \textit{provisioning} manual, waktu tunggu \textit{scaling} panjang, dan tingkat standardisasi rendah. &
 Platform Kubernetes terpadu dengan manajemen deklaratif dan alokasi sumber daya otomatis, sejalan dengan komponen arsitektur MLOps yang diidentifikasi \textcite{kreuzberger2023mlops}. GitOps dengan Argo CD memastikan perubahan infrastruktur dan aplikasi mengikuti \textit{single source of truth} di Git. &
-\textcite{lakka2025kubernetes} menunjukkan bahwa adopsi Kubernetes pada perusahaan disertai praktik DevOps yang matang meningkatkan \textit{deployment frequency} dan menekan \textit{Mean Time To Recovery} (MTTR) secara signifikan; arsitektur yang diusulkan menargetkan karakteristik performa pada arah yang sama. &
+\textcite{lakka2025kubernetes} menunjukkan bahwa adopsi Kubernetes pada perusahaan disertai praktik DevOps yang matang meningkatkan \textit{deployment frequency} dan menekan \textit{Mean Time To Recovery} (MTTR) secara signifikan, dan arsitektur yang diusulkan menargetkan karakteristik performa pada arah yang sama. &
 \autocite{kreuzberger2023mlops,lakka2025kubernetes} \\
 \hline
 Manajemen Fitur &
 Logika fitur tersebar di \textit{notebook} dan skrip dengan duplikasi tinggi dan banyak fungsi yang saling tumpang tindih. &
 Feast dengan \textit{feature registry} terpusat, \textit{dual serving} \textit{offline/online}, serta dukungan \textit{point-in-time correctness}. &
-Duplikasi fitur dapat ditekan, \textit{training--serving skew} berkurang melalui pemisahan \textit{offline/online} dan \textit{point-in-time retrieval}, dan \textit{feature reuse} berpotensi meningkat signifikan. &
+Duplikasi fitur dapat ditekan, \textit{training-serving skew} berkurang melalui pemisahan \textit{offline} dan \textit{online} serta \textit{point-in-time retrieval}, dan \textit{feature reuse} berpotensi meningkat signifikan. &
 \autocite{munappy2022data,polyzotis2018data} \\
 \hline
 \textit{Vector Embeddings} &
 Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
 Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, \textit{API} \textit{gRPC}, dan filter \textit{payload}. &
-\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis HNSW maupun FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah; desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
+\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis HNSW maupun FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
 \citereset\autocite{johnson2021billion,qdrant2025} \\
 \hline
 Validitas Temporal &
@@ -98,14 +98,14 @@ Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{depl
 \hline
 Pengalaman \textit{Developer} &
 \textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan alat yang terpisah. &
-Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses; dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan otentikasi tunggal di seluruh antarmuka pengembang. &
+Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan otentikasi tunggal di seluruh antarmuka pengembang. &
 \textit{Onboarding} dapat dipercepat dan produktivitas \textit{data scientist} meningkat karena hambatan akses infrastruktur berkurang. &
 \autocite{paleyes2022challenges,rella2022mlops} \\
 \hline
 Efisiensi Biaya &
 Utilisasi sumber daya tidak optimal dan tidak ada atribusi biaya yang jelas ke \textit{workload}. &
 \textit{Auto-scaling} berbasis HPA, VPA, dan KEDA, pemantauan biaya melalui OpenCost, serta alokasi sumber daya yang lebih terukur pada klaster Kubernetes. Seluruh komponen inti berbasis \textit{open source} sehingga biaya lisensi dapat ditekan. &
-Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber daya dan \textit{auto-scaling}, sebagaimana ditunjukkan dalam berbagai studi kasus adopsi Kubernetes \autocite{lakka2025kubernetes}; desain ini mengadopsi prinsip yang sama untuk mengoptimalkan pemakaian sumber daya. &
+Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber daya dan \textit{auto-scaling}, sebagaimana ditunjukkan dalam berbagai studi kasus adopsi Kubernetes \autocite{lakka2025kubernetes}. Desain ini mengadopsi prinsip yang sama untuk mengoptimalkan pemakaian sumber daya. &
 \citereset\autocite{lakka2025kubernetes} \\
 \hline
 Keamanan \& \textit{Compliance} &

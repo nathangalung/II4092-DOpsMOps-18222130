@@ -1,86 +1,67 @@
-% Bab analisis masalah
-% Kebutuhan fungsional dan nonfungsional
-% Alternatif solusi dan pemilihan
+% ============================================================
+% BAB III — ANALISIS MASALAH
+% Template (ITB STI TA + Proposal.tex):
+%   - III.1 Analisis Kondisi Saat Ini             : pemetaan praktik dan keterbatasan
+%   - III.2 Beban Operasional dan Finansial       : configure-from-0, biaya berlangganan, trade-off waktu vs anggaran
+%   - III.3 Analisis Kebutuhan                    : KF + KNF (satu lawan satu sub-sistem)
+%   - III.4 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
+% Catatan:
+%   - KF berorientasi kemampuan (apa yang dilakukan platform).
+%   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
+%   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
+%   - Fragmentasi per peran (busus, dateng, datsci, mleng) dirinci pada Lampiran C.
+% ============================================================
 \cleardoublepage
 \chapter{ANALISIS MASALAH}
 \label{chap:analisis-masalah}
 
-Bab ini membahas analisis masalah pada kondisi pengembangan model \textit{machine learning} dengan dukungan data berskala produksi, kebutuhan fungsional dan nonfungsional bagi platform DataOps dan MLOps terintegrasi, serta proses pemilihan solusi yang paling sesuai dengan tujuan penelitian. Pembahasan disusun secara berurutan, mulai dari pemetaan kondisi saat ini, identifikasi masalah pengguna, formulasi kebutuhan, hingga evaluasi alternatif solusi pada \textit{control plane} Kubernetes.
+Bab ini membahas analisis masalah pada kondisi pengembangan model \textit{machine learning} dengan dukungan data berskala produksi, beban operasional dan finansial yang membuat platform sulit dibangun atau dijaga sendiri, kebutuhan fungsional dan nonfungsional bagi platform DataOps dan MLOps terintegrasi, serta proses pemilihan solusi yang paling sesuai dengan tujuan penelitian. Pembahasan disusun secara berurutan, mulai dari pemetaan kondisi saat ini, identifikasi beban biaya dan waktu, formulasi kebutuhan, hingga evaluasi alternatif solusi pada \textit{control plane} Kubernetes.
 
 \section{Analisis Kondisi Saat Ini}
 \label{sec:kondisi-saat-ini}
 
 Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan empat peran utama, yaitu \textit{business user}, \textit{data engineer}, \textit{data scientist}, dan \textit{machine learning engineer}. \textcite{kreuzberger2023mlops} memperlihatkan bahwa peran tersebut sering bekerja pada \textit{tool} yang berbeda, sehingga muncul fragmentasi yang menghambat kolaborasi lintas tim. \textcite{paleyes2022challenges} menambahkan bahwa fragmentasi ini melahirkan integrasi yang lemah pada sambungan data dan model, dan pada akhirnya menurunkan kecepatan rilis serta kualitas keluaran.
 
-\subsection{Fragmentasi pada Peran \textit{Business User}}
-\label{subsec:kondisi-busus}
-
-Peran \textit{business user} biasanya berinteraksi dengan tumpukan visualisasi dan pelaporan yang terpisah dari sumber data analitik dan model. Gambar~\ref{fig:fragment-busus} memperlihatkan posisi peran ini pada arsitektur fragmentasi dengan akses utama melalui \textit{dashboard} dan laporan. Konsekuensinya, informasi tentang metrik \textit{drift}, kualitas data, dan kebijakan akses sering tidak tersaji dalam satu antarmuka, sehingga keputusan bisnis mengandalkan ringkasan berkala yang tidak selalu terhubung dengan kondisi sistem terkini.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/Fragment_BusUs_Arch.png}
-    \caption{\raggedright Fragmentasi pada Peran \textit{Business User}}
-    \label{fig:fragment-busus}
-\end{figure}
-
-\subsection{Fragmentasi pada Peran \textit{Data Engineer}}
-\label{subsec:kondisi-dateng}
-
-\textit{Data engineer} bertanggung jawab atas ingestasi, pemrosesan, dan penyimpanan data. Gambar~\ref{fig:fragment-dateng} memperlihatkan luasnya cakupan tugas pada lapisan ingestasi, transformasi, dan tata kelola. \textcite{lamer2024data} menyoroti kompleksitas tata kelola data yang sering muncul ketika \textit{tool} ingestasi, kualitas, dan katalog tidak terintegrasi pada satu sumber kebenaran. Akibatnya, kebijakan kualitas dan \textit{lineage} antar lapisan data harus disinkronkan secara manual.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/Fragment_DatEng_Arch.png}
-    \caption{\raggedright Fragmentasi pada Peran \textit{Data Engineer}}
-    \label{fig:fragment-dateng}
-\end{figure}
-
-\subsection{Fragmentasi pada Peran \textit{Data Scientist}}
-\label{subsec:kondisi-datsci}
-
-Peran \textit{data scientist} menghabiskan sebagian besar waktu pada eksperimen dan rekayasa fitur. Gambar~\ref{fig:fragment-datsci} memperlihatkan ketergantungan pada \textit{notebook}, \textit{experiment tracking}, dan \textit{feature engineering} yang sering berdiri sendiri. \textcite{anaconda2020state} dan \textcite{pimentel2019notebooks} memperlihatkan bahwa reproduksibilitas eksperimen terganggu apabila lingkungan eksekusi, versi data, dan versi kode tidak diatur dalam satu \textit{pipeline} yang sama, dan kondisi ini diperburuk oleh \textit{technical debt} yang khas pada sistem \textit{machine learning} sebagaimana dipetakan oleh \textcite{sculley2015hidden}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/Fragment_DatSci_Arch.png}
-    \caption{\raggedright Fragmentasi pada Peran \textit{Data Scientist}}
-    \label{fig:fragment-datsci}
-\end{figure}
-
-\subsection{Fragmentasi pada Peran \textit{Machine Learning Engineer}}
-\label{subsec:kondisi-mleng}
-
-\textit{Machine learning engineer} bertugas membawa model dari fase eksperimen ke fase produksi. Gambar~\ref{fig:fragment-mleng} memperlihatkan kebutuhan pada \textit{model registry}, \textit{serving}, dan pemantauan model. \textcite{rella2022mlops} memperlihatkan dampak buruk yang muncul ketika siklus hidup model tidak terhubung dengan kontrol versi data dan fitur. Akibatnya, mekanisme \textit{rollback}, \textit{canary}, dan \textit{retraining} tidak konsisten antar tim.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/Fragment_MLEng_Arch.png}
-    \caption{\raggedright Fragmentasi pada Peran \textit{Machine Learning Engineer}}
-    \label{fig:fragment-mleng}
-\end{figure}
-
-\subsection{Pandangan Umum Kondisi Fragmentasi}
-\label{subsec:kondisi-umum}
-
-Gambar~\ref{fig:fragment-general} menggabungkan empat peran tersebut dalam satu pandangan menyeluruh. \textcite{najafabadi2024analysis} dan \textcite{burgueno2025toward} memperlihatkan bahwa fragmentasi tidak hanya muncul pada antarmuka tim, tetapi juga pada bidang kendali infrastruktur, kebijakan akses, dan observabilitas. Kondisi inilah yang menjadi titik tolak penelitian, karena empat masalah inti yang dirumuskan pada Bab~\ref{chap:pendahuluan} pada hakikatnya merupakan konsekuensi dari fragmentasi tersebut, yaitu fragmentasi \textit{tool}, ketidakkonsistenan tata kelola, kombinasi \textit{drift} dan \textit{temporal leakage}, serta keterbatasan dalam menyajikan fitur multimoda dari satu sumber kebenaran.
+Gambar~\ref{fig:fragment-general} merangkum pandangan umum fragmentasi yang ditemui pada lintas peran tersebut. \textit{Business user} berinteraksi dengan tumpukan visualisasi dan pelaporan yang terpisah dari sumber data analitik dan model. \textit{Data engineer} menanggung lapisan ingestasi, transformasi, dan tata kelola yang sering dijalankan pada \textit{tool} terpisah dengan \textit{lineage} yang harus disinkronkan secara manual \autocite{lamer2024data}. \textit{Data scientist} bergantung pada \textit{notebook}, \textit{experiment tracking}, dan \textit{feature engineering} yang berdiri sendiri sehingga reproduksibilitas terganggu \autocite{anaconda2020state,pimentel2019notebooks,sculley2015hidden}. \textit{Machine learning engineer} mengoperasikan \textit{model registry}, \textit{serving}, dan pemantauan model yang tidak konsisten dengan kontrol versi data dan fitur \autocite{rella2022mlops}. Rincian fragmentasi per peran disajikan pada Lampiran~\ref{appx:fragmentasi-peran}, sementara pembahasan pada bab ini difokuskan pada pandangan umum karena beban inti yang menjadi titik tolak penelitian bukan pada satu peran tertentu, melainkan pada sambungan antar peran yang terputus.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/Fragment_General_Arch.png}
-    \caption{\raggedright Pandangan Umum Fragmentasi DataOps dan MLOps}
+    \caption{Pandangan Umum Fragmentasi DataOps dan MLOps}
     \label{fig:fragment-general}
 \end{figure}
+
+\textcite{najafabadi2024analysis} dan \textcite{burgueno2025toward} memperlihatkan bahwa fragmentasi tidak hanya muncul pada antarmuka tim, tetapi juga pada bidang kendali infrastruktur, kebijakan akses, dan observabilitas. Kondisi inilah yang menjadi titik tolak penelitian, karena empat masalah inti yang dirumuskan pada Bab~\ref{chap:pendahuluan} pada hakikatnya merupakan konsekuensi dari rangkaian sambungan yang terputus, yaitu integrasi tumpukan, ketidakkonsistenan tata kelola, kombinasi \textit{drift} dan \textit{temporal leakage}, serta keterbatasan dalam menyajikan fitur multimoda dari satu sumber kebenaran.
+
+\section{Beban Operasional dan Finansial Pengembangan Platform}
+\label{sec:beban-operasional}
+
+Selain fragmentasi pada bidang teknis, organisasi yang ingin mengoperasikan platform DataOps dan MLOps secara internal menghadapi beban operasional dan finansial yang dapat menentukan kelayakan adopsi. Bagian ini menelaah tiga sumber beban utama yang menjadi pertimbangan penting sebelum mendiskusikan kebutuhan fungsional dan nonfungsional pada bagian berikutnya.
+
+\subsection{Beban Konfigurasi Platform dari Nol}
+\label{subsec:beban-konfigurasi}
+
+Organisasi yang membangun platform dari nol harus merangkai puluhan komponen lintas lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model. \textcite{najafabadi2024analysis} mengidentifikasi lebih dari empat puluh \textit{tool} pada arsitektur MLOps yang khas, dan \textcite{burgueno2025toward} mencatat bahwa biaya integrasi pada arsitektur \textit{open source} dapat menyamai biaya pengembangan model itu sendiri. Beban ini berlipat oleh tiga faktor. Pertama, setiap komponen memiliki kontrak konfigurasi, protokol akses, dan model identitas masing-masing, sehingga \textit{glue code} antar lapis terus tumbuh seiring penambahan komponen. Kedua, perubahan versi pustaka pada satu komponen kerap memicu rework pada komponen sekitarnya, terutama ketika skema data dan kontrak API ikut berubah. Ketiga, tim platform menanggung kurva belajar yang panjang karena harus menguasai paradigma operasional yang berbeda untuk basis data, sistem antrian, mesin pemrosesan, registri model, dan layanan penyajian. Kondisi tersebut menjelaskan mengapa banyak inisiatif platform internal terhenti pada tahap arsitektur referensi dan tidak pernah mencapai jalur produksi yang lengkap.
+
+\subsection{Biaya Berlangganan Layanan Terkelola}
+\label{subsec:biaya-berlangganan}
+
+Sebagai alternatif terhadap konfigurasi dari nol, organisasi dapat berlangganan layanan terkelola dari penyedia \textit{cloud}. \textcite{li2023managed} menunjukkan bahwa layanan \textit{feature store}, pelatihan, dan penyajian terkelola mempercepat adopsi tetapi membebankan biaya operasional yang meningkat seiring volume \textit{ingest}, jumlah \textit{training run}, dan trafik inferensi. Biaya tersebut bersifat berulang setiap bulan dan jarang dapat ditekan dengan optimasi internal karena pengguna tidak memegang kendali penuh atas alokasi sumber daya pada lapis bawah. Selain itu, ketergantungan pada satu penyedia menimbulkan keterikatan vendor yang membuat migrasi menjadi mahal, terutama ketika format \textit{feature view}, \textit{registry model}, dan \textit{lineage} memakai skema kepemilikan tertutup. Beban ini bertambah ketika organisasi memakai layanan terkelola dari lapis berbeda yang dipasok beberapa penyedia, sebab perbedaan model identitas, protokol akses, dan format \textit{audit log} memaksa tim platform tetap merakit otomasi tata kelola lintas penyedia secara manual.
+
+\subsection{Trade-off Waktu dan Anggaran}
+\label{subsec:tradeoff-waktu-anggaran}
+
+Kedua jalur tersebut menghadirkan pertukaran antara waktu pengembangan dan anggaran berjalan. Membangun platform internal dari nol menekan biaya berlangganan tetapi memerlukan waktu pengembangan yang panjang, ketergantungan pada tim yang sangat kompeten, dan risiko kegagalan integrasi yang menunda penyajian model ke produksi. Berlangganan layanan terkelola memangkas waktu pengembangan tetapi memerlukan anggaran operasional yang membesar seiring beban dan membatasi ruang kustomisasi. Pertukaran ini menjadi keputusan arsitektur yang strategis karena keduanya melibatkan pengorbanan: tim yang mengejar kecepatan menanggung biaya berjalan tinggi, sementara tim yang menekan biaya menanggung penundaan rilis dan beban pemeliharaan jangka panjang. Pengembangan platform pada Tugas Akhir ini ditujukan untuk memotong pertukaran tersebut dengan menyediakan rancangan referensi yang menyatukan komponen \textit{open source} pada satu bidang kendali Kubernetes, sehingga organisasi dapat memilih lokasi penyebaran tanpa membayar biaya integrasi berulang dan tanpa terikat penyedia layanan tunggal.
 
 \section{Analisis Kebutuhan}
 \label{sec:analisis-kebutuhan}
 
-Setelah pemetaan kondisi saat ini, kebutuhan platform dirumuskan dalam dua kategori: kebutuhan fungsional yang menggambarkan fitur yang harus dimiliki platform, dan kebutuhan nonfungsional yang menggambarkan kualitas atributif yang harus dipenuhi. Identifikasi kebutuhan menggunakan empat rumusan masalah dari Bab~\ref{chap:pendahuluan} sebagai titik berangkat.
+Setelah pemetaan kondisi saat ini dan identifikasi beban operasional dan finansial, kebutuhan platform dirumuskan dalam dua kategori: kebutuhan fungsional yang menggambarkan fitur yang harus dimiliki platform, dan kebutuhan nonfungsional yang menggambarkan kualitas atributif yang harus dipenuhi. Identifikasi kebutuhan menggunakan empat rumusan masalah dari Bab~\ref{chap:pendahuluan} sebagai titik berangkat, dengan mempertimbangkan beban pada Subbab~\ref{sec:beban-operasional} agar rancangan tetap layak operasional dan finansial.
 
 \subsection{Identifikasi Masalah Pengguna}
 \label{subsec:identifikasi-masalah}
 
-Identifikasi masalah pengguna dijabarkan dengan menelusuri empat rumusan masalah. Pertama, pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga fragmentasi \textit{tool} dapat dikurangi. Kedua, pengguna pada peran \textit{data engineer} dan \textit{data steward} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas. Ketiga, pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{wang2021leakage}. Keempat, pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, sebagaimana diperlihatkan oleh \textcite{devlin2019bert}, \textcite{openai2022embedding}, dan \textcite{malkov2020efficient}.
+Identifikasi masalah pengguna dijabarkan dengan menelusuri empat rumusan masalah. Pertama, pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga sambungan antar lapis tidak lagi dirakit secara manual dan integrasi \textit{tool} dapat dipulihkan dari sumber kebenaran tunggal. Kedua, pengguna pada peran \textit{data engineer} dan \textit{data steward} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas. Ketiga, pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{wang2021leakage}. Keempat, pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, sebagaimana diperlihatkan oleh \textcite{devlin2019bert}, \textcite{openai2022embedding}, dan \textcite{malkov2020efficient}.
 
 \subsection{Kebutuhan Fungsional}
 \label{subsec:kf}
@@ -106,9 +87,9 @@ Bagian ini menyusun alternatif solusi yang dapat memenuhi kebutuhan fungsional d
 
 Empat alternatif solusi dipertimbangkan untuk membangun platform DataOps dan MLOps terintegrasi.
 
-\textbf{Alternatif A: Layanan Terkelola dari Penyedia \textit{Cloud}.} Pendekatan ini menggunakan rangkaian layanan terkelola pada satu penyedia, mencakup layanan ingestasi, \textit{warehouse}, \textit{feature store}, pelatihan, dan penyajian. Kelebihannya berupa kecepatan adopsi dan integrasi bawaan antar layanan, sebagaimana dibahas oleh \textcite{li2023managed}. Kekurangannya berupa keterikatan terhadap satu penyedia, biaya operasional pada beban tinggi, dan keterbatasan dalam menyesuaikan komponen pada level rendah.
+\textbf{Alternatif A: Layanan Terkelola dari Penyedia \textit{Cloud}.} Pendekatan ini menggunakan rangkaian layanan terkelola pada satu penyedia, mencakup layanan ingestasi, \textit{warehouse}, \textit{feature store}, pelatihan, dan penyajian. Kelebihannya berupa kecepatan adopsi dan integrasi bawaan antar layanan, sebagaimana dibahas oleh \textcite{li2023managed}. Kekurangannya berupa keterikatan terhadap satu penyedia, biaya operasional pada beban tinggi, dan keterbatasan dalam menyesuaikan komponen pada level rendah, sehingga pertukaran waktu lawan anggaran pada Subbab~\ref{subsec:tradeoff-waktu-anggaran} tetap menjadi beban berjalan.
 
-\textbf{Alternatif B: Tumpukan \textit{Open Source} pada Kubernetes.} Pendekatan ini merangkai komponen \textit{open source} di atas Kubernetes sebagai bidang orkestrasi. \textcite{lakka2025kubernetes} dan \textcite{burgueno2025toward} memperlihatkan rancangan serupa pada lingkungan \textit{multi-cloud} dan \textit{edge}. Kelebihannya berupa fleksibilitas, transparansi versi, portabilitas, dan kemampuan menegakkan pola GitOps. Kekurangannya berupa kebutuhan tata kelola yang lebih ketat dan kurva belajar yang lebih panjang dibandingkan layanan terkelola.
+\textbf{Alternatif B: Tumpukan \textit{Open Source} pada Kubernetes.} Pendekatan ini merangkai komponen \textit{open source} di atas Kubernetes sebagai bidang orkestrasi. \textcite{lakka2025kubernetes} dan \textcite{burgueno2025toward} memperlihatkan rancangan serupa pada lingkungan \textit{multi-cloud} dan \textit{edge}. Kelebihannya berupa fleksibilitas, transparansi versi, portabilitas, dan kemampuan menegakkan pola GitOps. Kekurangannya berupa kebutuhan tata kelola yang lebih ketat dan kurva belajar yang lebih panjang dibandingkan layanan terkelola, sehingga beban konfigurasi dari nol pada Subbab~\ref{subsec:beban-konfigurasi} perlu dikurangi melalui rancangan referensi yang utuh.
 
 \textbf{Alternatif C: Pengembangan Kustom dari Awal.} Pendekatan ini membangun setiap lapisan secara mandiri tanpa banyak menggunakan komponen yang sudah jadi. Kelebihannya berupa kontrol penuh atas perilaku setiap komponen. Kekurangannya berupa biaya pengembangan dan pemeliharaan yang sangat besar, ketergantungan pada tim yang sangat kompeten, dan risiko menciptakan ulang masalah yang sudah diselesaikan oleh pustaka \textit{open source} yang teruji.
 

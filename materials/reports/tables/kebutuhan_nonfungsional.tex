@@ -1,7 +1,7 @@
 {
 \footnotesize
 \begin{longtable}{|>{\centering\arraybackslash}m{1cm}|m{2.5cm}|m{6cm}|m{3cm}|}
-\caption{\raggedright Kebutuhan Nonfungsional Sistem}
+\caption{Kebutuhan Nonfungsional Sistem}
 \label{tab:kebutuhan_nonfungsional} \\
 \hline
 \multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{6cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} \\
@@ -15,29 +15,29 @@
 \hline
 \endlastfoot
 
-KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} dan \textit{vector similarity search} harus memberikan latensi yang stabil dan rendah untuk mendukung inferensi waktu nyata pada berbagai domain aplikasi. Layanan ini perlu mampu merespons permintaan dengan cepat, bahkan pada saat beban tinggi. & Latensi p99 sub-detik pada \textit{feature serving} dan \textit{vector search}; ambang spesifik per layanan diukur dan dipantau melalui SLO Sloth \\
+KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} berbasis Valkey dan \textit{vector similarity search} berbasis Qdrant harus memberikan latensi yang stabil dan rendah untuk mendukung inferensi waktu nyata pada berbagai domain aplikasi, termasuk pada saat beban tinggi. & Latensi p99 sub-detik pada \textit{feature serving} dan \textit{vector search}, dengan ambang spesifik per layanan diukur dan dipantau melalui SLO Sloth \\
 \hline
 KNF-02 & \textit{Throughput} Tinggi & Sistem harus mampu menangani \textit{workload} dengan \textit{throughput} tinggi yang lazim pada beban kerja \textit{streaming} dan \textit{serving} bervolume tinggi, dengan karakteristik skalabilitas mendekati linear ketika sumber daya ditambah. & \textit{Throughput} \textit{ingest} dan \textit{serving} tumbuh proporsional terhadap jumlah \textit{partition} Kafka serta \textit{replica} Feast melalui \textit{autoscaling} KEDA dan HPA \\
 \hline
 KNF-03 & Skalabilitas Horizontal & Seluruh komponen sistem harus mendukung skala horizontal, sehingga kapasitas dapat ditingkatkan dengan menambah \textit{node} dan menghasilkan peningkatan kinerja yang linear atau mendekati linear. & Seluruh \textit{workload} terstandarisasi pada HPA (CPU/memori), VPA \textit{recommender}, dan KEDA (Kafka \textit{lag}, \textit{custom metrics}) \\
 \hline
-KNF-04 & Keandalan \& Toleransi Kesalahan & Sistem harus andal dan tidak memiliki \textit{single point of failure}, serta mampu melakukan pemulihan otomatis dari kegagalan sementara tanpa intervensi manual berlebihan. & SLO \textit{platform} dijaga melalui Sloth (Kafka 99,9\%, Postgres 99,95\%, MinIO p99 <500ms pada 99\%); \textit{disaster recovery} berbasis Velero \textit{snapshot} harian penuh dan \textit{incremental} per \textit{use case} \\
+KNF-04 & Keandalan \& Toleransi Kesalahan & Sistem harus andal dengan komponen \textit{stateful} (Kafka, ClickHouse, PostgreSQL, MinIO, Valkey, Qdrant) yang dapat berjalan dalam mode \textit{multi-replica} pada lingkungan produksi multi-node, dan mampu melakukan pemulihan otomatis dari kegagalan sementara melalui mekanisme \textit{operator} dan \textit{snapshot} berkala. Pada lingkungan verifikasi node tunggal, \textit{replica} idle ditetapkan menjadi satu dan ditingkatkan secara dinamis ketika beban nyata terdeteksi. & SLO \textit{platform} dijaga melalui Sloth (Kafka 99,9\%, Postgres 99,95\%, MinIO p99 <500ms pada 99\%), sedangkan \textit{disaster recovery} berbasis Velero \textit{snapshot} harian penuh dan \textit{incremental} per \textit{use case} \\
 \hline
 KNF-05 & Konsistensi \& Kebenaran & Sistem harus menjaga konsistensi data dan menjamin validitas temporal sehingga tidak terjadi kebocoran data yang merusak kebenaran hasil analisis maupun kinerja model. & \textit{Zero tolerance} untuk kebocoran data temporal yang terdeteksi \\
 \hline
-KNF-06 & \textit{Observability} & Sistem harus memiliki \textit{observability} menyeluruh, mencakup metrik, \textit{structured log}, dan \textit{distributed tracing} dengan dukungan OpenTelemetry, sehingga perilaku sistem dapat dianalisis end-to-end. & Seluruh komponen terinstrumentasi dengan metrik standar dan \textit{distributed tracing} berbasis OpenTelemetry \\
+KNF-06 & \textit{Observability} & Sistem harus memiliki \textit{observability} menyeluruh, mencakup metrik (Prometheus dan Grafana), \textit{structured log} (Loki), \textit{distributed tracing} (Grafana Tempo melalui OpenTelemetry), \textit{continuous profiling} (Pyroscope), dan \textit{alerting} (Alertmanager dan Sloth) sehingga perilaku sistem dapat dianalisis dari ujung ke ujung. & Seluruh komponen terinstrumentasi metrik dan log standar, \textit{trace} OpenTelemetry untuk lintasan kritis, serta SLO Sloth untuk indikator layanan \\
 \hline
-KNF-07 & Keamanan & Sistem harus menerapkan kontrol keamanan (autentikasi, otorisasi, enkripsi, dan \textit{audit logging}) untuk mencegah akses tidak sah dan menjaga kerahasiaan data sensitif. & TLS 1.3 \textit{in transit}, AES-256 \textit{at rest} \\
+KNF-07 & Keamanan & Sistem harus menerapkan kontrol keamanan menyeluruh, mencakup autentikasi tunggal melalui dex sebagai \textit{identity provider} OIDC dan oauth2-proxy, otorisasi berbasis RBAC dan SpiceDB, enkripsi data \textit{in transit} dengan Istio mTLS \textit{strict}, enkripsi \textit{at rest} pada MinIO melalui KES sebagai \textit{KMS gateway} ke OpenBao, kebijakan admisi Kyverno, serta deteksi ancaman \textit{runtime} oleh Falco dan pemindaian kerentanan citra oleh Trivy Operator. & TLS 1.3 \textit{in transit}, AES-256 \textit{at rest}, dan \textit{audit log} OpenBao serta Kubernetes audit \textit{policy} aktif pada seluruh \textit{control plane} \\
 \hline
-KNF-08 & Ekstensibilitas \& Modularitas & Arsitektur harus modular sehingga komponen dapat diperluas atau diganti melalui antarmuka terdefinisi tanpa mengganggu komponen lain. & Komponen dapat diganti terpisah tanpa perubahan signifikan pada modul lain \\
+KNF-08 & Ekstensibilitas \& Modularitas & Arsitektur harus modular sehingga komponen dapat diperluas atau diganti melalui antarmuka terdefinisi (\textit{Custom Resource Definition}, helm \textit{chart}, dan \textit{overlay} Kustomize) tanpa mengganggu komponen lain. & Setiap komponen disusun pada \textit{folder} terpisah dengan \textit{kustomization.yaml} sendiri, sehingga dapat dipasang, diperbarui, atau diganti secara independen \\
 \hline
-KNF-09 & Kemudahan Penggunaan & Antarmuka sistem harus intuitif dan didukung dokumentasi baik, sehingga pengguna baru dapat mengadopsi sistem dengan kurva belajar wajar. & Skor kepuasan pengguna $> 4/5$ pada survei internal \\
+KNF-09 & Kemudahan Penggunaan & Antarmuka sistem harus intuitif dan didukung dokumentasi yang ringkas, sehingga pengguna baru dapat mengadopsi sistem dengan kurva belajar yang wajar melalui antarmuka web Argo CD, Argo Workflows, Kubeflow, MLflow, DataHub, dan Grafana yang terintegrasi dalam \textit{single sign on} dex. & Setiap antarmuka pengembang memiliki dokumentasi pengguna dan dapat diakses melalui SSO dex dan oauth2-proxy tanpa konfigurasi tambahan per layanan \\
 \hline
-KNF-10 & Efisiensi Sumber Daya & Sistem harus memanfaatkan sumber daya komputasi dan penyimpanan efisien untuk mengendalikan biaya sambil mempertahankan kinerja. & Kompresi kolumnar pada lapisan analitik dan \textit{autoscaling} berbasis VPA/HPA/KEDA agar utilisasi sumber daya proporsional terhadap beban; alokasi biaya dipantau oleh OpenCost \\
+KNF-10 & Efisiensi Sumber Daya & Sistem harus memanfaatkan sumber daya komputasi dan penyimpanan secara efisien untuk mengendalikan biaya tanpa mengorbankan kinerja, baik pada lingkungan node tunggal maupun multi-node. & Kompresi kolumnar pada ClickHouse, \textit{autoscaling} berbasis HPA, VPA, dan KEDA agar utilisasi sumber daya proporsional terhadap beban, serta atribusi biaya per \textit{workload} melalui OpenCost \\
 \hline
-KNF-11 & Portabilitas & Sistem harus dapat dijalankan di berbagai lingkungan \textit{deployment} dengan perubahan terbatas pada konfigurasi dan tanpa modifikasi kode besar. & Dapat di-\textit{deploy} di AWS, GCP, Azure, atau \textit{on-premise} hanya dengan penyesuaian konfigurasi \\
+KNF-11 & Portabilitas & Sistem harus dapat dijalankan di berbagai lingkungan \textit{deployment} dengan perubahan terbatas pada konfigurasi dan tanpa modifikasi kode besar, sebab seluruh komponen berdiri di atas distribusi Kubernetes standar dan citra \textit{open source}. & Dapat di-\textit{deploy} pada distribusi Kubernetes \textit{managed} (AWS EKS, GCP GKE, Azure AKS) maupun \textit{on-premise} (k3s, kubeadm) hanya dengan penyesuaian \textit{overlay} Kustomize dan parameter \textit{secret} \\
 \hline
-KNF-12 & Kemudahan Pemeliharaan & Sistem harus mudah dipelihara, dengan struktur kode jelas, cakupan pengujian memadai, dan proses \textit{deployment} otomatis. & \textit{Test coverage} $> 80\%$ pada komponen inti \\
+KNF-12 & Kemudahan Pemeliharaan & Sistem harus mudah dipelihara, dengan struktur kode dan manifes yang jelas, \textit{pipeline} CI yang otomatis pada Tekton, serta \textit{deployment} deklaratif dari sumber kebenaran tunggal pada Gitea melalui Argo CD. & Setiap komponen dapat direkonsiliasi ulang dari \textit{repository} Gitea tanpa intervensi manual, dan perubahan ditolak otomatis oleh \textit{pull request review} dan \textit{policy} Kyverno bila tidak sesuai konvensi \\
 \hline
 \end{longtable}
 }

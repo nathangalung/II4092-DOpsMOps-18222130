@@ -1,7 +1,17 @@
-% Bab perancangan arsitektur platform
-% Empat sub-sistem mengikuti tujuan
+% ============================================================
+% BAB IV — PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS
+% Template (ITB STI TA + Proposal.tex):
+%   - IV.1 Gambaran Umum Sistem        : sintesis arsitektur tujuh lapis + diagram
+%   - IV.2 Perancangan Sub-sistem A    : menjawab T-1 (arsitektur terintegrasi)
+%   - IV.3 Perancangan Sub-sistem B    : menjawab T-2 (tata kelola data)
+%   - IV.4 Perancangan Sub-sistem C    : menjawab T-3 (deteksi drift + PIT)
+%   - IV.5 Perancangan Sub-sistem D    : menjawab T-4 (feature store dual-store)
+%   - IV.6 Alur Kerja End-to-End       : rangkaian sub-sistem ke siklus produksi
+% Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
+% Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke Bab V.
+% ============================================================
 \cleardoublepage
-\chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS TERINTEGRASI}
+\chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:perancangan}
 
 Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, kemudian dilanjutkan dengan perancangan empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}: arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan pelatihan ulang otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini menutup pembahasan dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus reproduksibel.
@@ -14,7 +24,7 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/Integrate_General_Arch.png}
-    \caption{\raggedright Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
+    \caption{Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
     \label{fig:integrate-general}
 \end{figure}
 
@@ -33,28 +43,28 @@ Empat peran utama mempunyai akses yang berbeda pada platform yang sama. Gambar~\
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/Integrate_BusUs_Arch.png}
-    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Business User}}
+    \caption{Pandangan Platform Terintegrasi untuk \textit{Business User}}
     \label{fig:integrate-busus}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/Integrate_DatEng_Arch.png}
-    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
+    \caption{Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
     \label{fig:integrate-dateng}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/Integrate_DatSci_Arch.png}
-    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
+    \caption{Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
     \label{fig:integrate-datsci}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/Integrate_MLEng_Arch.png}
-    \caption{\raggedright Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
+    \caption{Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
     \label{fig:integrate-mleng}
 \end{figure}
 

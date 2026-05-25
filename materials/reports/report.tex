@@ -269,17 +269,21 @@
 
 % --- Gambar ---
 \captionsetup[figure]{
-  labelsep=space, 
-  format=hang
-}  
+  labelsep=space,
+  format=plain,
+  justification=centering,
+  singlelinecheck=false
+}
 \floatsetup[figure]{
   capposition=bottom
-} 
+}
 % --- Tabel ---
 \captionsetup[table]{
-  labelsep=space, 
-  format=hang
-} 
+  labelsep=space,
+  format=hang,
+  justification=raggedright,
+  singlelinecheck=false
+}
 \floatsetup[table]{
   capposition=top, 
   objectset=centering, 
@@ -409,6 +413,7 @@
   %\makeatother
 \input{appendices/Lampiran_A.tex}
 \input{appendices/Lampiran_B.tex}
+\input{appendices/Lampiran_C.tex}
 \end{appendices}
 \backmatter
 

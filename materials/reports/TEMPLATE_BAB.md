@@ -110,7 +110,7 @@ Algoritma:
 
 ## 4. Bab III Analisis Masalah – Panduan Template Asli
 
-(Disalin dari Bab_3.tex versi template.)
+(Disalin dari Bab_3.tex versi template + revisi 2026-05.)
 
 Pembagian subbab tidak rigid. Bab III minimal berisi:
 
@@ -118,11 +118,12 @@ Pembagian subbab tidak rigid. Bab III minimal berisi:
 2. Analisis berbagai alternatif solusi yang dapat ditawarkan.
 3. Metode pemilihan solusi yang diusulkan.
 
-Contoh struktur:
+Struktur yang dipakai pada laporan ini:
 
-- Analisis Kondisi Saat Ini (model konseptual sistem yang ada + masalahnya).
-- Analisis Kebutuhan (identifikasi masalah pengguna, kebutuhan fungsional, kebutuhan nonfungsional).
-- Analisis Pemilihan Solusi (alternatif solusi, analisis penentuan solusi).
+- III.1 Analisis Kondisi Saat Ini (pandangan umum fragmentasi DataOps + MLOps; rincian per peran dipindahkan ke Lampiran C agar bab tetap ramping).
+- III.2 Beban Operasional dan Finansial Pengembangan Platform (configure-from-0, biaya berlangganan layanan terkelola, trade-off waktu lawan anggaran).
+- III.3 Analisis Kebutuhan (identifikasi masalah pengguna, kebutuhan fungsional KF-1..KF-n, kebutuhan nonfungsional KNF-1..KNF-n).
+- III.4 Analisis Pemilihan Solusi (alternatif solusi, analisis penentuan solusi).
 
 ## 5. Bab IV Perancangan – Panduan Template Asli
 
