@@ -161,7 +161,13 @@ Each evaluation section maps to one Bab IV section. Three architecture decisions
 
 If the objectives are numbered 1, 2, 3, the conclusion section has three points that each answer one objective. Each point states what was built and what the evaluation showed. Do not add a new claim in the conclusion that did not appear earlier.
 
-### 3.5 Quick checklist before submission
+### 3.5 Paragraph density rule
+
+Narrative paragraphs (those under `\section` or `\subsection`) must contain at least four full sentences, and every `\subsection` must contain at least two such paragraphs. Each additional sentence should add a concrete fact — a citation, a tool name, a CRD, a metric — rather than restating a previous one.
+
+This rule is exempt for items inside `\begin{enumerate}` and `\begin{itemize}`. Numbered or bulleted items follow the proposal format: bold title on the first line (no trailing period), then one to three short sentences of explanation on the following line, separated by `\vspace{0.5em}` between items. Do not force enumerate items into multi-paragraph form.
+
+### 3.6 Quick checklist before submission
 
 Run through this list when the draft is close to done.
 

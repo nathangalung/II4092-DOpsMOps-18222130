@@ -12,7 +12,7 @@
 %   - bare \begin{enumerate} (tanpa label kustom)
 %   - tiap item: \textbf{Judul} \n\n paragraf
 %   - vspace{0.5em} antar paragraf dan antar item
-% Aturan paragraf: minimum 4 kalimat per paragraf, minimum 2 paragraf per sub-bab; setiap kalimat tambahan membawa fakta baru (kutipan, nama tool, CRD, atau metrik konkret).
+% Aturan paragraf: minimum 4 kalimat per paragraf naratif, minimum 2 paragraf per \subsection; item enumerate dikecualikan dari aturan ini. Setiap kalimat tambahan membawa fakta baru (kutipan, nama tool, CRD, atau metrik konkret).
 % Rantai keterhubungan: RM-N ↔ T-N ↔ Bab IV.N+1 ↔ Bab V.N+1 ↔ Kesimpulan ke-N
 % ============================================================
 \cleardoublepage
@@ -42,41 +42,25 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 \begin{enumerate}
     \item \textbf{Fragmentasi tumpukan teknologi DataOps dan MLOps}
 
-    \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model masih dirakit secara terpisah sehingga integrasi memerlukan biaya rekayasa berulang dan menimbulkan duplikasi konsep antara \textit{pipeline} data dan \textit{pipeline} model. Setiap komponen memiliki konvensi konfigurasi sendiri, dari berkas \textit{Custom Resource Definition} (CRD) khas operator Kubernetes hingga \textit{template} Helm dengan penanda versi yang berbeda. Persoalan ini berakibat pada lemahnya konsistensi kontrak data antara fase pelatihan dan fase penyajian, serta tingginya beban pemeliharaan ketika ada perubahan versi salah satu komponen. \textcite{burgueno2025toward} memperingatkan bahwa biaya integrasi pada arsitektur MLOps \textit{open source} dapat menyamai biaya pengembangan model itu sendiri ketika tidak ada bidang kendali tunggal.
+    \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model dirakit terpisah sehingga integrasi mengulang dan kontrak antar lapis tidak seragam. \textcite{burgueno2025toward} memperingatkan biaya integrasi MLOps \textit{open source} dapat menyamai biaya pengembangan model ketika tidak ada bidang kendali tunggal.
 
     \vspace{0.5em}
 
-    Akibat lain dari fragmentasi tersebut terasa pada lapis observabilitas dan tata kelola, sebab metrik, \textit{log}, dan \textit{trace} dari Kafka, Spark, Flink, MLflow, Kubeflow, dan KServe disusun pada bidang yang berbeda jika tidak diseragamkan pada Prometheus, Grafana, Loki, dan Tempo. Bidang identitas pengguna juga terpecah ketika setiap konsol komponen menggunakan basis akun terpisah tanpa identitas tunggal pada Dex sebagai \textit{identity provider} OIDC. Kontrak data antar lapis kerap diperoleh hanya melalui pengamatan implisit terhadap perilaku komponen lain, sehingga regresi pada satu lapis baru terdeteksi ketika hasil rusak pada lapis konsumen. Rumusan masalah ini menjadi alasan utama bagi pengembangan satu bidang kendali deklaratif pada Argo CD yang menyatukan seluruh manifes komponen pada repositori Gitea sebagai sumber kebenaran tunggal.
+    \item \textbf{Tata kelola data tidak konsisten lintas siklus data, fitur, dan model}
+
+    Katalog metadata, \textit{lineage}, dan kontrol kualitas kerap dijalankan pasca-fakta, terpisah dari \textit{pipeline} produksi dan pencatatan eksperimen. \textcite{polyzotis2018data} menempatkan validasi data sebagai bagian \textit{pipeline} produksi, bukan pekerjaan terpisah setelah masalah muncul.
 
     \vspace{0.5em}
 
-    \item \textbf{Tata kelola data yang tidak konsisten lintas siklus data, fitur, dan model}
+    \item \textbf{Deteksi \textit{drift} tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}}
 
-    Katalog metadata, \textit{lineage}, dan kontrol kualitas sering dijalankan sebagai proses pasca-fakta, terpisah dari \textit{pipeline} produksi data dan dari pencatatan eksperimen model. Tim data umumnya mengandalkan kompilasi manual atas dokumentasi internal dan ekspor periodik dari basis data metadata, sehingga gambar mengenai data dan model tertinggal di belakang kondisi nyata pada lingkungan produksi. Akibatnya, ketika sebuah fitur diperbarui atau sebuah model dihentikan, perubahan tersebut tidak otomatis tercermin pada katalog dan riwayat kepemilikan, sehingga sulit memenuhi kewajiban audit dan reproduksibilitas. \textcite{polyzotis2018data} menempatkan validasi data sebagai bagian dari \textit{pipeline} produksi, bukan sebagai pekerjaan terpisah setelah masalah muncul.
-
-    \vspace{0.5em}
-
-    Tata kelola yang melekat pada \textit{pipeline} produksi memerlukan instrumentasi otomatis pada lapis pemrosesan dengan dukungan kontrak data, kontrak kualitas, dan pendaftaran \textit{lineage} setiap kali Flink atau Spark menjalankan transformasi. DataHub berperan sebagai katalog metadata, Great Expectations berperan sebagai layanan kontrak kualitas data, dan OpenLineage berperan sebagai protokol \textit{lineage} terbuka yang dilaporkan dari setiap \textit{pipeline}. Kepemilikan data, fitur, dan model dijejakkan pada satu basis identitas melalui Dex dan kebijakan akses berbasis RBAC dan SpiceDB. Rumusan masalah ini menuntut layanan tata kelola yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model agar audit tidak lagi dirakit setelah kejadian.
-
-    \vspace{0.5em}
-
-    \item \textbf{Deteksi \textit{drift} yang tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}}
-
-    Tanda-tanda perubahan distribusi data, perubahan hubungan antara masukan dan keluaran, serta pencampuran referensi waktu antara fitur \textit{streaming} dengan fitur \textit{batch} berpotensi mengempaskan kualitas model di lapangan tanpa terdeteksi pemilik model. Pada beban kerja \textit{event-driven}, distribusi nilai fitur dapat bergeser dalam hitungan menit ketika peristiwa eksternal mengubah pola interaksi pengguna. \textcite{bayram2022concept} memetakan beragam metode deteksi \textit{concept drift}, namun penerapannya pada \textit{pipeline} produksi memerlukan instrumentasi yang tertanam pada lapis pemrosesan dan penyajian. Mekanisme deteksi \textit{drift} yang aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar dari \textit{pipeline} produksi.
-
-    \vspace{0.5em}
-
-    Bagian lain dari masalah ini berada pada referensi waktu fitur, sebab \textit{streaming} \textit{ingest} dari Kafka dan \textit{batch} \textit{backfill} dari ClickHouse harus konsisten pada satu sumbu waktu agar pelatihan tidak menggunakan nilai yang tidak tersedia pada saat \textit{inference}. \textcite{wang2021leakage} menunjukkan bahwa kebocoran temporal sering muncul melalui \textit{lookahead} pada fitur agregat yang membaca peristiwa setelah waktu prediksi. Evidently digunakan sebagai \textit{library} deteksi \textit{drift} yang berjalan pada \textit{pipeline} pemantauan, sementara Feast menjamin \textit{point-in-time correctness} pada \textit{offline store} sehingga \textit{join} historis selalu menghormati waktu prediksi. Rumusan masalah ini menuntut otomasi deteksi \textit{drift} sekaligus jaminan \textit{point-in-time} pada satu \textit{sub-sistem}.
+    Mekanisme deteksi \textit{drift} aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum tertanam sebagai bagian standar \textit{pipeline} produksi. \textcite{wang2021leakage} menunjukkan kebocoran temporal sering muncul melalui \textit{lookahead} pada fitur agregat yang membaca peristiwa setelah waktu prediksi.
 
     \vspace{0.5em}
 
     \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran}
 
-    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi memiliki pola akses dan SLA berbeda, namun tetap harus konsisten antara nilai yang dipakai saat pelatihan dan nilai yang dilayani saat \textit{inference}. Fitur tabular dan agregat membutuhkan akses kunci-nilai berlatensi rendah pada Valkey, sedangkan fitur \textit{embedding} membutuhkan \textit{vector similarity search} pada Qdrant melalui pengindeksan \textit{Hierarchical Navigable Small World} (HNSW). Kedua pola tersebut harus menempel pada satu kontrak fitur sehingga \textit{client} pelatihan dan \textit{client} penyajian tidak perlu mengetahui rincian \textit{store} di belakang. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online} pada satu kontrak API, biaya pemeliharaan kontrak meningkat dan risiko \textit{train-serving skew} membesar.
-
-    \vspace{0.5em}
-
-    \textit{Offline store} berbasis ClickHouse menyimpan riwayat lengkap fitur untuk pembuatan \textit{training dataset} dengan jaminan \textit{point-in-time}. \textit{Online store} berbasis Valkey dan Qdrant melayani \textit{lookup} fitur saat \textit{inference} dengan latensi p99 sub-detik. Feast bertindak sebagai \textit{control plane} \textit{feature store} yang mengikat kedua \textit{store} pada satu \textit{feature view}, satu \textit{entity}, dan satu \textit{registry}. Rumusan masalah ini menuntut layanan fitur \textit{dual-store} yang melayani tiga modalitas fitur dari satu sumber kebenaran tanpa duplikasi kontrak.
+    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi harus konsisten antara nilai pelatihan dan nilai penyajian melalui satu kontrak API. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online}, biaya pemeliharaan kontrak meningkat dan risiko \textit{train-serving skew} membesar.
 \end{enumerate}
 
 Keempat rumusan masalah di atas akan dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional pada Bab~\ref{chap:analisis-masalah}. Rantai keterhubungan RM ↔ T ↔ \textit{sub-sistem} pada Bab~\ref{chap:perancangan} dijaga satu lawan satu agar setiap permasalahan memiliki rute jawaban yang dapat ditelusuri ulang. Penerapan rantai tersebut menjadi dasar bagi tabel uji penerimaan dan tabel evaluasi pada Bab~\ref{chap:evaluasi}. Keempat rumusan masalah juga membentuk struktur kesimpulan pada Bab~\ref{chap:penutup} yang menyajikan jawaban beserta keterbatasan.
@@ -90,41 +74,25 @@ Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan 
 \begin{enumerate}
     \item \textbf{Arsitektur platform DataOps dan MLOps terintegrasi}
 
-    Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan lapis ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps. Arsitektur disusun pada tujuh lapis dengan tanggung jawab terpisah agar setiap komponen dapat diganti tanpa mengganggu lapis lain. Bidang kendali ditegakkan oleh Argo CD yang merekonsiliasi manifes dari repositori Gitea sebagai sumber kebenaran tunggal. Tujuan ini menjawab rumusan masalah RM-1 mengenai fragmentasi tumpukan teknologi DataOps dan MLOps.
-
-    \vspace{0.5em}
-
-    Lapis komponen \textit{stateful} (Kafka, ClickHouse, PostgreSQL, MinIO, Valkey, Qdrant) dikelola oleh \textit{operator} masing-masing yang berdiri pada lapis infrastruktur \texttt{platform/storage} dan \texttt{platform/data-processing}. Lapis pemrosesan Flink dan Spark dipasang melalui FlinkDeployment dan SparkApplication, sedangkan lapis pelatihan dikelola oleh Kubeflow Pipelines, MLflow, dan Katib. Lapis penyajian model berbasis KServe InferenceService dengan ingres lintas layanan dipasang pada APISIX dan kebijakan jaringan pada Istio mTLS \textit{strict}. Luaran T-1 berupa repositori manifes yang dapat direkonsiliasi ulang dari nol pada distribusi Kubernetes berapa pun.
+    Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps. Tujuan ini menjawab RM-1.
 
     \vspace{0.5em}
 
     \item \textbf{\textit{Sub-sistem} tata kelola data}
 
-    Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model. \textit{Sub-sistem} ini menempel pada lapis pemrosesan agar setiap eksekusi Flink atau Spark mendaftarkan \textit{lineage} pada DataHub dan menjalankan pengujian kualitas pada Great Expectations sebelum data ditulis ke ClickHouse. Kontrak akses ke katalog metadata diatur oleh SpiceDB dan kebijakan admisi Kyverno, sehingga perubahan pemilik data dapat ditelusuri pada \textit{audit log}. Tujuan ini menjawab rumusan masalah RM-2 mengenai tata kelola yang tidak konsisten lintas siklus data, fitur, dan model.
-
-    \vspace{0.5em}
-
-    Identitas tunggal untuk seluruh konsol tata kelola disediakan oleh Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy sebagai \textit{gateway} autentikasi. Protokol \textit{lineage} terbuka OpenLineage dipakai sebagai jembatan agar \textit{pipeline} Tekton, Argo Workflows, dan Kubeflow Pipelines melaporkan \textit{lineage} ke satu jalur penerimaan DataHub. Kebijakan kualitas data dikemas sebagai \textit{expectation suite} yang disimpan pada repositori Gitea dan diuji ulang sebelum tahap penulisan data hilir. Luaran T-2 berupa kontrak data, kontrak kualitas, dan kebijakan akses yang diterapkan otomatis tanpa intervensi manual.
+    Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model. Tujuan ini menjawab RM-2.
 
     \vspace{0.5em}
 
     \item \textbf{\textit{Sub-sistem} deteksi \textit{drift} terotomasi}
 
-    Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}. \textit{Sub-sistem} ini menjalankan tugas deteksi pada \textit{schedule} berkala maupun pemicu \textit{event-driven} ketika data baru tiba pada \textit{topic} Kafka. Hasil deteksi diterbitkan sebagai \textit{event} pada Karapace \textit{schema registry} sehingga \textit{pipeline} \textit{retraining} pada Kubeflow Pipelines dapat dipicu otomatis. Tujuan ini menjawab rumusan masalah RM-3 mengenai deteksi \textit{drift} tidak terotomasi dan risiko kebocoran temporal.
-
-    \vspace{0.5em}
-
-    Evidently dipakai sebagai \textit{library} deteksi \textit{drift} yang berjalan pada \textit{job} pemantauan dengan referensi distribusi disimpan pada MinIO. \textit{Pipeline} pemantauan menarik data terbaru dari ClickHouse dan membandingkan terhadap referensi dengan metrik \textit{Population Stability Index}, KS-statistik, dan PSI per fitur. Ambang batas \textit{drift} dikemas pada \textit{ConfigMap} dengan \textit{annotation} kebijakan \textit{retraining} yang dibaca oleh Argo Workflows. Luaran T-3 berupa \textit{sub-sistem} deteksi \textit{drift} dengan jalur \textit{retraining} otomatis dan jaminan \textit{point-in-time} pada Feast.
+    Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}. Tujuan ini menjawab RM-3.
 
     \vspace{0.5em}
 
     \item \textbf{Layanan fitur \textit{dual-store} \textit{offline} dan \textit{online}}
 
-    Mengembangkan layanan fitur \textit{dual-store} \textit{offline} dan \textit{online} yang melayani fitur tabular, fitur agregat, dan fitur vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian. Layanan ini menempatkan ClickHouse sebagai \textit{offline store} untuk \textit{training dataset} \textit{point-in-time}, Valkey sebagai \textit{online store} untuk fitur tabular dan agregat, serta Qdrant sebagai \textit{online vector store} untuk \textit{embedding}. Feast bertindak sebagai \textit{control plane} dengan \textit{registry} terpusat pada PostgreSQL melalui CloudNativePG. Tujuan ini menjawab rumusan masalah RM-4 mengenai penyajian fitur multimoda dari satu sumber kebenaran.
-
-    \vspace{0.5em}
-
-    \textit{Feature view} pada Feast didaftarkan melalui FeastApplyJob yang membaca definisi fitur dari repositori Gitea agar konsisten dengan praktik GitOps. \textit{Materialization} fitur dari \textit{offline} ke \textit{online} dijalankan secara terjadwal melalui Argo Workflows dengan jaminan \textit{exactly-once} pada Kafka sebagai jalur \textit{streaming}. Konsumen pelatihan dan konsumen penyajian memakai \textit{client} Feast yang sama agar nilai fitur yang dibaca selalu konsisten. Luaran T-4 berupa \textit{feature service} dengan satu kontrak API untuk tiga modalitas fitur.
+    Mengembangkan layanan fitur \textit{dual-store} yang melayani fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian. Tujuan ini menjawab RM-4.
 \end{enumerate}
 
 Kriteria keberhasilan dari keseluruhan platform diukur dari tiga sudut. Pertama, seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual. Kedua, seluruh \textit{sub-sistem} berkomunikasi melalui kontrak yang ditegakkan oleh layanan tata kelola dan layanan fitur. Ketiga, mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi.
@@ -138,51 +106,31 @@ Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Batasan dis
 \begin{enumerate}
     \item \textbf{Fokus pada lapis kendali platform}
 
-    Fokus utama berada pada lapis kendali platform, bukan pada pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan, sehingga pembahasan masalah, perancangan, dan implementasi platform dijaga \textit{domain-agnostic}. Pemilihan \textit{use case} pasar aset kripto tidak menjadi obyek kajian, melainkan beban kerja yang menguji jalur \textit{end-to-end} secara realistis. Akibatnya, pengukuran kualitas model spesifik tidak masuk pada cakupan utama pelaporan dan pembahasan terfokus pada keterhubungan lapis platform.
-
-    \vspace{0.5em}
-
-    Batasan ini juga memastikan struktur direktori pada repositori platform tetap bersih: konfigurasi spesifik domain disimpan pada \textit{folder} \texttt{use-case-crypto/} terpisah dari konfigurasi platform pada \texttt{platform/}. Komponen pada \texttt{platform/} tidak mengandung kunci, simbol, atau parameter spesifik kripto. \textit{Overlay} Kustomize untuk \textit{environment} pengembangan, verifikasi, dan produksi mengikuti pola yang sama agar penyesuaian per \textit{environment} berlaku tanpa modifikasi pada basis kode. Pemisahan ini menjadi prasyarat agar arsitektur dapat ditiru untuk domain lain tanpa perubahan pada lapis kendali.
+    Fokus berada pada lapis kendali platform, bukan pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan sehingga pembahasan platform dijaga \textit{domain-agnostic}.
 
     \vspace{0.5em}
 
     \item \textbf{Lingkungan Kubernetes \textit{k3s} satu \textit{node}}
 
-    Platform berjalan di atas Kubernetes dengan distribusi \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian. Setiap beban kerja diatur minimal satu replika ketika \textit{idle} dan diskalakan oleh \textit{Horizontal Pod Autoscaler} (HPA), \textit{Vertical Pod Autoscaler} (VPA), atau \textit{Kubernetes Event-driven Autoscaling} (KEDA) ketika beban nyata muncul. Pemilihan \textit{k3s} dilatarbelakangi kebutuhan jejak sumber daya yang ringkas sehingga seluruh komponen platform dapat dijalankan dalam satu \textit{node} pengujian. Beban kerja yang membutuhkan \textit{multi-replica} pada produksi tetap dapat disetel ulang melalui \textit{overlay} Kustomize untuk \textit{environment} multi-\textit{node}.
-
-    \vspace{0.5em}
-
-    Komponen \textit{stateful} (Kafka, ClickHouse, PostgreSQL, MinIO, Valkey, Qdrant) diatur agar berjalan dengan \textit{persistent volume} pada satu \textit{node} dan dapat diperbesar menjadi \textit{multi-replica} ketika lingkungan ditingkatkan. KEDA digunakan untuk memicu skala pada \textit{consumer} Kafka berdasarkan \textit{lag} \textit{partition} dan pada beban berbasis \textit{metric} kustom. HPA mengatur skala berbasis CPU dan memori untuk \textit{deployment} dasar, sementara VPA digunakan dalam mode \textit{recommender} agar nilai \textit{request} dan \textit{limit} dapat disesuaikan secara berkala. Batasan \textit{single-node} berlaku pada lingkungan pengujian, sedangkan lingkungan produksi tidak menjadi bagian dari evaluasi Tugas Akhir.
+    Platform berjalan di atas \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian, dengan skala diatur oleh HPA, VPA, dan KEDA ketika beban nyata muncul. \textit{Overlay} Kustomize untuk \textit{environment} multi-\textit{node} tetap mungkin disetel ulang tanpa modifikasi basis kode.
 
     \vspace{0.5em}
 
     \item \textbf{Komponen \textit{open source} dengan patokan versi April 2026}
 
-    Seluruh komponen yang digunakan berbasis \textit{open source}. Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026 agar pengujian dapat direproduksi pada lingkungan yang sama. Pemilihan komponen berbasis lisensi yang memungkinkan modifikasi dan pendistribusian ulang, sehingga arsitektur dapat ditiru tanpa biaya berlangganan. Patokan versi tersebut diberlakukan pada \texttt{targetRevision} Helm \textit{chart} di repositori Gitea agar Argo CD merekonsiliasi versi yang konsisten.
-
-    \vspace{0.5em}
-
-    Komponen utama yang dipatok meliputi Kafka melalui Strimzi, ClickHouse melalui ClickHouseInstallation, MinIO melalui MinIO Operator, PostgreSQL melalui CloudNativePG, dan Valkey serta Qdrant melalui \textit{custom resource} masing-masing. Lapis pelatihan dan penyajian model menggunakan Kubeflow Pipelines, MLflow, Katib, dan KServe dengan versi sesuai patokan. Lapis observabilitas memakai Prometheus, Grafana, Loki, Tempo, Pyroscope, dan Sloth, sedangkan lapis keamanan memakai Dex, oauth2-proxy, OpenBao, KES, Kyverno, Falco, Trivy, dan SpiceDB. Batasan ini memberi titik referensi bagi audit kompatibilitas dan verifikasi tanda tangan \textit{image container}.
+    Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026 agar pengujian dapat direproduksi pada lingkungan yang sama. Patokan tersebut diberlakukan pada \texttt{targetRevision} Helm \textit{chart} di repositori Gitea agar Argo CD merekonsiliasi versi yang konsisten.
 
     \vspace{0.5em}
 
     \item \textbf{Cakupan keamanan terbatas pada akses antar layanan internal}
 
-    Otentikasi \textit{end-user} aplikasi domain tidak menjadi bagian inti rancangan. Aspek keamanan yang dibahas berfokus pada akses antar layanan internal melalui \textit{mutual TLS}, manajemen rahasia melalui OpenBao, dan kebijakan jaringan berbasis Kubernetes. \textit{Sidecar} Istio dipasang pada seluruh \textit{namespace} aplikasi platform dengan mode mTLS \textit{strict} agar lalu lintas antar komponen tidak dapat dipantau pihak ketiga di dalam klaster. Kebijakan jaringan dengan \textit{NetworkPolicy} dan otorisasi berbasis SpiceDB diterapkan untuk membatasi akses lintas \textit{namespace}.
-
-    \vspace{0.5em}
-
-    Manajemen rahasia dilakukan melalui OpenBao sebagai \textit{vault} dengan akses melalui External Secrets Operator yang menulis rahasia ke \textit{Secret} Kubernetes pada \textit{namespace} sasaran. Enkripsi \textit{at rest} pada MinIO menggunakan KES sebagai \textit{KMS gateway} ke OpenBao untuk menjamin kunci tetap berada di luar jalur data. Konsol pengguna platform terhubung pada satu sesi identitas melalui Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy sebagai \textit{gateway}. Otentikasi \textit{end-user} aplikasi domain berada pada lapis aplikasi domain dan tidak menjadi bagian dari pelaporan Tugas Akhir.
+    Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} Istio, manajemen rahasia OpenBao, dan kebijakan jaringan Kubernetes. Otentikasi \textit{end-user} aplikasi domain berada di luar cakupan pelaporan.
 
     \vspace{0.5em}
 
     \item \textbf{Evaluasi kuantitatif menyusul setelah implementasi inti}
 
-    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan. Angka kuantitatif evaluasi dilaporkan pada bagian Evaluasi setelah pengujian lengkap. Pengujian beban dilakukan dengan beban sintetis yang mendekati pola lalu lintas pasar aset kripto, sehingga hasil dapat dibandingkan terhadap target SLO yang ditetapkan pada Bab~\ref{chap:analisis-masalah}. Stabilitas penyebaran lanjutan menyangkut keluwesan komponen ketika \textit{node} dimatikan atau \textit{Pod} dipindah pada \textit{rolling update}.
-
-    \vspace{0.5em}
-
-    Pengujian fungsional difokuskan pada empat \textit{sub-sistem} yang menjadi tujuan T-1 hingga T-4, dengan skenario uji yang dirancang sebelum implementasi sebagai bagian dari rencana evaluasi. Skenario penyimpangan disusun untuk menguji deteksi \textit{drift} dengan \textit{synthetic drift injection} pada \textit{topic} Kafka dan komparasi distribusi pada referensi MinIO. Hasil pengujian dilaporkan pada Bab~\ref{chap:evaluasi} dengan tabel SLO Sloth dan grafik metrik Prometheus melalui Grafana \textit{dashboard}. Evaluasi tidak mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik.
+    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan. Evaluasi tidak mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik.
 \end{enumerate}
 
 Kelima batasan di atas menjadi konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}. Pelanggaran batasan dapat menyebabkan pengembangan menjadi tidak fokus, sehingga setiap penambahan lingkup dievaluasi terhadap kelima batas tersebut. Asumsi terkait \textit{open source} dan patokan versi memberi peluang pengembang lain untuk memverifikasi arsitektur tanpa kontak dengan penyedia layanan berbayar. Batasan ini tidak menutup kemungkinan pengembangan lanjutan pada lingkungan multi-\textit{node} dan multi-domain di masa depan.
@@ -196,61 +144,37 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 \begin{enumerate}
     \item \textbf{Identifikasi masalah dan motivasi}
 
-    Studi literatur mengenai praktik DataOps, MLOps, dan tata kelola data dilakukan untuk menyusun peta tantangan. Pengamatan pada studi kasus produksi yang terdokumentasi dipakai untuk mempertajam keempat rumusan masalah. Literatur diambil dari Scopus, IEEE Xplore, ACM Digital Library, dan arXiv dengan kriteria relevansi, kebaruan (publikasi 2019 ke atas), dan dampak sitasi. Dokumentasi resmi komponen \textit{open source} ditelaah untuk memastikan kesesuaian dengan patokan versi April 2026 dan ketersediaan CRD yang relevan.
-
-    \vspace{0.5em}
-
-    Analisis komparatif terhadap survei \textcite{najafabadi2024analysis} dan studi \textcite{kreuzberger2023mlops} dipakai sebagai dasar posisi penelitian. Pengamatan terhadap wawancara para praktisi MLOps yang didokumentasikan oleh \textcite{shankar2022operationalizing} dipakai untuk memvalidasi pemicu pada Latar Belakang. Tiga pemicu (configure-from-zero, biaya berlangganan, efek domino fragmentasi) dan empat rumusan masalah (RM-1 sampai RM-4) menjadi luaran fase ini. Daftar pustaka yang terkumpul dipakai pada Bab~\ref{chap:studi-literatur}.
+    Studi literatur DataOps, MLOps, dan tata kelola data dilakukan untuk menyusun peta tantangan. Tiga pemicu dan empat rumusan masalah (RM-1 sampai RM-4) menjadi luaran fase ini.
 
     \vspace{0.5em}
 
     \item \textbf{Penetapan tujuan artefak}
 
-    Tujuan dirumuskan sebagai daftar artefak teknis yang harus dapat dipasang, dioperasikan, dan diaudit. Tujuan dipetakan satu lawan satu terhadap rumusan masalah untuk menghindari ketidaksinkronan antara persoalan dan capaian. Empat \textit{sub-sistem} yang menjadi target adalah platform terintegrasi (T-1), tata kelola data (T-2), deteksi \textit{drift} terotomasi (T-3), dan layanan fitur \textit{dual-store} (T-4). Setiap \textit{sub-sistem} memiliki batas tanggung jawab yang jelas dan luaran berupa kontrak antar komponen.
-
-    \vspace{0.5em}
-
-    Kebutuhan fungsional KF-01 sampai KF-14 dan kebutuhan nonfungsional KNF-01 sampai KNF-12 disusun pada Bab~\ref{chap:analisis-masalah} sebagai turunan dari empat tujuan tersebut. Setiap kebutuhan ditautkan pada satu \textit{sub-sistem} dan satu butir tujuan agar \textit{traceability} tetap terjaga sepanjang dokumen. Target SLO Sloth pada lapis Kafka 99,9\%, PostgreSQL 99,95\%, MinIO p99 di bawah 500 milidetik, dan latensi \textit{feature serving} sub-detik dipakai sebagai patokan tingkat layanan. Luaran fase ini berupa daftar kebutuhan terukur dan \textit{traceability matrix}.
+    Tujuan dirumuskan sebagai daftar artefak teknis yang dapat dipasang, dioperasikan, dan diaudit, dipetakan satu lawan satu terhadap rumusan masalah. Kebutuhan fungsional KF-01 sampai KF-14 dan kebutuhan nonfungsional KNF-01 sampai KNF-12 disusun pada Bab~\ref{chap:analisis-masalah}.
 
     \vspace{0.5em}
 
     \item \textbf{Perancangan dan pengembangan artefak}
 
-    Arsitektur tujuh lapis dirancang sebagai bidang kendali deklaratif berbasis Kubernetes. Untuk setiap lapis dilakukan pemilihan komponen \textit{open source} berdasarkan kriteria fungsi, dukungan ekosistem, kompatibilitas versi April 2026, dan kemampuan diorkestrasi oleh Argo CD dengan praktik GitOps. Alternatif solusi per lapis dieksplorasi melalui matriks keputusan multi-kriteria dengan kriteria biaya, fleksibilitas, risiko \textit{vendor lock-in}, dukungan komunitas, dan kematangan teknis. Pendekatan komparatif tersebut menjadi dasar pemilihan Alternatif B dengan skor total 49 dari 52 pada matriks evaluasi yang disajikan pada Bab~\ref{chap:analisis-masalah}.
-
-    \vspace{0.5em}
-
-    Lapis arsitektur disusun pada urutan: \textit{Infrastructure}, \textit{Data Ingestion}, \textit{Data Processing}, \textit{Feature Storage}, \textit{Model Lifecycle}, \textit{Model Serving}, serta \textit{Governance and Observability}. Setiap lapis memiliki titik integrasi, alur komunikasi, dan mekanisme \textit{failure handling} yang dijabarkan pada Bab~\ref{chap:perancangan}. Diagram arsitektur tingkat tinggi disusun mengikuti notasi C4 dengan diagram konteks, kontainer, dan komponen. Pengembangan manifes dilakukan secara modular pada repositori Gitea dengan \textit{folder} per komponen dan \textit{overlay} Kustomize untuk \textit{environment}.
+    Arsitektur tujuh lapis dirancang sebagai bidang kendali deklaratif berbasis Kubernetes dengan pemilihan komponen \textit{open source} melalui matriks keputusan multi-kriteria. Pengembangan manifes dilakukan modular pada repositori Gitea dengan \textit{folder} per komponen dan \textit{overlay} Kustomize.
 
     \vspace{0.5em}
 
     \item \textbf{Demonstrasi}
 
-    Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari \textit{use case} pasar aset kripto sebagai instans verifikasi. Aliran data \textit{streaming}, transformasi fitur, pelatihan model, penyajian model, dan deteksi \textit{drift} dijalankan dalam satu lingkaran tertutup. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4. \textit{Pipeline} \textit{end-to-end} dijalankan otomatis melalui Argo Workflows untuk membuktikan keterhubungan komponen.
-
-    \vspace{0.5em}
-
-    \textit{Use case} ini dipilih sebagai instans verifikasi karena pasar aset kripto beroperasi 24 jam sehari dengan volatilitas harga yang tinggi, sehingga menghasilkan aliran \textit{event} \textit{streaming} yang kontinu, distribusi fitur yang berubah cepat, dan kebutuhan fitur multimoda (tabular, agregat \textit{rolling window}, dan \textit{embedding} vektor). Kondisi tersebut menguji jalur ingestasi, materialisasi fitur, dan deteksi \textit{drift} secara \textit{end-to-end} tanpa menjadikan domain kripto sebagai fokus penelitian. Sumber data verifikasi diambil dari \textit{websocket} API publik CoinGecko dan Binance \textit{market data} melalui Kafka Connect. Demonstrasi membuktikan bahwa kontrak data, kontrak kualitas, dan kontrak \textit{lineage} terjaga sepanjang lingkaran.
+    Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari \textit{use case} pasar aset kripto sebagai instans verifikasi. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
 
     \vspace{0.5em}
 
     \item \textbf{Evaluasi}
 
-    Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional (apakah seluruh kebutuhan fungsional berjalan), nonfungsional (skalabilitas, ketersediaan, \textit{observability}, keamanan, dan biaya), serta tata kelola (\textit{lineage} tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif evaluasi dilaporkan pada Bab~\ref{chap:evaluasi}. Setiap kebutuhan fungsional dipetakan terhadap satu skenario uji dengan kriteria penerimaan yang ditetapkan sebelum pengujian. Skenario uji dijalankan otomatis pada \textit{pipeline} Tekton agar dapat dijalankan ulang pada perubahan kode.
-
-    \vspace{0.5em}
-
-    Evaluasi tata kelola dinilai melalui validitas \textit{lineage} pada DataHub, pelaporan kualitas data Great Expectations, dan riwayat akses dari \textit{audit log} OpenBao dan Kubernetes audit \textit{policy}. Evaluasi keamanan mencakup pemindaian kerentanan citra oleh Trivy Operator dan deteksi ancaman \textit{runtime} oleh Falco. Evaluasi observabilitas mencakup keberadaan metrik, \textit{log} terstruktur, \textit{distributed trace}, dan \textit{continuous profiling} pada seluruh komponen sesuai standar OpenTelemetry. Luaran fase ini berupa tabel evaluasi per kebutuhan dan rekomendasi perbaikan untuk pengembangan lanjutan.
+    Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional, nonfungsional (skalabilitas, ketersediaan, observabilitas, keamanan, biaya), serta tata kelola (\textit{lineage} tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif evaluasi dilaporkan pada Bab~\ref{chap:evaluasi}.
 
     \vspace{0.5em}
 
     \item \textbf{Komunikasi}
 
-    Hasil rancangan dan implementasi didokumentasikan pada laporan Tugas Akhir ini, beserta repositori sumber yang menjadi acuan reproduksi. Repositori Gitea memuat seluruh manifes Kubernetes, kontrak data, dan \textit{template} \textit{pipeline} yang dapat dipasang ulang melalui Argo CD. Dokumentasi tambahan disusun sebagai \textit{README} pada masing-masing \textit{folder} komponen agar dapat dipelajari secara mandiri. Pelaporan pada laporan ini menyertakan diagram arsitektur, tabel komponen, dan tabel evaluasi pada bab masing-masing.
-
-    \vspace{0.5em}
-
-    Komunikasi hasil juga melibatkan presentasi internal pada kelompok keahlian Rekayasa Perangkat Lunak dan Data dengan paparan rancangan, implementasi, dan hasil evaluasi. Umpan balik dipakai untuk perbaikan minor pada dokumen dan rekomendasi pengembangan lanjutan. Luaran fase ini berupa laporan Tugas Akhir, repositori sumber pada Gitea, dan presentasi ujian akhir. Komunikasi menutup siklus DSRM dengan memberikan jalur bagi peninjau untuk memverifikasi artefak.
+    Hasil rancangan dan implementasi didokumentasikan pada laporan Tugas Akhir ini, beserta repositori Gitea yang menjadi acuan reproduksi. Luaran fase ini berupa laporan, repositori sumber, dan presentasi ujian akhir.
 \end{enumerate}
 
 Keenam fase di atas dijalankan secara iteratif, dengan kemungkinan kembali ke fase sebelumnya ketika temuan baru ditemukan pada fase berikutnya. Iterasi tersebut sejalan dengan karakter DSRM sebagai metodologi berorientasi artefak, yang menempatkan umpan balik dari demonstrasi dan evaluasi sebagai pemicu perbaikan rancangan. Penggunaan DSRM pada konteks DataOps dan MLOps dapat ditelusuri pada \textcite{hsu2024endtoend}, \textcite{rodrigues2025architecture}, dan \textcite{liang2024automating} yang memakai pola serupa untuk pengembangan platform berbasis Kubernetes. Pelaporan tiap fase disusun pada bab-bab yang sesuai sehingga keterhubungan antara fase metodologi dan struktur laporan tetap eksplisit.
@@ -264,43 +188,43 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 \begin{enumerate}
     \item \textbf{Bab I Pendahuluan}
 
-    Bab ini memuat latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi penelitian, serta sistematika penulisan. Latar belakang menyajikan tiga pemicu (configure-from-zero, biaya berlangganan, dan efek domino fragmentasi) yang mendasari pengembangan. Rumusan masalah disajikan sebagai RM-1 hingga RM-4, dengan empat tujuan T-1 hingga T-4 yang dipetakan satu lawan satu. Metodologi mengikuti enam fase DSRM \textcite{peffers2007dsrm} dengan rincian pada Subbab~\ref{sec:metodologi}.
+    Memuat latar belakang, rumusan masalah, tujuan, batasan masalah, metodologi penelitian, serta sistematika penulisan.
 
     \vspace{0.5em}
 
     \item \textbf{Bab II Studi Literatur}
 
-    Bab ini meninjau konsep DataOps, MLOps, Kubernetes, manajemen data berbasis Kafka, Flink, dan Spark, \textit{feature store}, siklus hidup model dengan MLflow dan Kubeflow, penyajian model dengan KServe, tata kelola data, deteksi \textit{drift}, observabilitas \textit{cloud-native}, dan praktik GitOps. Tinjauan ditutup dengan pemetaan penelitian terkait yang menjadi posisi platform yang dikembangkan. Sumber rujukan disusun pada Daftar Pustaka dengan total lebih dari seratus entri yang mencakup publikasi akademik dan dokumentasi resmi komponen \textit{open source}. Bab ini menjadi landasan teoretis bagi analisis dan perancangan.
+    Meninjau konsep DataOps, MLOps, Kubernetes, \textit{feature store}, siklus hidup model, penyajian model, tata kelola data, deteksi \textit{drift}, observabilitas, dan praktik GitOps sebagai landasan teoretis.
 
     \vspace{0.5em}
 
     \item \textbf{Bab III Analisis}
 
-    Bab ini memetakan kondisi sistem yang ada saat ini melalui analisis tiga pemicu yang dirinci pada konteks operasional. Bab ini juga menyusun kebutuhan fungsional KF-01 hingga KF-14 dan kebutuhan nonfungsional KNF-01 hingga KNF-12 sebagai turunan empat tujuan. Tiga alternatif arsitektur dibandingkan melalui matriks evaluasi multi-kriteria dengan tujuh kriteria penilaian. Bab ditutup dengan pemilihan komponen yang dipakai oleh platform berdasarkan skor matriks Alternatif B 49 dari 52.
+    Memetakan kondisi sistem dan menyusun kebutuhan fungsional KF-01 hingga KF-14 serta kebutuhan nonfungsional KNF-01 hingga KNF-12 sebagai turunan empat tujuan. Tiga alternatif arsitektur dibandingkan melalui matriks evaluasi multi-kriteria.
 
     \vspace{0.5em}
 
     \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps}
 
-    Bab ini menjabarkan gambaran umum arsitektur tujuh lapis dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disusun mengikuti notasi C4 untuk konteks, kontainer, dan komponen, dengan kontrak antar lapis dijabarkan pada subbab masing-masing. Alur kerja \textit{end-to-end} dipetakan dari ingestasi data hingga penyajian model dengan jalur otomasi melalui Argo Workflows. Bab ini menjadi cetak biru bagi implementasi pada Bab~\ref{chap:implementasi}.
+    Menjabarkan arsitektur tujuh lapis dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disusun mengikuti notasi C4.
 
     \vspace{0.5em}
 
     \item \textbf{Bab V Implementasi Arsitektur Platform DataOps dan MLOps}
 
-    Bab ini memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, lengkap dengan praktik GitOps melalui Argo CD, manajemen rahasia melalui OpenBao, kebijakan jaringan berbasis Istio mTLS \textit{strict}, dan otomasi \textit{continuous training}. Implementasi disusun dalam empat tahap dengan luaran manifes Kubernetes pada repositori Gitea. Setiap \textit{sub-sistem} disertai dengan tangkapan layar konsol dan referensi ke \textit{folder} manifes pada Lampiran. Bab ini menjadi acuan reproduksi bagi peninjau dan pengembang lanjutan.
+    Memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, dengan praktik GitOps melalui Argo CD pada repositori Gitea sebagai sumber kebenaran tunggal.
 
     \vspace{0.5em}
 
     \item \textbf{Bab VI Evaluasi}
 
-    Bab ini berisi metode evaluasi, hasil pengukuran, dan pembahasan hasil terhadap kebutuhan fungsional dan nonfungsional yang ditetapkan pada Bab~\ref{chap:analisis-masalah}. Evaluasi mencakup pengukuran latensi p50, p95, dan p99 pada \textit{feature serving}, \textit{throughput} ingestasi Kafka, dan akurasi deteksi \textit{drift} melalui \textit{synthetic drift injection}. Hasil dilaporkan dalam bentuk tabel dan grafik Grafana \textit{dashboard} pada Lampiran. Bab ditutup dengan rangkuman pemenuhan terhadap target SLO Sloth.
+    Berisi metode evaluasi, hasil pengukuran, dan pembahasan terhadap kebutuhan fungsional dan nonfungsional pada Bab~\ref{chap:analisis-masalah}.
 
     \vspace{0.5em}
 
     \item \textbf{Bab VII Kesimpulan dan Saran}
 
-    Bab ini menyimpulkan jawaban atas keempat tujuan T-1 hingga T-4 berdasarkan hasil evaluasi pada Bab~\ref{chap:evaluasi}. Setiap butir kesimpulan dipetakan ke satu rumusan masalah RM-N agar keterhubungan tetap eksplisit. Saran pengembangan lanjutan diberikan untuk lingkungan multi-\textit{node}, multi-domain, dan integrasi dengan layanan komersial pada lapis tertentu. Bab ini menutup laporan dengan ringkasan kontribusi dan keterbatasan.
+    Menyimpulkan jawaban atas T-1 hingga T-4 dan memberikan saran pengembangan lanjutan untuk lingkungan multi-\textit{node} dan multi-domain.
 \end{enumerate}
 
 Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung. Daftar Pustaka memakai gaya \textit{Chicago author-date} (biblatex-chicago) dengan label Indonesia agar konsisten dengan tubuh laporan. Lampiran memuat manifes Kubernetes, kontrak data, tangkapan layar antarmuka observabilitas, dan diagram lapis fragmentasi peran pengguna. Penomoran lampiran mengikuti abjad (Lampiran A, B, C, dan seterusnya) sebagaimana konvensi laporan Tugas Akhir di STI ITB.
