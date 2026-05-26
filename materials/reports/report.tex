@@ -67,7 +67,7 @@
 %   https://ctan.org/pkg/fontspec
 % - Selamat menyusun dokumen tugas akhir Anda!
 %
-\documentclass[12pt,a4paper]{book}
+\documentclass[12pt,a4paper,oneside]{book}
 
 % --- Main packages ---
 \usepackage[utf8]{inputenc} % for UTF-8 encoding
@@ -87,6 +87,8 @@
 \usepackage{amsmath} % for math
 \usepackage{amssymb} % for math symbols
 \usepackage[shortlabels]{enumitem} % for customizing lists
+\setlist[enumerate]{nosep, topsep=-10pt}
+\setlist[itemize]{nosep, topsep=-10pt}
 \usepackage[skip=12pt]{parskip} % for spacing between paragraphs
 \usepackage{longtable} % for long tables
 \usepackage{booktabs} % for better table rules
@@ -120,7 +122,11 @@
     backend=biber,
     authordate,
     language=english,
-    autolang=other
+    autolang=other,
+    ibidtracker=false,
+    idemtracker=false,
+    opcittracker=false,
+    loccittracker=false
 ]{biblatex-chicago}
 \addbibresource{daftar-pustaka.bib}
 
@@ -252,9 +258,6 @@
       \renewcommand\thechapter{\Roman{chapter}}
 % --- Atur spasi sebelum dan sesudah judul bab/chapter ---
 \titlespacing*{\chapter}{0pt}{-30pt}{20pt} % Match proposal: tighter top, 20pt below
-\titlespacing{\section}{0pt}{6pt}{6pt}
-\titlespacing{\subsection}{0pt}{6pt}{6pt}
-\titlespacing{\subsubsection}{0pt}{6pt}{6pt}
 
 % --- Judul Subbab dan Subsubbab ---
 \titleformat{\section}
