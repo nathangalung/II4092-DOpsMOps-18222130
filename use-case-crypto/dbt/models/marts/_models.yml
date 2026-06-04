@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: fct_ohlcv_features
-    description: "OHLCV data with moving averages and returns (gold layer)"
+    description: "OHLCV with the full technical-indicator matrix — SMA/EMA, MACD, RSI, Bollinger Bands, ATR, Stochastic, Williams %R, ROC, momentum, OBV, returns, volatility (gold layer; batch counterpart of the Flink stream feature set)"
     columns:
       - name: symbol
         tests:

@@ -222,7 +222,7 @@ def retraining_pipeline(
     drift_threshold: float = 0.20,
     drift_features: str = "close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h",
     flaml_time_budget: str = "300",
-    flaml_estimator_list: str = "lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd",
+    flaml_estimator_list: str = "lgbm,xgboost,catboost,rf,extra_tree,enet,sgd",
     clickhouse_host: str = "clickhouse-platform.storage.svc.cluster.local",
     clickhouse_port: str = "8123",
     clickhouse_db: str = "gold",

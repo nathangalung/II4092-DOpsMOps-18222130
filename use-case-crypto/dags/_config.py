@@ -104,7 +104,12 @@ def k8s_pod(
         arguments=args or [],
         env_from=ENV_FROM_SOURCES,
         image_pull_policy="IfNotPresent",
-        on_finish_action="delete_pod",
+        # Keep FAILED task pods for post-mortem (`kubectl logs`/`describe`);
+        # delete only successful ones to stay tidy on the single node. Mirrors
+        # the platform Airflow KubernetesExecutor policy
+        # (AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS_ON_FAILURE=False):
+        # a child pod that errors must be inspectable, or the failure is opaque.
+        on_finish_action="delete_succeeded_pod",
         get_logs=True,
         startup_timeout_seconds=300,
         container_resources=k8s.V1ResourceRequirements(

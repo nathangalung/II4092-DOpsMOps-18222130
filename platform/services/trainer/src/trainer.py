@@ -72,9 +72,18 @@ class Trainer:
         return df_clean.values
 
     def prepare_regression_data(self) -> tuple:
-        """Prepare data for regression. Uses raw TARGET_COLUMN values."""
+        """Prepare data for regression — forecast the NEXT-period TARGET_COLUMN.
+
+        The target is ``TARGET_COLUMN.shift(-1)`` (the value one step ahead), not
+        the current-row value. Predicting the current ``close`` from features that
+        include ``close`` is target leakage: the model would echo its own input and
+        report a near-perfect score while forecasting nothing. Shifting forward by
+        one period makes this a genuine time-series forecast and turns the current
+        ``close`` into a legitimate lag feature. The trailing row (whose forward
+        target is NaN) is dropped by the mask below.
+        """
         features = self._clean_features()
-        targets = self.df[TARGET_COLUMN].values
+        targets = self.df[TARGET_COLUMN].shift(-1).values
 
         mask = ~np.isnan(targets)
         features = features[mask]

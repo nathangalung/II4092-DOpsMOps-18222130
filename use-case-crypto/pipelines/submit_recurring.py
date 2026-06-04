@@ -47,7 +47,7 @@ TASK_TYPE = os.getenv("TASK_TYPE", "regression")
 DRIFT_THRESHOLD = float(os.getenv("DRIFT_THRESHOLD", "0.20"))
 FLAML_TIME_BUDGET = os.getenv("FLAML_TIME_BUDGET", "300")
 FLAML_ESTIMATOR_LIST = os.getenv(
-    "FLAML_ESTIMATOR_LIST", "lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd"
+    "FLAML_ESTIMATOR_LIST", "lgbm,xgboost,catboost,rf,extra_tree,enet,sgd"
 )
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", f"{USE_CASE}-default")
 DRIFT_FEATURES = os.getenv(

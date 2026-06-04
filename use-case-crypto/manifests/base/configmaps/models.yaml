@@ -23,8 +23,8 @@ data:
   #     extra_tree      — ExtraTrees (sklearn)         (reg + cls)
   #
   #   Linear / Regularized:
-  #     elastic_net     — ElasticNet L1+L2 (sklearn)   (regression only)
-  #     lasso_lars      — LassoLars L1 (sklearn)       (regression only)
+  #     enet            — ElasticNet L1+L2 (sklearn)   (regression only)
+  #     lassolars       — LassoLars L1 (sklearn)       (regression only)
   #     sgd             — SGD Classifier/Regressor     (reg + cls)
   #
   #   Other:
@@ -34,7 +34,7 @@ data:
   # ── Examples ─────────────────────────────────────────────────────────
   #
   #   Search all models:
-  #     "lgbm,xgboost,catboost,rf,extra_tree,kneighbor,elastic_net,lasso_lars,sgd,svc"
+  #     "lgbm,xgboost,catboost,rf,extra_tree,kneighbor,enet,lassolars,sgd,svc"
   #
   #   Only boosting (fast, usually best for tabular):
   #     "lgbm,xgboost,catboost"
@@ -43,7 +43,7 @@ data:
   #     "xgboost"
   #
   #   Only linear models (lightweight):
-  #     "elastic_net,lasso_lars,sgd"
+  #     "enet,lassolars,sgd"
   #
   # =========================================================================
 
@@ -52,7 +52,7 @@ data:
   MLFLOW_EXPERIMENT: "crypto-btc-usd"
 
   # --- Which models to search (comma-separated, see list above) ---
-  FLAML_ESTIMATOR_LIST: "lgbm,xgboost,catboost,rf,extra_tree,elastic_net,sgd"
+  FLAML_ESTIMATOR_LIST: "lgbm,xgboost,catboost,rf,extra_tree,enet,sgd"
 
   # --- FLAML search config ---
   FLAML_TIME_BUDGET: "300"
