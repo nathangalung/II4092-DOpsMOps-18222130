@@ -1,31 +1,99 @@
 % ============================================================
 % BAB VI — EVALUASI
-% Template (ITB STI TA + Proposal.tex):
+% Template (ITB STI TA + report.tex):
 %   - VI.1 Metode Evaluasi              : prosedur uji per tujuan T-1..T-4
-%   - VI.2 Hasil Evaluasi               : metrik kuantitatif (DORA, kualitas, drift, latensi)
+%   - VI.2 Hasil Evaluasi               : status pemenuhan + metrik
 %   - VI.3 Pembahasan Hasil Evaluasi    : interpretasi, keterbatasan, tindak lanjut
-% Rantai keterhubungan: T-N ↔ VI.1.N ↔ VI.2.N ↔ VI.3.N ↔ Kesimpulan ke-N
-% Catatan pengisian: bab ini diisi setelah seluruh komponen platform berjalan
-% stabil pada cluster verifikasi dan data pengamatan kuantitatif tersedia.
-% Panduan gaya disimpan pada WRITING_GUIDE.md agar dapat ditelusuri ulang.
+% Rantai keterhubungan: T-N <-> VI.1.N <-> VI.2.N <-> VI.3.N <-> Kesimpulan ke-N
+% Use case crypto diperkenalkan di sini sebagai instans verifikasi.
+% Angka beban kuantitatif menyusul sesuai batasan B-5.
 % ============================================================
 \cleardoublepage
 \chapter{EVALUASI}
 \label{chap:evaluasi}
 
-Bab ini akan diisi setelah seluruh komponen platform berjalan stabil pada \textit{cluster} verifikasi dan pengamatan kuantitatif dapat dikumpulkan. Kerangka subbab dijaga konsisten dengan empat tujuan T-1 sampai T-4 sebagaimana didefinisikan pada Bab~\ref{chap:pendahuluan} agar setiap hasil evaluasi dapat dipetakan satu lawan satu kepada tujuan yang bersesuaian. Panduan gaya bahasa dan aturan penyajian tabel maupun gambar yang berlaku untuk seluruh laporan disimpan pada berkas \texttt{TEMPLATE\_BAB.md} dan \texttt{WRITING\_GUIDE.md}, sehingga panduan asli tetap dapat ditelusuri tanpa membebani isi bab evaluasi.
+Bab ini memaparkan evaluasi platform terhadap kebutuhan fungsional KF-01 sampai KF-14 dan kebutuhan nonfungsional KNF-01 sampai KNF-12 yang disusun pada Bab~\ref{chap:analisis-masalah}. Evaluasi disusun mengikuti empat tujuan platform T-1 sampai T-4 sehingga setiap hasil dapat dipetakan kembali pada tujuan, rumusan masalah, dan butir kesimpulan dengan indeks yang sama. Pengujian dilakukan pada satu \textit{use case} domain nyata sebagai instans verifikasi, yaitu pasar aset kripto dengan data Coinbase, agar perilaku platform dapat diamati pada beban dan pola data yang realistis tanpa mengubah sifat \textit{domain-agnostic} platform. Penyajian dibagi menjadi metode evaluasi, hasil evaluasi, dan pembahasan, dengan angka kuantitatif beban penuh dilaporkan menyusul sesuai batasan B-5 pada Subbab~\ref{sec:batasan}.
 
 \section{Metode Evaluasi}
 \label{sec:metode-evaluasi}
 
-Metode evaluasi akan dibagi menurut empat tujuan platform. Untuk T-1 evaluasi diarahkan pada reproduksibilitas penyebaran dari satu repositori Git melalui Argo CD, kelengkapan komponen yang \textit{Healthy}, serta jejak kontrol versi pada \textit{manifest} dan citra. Untuk T-2 evaluasi diarahkan pada kelengkapan \textit{lineage} antara data, fitur, dan model pada katalog metadata, ketertelusuran pelanggaran kontrak kualitas, dan ketertegakan kebijakan akses. Untuk T-3 evaluasi diarahkan pada keberhasilan deteksi \textit{drift} sintetis yang diinjeksikan secara terkendali, latensi siklus pelatihan ulang, dan kebebasan dari kebocoran temporal pada penyajian fitur \textit{point-in-time}. Untuk T-4 evaluasi diarahkan pada kesetaraan nilai fitur antara jalur \textit{offline} dan \textit{online}, latensi pencarian fitur tabular maupun vektor, dan ketahanan layanan ketika beban meningkat.
+Metode evaluasi mengikuti tiga dimensi yang melekat pada empat tujuan platform, yaitu pemenuhan fungsional, pemenuhan nonfungsional, dan tata kelola. Pemenuhan fungsional menilai apakah setiap KF terbukti melalui skenario uji yang dapat dijalankan ulang, pemenuhan nonfungsional menilai apakah setiap KNF mencapai target metrik yang ditetapkan, dan tata kelola menilai apakah \textit{lineage} tertelusur, kontrak data ditegakkan, serta kebijakan akses dapat diaudit. Setiap skenario diberi penanda SK-F untuk kebutuhan fungsional dan SK-N untuk kebutuhan nonfungsional, lalu dikelompokkan di bawah tujuan T-1 sampai T-4 yang relevan. Penomoran tersebut menjaga keterhubungan satu lawan satu antara skenario, kebutuhan, dan tujuan sehingga kegagalan satu skenario dapat segera dirunut ke komponen yang bertanggung jawab.
+
+Skenario dijalankan secara manual pada tahap evaluasi dan tidak menjadi bagian dari \texttt{make phase-full} maupun rekonsiliasi Argo CD, agar pengukuran tidak mengganggu jalur produksi platform. Pembangkit beban dijalankan dari \textit{namespace} \texttt{platform-test} yang terpisah, sedangkan instrumen pengukuran memanfaatkan komponen observabilitas yang sudah terpasang. Instrumen utama mencakup k6 untuk beban \textit{HTTP} dan \textit{gRPC}, Chaos Mesh untuk injeksi \textit{fault}, Great Expectations untuk kontrak kualitas, serta Prometheus, Grafana, Grafana Tempo, dan OpenCost untuk metrik, \textit{trace}, dan biaya. Berkas skenario disimpan pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/} sebagai lapis verifikasi terpisah, dengan subdirektori \texttt{load/}, \texttt{chaos/}, dan \texttt{drift/}, sehingga prosedur uji dapat ditelusuri ulang bersama kode tanpa mengubah sistem yang diuji.
+
+\subsection{Instans Verifikasi dan Lingkungan Uji}
+\label{subsec:instans-verifikasi}
+
+Instans verifikasi adalah \textit{use case} pasar aset kripto yang mengalirkan data Coinbase secara \textit{real-time} dengan granularitas per detik sejak 1 Januari 2026. Pemilihan domain ini didasari karakteristiknya yang menuntut \textit{throughput} ingestasi tinggi, latensi penyajian rendah, dan distribusi data nonstasioner, sehingga keempat \textit{sub-sistem} platform tertekan pada kondisi yang menantang. Seluruh kode dan konfigurasi spesifik domain berada pada direktori \texttt{use-case-crypto/} yang terpisah dari \texttt{platform/}, mencakup layanan \texttt{websocket-collector} sebagai produsen \textit{event}, \texttt{stream-processor} berbasis Flink, lapis \textit{batch} berbasis dbt, definisi Feast, serta jembatan \textit{inference} dan dasbor. Pemisahan ini menegaskan bahwa platform tetap \textit{domain-agnostic} dan \textit{use case} hanya berperan sebagai muatan uji yang dapat diganti tanpa menyentuh lapis kendali.
+
+Konfigurasi spesifik domain diterapkan melalui \textit{overlay} Kustomize yang menambahkan prefiks \texttt{crypto-} pada sumber daya basis platform, sehingga \textit{InferenceService} basis bernama \texttt{predictor} menjadi \texttt{crypto-predictor} ketika di-\textit{deploy}. Pola \textit{base} dan \textit{overlay} ini membuat parameter sumber data dan registri citra cukup disetel pada lapis \textit{overlay} tanpa mengubah definisi dasar, sebagaimana ditunjukkan pada Listing~\ref{lst:overlay-usecase}. Dengan demikian, penggantian \textit{use case} cukup dilakukan dengan menyiapkan \textit{overlay} baru dan tidak menuntut perubahan pada manifes platform. Pendekatan ini sekaligus menjadi bukti konkret atas pemenuhan KF-12 tentang konfigurasi deklaratif dan KNF-11 tentang portabilitas.
+
+\begin{lstlisting}[caption={Ilustrasi \textit{overlay} Kustomize \textit{use case} yang menambahkan prefiks \texttt{crypto-} pada sumber daya basis platform},label={lst:overlay-usecase},basicstyle=\ttfamily\footnotesize,keywordstyle=\ttfamily,breaklines=true,captionpos=t]
+# use-case-crypto/manifests/overlays/local/kustomization.yaml
+namePrefix: crypto-
+namespace: use-case-crypto
+resources:
+  - ../../base
+configMapGenerator:
+  - name: collector-config
+    literals:
+      - SOURCE=coinbase
+      - GRANULARITY=1s
+      - START=2026-01-01T00:00:00Z
+images:
+  - name: predictor
+    newName: localhost:5000/predictor
+\end{lstlisting}
+
+\subsection{Evaluasi Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
+\label{subsec:metode-t1}
+
+Evaluasi T-1 menilai apakah seluruh platform dapat dipasang dari satu sumber Git, dikelola secara deklaratif, dan menyediakan otomasi siklus hidup model setara MLOps Level 2. Skenario SK-F-01 mengubah definisi \textit{feature view} pada Gitea lalu mengamati rekonsiliasi Argo CD untuk membuktikan KF-01, sementara SK-F-12 mengubah jumlah \textit{replica} pada manifes untuk membuktikan konfigurasi deklaratif KF-12 yang konvergen tanpa \textit{drift}. Skenario SK-F-06 mempromosikan model melalui Argo Rollouts dengan strategi kanari dan memicu \textit{rollback} pada model bermasalah untuk membuktikan otomasi penerapan KF-06, sedangkan SK-F-13 menjalankan satu \textit{notebook} yang memanggil SDK Feast, MLflow, dan klien KServe untuk membuktikan antarmuka terpadu KF-13. Skenario SK-F-14 menjenuhkan kuota \textit{ClusterQueue} Kueue untuk membuktikan manajemen sumber daya KF-14, dengan \textit{job} di luar anggaran berstatus \textit{Pending}.
+
+Kematangan MLOps Level 2 dinilai melalui empat pilar yang saling terhubung pada satu jalur otomasi. Pilar pertama adalah \textit{pipeline} pelatihan otomatis pada Kubeflow Pipelines yang dipicu data baru atau ambang \textit{drift}, pilar kedua adalah penerapan otomatis melalui KServe dan Argo Rollouts, pilar ketiga adalah pemantauan berkelanjutan oleh Argo Workflows yang melaporkan metrik ke Prometheus, dan pilar keempat adalah pengelolaan metadata terpusat pada DataHub. Reproduksibilitas penyebaran diuji oleh SK-N-11 yang menerapkan ulang seluruh manifes pada \textit{node} k3s baru dan SK-N-12 yang mengukur cakupan uji serta waktu konvergensi \texttt{make phase-full}. Gabungan skenario ini menegaskan bahwa T-1 tidak hanya menyediakan komponen, melainkan satu bidang kendali yang dapat direkonstruksi dan diaudit.
+
+\subsection{Evaluasi Tujuan T-2: Tata Kelola Data}
+\label{subsec:metode-t2}
+
+Evaluasi T-2 menilai apakah katalog metadata, \textit{lineage}, dan kontrol kualitas berjalan otomatis sepanjang \textit{pipeline} data, fitur, dan model. Skenario SK-F-08 menelusuri \textit{lineage} pada DataHub dari topik sumber sampai keluaran prediksi untuk membuktikan KF-08, dengan peristiwa \textit{lineage} dikirim melalui OpenLineage dan \textit{ingestion} terjadwal. Skenario SK-F-09 menjalankan dua \textit{run} pelatihan pada MLflow lalu memutar ulang dari \textit{snapshot} untuk membuktikan pelacakan eksperimen KF-09, sedangkan SK-F-10 memindahkan model melalui status \textit{staging}, \textit{production}, dan \textit{archived} untuk membuktikan registri dan \textit{audit trail} KF-10. Skenario SK-N-05 menjalankan \textit{checkpoint} Great Expectations dengan probe \textit{timestamp} masa depan untuk membuktikan konsistensi dan kebenaran KNF-05 pada sisi kontrak data.
+
+Dimensi keamanan dan observabilitas tata kelola dievaluasi melalui dua skenario tambahan. Skenario SK-N-06 menelusuri satu \textit{trace} OpenTelemetry pada Grafana Tempo dari ingestasi sampai prediksi untuk membuktikan observabilitas KNF-06, sehingga metrik, log, dan \textit{trace} dapat dirujuk silang pada satu antarmuka. Skenario SK-N-07 memindai \textit{cluster} dengan Trivy dan memeriksa konfigurasi TLS untuk membuktikan keamanan KNF-07, mencakup mTLS Istio, enkripsi \textit{at rest} MinIO melalui KES dan OpenBao, serta kebijakan admisi Kyverno. Ketiga aspek tersebut menjadikan tata kelola bukan sekadar katalog pasif, melainkan kontrol aktif yang menegakkan kontrak dan kebijakan lintas komponen.
+
+\subsection{Evaluasi Tujuan T-3: Deteksi \textit{Drift} dan Pelatihan Ulang}
+\label{subsec:metode-t3}
+
+Evaluasi T-3 menilai apakah deteksi \textit{drift} terotomasi memicu pelatihan ulang sesuai kebijakan dan apakah penyajian fitur menjamin \textit{point-in-time correctness}. Skenario SK-F-07 menyuntikkan \textit{drift} sintetis pada satu fitur melalui \texttt{inject\_drift.py}, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow} \texttt{retrain-on-drift} untuk membuktikan pemantauan KF-07. Detektor membandingkan distribusi produksi terhadap distribusi pelatihan dengan \textit{Population Stability Index} dan uji Kolmogorov-Smirnov, lalu memicu \textit{pipeline} pelatihan ketika ambang terlampaui. Skenario SK-F-05 menjalankan \textit{pipeline} pelatihan pada Kubeflow Pipelines yang membaca fitur dari Feast dan menulis model ke MLflow untuk membuktikan otomasi pelatihan KF-05.
+
+Validitas temporal diuji secara khusus karena menjadi pembeda utama dari pendekatan tradisional. Skenario SK-F-03 mengaudit \texttt{get\_historical\_features} pada \textit{dataset} pelatihan untuk membuktikan KF-03, dengan memastikan tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. Pengujian ini memakai probe \textit{timestamp} masa depan yang sama dengan SK-N-05 sehingga jaminan \textit{zero leakage} ditegakkan pada jalur pelatihan maupun pada kontrak kualitas. Gabungan skenario ini menegaskan bahwa T-3 menutup dua risiko sekaligus, yaitu degradasi model akibat \textit{drift} dan kebocoran temporal akibat penyusunan fitur yang keliru.
+
+\subsection{Evaluasi Tujuan T-4: Layanan Fitur \textit{Dual-Store}}
+\label{subsec:metode-t4}
+
+Evaluasi T-4 menilai apakah layanan fitur \textit{dual-store} menyajikan fitur tabular, fitur agregat, dan fitur vektor dengan kontrak yang konsisten antara pelatihan dan penyajian. Skenario SK-F-02 membandingkan nilai fitur \textit{online} pada Valkey dan \textit{offline} pada ClickHouse untuk membuktikan penyajian ganda KF-02, sedangkan SK-F-04 menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} untuk membuktikan dukungan \textit{vector embeddings} KF-04. Skenario SK-F-11 membandingkan fitur hasil \textit{batch} dan hasil \textit{stream} pada indikator yang sama untuk membuktikan pemrosesan ganda KF-11 dengan definisi fitur yang konsisten. Ketiga skenario tersebut menelusuri kontrak fitur dari sisi kebenaran nilai sebelum beban tinggi diterapkan.
+
+Kinerja dan ketahanan layanan fitur diuji oleh kelompok skenario nonfungsional. Skenario SK-N-01 mengukur latensi \textit{feature serving} dan \textit{vector search} dengan k6 dan SLO Sloth untuk KNF-01, SK-N-02 mengukur \textit{throughput serving} dan \textit{stream} untuk KNF-02, serta SK-N-03 menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} untuk membuktikan skalabilitas horizontal KNF-03. Skenario SK-N-04 menyuntikkan \textit{fault} dengan Chaos Mesh untuk membuktikan keandalan KNF-04, SK-N-08 mengganti satu komponen melalui antarmuka untuk membuktikan ekstensibilitas KNF-08, SK-N-09 mengukur kemudahan penggunaan melalui sesi identitas tunggal dex untuk KNF-09, dan SK-N-10 mengukur efisiensi sumber daya melalui OpenCost untuk KNF-10. Cakupan ini menempatkan T-4 sebagai tujuan dengan beban pengujian terbanyak karena lapis fitur menjadi titik temu seluruh jalur data.
+
+\subsection{Matriks Cakupan dan Uji Penerimaan}
+\label{subsec:cakupan}
+
+Pemetaan antara skenario dan kebutuhan bersifat banyak-ke-banyak, sebab satu skenario kerap menegaskan lebih dari satu kebutuhan dan satu kebutuhan dapat diperkuat oleh beberapa skenario. Sebagai contoh, SK-F-04 yang menguji latensi pencarian vektor sekaligus menegaskan KNF-01, sedangkan SK-N-05 yang menguji kontrak kualitas turut memperkuat KF-03 pada sisi validitas temporal. Tabel~\ref{tab:uji_penerimaan} merangkum prosedur uji dan kriteria penerimaan untuk setiap skenario yang dikelompokkan di bawah tujuan T-1 sampai T-4. Susunan tersebut memastikan seluruh empat belas kebutuhan fungsional dan dua belas kebutuhan nonfungsional memiliki sekurang-kurangnya satu skenario uji yang konkret.
+
+\input{tables/uji_penerimaan.tex}
 
 \section{Hasil Evaluasi}
 \label{sec:hasil-evaluasi}
 
-Hasil pengukuran kuantitatif akan dilaporkan setelah platform menjalani periode pengamatan yang cukup pada \textit{use case} verifikasi. Hasil tersebut akan mencakup metrik penyebaran (DORA \textit{lead time}, \textit{change failure rate}), metrik kualitas data (proporsi data yang lulus suite Great Expectations), metrik \textit{drift} (PSI dan KS-test per fitur), metrik penyajian fitur (\textit{latency} P95 dan P99 untuk fitur tabular dan vektor), serta metrik observabilitas (kelengkapan jejak OpenTelemetry dari \textit{ingest} hingga prediksi).
+Hasil evaluasi dilaporkan dalam dua tingkat, yaitu hasil yang telah terverifikasi secara struktural pada lingkungan node tunggal dan hasil kuantitatif beban yang dilaporkan menyusul. Verifikasi struktural memeriksa apakah jalur kendali terbentuk sesuai rancangan, mencakup penyebaran dan rekonsiliasi seluruh komponen, pemicuan otomatis pelatihan ulang, pengendalian promosi model, serta rekonstruksi penuh dari Git. Pengukuran kuantitatif beban penuh, seperti latensi p99, \textit{throughput} puncak, dan ketepatan deteksi \textit{drift}, ditunda sesuai batasan B-5 karena menuntut periode pengamatan beban yang stabil pada \textit{use case}. Tabel~\ref{tab:evaluasi_target} merangkum target, instrumen ukur, dan status setiap kebutuhan agar pembaca dapat membedakan capaian yang sudah terverifikasi dari yang masih menunggu pengukuran.
+
+Pada T-1, verifikasi struktural menunjukkan seluruh komponen berhasil dipasang dan direkonsiliasi oleh Argo CD dari satu repositori Gitea, perubahan \textit{replica} dan definisi fitur konvergen tanpa \textit{drift}, dan rekonstruksi pada \textit{node} k3s baru berhasil tanpa intervensi manual selain \textit{bootstrap} awal. Pada T-2, peristiwa \textit{lineage} dari emitter OpenLineage Airflow dan Spark serta konektor \textit{ingestion} DataHub untuk Feast, MLflow, ClickHouse, dan Kafka muncul pada satu graf metadata dengan kosa kata seragam, transisi status model tercatat pada MLflow, dan kontrol keamanan mTLS serta enkripsi \textit{at rest} aktif sesuai konfigurasi. Pada T-3, \textit{control loop} pelatihan ulang terpicu otomatis ketika \textit{drift} sintetis disuntikkan, sedangkan ketepatan deteksi pada beban data penuh diukur menyusul. Pada T-4, jalur penyajian fitur \textit{online}, \textit{offline}, dan vektor berhasil dibentuk, sementara angka latensi dan \textit{throughput} pada beban tinggi dilaporkan setelah pengujian beban selesai.
+
+\input{tables/evaluasi_target.tex}
 
 \section{Pembahasan Hasil Evaluasi}
 \label{sec:pembahasan-evaluasi}
 
-Pembahasan akan mengaitkan setiap hasil pengukuran dengan tujuan yang dijawab, mencatat keterbatasan, dan mengusulkan tindak lanjut. Pembahasan juga akan memeriksa apakah rantai kunci antara rumusan masalah, tujuan, perancangan, dan implementasi tetap konsisten setelah evaluasi.
+Pembahasan mengaitkan setiap hasil dengan tujuan yang dijawab dan dengan rumusan masalah yang menjadi titik berangkat. Verifikasi struktural pada T-1 menjawab RM-1 dengan menunjukkan bahwa fragmentasi tumpukan teknologi dapat diganti oleh satu bidang kendali GitOps yang dapat direkonstruksi. Verifikasi pada T-2 menjawab RM-2 dengan menunjukkan tata kelola berjalan sebagai layanan bersama, bukan pekerjaan pasca-fakta, sehingga \textit{lineage} dan kontrak kualitas tertanam pada \textit{pipeline}. Verifikasi pada T-3 dan T-4 menjawab RM-3 dan RM-4 dengan menunjukkan bahwa deteksi \textit{drift} dengan pelatihan ulang dan layanan fitur \textit{dual-store} telah terbentuk pada jalur kendali, meskipun penilaian kuantitatif beban masih menyusul.
+
+Cakupan evaluasi telah memenuhi syarat keterlacakan, karena seluruh empat belas kebutuhan fungsional dan dua belas kebutuhan nonfungsional memiliki sekurang-kurangnya satu skenario uji pada Tabel~\ref{tab:uji_penerimaan} dan satu baris status pada Tabel~\ref{tab:evaluasi_target}. Pemetaan banyak-ke-banyak memperkuat keyakinan karena beberapa kebutuhan kritis, seperti KNF-01 dan KNF-05, ditegaskan oleh lebih dari satu skenario. Dengan demikian, kegagalan pada satu skenario tidak langsung membatalkan klaim pemenuhan kebutuhan terkait, melainkan menyisakan jalur verifikasi lain yang masih dapat ditelusuri. Susunan ini sekaligus menyiapkan struktur kesimpulan pada Bab~\ref{chap:penutup} yang menjawab tepat satu tujuan untuk setiap butir.
+
+Evaluasi ini memiliki sejumlah keterbatasan yang perlu dicatat secara terbuka. Pertama, lingkungan pengujian adalah k3s node tunggal sesuai batasan B-2, sehingga klaim skalabilitas horizontal diukur melalui \textit{multi-replica} dan \textit{autoscaling} pada satu \textit{node}, bukan pada kluster multi-node. Kedua, deteksi \textit{drift} diverifikasi dengan \textit{drift} sintetis sehingga ketepatan pada pergeseran distribusi alami masih perlu diamati lebih lama, dan angka beban penuh seperti latensi p99 dan \textit{throughput} puncak dilaporkan menyusul sesuai batasan B-5. Ketiga, sebagian skenario bergantung pada kelengkapan jalur data \textit{use case} sehingga penilaian kebenaran nilai fitur dilakukan setelah jalur ingestasi sampai \textit{gold} terisi penuh. Keterbatasan ini menjadi dasar saran tindak lanjut pada Bab~\ref{chap:penutup}, terutama untuk pengujian beban pada lingkungan multi-node dan pengamatan \textit{drift} pada data nyata berdurasi panjang.

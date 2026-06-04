@@ -27,6 +27,18 @@ data:
   VALID_SYMBOLS: "BTC-USD,ETH-USD"
   OUTLIER_COLUMNS: "close,volume"
 
+  # --- Analyzer result-storage targets (schema-qualified) ---
+  # Crypto runs CLICKHOUSE_DB=default and references every table fully-qualified,
+  # so the analyzer's result tables must be qualified too (the platform analyzer
+  # defaults to bare names). Without these, inserts landed in default.* → Code:60
+  # "Table default.quality_write_buffer does not exist".
+  #   QUALITY_RESULTS_TABLE → features.quality_write_buffer (Null-engine staging;
+  #     a MaterializedView funnels rows into gold.data_quality_expectations)
+  #   OUTLIER_RESULTS_TABLE → gold.quality_outliers (base table;
+  #     features.quality_outliers is a read-only View and rejects INSERTs)
+  QUALITY_RESULTS_TABLE: "features.quality_write_buffer"
+  OUTLIER_RESULTS_TABLE: "gold.quality_outliers"
+
   # --- Stream feature quality (references STREAM features from schema.yaml) ---
   BOUNDED_FEATURES: "rsi_14:0:100,rsi_7:0:100,mfi_14:0:100,stoch_k:0:100,stoch_d:0:100,williams_r:-100:0"
   FEATURE_PAIR_RULES: "bb_upper>bb_lower,band_upper>band_lower"

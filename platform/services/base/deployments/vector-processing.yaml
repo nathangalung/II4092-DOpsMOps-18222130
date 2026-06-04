@@ -32,7 +32,7 @@ spec:
         - name: vector-processing
           image: vector-processing:latest
           imagePullPolicy: IfNotPresent
-          command: ["uv", "run", "main.py"]
+          command: ["uv", "run", "--no-sync", "main.py"]
           args: ["--mode", "embeddings"]
           ports:
             - containerPort: 8080

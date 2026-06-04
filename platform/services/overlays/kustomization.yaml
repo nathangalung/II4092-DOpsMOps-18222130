@@ -18,7 +18,7 @@ kind: Kustomization
 namespace: ml-pipeline
 
 resources:
-  - ../../base
+  - ../base
   - secrets.yaml
 
 # Generic domain labels

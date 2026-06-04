@@ -1,0 +1,21 @@
+# Airflow DAG-discovery ignore — scoped to this directory + subdirs.
+# ------------------------------------------------------------------
+# The platform Airflow scheduler's DAGS_FOLDER is the git-sync worktree root
+# (/opt/airflow/dags-git/current); use-case-crypto.git is committed under a
+# top-level `use-case-crypto/` dir, so this file lands at
+# `current/use-case-crypto/.airflowignore` and scopes the recursive DAG scan to
+# this subtree. Only `dags/` holds Airflow DAGs; every other subtree carries
+# .py modules (services, pipelines, scripts) whose runtime deps are NOT in the
+# apache/airflow image — import-probing them would raise spurious "Broken DAG"
+# banners. Prune them. Patterns are regexes (Airflow default
+# DAG_IGNORE_FILE_SYNTAX=regexp), matched against each path relative to here.
+argocd/
+manifests/
+proto/
+scripts/
+services/
+pipelines/
+dbt/
+docs/
+config/
+database/

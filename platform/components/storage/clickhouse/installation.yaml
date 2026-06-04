@@ -194,6 +194,38 @@ spec:
       # `*-kafka-bootstrap.data-ingestion.svc.cluster.local:9093` (SASL_SSL)
       # picks this up — use-case overlays do NOT need to set it per-table.
       kafka/ssl_ca_location: "/etc/clickhouse-server/kafka-ca/ca.crt"
+      # Strimzi :9093 TLS listener advertises SASL_SSL / SCRAM-SHA-512. The
+      # ClickHouse Kafka engine ONLY reliably feeds SASL settings to librdkafka
+      # from this server `<kafka>` block — NOT from a SQL `CREATE NAMED
+      # COLLECTION`. Field-verified 2026-05-29 (#464): a `Kafka(kafka_crypto)`
+      # consumer ignored the collection's flat `kafka_sasl_*`/`kafka_broker_list`
+      # keys, came up with no credentials, and fell back to the :9092 PLAINTEXT
+      # listener ("connecting to a PLAINTEXT broker listener?" SSL handshake
+      # failure → "Can't get assignment"). So ALL Kafka client config is split:
+      #   * SASL_SSL protocol/mechanism/creds/CA → this server block.
+      #   * `kafka_broker_list` (:9093) → explicit per-table SETTING in each
+      #     use-case init SQL (broker_list is a non-secret table setting, which
+      #     librdkafka DOES honour from DDL).
+      # security_protocol + mechanism + ssl_ca are domain-agnostic constants.
+      # username/password are use-case creds injected via the generic
+      # `clickhouse-kafka-sasl` Secret — a use-case ExternalSecret mirrors its
+      # KafkaUser into the storage ns (see use-case-*/manifests/base/external-
+      # secrets.yaml) — so this platform manifest names no use-case and
+      # credential rotation stays a use-case concern.
+      kafka/security_protocol: "SASL_SSL"
+      kafka/sasl_mechanism: "SCRAM-SHA-512"
+      # `optional: true` — a use-case-less platform (or one applied before its
+      # use-case's `clickhouse-kafka-sasl` ExternalSecret has synced) still
+      # renders + starts ClickHouse with an empty `<kafka>` SASL block; harmless
+      # because no Kafka-engine tables exist until a use-case's init SQL runs.
+      # Once the secret is populated, the Altinity operator re-resolves it on
+      # its next reconcile and rolls CH so the bronze consumers pick up creds.
+      kafka/sasl_username:
+        valueFrom:
+          secretKeyRef: { name: clickhouse-kafka-sasl, key: username, optional: true }
+      kafka/sasl_password:
+        valueFrom:
+          secretKeyRef: { name: clickhouse-kafka-sasl, key: password, optional: true }
       # Do NOT set remote_servers/* here — the operator generates the full
       # `<remote_servers>` block from spec.configuration.clusters[*].layout.
       # A flat `remote_servers/main/shard/internal_replication: "true"` line

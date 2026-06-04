@@ -211,7 +211,7 @@ def create_retrain_job(batch_api: client.BatchV1Api, symbol: str, reason: str) -
                             name="trainer",
                             image=Config.TRAINER_IMAGE,
                             image_pull_policy="IfNotPresent",
-                            command=["uv", "run", "main.py"],
+                            command=["uv", "run", "--no-sync", "main.py"],
                             args=["--train-all"],
                             env=env_vars,
                             resources=client.V1ResourceRequirements(

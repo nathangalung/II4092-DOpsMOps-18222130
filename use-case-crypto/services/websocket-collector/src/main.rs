@@ -2,7 +2,7 @@
 //!
 //! Composes the platform's domain-agnostic machinery (config loader, Kafka
 //! producer, health server, connection loop) with a Coinbase-specific
-//! `MessageParser`. See coinbase.rs for the parser implementation.
+//! `MessageParser`. See parser.rs for the parser implementation.
 
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -13,7 +13,7 @@ use websocket_collector::config::Config;
 use websocket_collector::health;
 use websocket_collector::producer::KafkaProducer;
 
-mod coinbase;
+mod parser;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     for source in &cfg.sources {
         if source.enabled {
-            let parser = coinbase::CoinbaseParser::from_env();
+            let parser = parser::CoinbaseParser::from_env();
             let collector = GenericCollector::new(source, tx.clone(), parser);
             let source_name = source.name.clone();
             handles.push(tokio::spawn(async move {

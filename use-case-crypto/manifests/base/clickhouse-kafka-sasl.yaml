@@ -1,0 +1,47 @@
+# =============================================================================
+# clickhouse-kafka-sasl — SASL creds for the platform ClickHouse Kafka engine
+# =============================================================================
+# The platform ClickHouse server `<kafka>` block (platform/components/storage/
+# clickhouse/installation.yaml) feeds librdkafka the SASL_SSL username/password
+# via a `valueFrom.secretKeyRef` to a GENERIC secret named `clickhouse-kafka-
+# sasl` in the storage ns — the platform manifest names no use-case. THIS
+# ExternalSecret (owned by the crypto use-case) supplies the value: it mirrors
+# the `crypto-clickhouse` KafkaUser's Strimzi SCRAM secret into storage ns with
+# the key names the CHI expects (`username` / `password`).
+#
+# Why #464 needs this: ClickHouse does NOT honour SASL creds (or broker_list)
+# from a SQL `CREATE NAMED COLLECTION` — only the server `<kafka>` block (creds)
+# + per-table `kafka_broker_list` SETTING reach librdkafka. See the bronze DDL
+# header in database/init_clickhouse.sql and the CHI installation.yaml comment.
+#
+# Lives in cross-namespace/ (explicit `namespace: storage`, no base namespace
+# setter to clobber it). namePrefix `crypto-` applies to metadata.name only;
+# `target.name` is pinned to the generic `clickhouse-kafka-sasl` the platform
+# CHI references.
+# =============================================================================
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: clickhouse-kafka-sasl
+  namespace: storage
+  labels:
+    app: crypto-pipeline
+    component: clickhouse-kafka-auth
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-kafka-users, kind: ClusterSecretStore }
+  target:
+    name: clickhouse-kafka-sasl
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        # username parsed from Strimzi sasl.jaas.config (`username="…"`) so it
+        # tracks the KafkaUser's live name after any `crypto-` prefix rewrite.
+        username: '{{ regexReplaceAll ".*username=\"([^\"]+)\".*" .jaas "${1}" }}'
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: crypto-clickhouse, property: password }
+    - secretKey: jaas
+      remoteRef: { key: crypto-clickhouse, property: sasl.jaas.config }

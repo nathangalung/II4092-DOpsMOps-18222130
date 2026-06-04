@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
+from services import prediction as prediction_module
 
 client = TestClient(app)
 
@@ -21,6 +22,24 @@ def mock_feast_feature_store() -> Generator[MagicMock]:
 def mock_httpx_client() -> Generator[MagicMock]:
     with patch("httpx.AsyncClient") as mock:
         yield mock
+
+
+def _mock_view(name: str, feature_names: list[str]) -> MagicMock:
+    """Build a mock Feast FeatureView (online) owning the given feature names.
+
+    MagicMock reserves the ``name`` kwarg, so ``.name`` is set after
+    construction on both the view and each feature.
+    """
+    view = MagicMock()
+    view.name = name
+    view.online = True
+    feats = []
+    for fname in feature_names:
+        feature = MagicMock()
+        feature.name = fname
+        feats.append(feature)
+    view.features = feats
+    return view
 
 
 # --- Health Check Tests ---
@@ -41,6 +60,12 @@ def test_get_online_features(mock_feast_feature_store: MagicMock) -> None:
     # Setup Mock
     store_instance = MagicMock()
     mock_feast_feature_store.return_value = store_instance
+
+    # _resolve_refs scans online views to map bare names → "<view>:<name>",
+    # so expose a view "features" owning value_1/value_2.
+    store_instance.list_feature_views.return_value = [
+        _mock_view("features", ["value_1", "value_2"])
+    ]
 
     mock_result = MagicMock()
     mock_result.to_dict.return_value = {
@@ -112,6 +137,11 @@ def test_get_latest_features(
     # Setup Mock
     store_instance = MagicMock()
     mock_feast_feature_store.return_value = store_instance
+
+    # FEAST_LATEST_FEATURES names are bare → _resolve_refs needs the owning view.
+    store_instance.list_feature_views.return_value = [
+        _mock_view("features", ["value_a", "value_b", "indicator_x", "indicator_y"])
+    ]
 
     mock_result = MagicMock()
     mock_result.to_dict.return_value = {
@@ -208,12 +238,16 @@ def test_predict(mock_client_cls: MagicMock) -> None:
     mock_client = AsyncMock()
     mock_client_cls.return_value.__aenter__.return_value = mock_client
 
+    # Upstream serving contract is the crypto PredictionResponse shape:
+    # predicted_price + signal (the same fields main._run_batch_score reads via
+    # pred.get("predicted_price")/pred.get("signal")), NOT the legacy
+    # predicted_value/class_label pair.
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
         "symbol": "SYMBOL-1",
-        "predicted_value": 51000.0,
-        "class_label": "CLASS_0",
+        "predicted_price": 51000.0,
+        "signal": "BUY",
         "confidence": 0.85,
         "model_version": "v1",
     }
@@ -226,10 +260,12 @@ def test_predict(mock_client_cls: MagicMock) -> None:
     # Verify
     assert response.status_code == 200
     data = response.json()
-    assert data["class_label"] == "CLASS_0"
-    assert data["predicted_value"] == 51000.0
+    assert data["signal"] == "BUY"
+    assert data["predicted_price"] == 51000.0
 
     mock_client.post.assert_called_once()
     args, kwargs = mock_client.post.call_args
-    assert args[0] == "http://serving-gateway:8080/predict"
+    # INFERENCE_URL is a module-level constant bound at import; assert against it
+    # rather than a hardcoded host so the test tracks the real default.
+    assert args[0] == f"{prediction_module.INFERENCE_URL}/predict"
     assert kwargs["json"]["symbol"] == "SYMBOL-1"

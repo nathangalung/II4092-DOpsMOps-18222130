@@ -1,0 +1,35 @@
+# =============================================================================
+# Airflow DAGs repo override — use-case → platform binding
+# =============================================================================
+# Tells the PLATFORM Airflow git-sync (sidecar + worker init, in the
+# data-processing namespace) to clone THIS use-case's repo instead of the
+# platform default (platform.git, which ships no DAGs). The platform git-sync
+# reads GITSYNC_REPO via `envFrom`, listing this optional ConfigMap AFTER the
+# platform-owned `airflow-dags-source` default — so this value wins when present
+# (k8s envFrom: later source overrides earlier on key collision).
+#
+# WHY this lives OUTSIDE manifests/base + manifests/cross-namespace:
+#   The deployed overlay (manifests/overlays/local) applies `namePrefix: crypto-`
+#   to everything it aggregates, which would rename this CM to
+#   `crypto-airflow-dags-source-override` — a name the domain-agnostic platform
+#   cannot reference. This binding therefore lives in its OWN non-prefixed
+#   kustomization, surfaced by a dedicated ArgoCD Application
+#   (argocd/airflow-dags-binding.yaml) so the fixed name + explicit
+#   `namespace: data-processing` survive untouched.
+#
+# Reproducibility: deployed by `make usecase-crypto-argocd` (which applies
+# argocd/airflow-dags-binding.yaml). After first apply, roll the scheduler once
+# so it re-reads GITSYNC_REPO:
+#   kubectl rollout restart deploy/airflow-scheduler -n data-processing
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-dags-source-override
+  namespace: data-processing
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: dags-source
+    usecase: crypto
+data:
+  GITSYNC_REPO: "http://gitea.gitops.svc.cluster.local:3000/platform/use-case-crypto.git"

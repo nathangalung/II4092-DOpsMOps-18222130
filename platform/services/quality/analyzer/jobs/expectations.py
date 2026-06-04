@@ -295,12 +295,16 @@ class ExpectationsRunner:
 
             if records:
                 results_df = pd.DataFrame(records)
-                # Writes land on the Null-engine staging table `features.quality_write_buffer`;
-                # a MaterializedView funnels rows into `gold.data_quality_expectations`.
-                # The `features.data_quality_expectations` name is a read-only View and
-                # rejects INSERTs with "Method write is not supported by storage View".
+                # Result table is env-driven (QUALITY_RESULTS_TABLE) so a use-case can
+                # schema-qualify it independently of the client's default database (the
+                # crypto use-case runs CLICKHOUSE_DB=default and qualifies every table).
+                # Crypto sets `features.quality_write_buffer` (a Null-engine staging
+                # table); a MaterializedView funnels rows into
+                # `gold.data_quality_expectations`. We never target the
+                # `features.data_quality_expectations` View directly — it is read-only and
+                # rejects INSERTs ("Method write is not supported by storage View").
                 self.client.insert(
-                    "quality_write_buffer",
+                    os.getenv("QUALITY_RESULTS_TABLE", "quality_write_buffer"),
                     results_df.values.tolist(),
                     column_names=list(results_df.columns),
                 )
@@ -446,10 +450,10 @@ class SimplifiedExpectationsRunner:
 
             if records:
                 df = pd.DataFrame(records)
-                # See ExpectationsRunner._store_validation_results for the rationale:
-                # target the Null-engine write buffer, not the read-only View.
+                # See ExpectationsRunner._store_validation_results: env-driven table
+                # (QUALITY_RESULTS_TABLE), target the Null-engine write buffer not the View.
                 self.client.insert(
-                    "quality_write_buffer",
+                    os.getenv("QUALITY_RESULTS_TABLE", "quality_write_buffer"),
                     df.values.tolist(),
                     column_names=list(df.columns),
                 )

@@ -40,8 +40,10 @@ node_modules/
 dist/
 build/
 target/
+out/
 .next/
 .cache/
+.ruff_cache/
 
 # ---- Secrets, credentials, key material ---------------------------------
 *.key

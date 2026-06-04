@@ -30,6 +30,8 @@ CLICKHOUSE_HOST = os.getenv(
 )
 CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
 CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "features")
+CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
+CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 SYMBOLS = [
     s.strip()
     for s in os.getenv("VALID_SYMBOLS", "SAMPLE-001").split(",")
@@ -52,6 +54,8 @@ class SentimentAggregationJob:
             host=CLICKHOUSE_HOST,
             port=CLICKHOUSE_PORT,
             database=CLICKHOUSE_DB,
+            username=CLICKHOUSE_USER,
+            password=CLICKHOUSE_PASSWORD,
         )
         logger.info(
             f"Connected to ClickHouse at {CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}"

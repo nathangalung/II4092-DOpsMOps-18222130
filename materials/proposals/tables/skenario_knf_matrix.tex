@@ -1,0 +1,43 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|m{6.5cm}|m{4.5cm}|}
+\caption{\raggedright Matriks Keterhubungan Kebutuhan Nonfungsional dengan Skenario Evaluasi}
+\label{tab:skenario_knf_matrix} \\
+\hline
+\textbf{KNF} & \textbf{Skenario} & \textbf{Ringkasan Skenario} & \textbf{Komponen Utama} \\
+\hline
+\endfirsthead
+\hline
+\textbf{KNF} & \textbf{Skenario} & \textbf{Ringkasan Skenario} & \textbf{Komponen Utama} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KNF-01 & SK-N-01 & \texttt{k6} 5000 QPS lima belas menit pada Feast \textit{online}, p50 $<$ 5 ms, p95 $<$ 8 ms, p99 $<$ 10 ms. & Feast, Valkey, Qdrant, Prometheus \\
+\hline
+KNF-02 & SK-N-02 & \textit{Feature serving} di atas sepuluh ribu QPS per \textit{node} dan \textit{stream} satu juta pesan per detik per pipeline dengan \textit{lag} di bawah sepuluh detik. & Feast, Strimzi Kafka, Flink, Prometheus \\
+\hline
+KNF-03 & SK-N-03 & HPA dan KEDA \textit{scale up} hingga sepuluh kali kapasitas dasar tanpa kegagalan. & HPA, KEDA, ScaledObject, Strimzi Kafka, KServe \\
+\hline
+KNF-04 & SK-N-04 & \texttt{chaos-mesh} \texttt{PodChaos} pada \textit{broker} dan \textit{predictor}, RTO $<$ 5 menit, RPO $<$ 1 menit. & chaos-mesh, Strimzi Kafka, KServe, Prometheus \\
+\hline
+KNF-05 & SK-N-05 & \texttt{Great Expectations Checkpoint} hijau dan upaya \textit{leakage} sintetis ditolak. & Great Expectations, ClickHouse, Feast \\
+\hline
+KNF-06 & SK-N-06 & Trace ID satu permintaan dapat ditelusuri pada Tempo, metrik dan \textit{log} selaras. & OpenTelemetry, Tempo, Prometheus, Loki \\
+\hline
+KNF-07 & SK-N-07 & \texttt{trivy} bersih dari temuan \textit{critical}/\textit{high}, TLS 1.3 aktif, KES AES-256 aktif. & Trivy, Istio, KES, MinIO \\
+\hline
+KNF-08 & SK-N-08 & Pergantian komponen pengganti dilakukan dengan perubahan terisolasi pada lapisan integrasi. & Feast \textit{online-store}, KServe \textit{ServingRuntime}, Seldon (alternatif) \\
+\hline
+KNF-09 & SK-N-09 & Survei pengguna lima responden rerata skor kepuasan di atas 4 dari 5. & dokumentasi platform, SDK Python terpadu, instrumen survei \\
+\hline
+KNF-10 & SK-N-10 & Utilisasi CPU rata-rata $>$ 70\% dan rasio kompresi ClickHouse $>$ 5:1. & ClickHouse, VPA, OpenCost, Prometheus \\
+\hline
+KNF-11 & SK-N-11 & \textit{Manifest} GitOps diaplikasikan pada klaster K3s baru tanpa modifikasi kode. & Gitea, ArgoCD, Kustomize \\
+\hline
+KNF-12 & SK-N-12 & Cakupan uji modul inti di atas 80\% dan \texttt{make phase-full} stabil tanpa intervensi manual. & Makefile, pytest, ArgoCD \\
+\hline
+\end{longtable}
+}

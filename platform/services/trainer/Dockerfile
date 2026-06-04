@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    uv sync --locked --no-editable
 
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
@@ -32,8 +32,11 @@ COPY --from=builder --chown=1000:1000 /app /app
 USER 1000:1000
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Per uv docs: reset entrypoint + invoke via the baked venv directly.
-# `uv run` at runtime triggers an editable rebuild which needs hatchling
-# from PyPI — fails air-gapped. PATH above is enough for python to find deps.
+# UV mandate: run via `uv run --no-sync`, not bare `python`. `--no-sync`
+# uses the baked venv WITHOUT re-syncing, so it never triggers the editable
+# rebuild (hatchling from PyPI) that fails air-gapped — and the build now
+# installs the project --no-editable (a real wheel), so there is nothing to
+# rebuild at runtime anyway. The KFP train step uses this CMD; the deploy
+# step overrides with `uv run --no-sync src/deploy_kserve.py`.
 ENTRYPOINT []
-CMD ["python", "main.py"]
+CMD ["uv", "run", "--no-sync", "main.py"]

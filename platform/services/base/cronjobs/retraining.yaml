@@ -36,7 +36,7 @@ spec:
             - name: retraining
               image: retraining:latest
               imagePullPolicy: IfNotPresent
-              command: ["uv", "run", "main.py"]
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--check-and-retrain"]
               envFrom:
                 - configMapRef:

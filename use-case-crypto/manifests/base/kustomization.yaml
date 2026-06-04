@@ -189,9 +189,12 @@ resources:
   # --- Kueue (job queuing) ---
   - kueue/queues.yaml
 
-  # --- Tekton (CI/CD pipeline + data modeling) ---
+  # --- Tekton (CI/CD pipeline) ---
+  # build-pipeline (Gitea push → EventListener → git-clone → merge-overlay →
+  # lint → test → build-push via Kaniko → finally push-metrics) is the wired
+  # CI/CD path. Gold-layer dbt is NOT built here — the Airflow `crypto_lakehouse`
+  # DAG is the single canonical gold producer (`dbt build`, all models).
   - tekton/pipeline.yaml
-  - tekton/dbt-pipeline.yaml
 
   # --- Autoscaling ---
   - hpa/autoscaling.yaml
@@ -208,7 +211,7 @@ resources:
   - observability/slos.yaml
   # Push-helper ConfigMap (sh + py emitters) mounted by every short-lived
   # crypto batch surface — CronJobs (supplementary-*, vector-embedding),
-  # Tekton finally tasks (build-pipeline, dbt-gold-build), Airflow DAG
+  # Tekton finally tasks (build-pipeline), Airflow DAG
   # callbacks. Single canonical `crypto_job_*` metric family so SLOs over
   # batch outcomes share one label key (use_case=crypto).
   - observability/push-helper-configmap.yaml
@@ -302,6 +305,33 @@ patches:
   # Must come after feature-engine.yaml so its envFrom override composes
   # with the inline /tmp/config.yaml command without dropping creds.
   - path: patches/kafka-sasl.yaml
+
+  # --- Tekton Task step resources (Kyverno require-resource-limits) ---
+  # Each Tekton step is a regular pod `container`, which the platform Kyverno
+  # `require-resource-limits` ValidatingPolicy gates: a container missing cpu+
+  # memory requests AND limits is denied at pod creation, so a Task with no
+  # resources can never run its TaskRun pod (a build-pipeline step would fail
+  # `PodCreationFailed` at admission for exactly this). One stepTemplate applied
+  # to every Task gives all step containers a small idle request + a burst limit
+  # — satisfies the policy and honours the single-node idle budget. Tekton's own
+  # init containers are exempt (the policy inspects only spec.containers).
+  # Targets kind=Task so any Task added later inherits it (no per-task drift).
+  - target:
+      kind: Task
+    patch: |-
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: tekton-task-resources
+      spec:
+        stepTemplate:
+          computeResources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
 
 # =============================================================================
 # KUSTOMIZE TRANSFORMER CONFIG

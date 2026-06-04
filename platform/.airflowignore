@@ -1,0 +1,16 @@
+# Airflow DAG-discovery ignore — scoped to this directory + subdirs.
+# ------------------------------------------------------------------
+# The Airflow scheduler's DAGS_FOLDER is the git-sync worktree root
+# (/opt/airflow/dags-git/current); platform.git is committed under a
+# top-level `platform/` dir, so this file lands at `current/platform/
+# .airflowignore` and scopes Airflow's recursive scan to the platform
+# subtree. The platform ships ZERO DAGs (DAGs are use-case-owned), so we
+# prune every subtree that contains .py modules to stop the DagFileProcessor
+# import-probing service code (which would raise spurious "Broken DAG"
+# banners for modules whose deps aren't in the airflow image).
+# Patterns are regexes (Airflow default DAG_IGNORE_FILE_SYNTAX=regexp),
+# matched against each path relative to this directory.
+components/
+services/
+scalability/
+config/

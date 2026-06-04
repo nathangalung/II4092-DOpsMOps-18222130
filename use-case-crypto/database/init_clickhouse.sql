@@ -50,11 +50,21 @@ ORDER BY (symbol, timestamp)
 PARTITION BY toYYYYMM(timestamp);
 
 -- Kafka Engine: crypto.validated → bronze.crypto_ohlcv
--- Broker, SASL_SSL credentials, and security_protocol live in the
--- `kafka_crypto` NAMED COLLECTION created by the `clickhouse-init` Job
--- (manifests/base/clickhouse-init.yaml) BEFORE this DDL runs. Each table
--- below only overrides topic/group/format — no auth in this file, no
--- broker hardcoded here either.
+-- IMPORTANT (2026-05-29, #464): librdkafka does NOT pick up broker_list or
+-- SASL creds from a SQL-created `CREATE NAMED COLLECTION` — only flat keys
+-- are stored and the Kafka-engine consumer ignores them (verified: a
+-- `Kafka(kafka_crypto)` consumer connected to the :9092 PLAINTEXT listener
+-- and failed the SSL handshake; an identical table with an explicit
+-- `kafka_broker_list=:9093` SETTING connected + authenticated cleanly).
+-- So connection config is split:
+--   * broker_list  → explicit per-table SETTING below (:9093 TLS listener).
+--   * SASL_SSL creds + mechanism + ssl_ca → ClickHouse server `<kafka>`
+--     block (platform CHI installation.yaml `kafka/*` settings), the only
+--     place ClickHouse reliably feeds them to librdkafka. The crypto
+--     KafkaUser creds reach that block via the `clickhouse-kafka-sasl`
+--     Secret (use-case ExternalSecret → storage ns).
+-- The `:9093` bootstrap host is platform infrastructure (domain-agnostic);
+-- the topic/group are use-case-specific.
 CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv_kafka (
     symbol String,
     timestamp String,
@@ -64,8 +74,9 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv_kafka (
     close Float64,
     volume Float64,
     source String
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'crypto.validated',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'crypto.validated',
          kafka_group_name = 'clickhouse_bronze_ohlcv',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -101,8 +112,9 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_sentiment_kafka (
     title String,
     score Float64,
     url String
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'crypto.supplementary',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'crypto.supplementary',
          kafka_group_name = 'clickhouse_bronze_sentiment',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -193,8 +205,9 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_features_kafka (
     dispersion Float64,
     value_change Float64,
     secondary_avg Float64
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'crypto.features.v1',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'crypto.features.v1',
          kafka_group_name = 'clickhouse_bronze_features',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -238,8 +251,9 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_tickers_kafka (
     volume_24h Float64,
     open Float64,
     source String
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'crypto.validated',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'crypto.validated',
          kafka_group_name = 'clickhouse_bronze_tickers',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -280,8 +294,9 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_trades_kafka (
     side Float64,
     trade_id Float64,
     source String
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'crypto.trades.v1',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'crypto.trades.v1',
          kafka_group_name = 'clickhouse_bronze_trades',
          kafka_format = 'JSONEachRow',
          kafka_num_consumers = 1;
@@ -373,8 +388,9 @@ ORDER BY (symbol, prediction_timestamp);
 -- Uses JSONAsString + JSONExtract for nested field access.
 CREATE TABLE IF NOT EXISTS gold.cdc_predictions_kafka (
     message String
-) ENGINE = Kafka(kafka_crypto)
-SETTINGS kafka_topic_list = 'cdc.pipeline.predictions',
+) ENGINE = Kafka()
+SETTINGS kafka_broker_list = 'platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093',
+         kafka_topic_list = 'cdc.pipeline.predictions',
          kafka_group_name = 'clickhouse_cdc_predictions',
          kafka_format = 'JSONAsString',
          kafka_num_consumers = 1;

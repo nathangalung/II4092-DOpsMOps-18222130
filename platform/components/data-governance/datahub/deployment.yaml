@@ -635,3 +635,43 @@ spec:
     - from:
         - source:
             namespaces: ["data-governance", "istio-system", "data-processing", "model-lifecycle", "data-ingestion"]
+---
+# PeerAuthentication — port-level PERMISSIVE on datahub-gms :8080.
+# data-governance is in the ADR-009 mesh; the istio-system default
+# PeerAuthentication is STRICT, so the GMS sidecar rejects any non-mTLS inbound
+# on :8080 with a TCP reset. Airflow's OpenLineage push — BOTH the
+# data-quality-gate DAG's manual `emit_openlineage` POST and the OpenLineage
+# provider's automatic per-task RunEvents — originates inside KubernetesExecutor
+# worker pods, which are deliberately mesh-EXCLUDED (pod_template
+# `sidecar.istio.io/inject: false`: the sidecar keeps a finished task pod
+# Running forever and breaks the executor's pod-deletion loop). Those
+# non-meshed workers POST to
+# `datahub-gms.data-governance.svc:8080/openapi/openlineage/api/v1/lineage` in
+# plaintext; under STRICT the handshake is reset (`Connection reset by peer`) so
+# NO governance lineage reaches DataHub and the KF-08 lineage walk breaks.
+# PERMISSIVE on :8080 lets GMS accept BOTH the workers' plaintext AND mTLS from
+# in-mesh callers (frontend, actions, ingestion CronJobs); every other GMS port
+# stays STRICT. Same out-of-mesh-caller carve-out as airflow-apiserver / the
+# prometheus / karapace / pushgateway PERMISSIVE policies. App-level auth is
+# UNCHANGED: GMS still demands `Authorization: Bearer <PAT>`
+# (METADATA_SERVICE_AUTH_ENABLED=true), supplied by the OpenLineage transport's
+# `auth.apiKey` (see platform/components/data-processing/airflow/deployment.yaml,
+# the airflow-secrets ExternalSecret) — loosening mTLS does NOT make the
+# endpoint anonymous.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: datahub-gms-permissive
+  namespace: data-governance
+  labels:
+    app: datahub-gms
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      app: datahub-gms
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    "8080":
+      mode: PERMISSIVE

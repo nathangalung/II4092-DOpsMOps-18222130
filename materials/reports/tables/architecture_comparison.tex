@@ -50,7 +50,7 @@ Pendekatan ini mencegah kebocoran data temporal yang dapat menghasilkan estimasi
 \hline
 Pemrosesan Data &
 \textit{Batch} dan \textit{stream} diproses oleh \textit{pipeline} terpisah tanpa arsitektur yang koheren, sehingga hasil pemrosesan tidak konsisten. &
-Spark sebagai mesin \textit{batch processing} dan Flink sebagai mesin \textit{stream processing} yang hasilnya dimaterialisasikan langsung ke \textit{Feature Store}. Tekton dan Argo Workflows mengorkestrasi \textit{pipeline} berbasis manifes deklaratif sehingga pengembangan dan penjadwalan transformasi menjadi lebih sistematis. &
+Spark sebagai mesin \textit{batch processing} dan Flink sebagai mesin \textit{stream processing} yang hasilnya dimaterialisasikan langsung ke \textit{Feature Store}. Airflow mengorkestrasi \textit{pipeline} transformasi data sebagai DAG sehingga pengembangan dan penjadwalan transformasi menjadi lebih sistematis. &
 Waktu pengembangan \textit{pipeline} dapat menurun dan \textit{freshness} data meningkat berkat pemrosesan \textit{streaming} yang lebih efisien dan terintegrasi. &
 \autocite{rodrigues2025architecture} \\
 \hline

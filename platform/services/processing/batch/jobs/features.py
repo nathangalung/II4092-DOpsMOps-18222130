@@ -52,6 +52,8 @@ class FeatureEngineeringJob:
             host=self.config.clickhouse_host,
             port=self.config.clickhouse_port,
             database=self.config.clickhouse_database,
+            username=self.config.clickhouse_user,
+            password=self.config.clickhouse_password,
         )
         host = self.config.clickhouse_host
         port = self.config.clickhouse_port
@@ -169,14 +171,37 @@ class FeatureEngineeringJob:
         return df
 
     def _write_features(self, df: pd.DataFrame, symbol: str) -> None:
-        """Write computed features to ClickHouse."""
+        """Write computed features to ClickHouse.
+
+        Feature computation produces a SUPERSET of columns (technical +
+        dispersion + time + lag + return + target). Sink tables expose
+        different subsets — so we intersect df.columns with the live
+        destination schema (`DESCRIBE TABLE`) and write only the overlap.
+        This makes the job robust to schema evolution and prevents
+        `NO_SUCH_COLUMN` insert failures (e.g. writing rsi_14/macd into a
+        table that does not declare them). Column order follows the df so
+        `data` and `column_names` stay aligned.
+        """
         df["computed_at"] = datetime.now(tz=UTC)
-        columns = df.columns.tolist()
+
+        table_cols = {
+            row[0]
+            for row in self.client.query(
+                f"DESCRIBE TABLE {FEATURES_TABLE}"
+            ).result_rows
+        }
+        write_cols = [c for c in df.columns if c in table_cols]
+        if not write_cols:
+            logger.warning(
+                f"No overlapping columns between computed features and "
+                f"{FEATURES_TABLE} for {symbol}; skipping write"
+            )
+            return
 
         self.client.insert(
             table=FEATURES_TABLE,
-            data=df.values.tolist(),
-            column_names=columns,
+            data=df[write_cols].values.tolist(),
+            column_names=write_cols,
         )
 
     def close(self) -> None:

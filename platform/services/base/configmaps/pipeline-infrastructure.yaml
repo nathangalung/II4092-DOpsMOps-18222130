@@ -72,6 +72,16 @@ data:
   MLFLOW_S3_ENDPOINT_URL: "http://minio.storage.svc.cluster.local:9000"
   FEAST_REGISTRY_HOST: "feast.model-lifecycle.svc.cluster.local"
   FEAST_REGISTRY_PORT: "6566"
+  # Feast S3 file registry (ADR-011/013, #124): the registry is a single
+  # protobuf object on MinIO (s3://feast/<project>/registry.pb), read/written
+  # by Feast's boto3 S3 client. FEAST_S3_ENDPOINT_URL points that client at
+  # MinIO (same host as S3_ENDPOINT above); AWS_DEFAULT_REGION is required by
+  # boto3 even though MinIO ignores it. Both the materialization writer and
+  # any Feast reader (e.g. ml-bridge) inherit these via this ConfigMap's
+  # envFrom — no per-workload hardcoding. Domain-agnostic: both are platform
+  # MinIO constants, not use-case-specific.
+  FEAST_S3_ENDPOINT_URL: "http://minio.storage.svc.cluster.local:9000"
+  AWS_DEFAULT_REGION: "us-east-1"
   KFP_HOST: "http://ml-pipeline.model-lifecycle.svc.cluster.local:8888"
 
   # --- Model Serving ---

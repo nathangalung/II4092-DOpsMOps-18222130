@@ -128,6 +128,10 @@ def upsert_recurring_run(
     for rr in getattr(existing, "recurring_runs", None) or []:
         client.delete_recurring_run(rr.recurring_run_id)
         print(f"Deleted stale recurring run: {job_name} ({rr.recurring_run_id})")
+    # no_catchup=True so a multi-day cluster outage doesn't trigger backfill
+    # storm at restart. With noCatchup=false (default) the KFP-emitted
+    # ScheduledWorkflow fires one workflow per missed slot since spec.startTime;
+    # after a ~5d outage this queues ~20 runs serialized by maxConcurrency=1.
     client.create_recurring_run(
         experiment_id=experiment_id,
         job_name=job_name,
@@ -136,6 +140,7 @@ def upsert_recurring_run(
         params=params,
         enabled=True,
         service_account=service_account,
+        no_catchup=True,
     )
     print(f"Created: {job_name} (cron={cron_expression!r})")
 

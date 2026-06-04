@@ -1,0 +1,47 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|m{6.5cm}|m{4.5cm}|}
+\caption{\raggedright Matriks Keterhubungan Kebutuhan Fungsional dengan Skenario Evaluasi}
+\label{tab:skenario_kf_matrix} \\
+\hline
+\textbf{KF} & \textbf{Skenario} & \textbf{Ringkasan Skenario} & \textbf{Komponen Utama} \\
+\hline
+\endfirsthead
+\hline
+\textbf{KF} & \textbf{Skenario} & \textbf{Ringkasan Skenario} & \textbf{Komponen Utama} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KF-01 & SK-F-01 & GitOps perubahan definisi fitur tersinkronisasi ke Feast registry dalam waktu kurang dari sepuluh menit. & Gitea, ArgoCD, Feast, MinIO, DataHub \\
+\hline
+KF-02 & SK-F-02 & Permintaan fitur online dan offline memberi hasil konsisten dengan latensi p99 di bawah 10 ms pada sisi online. & Feast, Valkey, ClickHouse \\
+\hline
+KF-03 & SK-F-03 & Penyusunan \textit{training dataset} bebas \textit{temporal leakage} pada \texttt{point\_in\_time\_join}. & Feast, ClickHouse, dbt \\
+\hline
+KF-04 & SK-F-04 & \textit{Embedding} sentimen tersimpan dan dapat dicari dengan p99 di bawah 10 ms serta \textit{recall} top-10 di atas 0,95. & Feast, Qdrant, vector-embedding \\
+\hline
+KF-05 & SK-F-05 & Pipeline pelatihan otomatis dari fitur hingga \textit{deployment} berjalan tanpa intervensi manual. & Kubeflow Pipelines, MLflow, KServe, Feast \\
+\hline
+KF-06 & SK-F-06 & Strategi \textit{canary} dan \textit{rollback} model berjalan sesuai metrik tanpa kehilangan permintaan. & Argo Rollouts, KServe, MLflow, Prometheus \\
+\hline
+KF-07 & SK-F-07 & Deteksi \textit{drift} otomatis (PSI/K--S) memicu pipeline \textit{retraining} via Argo \textit{CronWorkflow}. & quality/drift, ClickHouse, Argo CronWorkflow, Kubeflow Pipelines \\
+\hline
+KF-08 & SK-F-08 & Penelusuran \textit{lineage} dari Kafka hingga prediksi dilakukan via DataHub satu klik per simpul. & DataHub, OpenLineage, Airflow, Spark, Kafka \\
+\hline
+KF-09 & SK-F-09 & Eksperimen dapat direproduksi dari \textit{snapshot} MLflow dengan toleransi metrik 1\%. & MLflow, Kubeflow Pipelines \\
+\hline
+KF-10 & SK-F-10 & Transisi siklus hidup model tercatat lengkap pada \textit{audit trail}. & MLflow, Argo Workflows \\
+\hline
+KF-11 & SK-F-11 & Hasil agregasi \textit{batch} dan \textit{stream} pada jendela satu jam selaras dalam toleransi 0,01\%. & Flink, dbt, ClickHouse, Feast \\
+\hline
+KF-12 & SK-F-12 & Perubahan deklaratif YAML dieksekusi via ArgoCD tanpa \textit{drift}. & ArgoCD, Gitea \\
+\hline
+KF-13 & SK-F-13 & SDK Python terpadu untuk Feast, KServe, dan MLflow berjalan dalam satu \textit{notebook} UV. & Feast SDK, KServe client, MLflow SDK, UV \\
+\hline
+KF-14 & SK-F-14 & Kuota admisi Kueue (\textit{ClusterQueue} \texttt{mlops-cluster-queue}) ditegakkan dan \textit{job} di luar anggaran ditahan \texttt{Pending}. & Kueue ClusterQueue, LocalQueue, Kubernetes Scheduler \\
+\hline
+\end{longtable}
+}

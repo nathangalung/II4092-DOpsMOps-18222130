@@ -53,6 +53,8 @@ class Config:
     clickhouse_host: str = "localhost"
     clickhouse_port: int = 8123
     clickhouse_database: str = "features"
+    clickhouse_user: str = "default"
+    clickhouse_password: str = ""
     kafka_brokers: str = "localhost:9092"
     kafka_topic_raw: str = "raw"
     kafka_topic_features: str = "features"
@@ -167,6 +169,10 @@ def load_config(path: str | None = None) -> Config:
         os.getenv("CLICKHOUSE_PORT", str(config.clickhouse_port))
     )
     config.clickhouse_database = os.getenv("CLICKHOUSE_DB", config.clickhouse_database)
+    config.clickhouse_user = os.getenv("CLICKHOUSE_USER", config.clickhouse_user)
+    config.clickhouse_password = os.getenv(
+        "CLICKHOUSE_PASSWORD", config.clickhouse_password
+    )
     config.kafka_brokers = os.getenv("KAFKA_BROKERS", config.kafka_brokers)
     config.kafka_topic_raw = os.getenv("KAFKA_TOPIC", config.kafka_topic_raw)
     config.kafka_topic_features = os.getenv(

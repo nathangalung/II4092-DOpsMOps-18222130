@@ -69,7 +69,8 @@ def detect_drift(
             'VALKEY_HOST="$4" '
             'DRIFT_THRESHOLD="$5" '
             'DRIFT_FEATURES_TO_MONITOR="$6" '
-            "&& python main.py --scale daily --once",
+            # UV mandate: uv run --no-sync (baked venv, no editable rebuild).
+            "&& uv run --no-sync main.py --scale daily --once",
             clickhouse_host,
             clickhouse_port,
             clickhouse_db,
@@ -108,9 +109,13 @@ def train_and_register(
         image=_image("trainer"),
         command=["sh", "-c"],
         args=[
-            # Positional: $0=SYMBOL $1=TASK $2=TARGET $3=TABLE $4=START $5=END
-            #   $6=BUDGET $7=ESTIMATORS $8=CH_HOST $9=CH_PORT
-            # Shift trick: after consuming $0-$8 via shift 9, remaining become $1+
+            # POSIX `shift` does not affect $0 — `sh -c "script" arg0 ...`
+            # keeps $0=arg0 even after `shift N`. Use ${N} for N>=10 instead
+            # of the (broken) shift-then-$0 trick.
+            # $0=SYMBOL  $1=TASK    $2=TARGET    $3=TABLE   $4=START
+            # $5=END     $6=BUDGET  $7=EST       $8=CH_HOST $9=CH_PORT
+            # ${10}=CH_DB ${11}=MLFLOW_URI ${12}=MLFLOW_EXP ${13}=S3_URL
+            # ${14}=AWS_KEY ${15}=AWS_SECRET
             'export SYMBOL="$0" '
             'VALID_SYMBOLS="$0" '
             'TASK_TYPE="$1" '
@@ -122,14 +127,14 @@ def train_and_register(
             'FLAML_ESTIMATOR_LIST="$7" '
             'CLICKHOUSE_HOST="$8" '
             'CLICKHOUSE_PORT="$9" '
-            "&& shift 10 "
-            '&& export CLICKHOUSE_DB="$0" '
-            'MLFLOW_TRACKING_URI="$1" '
-            'MLFLOW_EXPERIMENT="$2" '
-            'MLFLOW_S3_ENDPOINT_URL="$3" '
-            'AWS_ACCESS_KEY_ID="$4" '
-            'AWS_SECRET_ACCESS_KEY="$5" '
-            '&& python main.py --symbol "$SYMBOL"',
+            'CLICKHOUSE_DB="${10}" '
+            'MLFLOW_TRACKING_URI="${11}" '
+            'MLFLOW_EXPERIMENT="${12}" '
+            'MLFLOW_S3_ENDPOINT_URL="${13}" '
+            'AWS_ACCESS_KEY_ID="${14}" '
+            'AWS_SECRET_ACCESS_KEY="${15}" '
+            # UV mandate: uv run --no-sync (baked venv, no editable rebuild).
+            '&& uv run --no-sync main.py --symbol "$SYMBOL"',
             symbol,
             task_type,
             target_column,
@@ -177,7 +182,9 @@ def deploy_to_kserve(
             'MLFLOW_S3_ENDPOINT_URL="$4" '
             'AWS_ACCESS_KEY_ID="$5" '
             'AWS_SECRET_ACCESS_KEY="$6" '
-            '&& python src/deploy_kserve.py '
+            # UV mandate: `uv run --no-sync` uses the baked venv without
+            # re-syncing (no editable rebuild → air-gap safe), not bare python.
+            '&& uv run --no-sync src/deploy_kserve.py '
             '--model-name "$0" '
             '--namespace "$1" '
             '--experiment "$3"',
@@ -256,6 +263,11 @@ def retraining_pipeline(
     )
     # Drift signal changes per run — never reuse a cached Succeeded shell.
     drift_task.set_caching_options(enable_caching=False)
+    # `:latest` tag defaults to IfNotPresent — once a digest is cached on the
+    # node, kubelet skips re-pull and stale code (e.g. missing
+    # clickhouse_connect import) keeps running after rebuild+push. Force Always
+    # so digest check goes to the registry every launch.
+    kubernetes.set_image_pull_policy(drift_task, "Always")
 
     # Step 2: FLAML AutoML training → MLflow
     train_task = train_and_register(
@@ -297,6 +309,7 @@ def retraining_pipeline(
     # MLflow. Deploy then fresh-fails with "Experiment '<usecase>-default' not
     # found". Disable caching so every retrain attempt actually runs train.
     train_task.set_caching_options(enable_caching=False)
+    kubernetes.set_image_pull_policy(train_task, "Always")
 
     # Step 3: Deploy to KServe (mlflow format)
     deploy_task = deploy_to_kserve(
@@ -311,6 +324,7 @@ def retraining_pipeline(
     deploy_task.after(train_task)
     # Deploy mutates a live InferenceService — never cache the result.
     deploy_task.set_caching_options(enable_caching=False)
+    kubernetes.set_image_pull_policy(deploy_task, "Always")
 
 
 if __name__ == "__main__":

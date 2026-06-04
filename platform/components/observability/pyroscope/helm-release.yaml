@@ -106,9 +106,17 @@ spec:
               max_global_series_per_tenant: 5000
               ingestion_rate_mb: 8
               retention_period: 336h   # 14 days, matches Tempo
+          # Monolithic single-binary runs distributor+ingester+querier+query-
+          # frontend+query-scheduler+store-gateway+compactor in ONE process, so
+          # 256Mi req==lim (guaranteed QoS) OOMKilled it 22× (exit 137) and the
+          # 200m CPU cap throttled it into multi-minute /metrics + /debug/pprof
+          # stalls (observed 9m35s + 38m responses). Same 256Mi-OOM pathology was
+          # already fixed for Grafana. Bump to a realistic all-in-one footprint;
+          # still well under the VPA Off-mode maxAllowed (cpu 2 / memory 4Gi),
+          # which keeps advising further rightsizing for the operator to promote.
           resources:
-            requests: { cpu: 100m, memory: 256Mi } # Single-node lab; bump for production load.
-            limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+            requests: { cpu: 250m, memory: 768Mi } # All-in-one floor; VPA Off advises, operator promotes.
+            limits:   { cpu: "1", memory: 1536Mi }  # Was 256Mi → OOMKilled 22×; 1.5Gi stops the crashloop.
           podSecurityContext:
             runAsNonRoot: true
             runAsUser: 10001

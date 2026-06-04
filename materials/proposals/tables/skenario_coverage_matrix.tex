@@ -1,0 +1,71 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{1.6cm}|>{\centering\arraybackslash}m{2.2cm}|m{8.6cm}|}
+\caption{\raggedright Matriks Cakupan Silang Skenario terhadap Kebutuhan (Pemetaan Banyak-ke-Banyak)}
+\label{tab:skenario_coverage_matrix} \\
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan Primer} & \textbf{Kebutuhan Sekunder yang Turut Tervalidasi} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan Primer} & \textbf{Kebutuhan Sekunder yang Turut Tervalidasi} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+SK-F-01 & KF-01 & KF-12 (perubahan dikelola deklaratif via GitOps) \\
+\hline
+SK-F-02 & KF-02 & KNF-01 (latensi \textit{online} p99 $<$ 10 ms), KNF-05 (konsistensi nilai \textit{online}--\textit{offline}) \\
+\hline
+SK-F-03 & KF-03 & KNF-05 (\textit{zero temporal leakage}) \\
+\hline
+SK-F-04 & KF-04 & KNF-01 (latensi \textit{vector search} p50/p95/p99) \\
+\hline
+SK-F-05 & KF-05 & KF-09 (\textit{run} tercatat di MLflow), KF-10 (registrasi versi model) \\
+\hline
+SK-F-06 & KF-06 & KNF-04 (\textit{rollback} tanpa kehilangan permintaan) \\
+\hline
+SK-F-07 & KF-07 & KF-05 (memicu \textit{pipeline} pelatihan ulang) \\
+\hline
+SK-F-08 & KF-08 & KF-01 (simpul metadata fitur pada katalog) \\
+\hline
+SK-F-09 & KF-09 & KF-10 (artefak tertaut pada versi model) \\
+\hline
+SK-F-10 & KF-10 & KF-06 (\textit{webhook} transisi memicu \textit{deployment}) \\
+\hline
+SK-F-11 & KF-11 & KNF-05 (selaras \textit{batch}--\textit{stream}) \\
+\hline
+SK-F-12 & KF-12 & KNF-11 (\textit{manifest} GitOps mendukung portabilitas) \\
+\hline
+SK-F-13 & KF-13 & KF-02 (pengambilan fitur melalui SDK) \\
+\hline
+SK-F-14 & KF-14 & KNF-10 (efisiensi sumber daya melalui kuota) \\
+\hline
+SK-N-01 & KNF-01 & KF-02 (jalur penyajian \textit{online}) \\
+\hline
+SK-N-02 & KNF-02 & KNF-03 (\textit{scale-out} mencapai target), KF-11 (\textit{stream processing}) \\
+\hline
+SK-N-03 & KNF-03 & KNF-02 (\textit{throughput} naik seiring \textit{scale}) \\
+\hline
+SK-N-04 & KNF-04 & KNF-06 (pemulihan diukur via Prometheus) \\
+\hline
+SK-N-05 & KNF-05 & KF-03 (validitas temporal terjaga oleh probe \textit{leakage}) \\
+\hline
+SK-N-06 & KNF-06 & --- (lintas seluruh komponen) \\
+\hline
+SK-N-07 & KNF-07 & --- \\
+\hline
+SK-N-08 & KNF-08 & KF-13 (SDK klien tidak berubah pasca pergantian) \\
+\hline
+SK-N-09 & KNF-09 & KF-13 (kemudahan SDK terpadu) \\
+\hline
+SK-N-10 & KNF-10 & KF-14 (manajemen sumber daya) \\
+\hline
+SK-N-11 & KNF-11 & KF-12 (\textit{reapply manifest} deklaratif) \\
+\hline
+SK-N-12 & KNF-12 & KNF-11 (\textit{deploy} ulang reproducible) \\
+\hline
+\end{longtable}
+}

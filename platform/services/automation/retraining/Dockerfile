@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    uv sync --locked --no-editable
 
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
@@ -30,4 +30,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Per uv docs: invoke baked venv directly. `uv run` at runtime triggers
 # an editable rebuild needing hatchling from PyPI — fails air-gapped.
 ENTRYPOINT []
-CMD ["python", "main.py"]
+CMD ["uv", "run", "--no-sync", "main.py"]

@@ -220,3 +220,52 @@ spec:
           port: 8080
   policyTypes:
     - Ingress
+---
+# Flink Kubernetes Operator (flink-operator ns) → JobManager REST (8081).
+# The operator DEPLOYS the FlinkDeployment via the K8s API, but it OBSERVES job
+# health by polling the JobManager REST endpoint (READY confirmation, job
+# status, checkpoint/savepoint triggers). `default-deny-ingress` blocks that
+# cross-namespace call: the operator can create the Deployment but never reads
+# the JM back, so `jobManagerDeploymentStatus` is pinned at DEPLOYING and
+# `jobStatus.state` at RECONCILING — and `status.error` carries the
+# TimeoutException — even while the job is RUNNING and checkpointing normally.
+# Argo CD's FlinkDeployment health check then computes Degraded from that stale
+# status + populated error, dragging the whole use-case Application to Degraded.
+#   `allow-same-namespace` already covers JM<->TaskManager RPC (intra-ns), which
+#   is why the job runs fine; only the operator's cross-ns observe was denied.
+# Scope: ingress to the JobManager pod ONLY (app=crypto-stream-processor,
+# component=jobmanager — TaskManagers expose no operator-polled REST) from the
+# flink-operator namespace on 8081 only.
+#   The selector MUST use matchExpressions (not matchLabels): the kustomize
+#   `labels` transformer appends commonLabels (app.kubernetes.io/*, environment,
+#   platform) into any matchLabels block, but the JobManager pod is created by
+#   the Flink operator — not kustomize — so it carries ONLY app/component/type.
+#   A matchLabels selector would render with the extra common labels and match
+#   nothing (silent no-op). matchExpressions is left untouched by the transformer
+#   (same pattern as allow-kfp-to-training-targets above), so app + component
+#   are ANDed to target the JobManager pod exactly (TaskManagers excluded).
+#   kustomize namePrefix does not rewrite selector values either, so the `app`
+#   value stays `crypto-stream-processor`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-flink-operator-to-jobmanager
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [crypto-stream-processor]
+      - key: component
+        operator: In
+        values: [jobmanager]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flink-operator
+      ports:
+        - protocol: TCP
+          port: 8081
+  policyTypes:
+    - Ingress

@@ -1,0 +1,174 @@
+% @Bab_6.tex
+% ==========================================
+% BAB VI SKENARIO EVALUASI
+% ==========================================
+\chapter{SKENARIO EVALUASI}
+\label{chap:skenario_evaluasi}
+
+% --- Pendahuluan ---
+\section{Pendahuluan}
+
+Bab ini merumuskan skenario evaluasi yang akan digunakan untuk memvalidasi pemenuhan kebutuhan fungsional (KF) dan nonfungsional (KNF) yang telah didefinisikan pada Bab~\ref{chap:analisis_masalah}. Setiap kebutuhan dipasangkan dengan minimal satu skenario yang dapat dijalankan ulang oleh peneliti maupun pihak ketiga sehingga hasil evaluasi tidak bergantung pada pengamatan subjektif. Skenario juga disusun agar mencerminkan beban kerja realistis pada domain perdagangan finansial, menggunakan studi kasus \texttt{use-case-crypto} sebagai instansiasi konkret arsitektur \textit{domain-agnostic} yang telah dibangun. Pemetaan antara skenario dan kebutuhan bersifat banyak-ke-banyak: satu skenario dapat sekaligus memvalidasi beberapa KF/KNF, dan sebaliknya satu kebutuhan dapat ditegaskan oleh lebih dari satu skenario. Dengan demikian ruang evaluasi tetap kompak tanpa mengorbankan cakupan terhadap setiap KF/KNF, sebagaimana dirangkum pada matriks cakupan silang (Tabel~\ref{tab:skenario_coverage_matrix}) di akhir bab.
+
+Setiap skenario didefinisikan dalam format yang seragam, mencakup tujuan, prasyarat lingkungan, langkah eksekusi yang dapat ditelusuri, metrik kuantitatif yang dikumpulkan, dan kriteria lulus yang eksplisit. Format ini menjadikan skenario layaknya kontrak pengujian sehingga keberhasilan atau kegagalan dapat dinilai tanpa interpretasi tambahan. Peneliti dapat menjalankan kembali setiap skenario dengan perintah yang dilampirkan untuk memverifikasi reproduksibilitas. Pendekatan ini sejalan dengan rekomendasi rekayasa perangkat lunak yang menempatkan \textit{verifiable acceptance criteria} sebagai dasar bagi evaluasi kualitas sistem \autocite{sommerville2016software,lamsweerde2009requirements}.
+
+% --- Pendekatan dan Metodologi ---
+\section{Pendekatan dan Metodologi Evaluasi}
+
+Pendekatan evaluasi mengikuti tiga prinsip utama. Pertama, \textit{requirement traceability} memastikan setiap KF/KNF memiliki minimum satu skenario yang menyentuhnya. Kedua, \textit{automation-first} mensyaratkan langkah dieksekusi via \texttt{kubectl}, \texttt{Makefile}, atau \textit{client-side} Python berbasis UV sehingga manusia tidak menjadi titik variasi. Ketiga, \textit{single-cluster reproducibility} berarti seluruh skenario berjalan pada klaster K3s tunggal yang dideskripsikan oleh \texttt{Makefile} target \texttt{phase-full} dan \texttt{usecase-crypto-up}, sehingga tidak ada konfigurasi tersembunyi di luar repositori.
+
+Metode pengukuran dibagi menjadi tiga lapisan. Lapisan pertama menggunakan metrik bawaan Kubernetes melalui Prometheus dan dieksplorasi melalui Grafana untuk verifikasi latensi, \textit{throughput}, dan tingkat keberhasilan. Lapisan kedua menggunakan \textit{distributed tracing} OpenTelemetry yang diagregasi pada Tempo untuk menelusuri jalur permintaan lintas komponen. Lapisan ketiga menggunakan instrumentasi khusus skenario, misalnya \texttt{k6}, \texttt{vegeta}, atau skrip Python berbasis UV yang membaca topik Kafka, kueri ClickHouse, dan endpoint Feast. Kombinasi tiga lapisan ini memberi gambaran lengkap dari sisi \textit{system under test} maupun \textit{client perspective}.
+
+Skema penilaian setiap skenario adalah biner (lulus/tidak lulus) terhadap kriteria yang ditetapkan, dilengkapi rekam nilai numerik agar trennya dapat dianalisis. Skenario yang tidak lulus dikembalikan ke loop perbaikan dengan catatan \textit{root cause} dan tindakan korektif. Pendekatan ini mendukung iterasi \textit{develop--test--measure} yang menjadi ciri MLOps Level 2 dan menjamin sistem berkembang dari bukti, bukan dari klaim.
+
+\subsection{Lingkungan dan Konfigurasi Pengujian}
+\label{sec:lingkungan_pengujian}
+
+Lingkungan evaluasi terdiri atas satu \textit{node} K3s berkonfigurasi tunggal dengan kapasitas yang dibahas pada Bab~\ref{chap:rencana_selanjutnya}. Seluruh komponen platform dideploy menggunakan \texttt{make phase-full}, sementara \textit{use-case crypto} dideploy menggunakan \texttt{make usecase-crypto-build} diikuti \texttt{make usecase-crypto-up}. Verifikasi awal dilakukan dengan \texttt{kubectl get pods -A} untuk memastikan seluruh \textit{namespace} berada pada status \texttt{Running} sebelum skenario dijalankan. Data uji berasal dari aliran \texttt{Coinbase WebSocket Feed} dengan jangkauan historis sejak 1 Januari 2026 dan aliran \textit{real-time} per detik selama eksekusi skenario.
+
+Untuk skenario yang membutuhkan beban sintetis, generator beban dijalankan dari \textit{namespace} \texttt{platform-test} menggunakan \texttt{k6} dan \texttt{vegeta}, dengan target endpoint Feast \textit{online}, Knative Service KServe, dan API Gateway. Skenario yang memerlukan simulasi \textit{drift} menggunakan \textit{synthetic producer} berbasis UV (\texttt{scenarios/drift/inject\_drift.py}) yang menerbitkan ulang catatan harga dengan distribusi yang digeser ke topik \texttt{crypto.validated}, karena distorsi muatan pesan berada di luar cakupan \texttt{chaos-mesh}. Skenario \textit{fault injection} memanfaatkan \texttt{chaos-mesh} \texttt{PodChaos} dan \texttt{NetworkChaos} untuk simulasi kegagalan komponen. Seluruh konfigurasi pengujian didefinisikan sebagai kode pada direktori \texttt{use-case-crypto/scenarios/} sehingga proses evaluasi dapat dijalankan ulang oleh pihak ketiga.
+
+% --- Skenario KF ---
+\section{Skenario Evaluasi Kebutuhan Fungsional}
+\label{sec:skenario_kf}
+
+Bagian ini memetakan setiap kebutuhan fungsional pada Tabel~\ref{tab:kebutuhan_fungsional} ke skenario evaluasi konkret. Penomoran skenario menggunakan awalan \texttt{SK-F-XX} agar selaras dengan kode KF yang divalidasi. Setiap skenario didokumentasikan dengan tujuan, prasyarat, langkah, metrik, dan kriteria lulus.
+
+\subsection{SK-F-01: Registri Fitur Terpusat dan GitOps}
+
+Skenario ini memvalidasi KF-01 dengan menelusuri perubahan definisi fitur dari repositori Git hingga materialisasi pada \textit{registry} Feast yang berjalan di klaster. Peneliti memodifikasi definisi fitur pada \texttt{use-case-crypto/services/processing/feature-store/definitions.py}, melakukan \texttt{git push} ke Gitea internal, dan menunggu ArgoCD menyinkronkan \textit{registry} ke MinIO. Verifikasi dilakukan dengan \texttt{uv run feast feature-views list} dan inspeksi metadata melalui DataHub. Skenario dinyatakan lulus apabila definisi baru muncul pada Feast dan DataHub dalam waktu kurang dari sepuluh menit setelah \textit{push} tanpa intervensi manual.
+
+\subsection{SK-F-02: Penyajian Fitur Ganda Online dan Offline}
+
+Skenario ini memvalidasi KF-02 dengan menguji jalur \textit{online} maupun \textit{offline} Feast pada satu kumpulan fitur identik. Sisi \textit{online} diuji menggunakan permintaan \texttt{get\_online\_features} terhadap \textit{feature view} \texttt{ohlcv} dengan target latensi p99 kurang dari sepuluh milidetik. Sisi \textit{offline} diuji dengan \texttt{get\_historical\_features} terhadap rentang waktu Januari 2026 hingga April 2026 menggunakan \texttt{point\_in\_time\_join} ke ClickHouse. Skenario lulus apabila kedua jalur memberikan nilai fitur yang konsisten untuk satu \textit{entity} \texttt{symbol} dan target latensi terpenuhi.
+
+\subsection{SK-F-03: Validitas Temporal pada Penyusunan Dataset Pelatihan}
+
+Skenario ini memvalidasi KF-03 dengan mendemonstrasikan pencegahan \textit{temporal leakage} pada dataset pelatihan. Peneliti menyiapkan \textit{entity dataframe} dengan kolom \texttt{event\_timestamp} sengaja diatur lebih awal dari beberapa fitur sumber, lalu menjalankan \texttt{get\_historical\_features}. Verifikasi dilakukan dengan kueri ClickHouse pada \texttt{gold.fct\_training\_data} untuk memastikan tidak ada baris yang menggunakan nilai fitur dengan stempel waktu lebih besar dari \texttt{event\_timestamp}. Skenario lulus jika nol baris melanggar batas temporal pada seluruh sampel uji.
+
+\subsection{SK-F-04: Vector Embedding dan Pencarian Kemiripan}
+
+Skenario ini memvalidasi KF-04 dengan menghasilkan \textit{embedding} sentimen berita kripto via komponen \texttt{vector-embedding}, menyimpannya ke Qdrant melalui Feast \textit{online store}, dan melakukan \textit{similarity search} melalui API Qdrant. Beban uji menggunakan seratus permintaan per detik selama lima menit dengan target latensi p50 di bawah lima, p95 di bawah delapan, dan p99 di bawah sepuluh milidetik, selaras dengan ambang KNF-01 untuk jalur \textit{vector similarity search}. Verifikasi konsistensi indeks dilakukan dengan membandingkan hasil pencarian \textit{top-10} dari Qdrant terhadap kueri \textit{ground truth} pada \textit{offline store}. Skenario lulus apabila latensi target terpenuhi dan akurasi \textit{top-10 recall} berada di atas 0,95.
+
+\subsection{SK-F-05: Otomatisasi Pipeline Pelatihan End-to-End}
+
+Skenario ini memvalidasi KF-05 dengan mengeksekusi \texttt{pipelines/retraining\_pipeline.py} pada Kubeflow Pipelines. Pipeline mengakses fitur dari Feast, melatih model dengan FLAML/XGBoost, mencatat eksperimen ke MLflow, mendaftarkan model ke \textit{registry}, dan memperbarui \textit{InferenceService} KServe. Skenario lulus apabila seluruh tahap berjalan tanpa kegagalan, model versi baru terdaftar di MLflow, dan endpoint KServe mengembalikan prediksi yang valid menggunakan model terbaru dalam satu eksekusi otomatis.
+
+\subsection{SK-F-06: Otomatisasi Penerapan Model dan Strategi Canary}
+
+Skenario ini memvalidasi KF-06 dengan men-\textit{trigger} promosi model dari status \texttt{staging} ke \texttt{production} pada MLflow. Argo Rollouts mengeksekusi strategi \textit{canary} dengan distribusi lalu lintas 10/90 lalu 50/50, sembari Prometheus memantau metrik prediksi dan kesalahan. Verifikasi keberhasilan \textit{rollback} otomatis dilakukan dengan menyuntikkan model versi rusak yang sengaja gagal \textit{readiness probe}. Skenario lulus apabila promosi sukses pada model valid dan \textit{rollback} terjadi dalam waktu kurang dari satu menit pada model rusak tanpa kehilangan permintaan produksi.
+
+\subsection{SK-F-07: Pemantauan Drift Otomatis dan Trigger Retraining}
+
+Skenario ini memvalidasi KF-07 dengan layanan deteksi \textit{drift} platform (\texttt{quality/drift}) yang menghitung PSI dan K--S terhadap fitur produksi dan menuliskan hasilnya ke \texttt{gold.drift\_multi\_scale}. Distorsi distribusi sengaja disuntikkan melalui \textit{synthetic producer} yang menggeser harga sintetis pada topik \texttt{crypto.validated} sebesar dua sigma selama satu jam. Argo \textit{CronWorkflow} \texttt{retrain-on-drift} yang terjadwal setiap enam jam mengevaluasi ambang \textit{drift} dan memicu \texttt{retraining\_pipeline} pada Kubeflow Pipelines ketika ambang terlampaui. Skenario lulus apabila \textit{drift} terdeteksi pada \texttt{gold.drift\_multi\_scale} dan pipeline pelatihan ulang berhasil dieksekusi tanpa intervensi manual.
+
+\subsection{SK-F-08: Governance Metadata dan Lineage End-to-End}
+
+Skenario ini memvalidasi KF-08 dengan menelusuri \textit{lineage} dari topik Kafka \texttt{crypto.ws.raw} hingga prediksi pada endpoint KServe melalui DataHub. Sumber metadata mencakup OpenLineage \textit{emitter} pada Airflow dan Spark, serta konektor \textit{ingestion} DataHub untuk Feast, MLflow, ClickHouse, dan Kafka. Skenario lulus apabila peneliti dapat menelusuri jalur lengkap antara \textit{dataset} mentah, fitur, eksperimen, model, dan \textit{inference} hanya menggunakan antarmuka DataHub dengan satu klik per simpul.
+
+\subsection{SK-F-09: Pelacakan Eksperimen yang Reproducible}
+
+Skenario ini memvalidasi KF-09 dengan menjalankan dua eksekusi paralel \texttt{retraining\_pipeline} menggunakan parameter berbeda. Verifikasi reproduksibilitas dilakukan dengan mengeksekusi ulang salah satu eksekusi dari \textit{snapshot} parameter dan kode pada MLflow. Skenario lulus apabila hasil metrik utama berada dalam toleransi 1\% relatif terhadap eksekusi pertama dan seluruh artefak (model, dataset, metrik) tertaut pada \textit{run} di MLflow.
+
+\subsection{SK-F-10: Model Registry dan Pengelolaan Siklus Hidup}
+
+Skenario ini memvalidasi KF-10 dengan menggerakkan satu model melalui transisi status \texttt{none} $\rightarrow$ \texttt{staging} $\rightarrow$ \texttt{production} $\rightarrow$ \texttt{archived} pada MLflow. Setiap transisi divalidasi terhadap \textit{audit trail} dan diintegrasikan dengan \textit{webhook} Argo Workflows untuk memicu \textit{deployment}. Skenario lulus apabila seluruh transisi berhasil, \textit{audit log} menyimpan aktor dan stempel waktu, dan tidak ada konflik konkurensi pada uji transisi paralel.
+
+\subsection{SK-F-11: Pemrosesan Batch dan Stream Konsisten}
+
+Skenario ini memvalidasi KF-11 dengan menghitung fitur agregat pada \textit{feature view} \texttt{volume\_indicators} secara batch melalui dbt pada ClickHouse \textit{gold} dan secara \textit{stream} melalui Flink pada topik \texttt{crypto.validated}. Hasil keduanya dipublikasikan ke Feast dengan kolom \textit{partition} identik dan dibandingkan secara periodik. Skenario lulus apabila selisih nilai antara jalur \textit{batch} dan \textit{stream} berada dalam toleransi 0,01\% pada jendela satu jam yang telah selesai.
+
+\subsection{SK-F-12: Konfigurasi Deklaratif GitOps}
+
+Skenario ini memvalidasi KF-12 dengan menerapkan perubahan replika \texttt{InferenceService} melalui modifikasi YAML di Gitea. Verifikasi dilakukan dengan menunggu ArgoCD menyinkronkan perubahan dan memantau jumlah \textit{pod} aktual menggunakan \texttt{kubectl}. Skenario lulus apabila status klaster sesuai dengan deklarasi Git tanpa modifikasi imperatif dan tidak terdapat \textit{drift} pada ArgoCD \textit{Application}.
+
+\subsection{SK-F-13: API dan SDK Python Terpadu}
+
+Skenario ini memvalidasi KF-13 dengan menjalankan satu \textit{notebook} berbasis UV yang melakukan inisialisasi Feast, mengambil fitur, memanggil endpoint KServe, dan mencatat eksperimen MLflow tanpa menukar pustaka klien. Skenario lulus apabila seluruh interaksi menggunakan SDK Python resmi tiap komponen dan tidak terdapat ketergantungan internal yang tidak terdokumentasi.
+
+\subsection{SK-F-14: Manajemen Sumber Daya dan Quota}
+
+Skenario ini memvalidasi KF-14 dengan menjenuhkan kuota admisi Kueue. \textit{ClusterQueue} \texttt{mlops-cluster-queue} menetapkan \textit{nominalQuota} 4 CPU dan 16 Gi dengan \textit{borrowingLimit} hingga 12 CPU dan 48 Gi, sedangkan \textit{job} use-case masuk melalui \textit{LocalQueue} \texttt{crypto-batch-queue} dan \texttt{crypto-training-queue}. Sejumlah \textit{job} pelatihan diinjeksikan melampaui anggaran admisi untuk memverifikasi bahwa Kueue menahan kelebihan beban alih-alih menjadwalkannya melewati kapasitas. Skenario lulus apabila \textit{job} di luar anggaran berada pada status \texttt{Pending} sampai kapasitas tersedia kembali, dan tidak terdapat penjadwalan yang melanggar anggaran kuota pada \textit{node}.
+
+% --- Skenario KNF ---
+\section{Skenario Evaluasi Kebutuhan Nonfungsional}
+\label{sec:skenario_knf}
+
+Bagian ini memetakan setiap kebutuhan nonfungsional pada Tabel~\ref{tab:kebutuhan_nonfungsional} ke skenario konkret yang dapat dijalankan ulang pada klaster K3s tunggal. Penomoran menggunakan awalan \texttt{SK-N-XX} untuk menjaga keterkaitan dengan kode KNF yang divalidasi.
+
+\subsection{SK-N-01: Benchmark Latensi Online Feature Serving}
+
+Skenario ini memvalidasi KNF-01 dengan menjalankan \texttt{k6} terhadap endpoint Feast \textit{online} selama lima belas menit pada beban 5000 QPS. Latensi dipantau pada Prometheus dengan kuantil p50, p95, dan p99. Skenario lulus apabila latensi p50 di bawah 5 ms, p95 di bawah 8 ms, dan p99 di bawah 10 ms tanpa kegagalan permintaan.
+
+\subsection{SK-N-02: Uji Throughput Feature Serving dan Stream Processing}
+
+Skenario ini memvalidasi KNF-02 yang mencakup dua target \textit{throughput}. Pertama, sisi \textit{feature serving} diuji dengan \texttt{k6} yang menaikkan beban hingga melampaui sepuluh ribu QPS per \textit{node} pada endpoint Feast \textit{online} sambil memastikan tingkat keberhasilan permintaan tetap penuh. Kedua, sisi \textit{stream processing} diuji dengan menyuntikkan beban satu juta pesan per detik per pipeline pada Flink \texttt{stream-processor}, dengan verifikasi konsumsi end-to-end melalui \texttt{kafka\_consumergroup\_lag} pada Prometheus. Skenario lulus apabila \textit{feature serving} mempertahankan \textit{throughput} di atas sepuluh ribu QPS per \textit{node} tanpa kegagalan permintaan dan \textit{stream processing} mempertahankan \textit{lag} kurang dari sepuluh detik selama lima belas menit beban penuh.
+
+\subsection{SK-N-03: Skalabilitas Horizontal HPA dan KEDA}
+
+Skenario ini memvalidasi KNF-03 dengan memicu HPA pada \texttt{InferenceService} dan KEDA pada konsumen Kafka secara bersamaan. Beban dinaikkan bertahap dari 100 QPS hingga 1000 QPS dengan pengamatan jumlah \textit{pod} dan jalur skala otomatis. Skenario lulus apabila jumlah \textit{pod} meningkat secara mendekati linear hingga target sepuluh kali kapasitas dasar tanpa kegagalan \textit{ScaledObject}.
+
+\subsection{SK-N-04: Toleransi Kegagalan dan Pemulihan Otomatis}
+
+Skenario ini memvalidasi KNF-04 dengan menyuntikkan \texttt{chaos-mesh} \texttt{PodChaos} pada satu \textit{broker} Strimzi Kafka dan satu \textit{predictor} KServe. Pemulihan diukur dari saat injeksi hingga ketersediaan layanan kembali normal melalui kueri Prometheus. Skenario lulus apabila ketersediaan keseluruhan di atas 99,9\% selama jam pengujian, RTO kurang dari lima menit, dan RPO kurang dari satu menit.
+
+\subsection{SK-N-05: Verifikasi Konsistensi dan Bebas Leakage Temporal}
+
+Skenario ini memvalidasi KNF-05 dengan menjalankan \texttt{Great Expectations Checkpoint} pada \texttt{gold.fct\_training\_data} dan \textit{audit} hasil \texttt{point\_in\_time\_join}. Verifikasi dilengkapi pengujian sintetis yang mencoba memasukkan baris fitur dengan stempel waktu masa depan untuk memastikan ditolak. Skenario lulus apabila seluruh \textit{expectation} hijau dan upaya kebocoran sintetis tertangkap pada validasi.
+
+\subsection{SK-N-06: Observability OpenTelemetry End-to-End}
+
+Skenario ini memvalidasi KNF-06 dengan menelusuri satu permintaan inferensi dari API Gateway hingga Feast, KServe, dan kembali. Trace dievaluasi pada Tempo dan dibandingkan terhadap metrik Prometheus serta \textit{structured log} Loki. Skenario lulus apabila satu \textit{trace ID} dapat ditelusuri lintas seluruh komponen yang terlibat dan keseluruhan komponen memancarkan metrik dan \textit{log} sesuai konvensi.
+
+\subsection{SK-N-07: Pengujian Keamanan TLS dan Enkripsi At-Rest}
+
+Skenario ini memvalidasi KNF-07 dengan menjalankan \texttt{trivy} pada konfigurasi klaster dan \texttt{testssl.sh} pada endpoint publik. Verifikasi tambahan dilakukan dengan inspeksi MinIO KES untuk memastikan objek dienkripsi AES-256 dan komunikasi internal Istio mTLS \texttt{STRICT} aktif. Skenario lulus apabila tidak terdapat temuan \textit{critical}/\textit{high} pada \texttt{trivy}, seluruh endpoint menjalankan TLS 1.3, dan KES merespons dengan kunci enkripsi aktif.
+
+\subsection{SK-N-08: Ekstensibilitas Plug-in Komponen}
+
+Skenario ini memvalidasi KNF-08 dengan mengganti satu komponen dengan alternatif yang setara fungsional, misalnya mengganti \textit{model server} KServe dengan Seldon Core pada satu \textit{InferenceService}, atau menukar implementasi \textit{online store} Feast dari Valkey ke alternatif yang kompatibel. Verifikasi dilakukan dengan memastikan klien (Feast SDK atau API Gateway) tidak perlu modifikasi besar di luar konfigurasi. Skenario lulus apabila penggantian dapat dilakukan dengan perubahan terisolasi pada lapisan integrasi tanpa modifikasi inti.
+
+\subsection{SK-N-09: Evaluasi Kemudahan Penggunaan}
+
+Skenario ini memvalidasi KNF-09 dengan menjalankan survei pengguna terhadap minimal lima responden pada peran \textit{data scientist} dan \textit{ML engineer}. Tugas survei mencakup pendaftaran fitur baru, eksekusi pipeline, dan \textit{deployment} model. Skenario lulus apabila rerata skor kepuasan di atas 4 dari 5 dan tidak ada kegagalan tugas inti.
+
+\subsection{SK-N-10: Efisiensi Sumber Daya dan Rasio Kompresi}
+
+Skenario ini memvalidasi KNF-10 dengan memantau \texttt{opencost}, ClickHouse compression ratio, dan utilisasi CPU rata-rata selama satu jam beban penuh. Verifikasi tambahan dilakukan terhadap VPA \textit{recommender} untuk memastikan rekomendasi sesuai. Skenario lulus apabila utilisasi CPU rata-rata di atas 70\% dan rasio kompresi ClickHouse di atas 5:1 pada partisi target.
+
+\subsection{SK-N-11: Portabilitas Klaster}
+
+Skenario ini memvalidasi KNF-11 dengan mengekspor \textit{manifest} GitOps dan menerapkannya kembali pada klaster K3s baru yang berbeda \textit{hostname} dan IP. Skenario lulus apabila platform mencapai status sehat tanpa modifikasi kode dan perubahan konfigurasi terbatas pada nilai-nilai lingkungan yang sudah teridentifikasi.
+
+\subsection{SK-N-12: Kemudahan Pemeliharaan dan Test Coverage}
+
+Skenario ini memvalidasi KNF-12 dengan menjalankan \textit{test suite} platform melalui \texttt{make test} dan mengumpulkan laporan cakupan untuk modul inti. Verifikasi tambahan dilakukan terhadap waktu deploy \texttt{make phase-full} pada klaster bersih. Skenario lulus apabila cakupan inti di atas 80\% dan \texttt{phase-full} selesai dalam waktu yang stabil tanpa intervensi manual.
+
+% --- Matriks Traceability ---
+\section{Matriks Keterhubungan Kebutuhan dan Skenario}
+\label{sec:matriks_skenario}
+
+Matriks keterhubungan menjamin bahwa setiap kebutuhan pada Bab~\ref{chap:analisis_masalah} memiliki minimum satu skenario evaluasi yang menyentuhnya. Tabel~\ref{tab:skenario_kf_matrix} menyajikan pemetaan primer untuk KF-01 hingga KF-14, sedangkan Tabel~\ref{tab:skenario_knf_matrix} menyajikan pemetaan primer untuk KNF-01 hingga KNF-12. Setiap baris pada matriks juga mencantumkan komponen platform utama yang divalidasi sehingga \textit{coverage} terhadap arsitektur dapat dinilai sekaligus dengan \textit{coverage} terhadap kebutuhan. Karena beberapa skenario bersifat \textit{end-to-end}, satu skenario kerap memvalidasi lebih dari satu kebutuhan sekaligus, dan sebaliknya satu kebutuhan dapat ditegaskan oleh beberapa skenario. Relasi banyak-ke-banyak ini dirangkum pada Tabel~\ref{tab:skenario_coverage_matrix} yang membedakan kebutuhan primer (fokus utama tiap skenario) dari kebutuhan sekunder yang turut tervalidasi sebagai konsekuensi langkah eksekusi.
+
+\input{tables/skenario_kf_matrix}
+
+\vspace{-0.5cm}
+
+\input{tables/skenario_knf_matrix}
+
+\vspace{-0.5cm}
+
+Tabel~\ref{tab:skenario_coverage_matrix} menutup ruang evaluasi dengan memetakan relasi banyak-ke-banyak secara eksplisit. Kolom kebutuhan sekunder hanya mencantumkan kebutuhan yang kriteria lulusnya benar-benar tersentuh oleh langkah skenario, bukan keterkaitan tematik, agar klaim cakupan tetap dapat dipertanggungjawabkan.
+
+\input{tables/skenario_coverage_matrix}
+
+\vspace{-0.5cm}
+
+% --- Kriteria Lulus & Pelaporan ---
+\section{Kriteria Lulus dan Format Pelaporan}
+
+Setiap skenario menghasilkan satu dokumen pelaporan terstruktur yang memuat identifikasi skenario, kebutuhan yang divalidasi, ringkasan langkah, hasil metrik, dan status lulus atau tidak lulus. Hasil metrik disimpan sebagai artefak pada MLflow atau MinIO sesuai jenisnya sehingga dapat dilihat ulang. Laporan akhir mengkonsolidasikan seluruh skenario dengan referensi langsung ke artefak agar setiap klaim numerik di dalam tesis dapat ditelusuri ke bukti yang reproducible.
+
+Skenario yang tidak lulus diberi catatan tindakan perbaikan yang merujuk pada perubahan kode atau konfigurasi tertentu sehingga jejak perbaikan dapat dievaluasi. Pendekatan ini menjadikan evaluasi sebagai bagian integral dari siklus pengembangan, bukan sekadar laporan pasca-implementasi. Dengan demikian, hasil pada Bab~\ref{chap:skenario_evaluasi} berfungsi sebagai bukti pemenuhan kebutuhan sekaligus alat manajemen mutu yang akan dipakai untuk memandu perbaikan inkremental hingga seluruh KF dan KNF tercapai sepenuhnya.
+
+% End of Bab_6.tex

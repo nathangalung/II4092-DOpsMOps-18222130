@@ -70,6 +70,12 @@ resources:
   # File header explains why we mirror instead of moving the canonical one.
   - ../base/model-lifecycle-pipeline-secrets.yaml
 
+  # --- ClickHouse Kafka SASL creds (storage ns) ---
+  # Supplies the platform CHI `<kafka>` block sasl_username/password via the
+  # generic `clickhouse-kafka-sasl` Secret (mirrors the crypto-clickhouse
+  # KafkaUser). #464: server-block SASL is the only path librdkafka honours.
+  - ../base/clickhouse-kafka-sasl.yaml
+
   # --- Cluster-scoped RBAC with cross-namespace subjects ---
   # ClusterRoleBinding `kfp-kserve-deployer-binding` references SAs
   # `default` + `pipeline-runner` in `model-lifecycle`. Setting

@@ -322,6 +322,7 @@ spec:
                 lakefs \
                 clickhouse-backups \
                 datahub-metadata \
+                great-expectations \
                 tempo-traces \
                 falco-audit \
                 pyroscope-profiles \

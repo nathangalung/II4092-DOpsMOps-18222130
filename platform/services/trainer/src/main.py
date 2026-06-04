@@ -304,8 +304,12 @@ def main() -> None:
     parser.add_argument("--symbol", type=str, default=None, help="Train specific symbol")
     args = parser.parse_args()
 
-    start_date = os.getenv("START_DATE", "2025-01-01")
-    end_date = os.getenv("END_DATE", "2025-12-31")
+    # Empty defaults = open window (no lower/upper bound). The recurring
+    # submitter passes empty strings so trainer captures whatever the
+    # feature pipeline has materialised. Retraining launcher overrides
+    # with a rolling N-day window when triggered by drift.
+    start_date = os.getenv("START_DATE", "")
+    end_date = os.getenv("END_DATE", "")
 
     if args.train_all:
         symbols_env = os.getenv("VALID_SYMBOLS", "")

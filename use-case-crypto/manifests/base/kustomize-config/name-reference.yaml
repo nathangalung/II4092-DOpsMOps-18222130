@@ -57,7 +57,7 @@ nameReference:
   # reference cluster-local ConfigMap / Secret resources mounted into the step
   # container. Kustomize's builtin recognises Pod.spec.volumes paths but treats
   # Task as opaque, so the `push-helper` ConfigMap reference in
-  # tekton/dbt-pipeline.yaml's `push-pipeline-metrics-task` stays unprefixed
+  # tekton/pipeline.yaml's `push-pipeline-metrics-task` stays unprefixed
   # under `namePrefix: crypto-`, causing the step container to fail to mount
   # (`ConfigMap "push-helper" not found` because the rendered name is
   # `crypto-push-helper`).
@@ -125,9 +125,17 @@ nameReference:
     fieldSpecs:
       - path: spec/strategy/canary/steps/analysis/templates/templateName
         kind: Rollout
+  # The ml-bridge Rollout also mounts the `feast-feature-repo` ConfigMap as a
+  # volume (feature_store.yaml.tmpl + definitions.py, rendered at pod start).
+  # Kustomize treats Rollout as opaque, so without the volumes/configMap/name
+  # rule below `namePrefix: crypto-` would leave the volume pointing at a bare
+  # `feast-feature-repo` that no longer exists (rendered name is
+  # `crypto-feast-feature-repo`).
   - kind: ConfigMap
     fieldSpecs:
       - path: spec/template/spec/containers/envFrom/configMapRef/name
         kind: Rollout
       - path: spec/template/spec/initContainers/envFrom/configMapRef/name
+        kind: Rollout
+      - path: spec/template/spec/volumes/configMap/name
         kind: Rollout

@@ -107,12 +107,32 @@ spec:
               port: 9200
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Single-node local-path disk: post-restart translog replay +
+          # cluster-state publication can stall for tens of seconds under IO
+          # contention (observed 20–43s cluster-state writes in logs). The
+          # default probe (timeoutSeconds=1, failureThreshold=3) then SIGTERMs
+          # (exit 143) a recovering node into a self-amplifying crash loop —
+          # each restart replays the translog → more IO → slower writes →
+          # liveness fails again. A startupProbe gates liveness so the first
+          # slow recovery is never killed; liveness then tolerates a ~43s
+          # write spike (6 × 30s) before acting. See IO-cascade theme (#160/#307).
+          startupProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /_cluster/health?local=true
               port: 9200
-            initialDelaySeconds: 90
             periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
   volumeClaimTemplates:
     - metadata:
         name: data

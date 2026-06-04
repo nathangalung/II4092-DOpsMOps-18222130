@@ -1,37 +1,32 @@
 # =============================================================================
-# Feast feature repository — templated at runtime from Vault
+# Feast feature repository — crypto use-case (Feast project `crypto`)
 # =============================================================================
-# The Feast `registry.path` embeds the PostgreSQL password; storing it in a
-# ConfigMap would leak.  Instead:
+# Domain-specific Feast repo. Mirrors the platform's post-#124 store topology
+# (ADR-011/013): S3 file registry on MinIO, ClickHouse offline store, Valkey
+# online store, no_auth. The platform layer ships a feature-view-less stub;
+# the concrete entity / feature views / services live here.
 #
-#   1. `feast-feature-repo-template` ConfigMap holds `feature_store.yaml.tmpl`
-#      (with `${POSTGRES_PASSWORD}` and `${VALKEY_PASSWORD}` placeholders) and
-#      `definitions.py` (no secrets).
-#   2. The consuming Deployment (ml-bridge / gateway / trainer) injects an
-#      init container `render-feature-store` that runs `envsubst` on the
-#      template, writing the real `feature_store.yaml` to an emptyDir mount.
-#   3. The password is exposed via envFrom: feast-postgres-secret (sourced
-#      from Vault by ExternalSecret via feast-valkey-secret).
+# RENDER (no envsubst, no Postgres):
+#   `feature_store.yaml.tmpl` carries ${CLICKHOUSE_USER} / ${CLICKHOUSE_PASSWORD}
+#   (offline) and ${VALKEY_PASSWORD} (online) placeholders. Both consumers —
+#   the Airflow `feast_materialize` task (writer; platform materialization
+#   image) and the ml-bridge Rollout (reader) — render it at start by a
+#   single-pass ${VAR} substitution from the pod env (creds arrive via the
+#   `pipeline-secrets` envFrom), writing the real feature_store.yaml into a
+#   writable emptyDir. Registry creds (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+#   and FEAST_S3_ENDPOINT_URL are read straight from the pod env by boto3, so
+#   the `s3://` registry path needs no interpolation.
+#
+# Stores:
+#   - Registry     : file on MinIO S3 — s3://feast/crypto/registry.pb (its own
+#                    object under the versioned `feast` bucket; distinct from
+#                    the platform stub's s3://feast/registry.pb).
+#   - Offline store: ClickHouse (clickhouse-platform.storage, HTTP 8123, DB
+#                    `bronze`). Feast's clickhouse contrib uses clickhouse-connect
+#                    (HTTP) — port 8123, NOT native 9000.
+#   - Online store : Valkey (Redis RESP, 6379) — password substituted into the
+#                    connection_string at pod start.
 # =============================================================================
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: feast-postgres-secret
-  labels:
-    app: ml-pipeline
-    component: feast
-spec:
-  refreshInterval: 1h
-  secretStoreRef: { name: platform-openbao, kind: ClusterSecretStore }
-  target:
-    name: feast-postgres-secret
-    creationPolicy: Owner
-  data:
-    - secretKey: POSTGRES_USER
-      remoteRef: { key: platform/postgres/feast, property: username }
-    - secretKey: POSTGRES_PASSWORD
-      remoteRef: { key: platform/postgres/feast, property: password }
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -41,41 +36,30 @@ metadata:
     component: feast
 data:
   feature_store.yaml.tmpl: |
-    # Templated by the `render-feature-store` init container at pod start.
+    # Rendered at pod start (materialization writer main.py + ml-bridge reader
+    # lifespan) by single-pass ${VAR} substitution from the pod env — Feast's
+    # own YAML parser does NOT expand ${VAR}.
     project: crypto
-    registry:
-      registry_type: sql
-      path: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/feast
-      cache_ttl_seconds: 600
     provider: local
-    online_store:
-      type: redis
-      # Feast 0.62 accepts `host:port,key=value` pairs in connection_string;
-      # `password=XXX` is passed straight through to the underlying redis-py
-      # client. The `${VALKEY_PASSWORD}` placeholder is resolved by the
-      # render-feature-store init container (envsubst) at pod start, driven
-      # by the feast-valkey-secret envFrom.
-      connection_string: valkey.storage.svc.cluster.local:6379,password=${VALKEY_PASSWORD}
+    registry:
+      registry_type: file
+      path: s3://feast/crypto/registry.pb
+      cache_ttl_seconds: 60
     offline_store:
       type: clickhouse
       host: clickhouse-platform.storage.svc.cluster.local
+      # Feast clickhouse contrib = clickhouse-connect (HTTP) → 8123, not 9000.
       port: 8123
-      database: features
-      user: default
-      password: ""
-    entity_key_serialization_version: 3
+      database: bronze
+      user: ${CLICKHOUSE_USER}
+      password: ${CLICKHOUSE_PASSWORD}
+    online_store:
+      type: redis
+      redis_type: redis
+      connection_string: valkey.storage.svc.cluster.local:6379,password=${VALKEY_PASSWORD}
+    entity_key_serialization_version: 2
     auth:
-      type: oidc
-      client_id: feast
-      client_secret: "${FEAST_OIDC_CLIENT_SECRET}"
-      auth_discovery_url: http://dex.common.svc.cluster.local:5556/dex/.well-known/openid-configuration
-  # Render script (copy template to mounted volume with envsubst).
-  render-feast-config.sh: |
-    #!/bin/sh
-    set -e
-    envsubst < /opt/feast-template/feature_store.yaml.tmpl > /opt/feast-repo/feature_store.yaml
-    cp /opt/feast-template/definitions.py /opt/feast-repo/definitions.py
-    echo "Feast feature_store.yaml rendered."
+      type: no_auth
   definitions.py: |
     """Feast feature definitions — see platform/DECISIONS.md ADR-013."""
     from datetime import timedelta
@@ -93,19 +77,19 @@ data:
 
     ohlcv_source = ClickhouseSource(
         name="ohlcv_source",
-        table="crypto_ohlcv",
+        table="bronze.crypto_ohlcv",
         timestamp_field="timestamp",
         created_timestamp_column="created_at",
     )
     features_source = ClickhouseSource(
         name="features_source",
-        table="crypto_ohlcv_features",
+        table="bronze.crypto_ohlcv_features",
         timestamp_field="timestamp",
         created_timestamp_column="created_at",
     )
     sentiment_source = ClickhouseSource(
         name="sentiment_source",
-        table="crypto_sentiment_features",
+        table="gold.fct_sentiment_agg",
         timestamp_field="timestamp",
         created_timestamp_column="created_at",
     )
@@ -221,7 +205,10 @@ data:
                 Field(name="sentiment_momentum", dtype=Float64),
             ],
             source=sentiment_source,
-            online=True,
+            # Offline/training only — gold.fct_sentiment_agg is a cross-DB dbt
+            # mart. online=False excludes these from `feast materialize`, so the
+            # online-serving proof stays on the proven bronze technical views.
+            online=False,
             tags={"layer": "feature", "indicator_type": "sentiment", "window": window},
         )
 
@@ -245,8 +232,8 @@ data:
             momentum_indicators_fv[["rsi_14", "macd"]],
             volatility_indicators_fv[["bb_upper", "bb_lower", "atr_14"]],
             returns_fv[["return_1h"]],
-            sentiment_1h_fv[["avg_sentiment", "news_count"]],
-            sentiment_24h_fv[["avg_sentiment", "sentiment_momentum"]],
+            # Sentiment views are online=False (offline-only); excluded from the
+            # online inference service so get_online_features never targets them.
         ],
         tags={"purpose": "inference", "latency_optimized": "true"},
     )

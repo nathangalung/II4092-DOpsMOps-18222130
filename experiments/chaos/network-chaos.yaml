@@ -1,0 +1,25 @@
+# SK-N-04 — network fault injection (validates KNF-04).
+# Injects latency + partition between callers and Feast online serving to
+# verify graceful degradation and timeout/retry behaviour.
+#
+# Apply during evaluation:
+#   kubectl apply -f experiments/chaos/network-chaos.yaml
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: eval-feast-network-delay
+  namespace: platform-test
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - model-lifecycle
+    labelSelectors:
+      app.kubernetes.io/name: feast
+  delay:
+    latency: '100ms'
+    correlation: '50'
+    jitter: '20ms'
+  duration: '5m'

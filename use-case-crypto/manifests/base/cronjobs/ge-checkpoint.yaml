@@ -126,8 +126,8 @@ spec:
                   # /// script
                   # requires-python = ">=3.13,<3.14"
                   # dependencies = [
-                  #   "great-expectations[clickhouse,s3]==1.17.0",
-                  #   "clickhouse-connect==0.9.4",
+                  #   "great-expectations[s3]==1.17.0",
+                  #   "clickhouse-connect[sqlalchemy]==1.0.0",
                   #   "boto3==1.40.65",
                   #   "requests==2.32.3",
                   # ]
@@ -197,6 +197,19 @@ spec:
                       f"({successful}/{evaluated} expectations passed)"
                   )
 
+                  # Per-expectation summary — surfaces which expectation
+                  # tripped when success=False so the SRE / Pushgateway
+                  # consumer can drill in without re-fetching the JSON.
+                  for r in getattr(result, "results", []) or []:
+                      cfg = r.expectation_config
+                      etype = getattr(cfg, "type", None) or getattr(cfg, "expectation_type", "?")
+                      kw = getattr(cfg, "kwargs", {}) or {}
+                      observed = getattr(r, "result", {}) or {}
+                      print(
+                          f"  expectation={etype} success={r.success} "
+                          f"kwargs={kw} observed={observed.get('observed_value')}"
+                      )
+
                   # Persist the validation result JSON to MinIO under the
                   # same `validations/` prefix the platform configmap uses,
                   # so DataDocs / GE CLI inspectors see a unified history.
@@ -245,11 +258,11 @@ spec:
                   run_and_push uv run /tmp/ge_check.py
               resources:
                 requests:
-                  cpu: "100m"
-                  memory: "384Mi"
-                limits:
-                  cpu: "500m"
+                  cpu: "200m"
                   memory: "768Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "2Gi"
               volumeMounts:
                 - name: push-helper
                   mountPath: /scripts

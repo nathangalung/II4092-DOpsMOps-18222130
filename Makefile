@@ -591,12 +591,8 @@ platform-build-services: platform-registry-up ## Build + push 15 generic images 
 			echo "$(RED)  ! $$tag — Dockerfile missing at $$ctx/Dockerfile, skip$(NC)"; \
 			continue; \
 		fi; \
-		if [ -z "$$FORCE_REBUILD" ] && docker image inspect $$tag >/dev/null 2>&1; then \
-			echo "$(YELLOW)  · $$tag (cached, FORCE_REBUILD=1 to rebuild)$(NC)"; \
-		else \
-			echo "$(GREEN)  + building $$tag from $$ctx$(NC)"; \
-			$(DOCKER_BUILD) -t $$tag $$ctx; \
-		fi; \
+		echo "$(GREEN)  + building $$tag from $$ctx$(NC)"; \
+		$(DOCKER_BUILD) -t $$tag $$ctx; \
 		docker tag $$tag $$remote; \
 		docker push $$remote >/dev/null; \
 		echo "$(GREEN)    pushed → $$remote$(NC)"; \
@@ -665,7 +661,7 @@ platform-clean-services: ## Remove local generic images (registry data preserved
         usecase-crypto-data usecase-crypto-train usecase-crypto-serve usecase-crypto-app \
         usecase-crypto-up usecase-crypto-up-local usecase-crypto-up-cloud \
         usecase-crypto-deploy-data usecase-crypto-deploy-train usecase-crypto-deploy-serve usecase-crypto-deploy-app \
-        usecase-crypto-down usecase-crypto-redeploy \
+        usecase-crypto-down usecase-crypto-redeploy usecase-crypto-roll \
         usecase-crypto-stop-data usecase-crypto-stop-train usecase-crypto-stop-serve usecase-crypto-stop-app \
         usecase-crypto-resume-data usecase-crypto-resume-train usecase-crypto-resume-serve usecase-crypto-resume-app \
         usecase-crypto-status usecase-crypto-status-all usecase-crypto-logs usecase-crypto-logs-all \
@@ -1165,7 +1161,7 @@ usecase-crypto-build-dbt: ## Build dbt image with use-case models baked in
 		$(call _push,$(USE_CASE_PREFIX)-dbt-project) && \
 		echo "$(GREEN)  + $(USE_CASE_PREFIX)-dbt-project$(NC)"
 
-usecase-crypto-build-training: ## Retag training + build feast materialization image
+usecase-crypto-build-training: ## Retag training images from generic
 	@echo "$(YELLOW)── Training ──$(NC)"
 	@if [ "$(call svc_enabled,training,trainer)" = "true" ]; then \
 		docker tag trainer:$(VERSION) $(USE_CASE_PREFIX)-trainer:$(VERSION) && \
@@ -1177,9 +1173,6 @@ usecase-crypto-build-training: ## Retag training + build feast materialization i
 		$(call _push,$(USE_CASE_PREFIX)-drift-detector) && \
 		echo "$(GREEN)  + $(USE_CASE_PREFIX)-drift-detector (retagged)$(NC)"; \
 	else echo "$(YELLOW)  - drift-detector SKIPPED$(NC)"; fi
-	@$(DOCKER_BUILD) -f $(USECASE_DIR)/Dockerfile.feast -t $(USE_CASE_PREFIX)-materialization:$(VERSION) $(USECASE_DIR) && \
-		$(call _push,$(USE_CASE_PREFIX)-materialization) && \
-		echo "$(GREEN)  + $(USE_CASE_PREFIX)-materialization (feast overlay build)$(NC)"
 
 usecase-crypto-build-serving: ## Retag serving images from generic
 	@echo "$(YELLOW)── Serving ──$(NC)"
@@ -1266,15 +1259,76 @@ usecase-crypto-seed-airflow-vars: ## Seed USE_CASE Airflow Variables from config
 # KUBERNETES DEPLOYMENT
 # -----------------------------------------------------------------------------
 
+# `usecase-crypto-argocd` applies the Argo CD GitOps bootstrap — AppProject first
+# (RBAC + allowed destination namespaces, incl. `storage` for the
+# ClickHouse-Kafka-SASL ExternalSecret), then the ApplicationSet that generates
+# the Application. This is the ONLY reproducible way AppProject changes reach the
+# live cluster: `usecase-crypto-up` does a direct `kubectl apply` of the overlay
+# and never reconciles the bootstrap, so a new permitted destination added in
+# argocd/application.yaml silently never propagated (root cause of the
+# crypto-use-case-local "namespace storage is not permitted" SyncError).
+# Re-running is idempotent.
+#
+# DESIGN NOTE (left to you): the use-case has TWO deploy paths — this GitOps path
+# and `usecase-crypto-up`'s direct apply. Running both lets Argo CD + kubectl
+# manage the same objects (drift / prune risk — see the platform-gitops
+# manual-sync guard, #207). Pick one canonical path; this target does NOT change
+# `usecase-crypto-up`.
+usecase-crypto-argocd: ## Apply Argo CD GitOps bootstrap (AppProject + ApplicationSet) — reproducible
+	@echo "$(BLUE)Applying use-case-crypto Argo CD bootstrap (project → appset → dags-binding)$(NC)"
+	@kubectl apply -f $(USECASE_DIR)/argocd/application.yaml
+	@kubectl apply -f $(USECASE_DIR)/argocd/applicationset.yaml
+	@# Airflow DAGs-binding: ships the GITSYNC_REPO override ConfigMap into the
+	@# platform `data-processing` ns so the platform Airflow git-sync clones THIS
+	@# use-case's DAGs. Separate Application (non-prefixed path) — see
+	@# argocd/airflow-dags-binding.yaml. Needs `data-processing` in the AppProject
+	@# destinations (applied above).
+	@kubectl apply -f $(USECASE_DIR)/argocd/airflow-dags-binding.yaml
+	@echo "$(GREEN)Argo CD bootstrap applied — Argo CD reconciles use-case-crypto from Gitea.$(NC)"
+	@echo "$(YELLOW)NOTE: roll the scheduler once so git-sync re-reads GITSYNC_REPO:$(NC)"
+	@echo "$(YELLOW)  kubectl rollout restart deploy/airflow-scheduler -n data-processing$(NC)"
+
 usecase-crypto-up: ## Deploy all use-case-crypto microservices (data + train + serve + app)
 	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
 	@echo "$(BLUE)  Deploying $(NAMESPACE) to Kubernetes ($(ENV))$(NC)"
 	@echo "$(BLUE)═══════════════════════════════════════════════════════════════$(NC)"
 	@kubectl create namespace $(NAMESPACE) 2>/dev/null || echo "$(YELLOW)Namespace already exists$(NC)"
 	@kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone | kubectl apply -f -
-	@echo "$(GREEN)Deployment initiated.$(NC)"
+	@echo "$(GREEN)Manifests applied.$(NC)"
+	@$(MAKE) usecase-crypto-roll
 	@sleep 5
 	@$(MAKE) usecase-crypto-status
+
+# ----------------------------------------------------------------------------
+# REPRODUCIBILITY: re-pull freshly-built :latest images
+# ----------------------------------------------------------------------------
+# Use-case service Deployments pin `image: localhost:5000/<svc>:latest` with
+# `imagePullPolicy: Always`. `kubectl apply` of an UNCHANGED `:latest` spec is a
+# no-op for the running pods (spec identical → no new ReplicaSet → no re-pull),
+# so a freshly `*-build`-ed `:latest` never reaches the cluster until each pod
+# is recreated. That left stale binaries running for days (root cause of the
+# websocket-collector Kafka `MessageTimedOut`: the SASL/timeout fix was built
+# but never rolled out). `rollout restart` recreates the pods, and Always then
+# pulls the newest `:latest` digest — making "build → deploy" actually current.
+#
+# BEST-PROPER ALTERNATIVE (not done — heavier): pin immutable per-build tags
+# (e.g. `:<git-sha>`) in the kustomize `images:` block so `kubectl apply`
+# changes the spec and rolls only what changed, no blanket restart. That is the
+# GitOps-native answer; `rollout restart` is the pragmatic local-registry one.
+#
+# ml-bridge (Argo Rollout) re-pulls via its own controller on restart. The
+# crypto-stream-processor Deployment IS a Deployment, but it is the Flink
+# native-mode JobManager (label type=flink-native-kubernetes) owned by the
+# Flink Kubernetes Operator — a manual `rollout restart` would fight operator
+# reconciliation and bounce the running job, so the selector below excludes it
+# (the operator re-pulls on FlinkDeployment spec change instead).
+usecase-crypto-roll: ## Roll all use-case Deployments to pull freshly-built :latest images (run after *-build)
+	@echo "$(BLUE)Rolling $(NAMESPACE) Deployments (excl. Flink-operator-managed) to pull freshly-built :latest images$(NC)"
+	@kubectl rollout restart deployment -n $(NAMESPACE) -l 'type!=flink-native-kubernetes'
+	@for d in $$(kubectl get deploy -n $(NAMESPACE) -l 'type!=flink-native-kubernetes' -o name 2>/dev/null); do \
+		kubectl rollout status $$d -n $(NAMESPACE) --timeout=300s || true; \
+	done
+	@echo "$(GREEN)Use-case Deployments rolled to current images.$(NC)"
 
 usecase-crypto-up-local: ## Deploy to local cluster (ENV=local)
 	@ENV=local $(MAKE) usecase-crypto-up

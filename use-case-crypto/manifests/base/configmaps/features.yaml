@@ -10,10 +10,14 @@ data:
   # This file configures HOW features are computed (parameters, thresholds).
   # =========================================================================
 
-  # --- Feature columns (derived from schema.yaml STREAM_FEATURES_ALL) ---
-  # NOTE: This must match STREAM_FEATURES_ALL in schema.yaml.
-  # Services that need the full column list read FEATURES_COLUMNS.
-  FEATURES_COLUMNS: "symbol,timestamp,close,volume,sma_20,sma_50,ema_12,ema_26,rsi_14,rsi_7,macd,macd_signal,stoch_k,stoch_d,williams_r,roc_10,bb_upper,bb_lower,bb_width,atr_14,adx,obv,mfi_14,vwap,return_1h,return_24h,volatility_24h,rolling_mean_7,rolling_mean_14,rolling_ema_12,rolling_ema_26,momentum_14,trend_convergence,trend_signal,band_upper,band_lower,dispersion,value_change,secondary_avg"
+  # FEATURES_COLUMNS is defined ONCE in schema.yaml — it is the GE-analyzer query
+  # target and MUST list only columns that exist on gold.fct_training_data
+  # (FEATURES_TABLE). The full 38-col real-time stream list lives in schema.yaml
+  # as STREAM_FEATURES_ALL (those are bronze.crypto_ohlcv_features columns, NOT
+  # gold). Do NOT redefine FEATURES_COLUMNS here: this file configures HOW
+  # features are computed, not the gold-table column contract. Redefining it
+  # here previously overrode schema.yaml (later in kustomize file-order) and made
+  # the analyzer query non-existent gold columns (ema_12, rsi_14, …) → Code:47.
 
   # --- Feast online features (subset for real-time serving) ---
   # Must be a subset of GOLD_OHLCV_FEATURES in schema.yaml

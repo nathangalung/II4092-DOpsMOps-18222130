@@ -33,7 +33,7 @@ spec:
         - name: batch-processing
           image: batch-processing:latest
           imagePullPolicy: IfNotPresent
-          command: ["uv", "run", "main.py"]
+          command: ["uv", "run", "--no-sync", "main.py"]
           args: ["--mode", "features"]
           envFrom:
             - configMapRef:

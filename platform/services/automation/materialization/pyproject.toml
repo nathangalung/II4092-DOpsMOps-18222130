@@ -9,8 +9,10 @@ dependencies = [
     "feast[clickhouse,redis]>=0.61.0",
     # ClickHouse driver (feast[clickhouse] pulls it transitively; explicit floor for security).
     "clickhouse-connect>=0.14.0",
-    # PG driver for Feast SQL registry (feature_store.yaml: registry_type: sql).
-    "psycopg[binary,pool]>=3.2.0",
+    # boto3 for Feast's S3 file registry (registry_type: file, path: s3://feast/...).
+    # feast[clickhouse,redis] does NOT pull an S3 client (verified absent from
+    # uv.lock); S3RegistryStore reads/writes the registry proto via boto3.
+    "boto3>=1.34",
 ]
 
 [build-system]

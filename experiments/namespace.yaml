@@ -1,0 +1,16 @@
+# platform-test — isolated namespace for evaluation load generators (k6, vegeta).
+# Created on demand during evaluation; not part of phase-full or Argo CD sync.
+# Istio injection enabled so generators reach in-mesh SUT endpoints over mTLS.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-test
+  labels:
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/component: evaluation
+    istio-injection: enabled
+    # Baseline PSA: load tools (k6/vegeta) occasionally need wider syscalls than
+    # restricted allows; audit/warn stay at restricted to surface regressions.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

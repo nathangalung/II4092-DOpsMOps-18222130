@@ -38,10 +38,11 @@ spec:
               image: drift-detector:latest
               imagePullPolicy: IfNotPresent
               # UV mandate (project policy): no `uv run python`, no `python -c`.
-              # `uv run main.py` runs the project entry point inside the synced
-              # venv (uv.lock-pinned). `--scale minute --once` invokes the
-              # one-shot CronJob mode (see main.py:212-251).
-              command: ["uv", "run", "main.py"]
+              # `uv run --no-sync main.py` runs the project entry point inside
+              # the baked venv WITHOUT re-syncing (image built --no-editable, so
+              # nothing to rebuild — air-gap safe). `--scale minute --once`
+              # invokes the one-shot CronJob mode (see main.py:212-251).
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "minute", "--once"]
               envFrom:
                 - configMapRef:
@@ -82,7 +83,7 @@ spec:
             - name: drift-detector
               image: drift-detector:latest
               imagePullPolicy: IfNotPresent
-              command: ["uv", "run", "main.py"]
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "hourly", "--once"]
               envFrom:
                 - configMapRef:
@@ -123,7 +124,7 @@ spec:
             - name: drift-detector
               image: drift-detector:latest
               imagePullPolicy: IfNotPresent
-              command: ["uv", "run", "main.py"]
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "daily", "--once"]
               envFrom:
                 - configMapRef:
@@ -164,7 +165,7 @@ spec:
             - name: drift-detector
               image: drift-detector:latest
               imagePullPolicy: IfNotPresent
-              command: ["uv", "run", "main.py"]
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "weekly", "--once"]
               envFrom:
                 - configMapRef:

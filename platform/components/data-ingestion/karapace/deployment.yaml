@@ -195,8 +195,8 @@ spec:
 # registry port. A `source.namespaces` selector cannot match istio-exempt use-
 # case callers (no SPIFFE identity), so we keep authorization at L4 via the
 # pod CIDR / NetworkPolicy and grant L7 ALLOW unconditionally on 8081. DataHub
-# init probes, dbt karapace-compat-check, producer/consumer subject fetches,
-# and use-case schema-registration Jobs all rely on this open path.
+# init probes, producer/consumer subject fetches, and use-case
+# schema-registration Jobs all rely on this open path.
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

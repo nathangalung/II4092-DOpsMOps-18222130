@@ -12,8 +12,22 @@ FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 
 WORKDIR /dbt
 
-# Pre-install dbt to cache the layer
-RUN uvx --from dbt-core --with dbt-clickhouse==1.10.0 dbt --version
+# `uv tool install` (NOT `uvx`): installs dbt as a PERSISTENT tool whose `dbt`
+# console-script lands on PATH at /usr/local/bin/dbt. Every consumer invokes a
+# real `dbt` command — the Airflow KubernetesPodOperator (cmds=["dbt"]) and the
+# Tekton dbt-clickhouse-task (`dbt deps` / `dbt run`). The prior `uvx … dbt`
+# ENTRYPOINT left NO `dbt` on PATH (uvx runs the tool ephemerally), so those
+# bare-`dbt` invocations failed with "executable not found" and the gold dbt
+# marts never materialised. uvx also cached its env under the build user's HOME
+# (/root), unreachable by the runtime USER 1000 (HOME=/home/app) → a runtime
+# re-resolve that breaks on an air-gapped node. Pinning UV_TOOL_DIR/CACHE to a
+# world-readable /opt path + `uv tool install` makes the toolchain deterministic
+# and offline-safe regardless of HOME.
+ENV UV_TOOL_BIN_DIR=/usr/local/bin \
+    UV_TOOL_DIR=/opt/uv/tools \
+    UV_CACHE_DIR=/opt/uv/cache
+RUN uv tool install "dbt-core" --with "dbt-clickhouse==1.10.0" \
+    && dbt --version
 
 # Copy project files
 COPY dbt/dbt_project.yml dbt/profiles.yml ./
@@ -22,13 +36,15 @@ COPY dbt/macros/ ./macros/
 COPY dbt/models/ ./models/
 COPY dbt/tests/ ./tests/
 
-# Install dbt packages (dbt-utils for unique_combination_of_columns etc)
-RUN uvx --from dbt-core --with dbt-clickhouse==1.10.0 dbt deps --profiles-dir /dbt --project-dir /dbt
+# Install dbt packages (dbt-utils for unique_combination_of_columns etc).
+# `dbt` is now a real PATH command (uv tool install above), so no uvx wrapper.
+RUN dbt deps --profiles-dir /dbt --project-dir /dbt
 
 RUN useradd -u 1000 -m -s /usr/sbin/nologin app \
-    && chown -R 1000:1000 /dbt /root
+    && chown -R 1000:1000 /dbt /opt/uv
 
 USER 1000:1000
 
-ENTRYPOINT ["uvx", "--from", "dbt-core", "--with", "dbt-clickhouse", "dbt"]
+# Real `dbt` on PATH — consumers may run it directly (cmds=["dbt"], `dbt run`).
+ENTRYPOINT ["dbt"]
 CMD ["run", "--profiles-dir", "/dbt", "--project-dir", "/dbt"]

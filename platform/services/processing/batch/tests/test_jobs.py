@@ -79,6 +79,8 @@ class TestFeatureEngineeringJob:
             host="localhost",
             port=8123,
             database="test",
+            username="default",
+            password="",
         )
         assert job.client is not None
 

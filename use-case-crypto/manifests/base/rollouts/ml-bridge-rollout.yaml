@@ -103,7 +103,7 @@ spec:
         - name: ml-bridge
           image: ml-bridge:latest
           imagePullPolicy: Always
-          command: ["uv", "run", "main.py"]
+          command: ["uv", "run", "--no-sync", "main.py"]
           ports:
             - containerPort: 8000
               name: http
@@ -112,6 +112,22 @@ spec:
                 name: pipeline-config
             - secretRef:
                 name: pipeline-secrets
+          # Feast online-serving repo: the reader renders feature_store.yaml from
+          # the feast-feature-repo ConfigMap template at startup (lifespan), then
+          # reads the S3 file registry + Valkey online store. Template mounted
+          # read-only at FEAST_TEMPLATE_DIR; rendered output lands in the writable
+          # emptyDir at FEAST_REPO_PATH. Mirrors the materialization writer pod.
+          env:
+            - name: FEAST_TEMPLATE_DIR
+              value: /opt/feast-template
+            - name: FEAST_REPO_PATH
+              value: /opt/feast-repo
+          volumeMounts:
+            - name: feast-template
+              mountPath: /opt/feast-template
+              readOnly: true
+            - name: feast-repo
+              mountPath: /opt/feast-repo
           resources:
             requests: { cpu: "200m", memory: "512Mi" }
             limits:   { cpu: "1",    memory: "2Gi" }
@@ -123,6 +139,16 @@ spec:
             httpGet: { path: /health, port: 8000 }
             initialDelaySeconds: 5
             periodSeconds: 10
+      volumes:
+        # feast-feature-repo is a PLAIN ConfigMap (not a generator) — kustomize
+        # `namePrefix: crypto-` rewrites this bare name to
+        # `crypto-feast-feature-repo` via the Rollout volumes/configMap/name rule
+        # taught in kustomize-config/name-reference.yaml.
+        - name: feast-template
+          configMap:
+            name: feast-feature-repo
+        - name: feast-repo
+          emptyDir: {}
 ---
 # Local AnalysisTemplate alias — mirrors the platform one from argo-rollouts
 # namespace so Rollout `templateName` lookup resolves in-namespace (Argo

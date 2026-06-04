@@ -21,9 +21,6 @@ services/                           <- Domain-specific extensions
     batch/
       transformers/technical.py     <- Adds MACD, Bollinger, ATR, OBV, MFI, VWAP (ta lib)
       requirements-extra.txt        <- Extra Python deps (ta>=0.11.0)
-    feature-store/
-      feature_store.yaml            <- Feast config (ClickHouse offline + Redis online)
-      definitions.py                <- Feast feature views (OHLCV, momentum, sentiment)
   dashboard/
     frontend/
       src/config/domain.ts          <- Crypto labels (BUY/SELL/HOLD), price mock data
@@ -54,7 +51,7 @@ extra dependencies.
 | K8s manifests           | `manifests/base/` + `manifests/overlays/` | Kustomize deployment     |
 | Pipeline config         | `manifests/base/configmaps/*.yaml`        | Domain-specific settings |
 | Batch transformers      | `services/processing/batch/transformers/` | Crypto TA indicators     |
-| Feature store           | `services/processing/feature-store/`      | Feast definitions        |
+| Feast feature repo      | `manifests/base/configmaps/feast.yaml`    | Feast repo (templated ConfigMap) |
 | Dashboard domain config | `services/dashboard/frontend/src/config/` | BUY/SELL/HOLD labels     |
 | ML-Bridge prediction    | `services/dashboard/ml-bridge/services/`  | Crypto prediction fields |
 | Database init           | `database/init_clickhouse.sql`            | Crypto-specific tables   |

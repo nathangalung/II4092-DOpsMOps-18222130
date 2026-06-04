@@ -26,7 +26,11 @@ spec:
                 input_topic: "crypto.validated"
                 output_topic: "crypto.features.v1"
                 group_id: "feature-engine"
-              valkey:
+              # Struct field is `redis` (RedisConfig in config.rs) — Valkey speaks
+              # the RESP protocol, so the client/config key stays `redis` while the
+              # server is Valkey. Writing `valkey:` here left the field unset → the
+              # default redis://localhost:6379 → "Connection refused (os error 111)".
+              redis:
                 url: "redis://valkey.storage.svc.cluster.local:6379"
                 ttl_seconds: 3600
               grpc_port: 50051

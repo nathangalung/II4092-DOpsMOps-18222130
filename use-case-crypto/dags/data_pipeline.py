@@ -27,60 +27,24 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.providers.cncf.kubernetes.operators.pod import (
-    KubernetesPodOperator,
-)
-# k8s.V1* models — KubernetesPodOperator rejects dict forms on the
-# cncf.kubernetes provider shipped with Airflow 2.8+ (V1VolumeMount /
-# V1ResourceRequirements API-call failure). Use typed models here.
+# k8s.V1EnvVar is used directly in this file (batch_features env_vars override).
+# KubernetesPodOperator and the pod factory live in _config.py.
 from kubernetes.client import models as k8s
 
 # Pushgateway DAG-outcome callbacks — emits one `crypto_job_*` series per
 # DagRun so SLO panels render Airflow alongside CronJob + Tekton runs.
-from _observability import push_on_failure, push_on_success
+# DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
+# not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
+# directory on sys.path — `from _observability import …` then raises
+# ModuleNotFoundError at parse time. Register this file's own directory first
+# so the shared sibling module resolves regardless of where DAGS_FOLDER points.
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
-# ─────────────────────────────────────────────────────────────
-# Configuration — read from Airflow Variables (declarative, not hardcoded).
-#
-# Single knob `USE_CASE` derives every domain-coupled name (namespace,
-# image prefix, ConfigMap, Secret). Cloning this file to a new use-case
-# means: rename the file + dag_id strings and set `USE_CASE=<name>` in
-# Airflow Variables — the rest of the body stays identical.
-#
-# Setup:
-#   airflow variables set USE_CASE                    crypto
-#   airflow variables set USE_CASE_NAMESPACE          use-case-crypto
-#   airflow variables set USE_CASE_REGISTRY           localhost:5000
-#   airflow variables set USE_CASE_IMAGE_TAG          v1.0.0
-#   # optional overrides (defaults derive from USE_CASE):
-#   airflow variables set USE_CASE_PIPELINE_CONFIGMAP crypto-pipeline-config
-#   airflow variables set USE_CASE_PIPELINE_SECRET    crypto-pipeline-secrets
-#   airflow variables set USE_CASE_IMAGE_PREFIX       crypto
-# ─────────────────────────────────────────────────────────────
-from airflow.models import Variable
+sys.path.append(str(Path(__file__).resolve().parent))
 
-USE_CASE = Variable.get("USE_CASE", default_var="crypto")
-NAMESPACE = Variable.get(
-    "USE_CASE_NAMESPACE", default_var=f"use-case-{USE_CASE}"
-)
-REGISTRY = Variable.get("USE_CASE_REGISTRY", default_var="localhost:5000")
-IMAGE_TAG = Variable.get("USE_CASE_IMAGE_TAG", default_var="latest")
-IMAGE_PREFIX = Variable.get("USE_CASE_IMAGE_PREFIX", default_var=USE_CASE)
-PIPELINE_CONFIGMAP = Variable.get(
-    "USE_CASE_PIPELINE_CONFIGMAP", default_var=f"{USE_CASE}-pipeline-config"
-)
-PIPELINE_SECRET = Variable.get(
-    "USE_CASE_PIPELINE_SECRET", default_var=f"{USE_CASE}-pipeline-secrets"
-)
-
-ENV_FROM_SOURCES = [
-    k8s.V1EnvFromSource(
-        config_map_ref=k8s.V1ConfigMapEnvSource(name=PIPELINE_CONFIGMAP),
-    ),
-    k8s.V1EnvFromSource(
-        secret_ref=k8s.V1SecretEnvSource(name=PIPELINE_SECRET),
-    ),
-]
+from _observability import push_on_failure, push_on_success  # noqa: E402
+from _config import USE_CASE, FEAST_REPO_CONFIGMAP, _image, k8s_pod  # noqa: E402
 
 DEFAULT_ARGS = {
     "owner": "mlops-platform",
@@ -91,50 +55,13 @@ DEFAULT_ARGS = {
 }
 
 
-def _image(name: str) -> str:
-    """Build full image reference from service name."""
-    return f"{REGISTRY}/{IMAGE_PREFIX}-{name}:{IMAGE_TAG}"
-
-
-def k8s_pod(
-    task_id: str,
-    image: str,
-    cmds: list[str],
-    args: list[str] | None = None,
-    cpu_req: str = "100m",
-    mem_req: str = "256Mi",
-    cpu_lim: str = "500m",
-    mem_lim: str = "1Gi",
-    **kwargs,
-) -> KubernetesPodOperator:
-    """Factory for KubernetesPodOperator with standard config."""
-    return KubernetesPodOperator(
-        task_id=task_id,
-        name=f"airflow-{task_id}",
-        namespace=NAMESPACE,
-        image=image,
-        cmds=cmds,
-        arguments=args or [],
-        env_from=ENV_FROM_SOURCES,
-        image_pull_policy="IfNotPresent",
-        is_delete_operator_pod=True,
-        get_logs=True,
-        startup_timeout_seconds=300,
-        container_resources=k8s.V1ResourceRequirements(
-            requests={"cpu": cpu_req, "memory": mem_req},
-            limits={"cpu": cpu_lim, "memory": mem_lim},
-        ),
-        **kwargs,
-    )
-
-
 # ═════════════════════════════════════════════════════════════
 # DAG 1: Hourly Feature Pipeline
 # ═════════════════════════════════════════════════════════════
 # Dependency chain: batch_features → feast_materialize → sentiment
 #
 # batch_features computes technical indicators from raw OHLCV
-# feast_materialize pushes features to Redis online store
+# feast_materialize pushes features to the Valkey online store
 # sentiment aggregates sentiment scores into windowed features
 # ═════════════════════════════════════════════════════════════
 with DAG(
@@ -146,6 +73,10 @@ with DAG(
     schedule="30 * * * *",
     start_date=datetime(2026, 4, 1),
     catchup=False,
+    # Auto-activate on first git-sync load (platform default pauses new DAGs
+    # via DAGS_ARE_PAUSED_AT_CREATION=True). Safe — catchup=False. The
+    # daily_backfill DAG below keeps the default (paused) because catchup=True.
+    is_paused_upon_creation=False,
     tags=["crypto", "features", "hourly"],
     max_active_runs=1,
     on_success_callback=push_on_success,
@@ -155,26 +86,66 @@ with DAG(
     batch_features = k8s_pod(
         "batch_features",
         image=_image("batch-processing"),
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         args=["--mode", "features"],
+        # Decouple the batch WRITE target from the trainer READ target. The
+        # shared pipeline-config sets FEATURES_TABLE=gold.fct_training_data
+        # (the dbt-owned mart the trainer reads). The batch job must NOT write
+        # there — gold is dbt-materialised, and the computed superset would hit
+        # NO_SUCH_COLUMN. It writes the wide bronze feature table instead, which
+        # (a) holds all technical-indicator columns and (b) is exactly what the
+        # Feast online feature views read — so this also populates online
+        # serving (fixes the train/serve "Feast returns 0" seam). An explicit
+        # env var overrides the envFrom ConfigMap value for this key only.
+        # (Proper long-term: give the trainer a distinct TRAINING_TABLE env so
+        # the two concerns never share FEATURES_TABLE.)
+        env_vars=[
+            k8s.V1EnvVar(
+                name="FEATURES_TABLE", value="bronze.crypto_ohlcv_features"
+            )
+        ],
         cpu_req="250m",
         mem_req="512Mi",
         cpu_lim="1",
         mem_lim="2Gi",
     )
 
+    # feast_materialize renders feature_store.yaml from the feast-feature-repo
+    # ConfigMap template at pod start (FEAST_TEMPLATE_DIR → FEAST_REPO_PATH),
+    # runs `feast apply`, then materializes bronze (ClickHouse) → Valkey online.
+    # The template is mounted read-only; rendering targets a writable emptyDir.
+    # CLICKHOUSE_USER/PASSWORD + VALKEY_PASSWORD (template ${VAR}s) and the S3
+    # registry creds/endpoint arrive via the pipeline-config + pipeline-secrets
+    # envFrom (ENV_FROM_SOURCES) — nothing hardcoded here.
     feast_materialize = k8s_pod(
         "feast_materialize",
         image=_image("materialization"),
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         cpu_req="100m",
         mem_req="256Mi",
+        env_vars=[
+            k8s.V1EnvVar(name="FEAST_TEMPLATE_DIR", value="/opt/feast-template"),
+            k8s.V1EnvVar(name="FEAST_REPO_PATH", value="/opt/feast-repo"),
+        ],
+        volumes=[
+            k8s.V1Volume(
+                name="feast-template",
+                config_map=k8s.V1ConfigMapVolumeSource(name=FEAST_REPO_CONFIGMAP),
+            ),
+            k8s.V1Volume(name="feast-repo", empty_dir=k8s.V1EmptyDirVolumeSource()),
+        ],
+        volume_mounts=[
+            k8s.V1VolumeMount(
+                name="feast-template", mount_path="/opt/feast-template", read_only=True
+            ),
+            k8s.V1VolumeMount(name="feast-repo", mount_path="/opt/feast-repo"),
+        ],
     )
 
     batch_sentiment = k8s_pod(
         "batch_sentiment",
         image=_image("batch-processing"),
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         args=["--mode", "sentiment"],
         cpu_req="100m",
         mem_req="256Mi",
@@ -188,8 +159,8 @@ with DAG(
     drift_check = k8s_pod(
         "drift_check",
         image=_image("drift-detector"),
-        cmds=["uv", "run", "main.py"],
-        args=["--scale", "hour", "--once"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
+        args=["--scale", "hourly", "--once"],
         cpu_req="100m",
         mem_req="256Mi",
     )
@@ -199,7 +170,7 @@ with DAG(
     scoring = k8s_pod(
         "scoring",
         image=_image("ml-bridge"),
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         args=["--mode", "batch-score"],
         cpu_req="100m",
         mem_req="256Mi",

@@ -336,8 +336,8 @@ data:
   # Flink Kubernetes Operator webhook defaults ~15 fields on FlinkDeployment
   # spec (jobManager/taskManager replicas defaults, restart-strategy
   # full config block, ingress class, podTemplate defaults). Without this
-  # carve-out the crypto FlinkDeployment (flink/flinkdeployment.yaml)
-  # reports OutOfSync after the operator mutates it.
+  # carve-out, any use-case FlinkDeployment reports OutOfSync after the
+  # operator mutates it.
   resource.customizations.ignoreDifferences.flink.apache.org_FlinkDeployment: |
     jsonPointers:
       - /spec/jobManager/resource/ephemeralStorage
@@ -348,8 +348,8 @@ data:
       - '.spec.flinkConfiguration."kubernetes.internal.jobmanager.entrypoint.args"'
   # ---------------------------------------------------------------------------
   # Argo Rollouts webhook defaults strategy.canary/blueGreen sub-fields.
-  # The crypto ml-bridge Rollout uses `strategy.canary` with explicit
-  # steps; the operator pads scale-down/abort-defaults that Git omits.
+  # Use-case Rollouts using `strategy.canary` with explicit steps trip this
+  # because the operator pads scale-down/abort-defaults that Git omits.
   resource.customizations.ignoreDifferences.argoproj.io_Rollout: |
     jsonPointers:
       - /spec/progressDeadlineSeconds
@@ -385,7 +385,7 @@ data:
       - '.spec.earlyStopping'
   # ---------------------------------------------------------------------------
   # Strimzi cluster-operator webhook defaults config blocks on every KafkaTopic
-  # and KafkaUser. Use-case-crypto declares 4 KafkaTopics + 1 KafkaUser via
+  # and KafkaUser. Use-cases typically declare KafkaTopics + KafkaUser via
   # cross-namespace (kafka-topics/, kafka-users/). Strimzi enriches each with
   # status + spec defaults.
   resource.customizations.ignoreDifferences.kafka.strimzi.io_KafkaTopic: |
@@ -560,3 +560,11 @@ data:
       - cert-manager
       - external-secrets
       - strimzi-cluster-operator
+    # ESO populates `.data` via client-side apply (last-applied-configuration
+    # annotation, no SSA), so managedFieldsManagers above doesn't catch it.
+    # Fall back to jq-path ignore for Secrets carrying ESO's reconcile-managed
+    # label or data-hash annotation. Source declares `data: {}` as placeholder.
+    # Field-validated 2026-05-28 on `crypto-kserve-storage-secret`.
+    jqPathExpressions:
+      - 'select(.metadata.labels."reconcile.external-secrets.io/managed" == "true") | .data'
+      - 'select(.metadata.annotations."reconcile.external-secrets.io/data-hash" != null) | .data'

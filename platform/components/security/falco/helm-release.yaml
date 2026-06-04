@@ -172,9 +172,15 @@ spec:
               prefix: events/
               s3forcepathstyle: true
               minimumpriority: warning
-          # HA for the sidekick webhook endpoint.
+          # webui DISABLED (2026-05-29): the bundled redis/redis-stack StatefulSet
+          # OOM/RDB-thrashed on the single-disk node (451 restarts — persisted dump
+          # reload + BGSAVE loop saturating sda). The UI is redundant: every alert
+          # already fans out to Loki (Grafana visualises), Alertmanager, and the
+          # `falco-audit` S3 bucket per the `config:` block above. Disabling drops a
+          # chronically-broken component AND relieves IO. Re-enable with a non-
+          # persistent redis (`--save "" --appendonly no`) if a dashboard is needed.
           webui:
-            enabled: true
+            enabled: false
             replicaCount: 1
             image:
               repository: falcosecurity/falcosidekick-ui
@@ -208,8 +214,15 @@ spec:
     namespace: falco
   syncPolicy:
     automated:
-      # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
-      prune: false
+      # prune RE-ENABLED for falco (per the "re-enable per app once stable"
+      # guidance): disabling the falcosidekick web-ui (webui.enabled:false, to
+      # kill the redis RDB-thrash, see values above) removes the web-ui
+      # Deployment + its redis StatefulSet from the rendered desired state.
+      # With prune:false ArgoCD leaves those orphans running (the 451-restart
+      # redis keeps thrashing); prune:true lets the next sync delete them.
+      # selfHeal stays false — single-node tuning may still hand-tweak the
+      # falco DaemonSet without Argo reverting it.
+      prune: true
       selfHeal: false
       allowEmpty: false
     syncOptions:

@@ -47,9 +47,23 @@ spec:
               drop: ["ALL"]
           # Shell form required: K8s $(VAR) only resolves env[] entries, not
           # envFrom values. `sh -c exec …` lets the shell expand at start.
+          #
+          # `--save "" --appendonly no`: run as a PURE IN-MEMORY cache (this is
+          # the `component: cache` — contents are re-derivable, e.g. Flink-
+          # computed features). REQUIRED on this pod: it has readOnlyRootFile
+          # system=true and NO writable volume at the default data dir `/data`,
+          # so the moment Valkey hits an RDB save point it fails with "Failed
+          # opening the temp RDB file … Read-only file system" → with the
+          # default `stop-writes-on-bgsave-error yes` it then BLOCKS ALL WRITES
+          # (clients see `MISCONF Valkey is configured to save RDB snapshots,
+          # but it's currently unable to persist to disk`). That silently broke
+          # the Flink feature job (#feature→gold path). Disabling persistence
+          # removes the bgsave attempt entirely and also drops needless disk IO
+          # on the single-node disk. Need durability later? add a writable
+          # emptyDir/PVC at /data and re-enable `save`.
           command: ["sh", "-c"]
           args:
-            - 'exec valkey-server --requirepass "$VALKEY_PASSWORD"'
+            - 'exec valkey-server --requirepass "$VALKEY_PASSWORD" --save "" --appendonly no'
           envFrom:
             - secretRef:
                 name: valkey-auth

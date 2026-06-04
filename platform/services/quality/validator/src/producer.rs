@@ -17,8 +17,15 @@ impl KafkaProducer {
     pub fn new(config: &KafkaConfig) -> Result<Self> {
         let mut cc = ClientConfig::new();
         cc.set("bootstrap.servers", &config.brokers)
-            .set("message.timeout.ms", "5000")
-            .set("compression.type", "lz4");
+            // 120s (not 5s): the single-node KRaft controller can stall
+            // multi-second on metadata-log fsync under IO pressure, surfacing
+            // spurious MessageTimedOut on a 5s budget. 120s absorbs the stalls.
+            .set("message.timeout.ms", "120000")
+            // zstd: universally supported by librdkafka + matches Strimzi broker
+            // `compression.type=zstd`. lz4 here previously triggered consumer
+            // "Decompression (codec 0x4) ... Not implemented" on the rdkafka
+            // crate builds that omit lz4-sys (e.g. feature-engine image).
+            .set("compression.type", "zstd");
         config.apply_security(&mut cc);
         let producer: FutureProducer = cc.create()?;
 

@@ -432,6 +432,81 @@ spec:
         echo "=== Build and push completed ==="
 ---
 # =============================================================================
+# TASK: push-pipeline-metrics — Pushgateway emitter for Tekton `finally` hooks
+# =============================================================================
+# Referenced by the `finally:` block of the crypto build-pipeline. Translates
+# Tekton's aggregate-status string into the same `crypto_job_*` metric family
+# the CronJobs publish, so SLOs over batch + pipeline outcomes share one label
+# key.
+#
+# The push-helper ConfigMap (push_metrics.py) does the actual HTTP call so we
+# never depend on `curl` being in the alpine task image and we keep one
+# canonical metric shape across cronjobs, dbt, and Tekton.
+# =============================================================================
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: push-pipeline-metrics-task
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: observability
+    mlops-platform.io/use-case: crypto
+spec:
+  params:
+    - { name: pipeline-name,    type: string }
+    - { name: pipelinerun-name, type: string }
+    - { name: aggregate-status, type: string,
+        description: "Tekton $(tasks.status): Succeeded | Failed | Completed | None" }
+    - { name: job-label,        type: string,
+        description: "pushgateway job label (e.g. tekton_build_pipeline)" }
+  steps:
+    - name: emit
+      image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+      env:
+        - { name: PUSHGATEWAY_URL, value: "http://pushgateway.observability.svc.cluster.local:9091" }
+        - { name: USE_CASE,        value: "crypto" }
+        - { name: HOME,            value: "/tmp" }
+        - { name: UV_CACHE_DIR,    value: "/tmp/.uv-cache" }
+        - { name: UV_LINK_MODE,    value: "copy" }
+        - { name: PIPELINE_NAME,   value: "$(params.pipeline-name)" }
+        - { name: PIPELINERUN,     value: "$(params.pipelinerun-name)" }
+        - { name: AGG_STATUS,      value: "$(params.aggregate-status)" }
+        - { name: JOB_LABEL,       value: "$(params.job-label)" }
+      volumeMounts:
+        - { name: push-helper, mountPath: /scripts, readOnly: true }
+      script: |
+        #!/bin/sh
+        set -u
+        # Tekton aggregate-status string → numeric rc:
+        #   Succeeded | Completed → 0
+        #   Failed                → 1
+        #   None                  → 2 (no tasks ran — startup-time abort)
+        case "${AGG_STATUS}" in
+          Succeeded|Completed) RC=0 ;;
+          Failed)              RC=1 ;;
+          *)                   RC=2 ;;
+        esac
+        INSTANCE="${PIPELINERUN}"
+        export INSTANCE
+        echo "[finally] pipeline=${PIPELINE_NAME} run=${PIPELINERUN} status=${AGG_STATUS} rc=${RC}"
+        uv run /scripts/push_metrics.py \
+          --job "${JOB_LABEL}" \
+          --rc "${RC}" \
+          --instance "${INSTANCE}" \
+          --use-case "${USE_CASE}"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        capabilities: { drop: [ALL] }
+  volumes:
+    - name: push-helper
+      configMap:
+        name: push-helper
+        defaultMode: 0555
+---
+# =============================================================================
 # TRIGGER: Gitea webhook → Pipeline Run
 # =============================================================================
 apiVersion: triggers.tekton.dev/v1beta1

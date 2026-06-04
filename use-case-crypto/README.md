@@ -70,7 +70,7 @@ use-case-crypto/
 │   └── services.yaml        # Which services to enable/disable
 ├── services/                # Crypto-specific service code
 │   ├── ingestion/           # REST + WebSocket collectors
-│   ├── processing/          # Batch, stream, vector, feature-store
+│   ├── processing/          # Batch, stream, vector
 │   ├── training/            # Trainer extensions
 │   └── dashboard/           # Backend, frontend, ML bridge
 ├── manifests/               # Kubernetes manifests

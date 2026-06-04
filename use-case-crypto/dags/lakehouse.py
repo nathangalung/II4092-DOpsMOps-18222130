@@ -25,16 +25,20 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.providers.cncf.kubernetes.operators.pod import (
-    KubernetesPodOperator,
-)
-# k8s.V1* models — KubernetesPodOperator requires typed models for env_from,
-# volumes, container_resources etc. on recent cncf.kubernetes providers.
-from kubernetes.client import models as k8s
-
+from airflow.providers.standard.operators.python import PythonOperator
 # Pushgateway DAG-outcome callbacks (shared module).
-from _observability import push_on_failure, push_on_success
+# DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
+# not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
+# directory on sys.path — `from _observability import …` then raises
+# ModuleNotFoundError at parse time. Register this file's own directory first
+# so the shared sibling module resolves regardless of where DAGS_FOLDER points.
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+sys.path.append(str(Path(__file__).resolve().parent))
+
+from _observability import push_on_failure, push_on_success  # noqa: E402
+from _config import USE_CASE, _image, k8s_pod  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -146,33 +150,10 @@ def _ol_run_id(context: dict) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
 
 # ─────────────────────────────────────────────────────────────
-# Configuration — read from Airflow Variables (declarative, not hardcoded).
-# See data_pipeline.py for the full Variable contract; this DAG
-# uses the same `USE_CASE`-derived knobs so a clone needs no body edits.
+# Configuration — USE_CASE-derived names come from _config.py (single source).
+# See _config.py for the full Variable contract; this DAG uses the same
+# `USE_CASE`-derived knobs so a clone needs no body edits.
 # ─────────────────────────────────────────────────────────────
-# NOTE: Variable is imported above (alongside OpenLineage helpers).
-USE_CASE = Variable.get("USE_CASE", default_var="crypto")
-NAMESPACE = Variable.get(
-    "USE_CASE_NAMESPACE", default_var=f"use-case-{USE_CASE}"
-)
-REGISTRY = Variable.get("USE_CASE_REGISTRY", default_var="localhost:5000")
-IMAGE_TAG = Variable.get("USE_CASE_IMAGE_TAG", default_var="latest")
-IMAGE_PREFIX = Variable.get("USE_CASE_IMAGE_PREFIX", default_var=USE_CASE)
-PIPELINE_CONFIGMAP = Variable.get(
-    "USE_CASE_PIPELINE_CONFIGMAP", default_var=f"{USE_CASE}-pipeline-config"
-)
-PIPELINE_SECRET = Variable.get(
-    "USE_CASE_PIPELINE_SECRET", default_var=f"{USE_CASE}-pipeline-secrets"
-)
-
-ENV_FROM_SOURCES = [
-    k8s.V1EnvFromSource(
-        config_map_ref=k8s.V1ConfigMapEnvSource(name=PIPELINE_CONFIGMAP),
-    ),
-    k8s.V1EnvFromSource(
-        secret_ref=k8s.V1SecretEnvSource(name=PIPELINE_SECRET),
-    ),
-]
 
 # LakeFS configuration — reads from Airflow Variables with ConfigMap-aligned defaults
 LAKEFS_ENDPOINT = Variable.get("LAKEFS_URL", default_var="http://lakefs.storage.svc.cluster.local:8000")
@@ -206,43 +187,6 @@ DEFAULT_ARGS = {
 }
 
 
-def _image(name: str) -> str:
-    """Build full image reference from service name."""
-    return f"{REGISTRY}/{IMAGE_PREFIX}-{name}:{IMAGE_TAG}"
-
-
-def k8s_pod(
-    task_id: str,
-    image: str,
-    cmds: list[str],
-    args: list[str] | None = None,
-    cpu_req: str = "100m",
-    mem_req: str = "256Mi",
-    cpu_lim: str = "500m",
-    mem_lim: str = "1Gi",
-    **kwargs,
-) -> KubernetesPodOperator:
-    """Factory for KubernetesPodOperator with standard config."""
-    return KubernetesPodOperator(
-        task_id=task_id,
-        name=f"airflow-{task_id}",
-        namespace=NAMESPACE,
-        image=image,
-        cmds=cmds,
-        arguments=args or [],
-        env_from=ENV_FROM_SOURCES,
-        image_pull_policy="IfNotPresent",
-        is_delete_operator_pod=True,
-        get_logs=True,
-        startup_timeout_seconds=300,
-        container_resources=k8s.V1ResourceRequirements(
-            requests={"cpu": cpu_req, "memory": mem_req},
-            limits={"cpu": cpu_lim, "memory": mem_lim},
-        ),
-        **kwargs,
-    )
-
-
 # ─────────────────────────────────────────────────────────────
 # LakeFS helper functions
 # ─────────────────────────────────────────────────────────────
@@ -269,6 +213,56 @@ def _branch_name(run_id: str) -> str:
     """Deterministic branch name from the Airflow run ID."""
     sanitized = run_id.replace(":", "_").replace("+", "_")
     return f"dbt-run-{sanitized}"
+
+
+def ensure_lakefs_repo_fn(**context) -> None:
+    """Idempotently ensure the LakeFS repository exists before any branch op.
+
+    This DAG owns the full LakeFS lifecycle (repo -> branch -> dbt -> merge),
+    so it provisions its own repository on first run rather than depending on a
+    separate bootstrap Job plus a duplicated lakefs-admin ExternalSecret in this
+    namespace — the scheduler already carries the admin credentials via
+    `airflow-secrets` (see `_lakefs_auth`). Keeping repo provisioning here is
+    cohesive, self-healing (recreates the repo if it is ever lost), and avoids
+    redundant infrastructure.
+
+    Idempotency: an existing repo returns 200 (no-op); a missing repo returns
+    404 and is created; concurrent / catch-up runs that race the POST get 409,
+    which is treated as success.
+
+    `storage_namespace` is one prefix per repo under the platform MinIO `lakefs`
+    bucket (created by platform/components/storage/minio/bucket-bootstrap.yaml) —
+    the standard LakeFS S3 blockstore layout.
+    """
+    repo_url = f"{LAKEFS_ENDPOINT}/api/v1/repositories/{LAKEFS_REPO}"
+    get = requests.get(
+        repo_url, headers=_lakefs_headers(), auth=_lakefs_auth(), timeout=30
+    )
+    if get.status_code == 200:
+        logger.info("LakeFS repo '%s' already exists", LAKEFS_REPO)
+        return
+    if get.status_code != 404:
+        get.raise_for_status()
+
+    storage_ns = f"s3://lakefs/{LAKEFS_REPO}"
+    logger.info(
+        "LakeFS repo '%s' missing — creating (storage_namespace=%s, default_branch=%s)",
+        LAKEFS_REPO, storage_ns, LAKEFS_MAIN_BRANCH,
+    )
+    resp = requests.post(
+        f"{LAKEFS_ENDPOINT}/api/v1/repositories",
+        headers=_lakefs_headers(),
+        auth=_lakefs_auth(),
+        json={
+            "name": LAKEFS_REPO,
+            "storage_namespace": storage_ns,
+            "default_branch": LAKEFS_MAIN_BRANCH,
+        },
+        timeout=60,
+    )
+    if resp.status_code not in (201, 409):
+        resp.raise_for_status()
+    logger.info("LakeFS repo '%s' ready (HTTP %d)", LAKEFS_REPO, resp.status_code)
 
 
 def create_lakefs_branch_fn(**context) -> str:
@@ -386,7 +380,7 @@ def trino_quality_check_fn(**context) -> None:
     Compares ClickHouse gold layer row counts against PostgreSQL
     pipeline.predictions to detect data inconsistencies.
     """
-    import trino as trino_client  # noqa: delayed import — available in Airflow image
+    import trino as trino_client  # delayed import — available in Airflow image
 
     ol_run_id = _ol_run_id(context)
     ch_input = _ol_dataset(
@@ -500,11 +494,24 @@ with DAG(
     schedule="15 */6 * * *",
     start_date=datetime(2026, 4, 1),
     catchup=False,
+    # Auto-activate on first git-sync load: the platform scheduler sets
+    # AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True, so without this the
+    # gold-building dbt run would sit paused forever and gold would never
+    # populate on schedule. Safe here because catchup=False (no backfill
+    # storm). The daily_backfill DAG (catchup=True) is intentionally left
+    # paused — operators trigger backfills manually.
+    is_paused_upon_creation=False,
     tags=["crypto", "dbt", "lakefs", "trino", "quality", "6h"],
     max_active_runs=1,
     on_success_callback=push_on_success,
     on_failure_callback=push_on_failure,
 ) as dag:
+
+    # ── Step 0: Ensure the LakeFS repository exists (idempotent) ──
+    ensure_lakefs_repo = PythonOperator(
+        task_id="ensure_lakefs_repo",
+        python_callable=ensure_lakefs_repo_fn,
+    )
 
     # ── Step 1: Create LakeFS branch ───────────────────────
     create_lakefs_branch = PythonOperator(
@@ -540,7 +547,7 @@ with DAG(
     evidently_report = k8s_pod(
         "evidently_report",
         image=_image("drift-reporter"),
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         cpu_req="100m",
         mem_req="256Mi",
     )
@@ -553,6 +560,6 @@ with DAG(
     )
 
     # ── Dependency wiring ──────────────────────────────────
-    create_lakefs_branch >> dbt_run >> [trino_quality_check, merge_lakefs_branch]
+    ensure_lakefs_repo >> create_lakefs_branch >> dbt_run >> [trino_quality_check, merge_lakefs_branch]
     merge_lakefs_branch >> evidently_report
     dbt_run >> delete_lakefs_branch

@@ -75,18 +75,19 @@ spec:
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop: ["ALL"]
-              # Wrap `python main.py` in shell that emits the run outcome
-              # to Pushgateway via the same push-helper ConfigMap that
+              # Wrap the entrypoint in a shell that emits the run outcome to
+              # Pushgateway via the same push-helper ConfigMap the
               # rest-collector CronJobs use. Image already has /bin/sh.
-              # `python` resolves via Dockerfile PATH (/app/.venv/bin) —
-              # `uv run` at runtime triggers editable rebuild needing
-              # hatchling from PyPI which fails air-gapped.
+              # UV mandate: `uv run --no-sync` runs the baked venv WITHOUT
+              # re-syncing, so it never triggers the editable rebuild
+              # (hatchling from PyPI) that fails air-gapped — same pattern the
+              # image's own download_model step uses.
               command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -u
                   . /scripts/push_job_metrics.sh
-                  run_and_push python main.py --mode embeddings
+                  run_and_push uv run --no-sync main.py --mode embeddings
               envFrom:
                 - configMapRef:
                     name: pipeline-config

@@ -128,8 +128,12 @@ class OutlierDetector:
     def _store_outliers(self, outliers: pd.DataFrame) -> None:
         """Store outliers to ClickHouse."""
         try:
+            # Env-driven result table (OUTLIER_RESULTS_TABLE) so the use-case can
+            # schema-qualify it; crypto sets `gold.quality_outliers` (the base table —
+            # `features.quality_outliers` is a read-only View). Default stays the bare
+            # name to keep this platform service domain-agnostic.
             self.client.insert(
-                "quality_outliers",
+                os.getenv("OUTLIER_RESULTS_TABLE", "quality_outliers"),
                 outliers.values.tolist(),
                 column_names=list(outliers.columns),
             )

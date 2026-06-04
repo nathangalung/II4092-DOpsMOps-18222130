@@ -318,11 +318,11 @@ Verification:
 ```bash
 # Trigger the DAG once:
 kubectl -n data-processing exec deploy/airflow-scheduler -- \
-  airflow dags trigger crypto_lakehouse_dag
+  airflow dags trigger crypto_lakehouse
 # Tail DataHub GMS for incoming RunEvents:
 kubectl -n data-governance logs deploy/datahub-gms --since=5m | grep -i openlineage
 # DataHub UI: navigate to Datasets → crypto.gold.* → Lineage tab;
-# the crypto_lakehouse_dag run should appear within 60s.
+# the crypto_lakehouse run should appear within 60s.
 ```
 
 Rollback: revert the DAG commit. The helpers are no-op if

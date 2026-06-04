@@ -55,6 +55,13 @@ spec:
     # controller that reconciles them; the crypto use-case owns crypto-*
     # chaos experiments (manifests/base/chaos-mesh/*.yaml).
     - { namespace: chaos-mesh,      server: https://kubernetes.default.svc }
+    # clickhouse-kafka-sasl ExternalSecret lands in `storage` (where the
+    # platform ClickHouse CHI reads it for the Kafka-engine SASL creds, #464).
+    - { namespace: storage,         server: https://kubernetes.default.svc }
+    # airflow-dags-source-override ConfigMap lands in `data-processing` (where
+    # the platform Airflow git-sync reads it to clone this use-case's DAGs —
+    # see manifests/airflow-dags-binding/ + argocd/airflow-dags-binding.yaml).
+    - { namespace: data-processing, server: https://kubernetes.default.svc }
   clusterResourceWhitelist:
     - { group: "",                          kind: Namespace }
     - { group: "rbac.authorization.k8s.io", kind: ClusterRole }

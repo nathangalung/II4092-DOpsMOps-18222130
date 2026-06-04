@@ -23,7 +23,7 @@ KF-03 & Jaminan Validitas Temporal & Sistem secara bawaan menjamin \textit{point
 \hline
 KF-04 & Dukungan \textit{Vector Embeddings} & Sistem mendukung penyimpanan, pengindeksan, dan \textit{serving vector embeddings} pada indeks vektor terpisah berbasis Qdrant dengan \textit{similarity search} HNSW melalui antarmuka gRPC dan filter \textit{payload}, dengan target latensi p99 sub-detik untuk volume permintaan menengah. & Tinggi \\
 \hline
-KF-05 & Otomatisasi \textit{Pipeline} Pelatihan & Sistem menyediakan \textit{pipeline} otomatis untuk mengorkestrasi proses pelatihan model dari ujung ke ujung melalui Kubeflow Pipelines dan Tekton, terintegrasi dengan Feast sebagai \textit{feature store}, MLflow untuk \textit{experiment tracking} dan \textit{model registry}, serta Katib untuk \textit{hyperparameter tuning}, sehingga mendukung otomasi setara MLOps Level 2. & Tinggi \\
+KF-05 & Otomatisasi \textit{Pipeline} Pelatihan & Sistem menyediakan \textit{pipeline} otomatis untuk mengorkestrasi proses pelatihan model dari ujung ke ujung melalui Kubeflow Pipelines, terintegrasi dengan Feast sebagai \textit{feature store}, MLflow untuk \textit{experiment tracking} dan \textit{model registry}, serta Katib untuk \textit{hyperparameter tuning}, sehingga mendukung otomasi setara MLOps Level 2. & Tinggi \\
 \hline
 KF-06 & Otomatisasi Penerapan Model & Sistem mengotomatisasi \textit{deployment} model yang telah lulus validasi ke \textit{inference endpoint} produksi melalui KServe \textit{InferenceService} di atas Knative Serving, serta mendukung strategi \textit{rolling update}, \textit{canary deployment}, dan \textit{progressive delivery} berbasis Argo Rollouts dengan mekanisme \textit{rollback} otomatis ketika terjadi degradasi. & Tinggi \\
 \hline

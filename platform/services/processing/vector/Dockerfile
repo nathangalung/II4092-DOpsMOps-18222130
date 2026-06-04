@@ -55,13 +55,15 @@ RUN --mount=type=cache,target=/home/app/.cache/uv,uid=1000,gid=1000 \
 # Copy source with correct ownership baked in (no post-hoc chown).
 COPY --chown=1000:1000 . /app
 RUN --mount=type=cache,target=/home/app/.cache/uv,uid=1000,gid=1000 \
-    uv sync --locked
+    uv sync --locked --no-editable
 
 EXPOSE 8000
 
-# Per uv docs: invoke baked venv directly. `uv run` at runtime triggers
-# an editable rebuild needing hatchling from PyPI — fails air-gapped.
-# Single-stage image: PATH above (/app/.venv/bin) is enough for python
-# to find deps. CronJob may wrap this with push_job_metrics.sh.
+# UV mandate: run via `uv run --no-sync`, not bare `python`. `--no-sync`
+# uses the baked venv WITHOUT re-syncing, so it never triggers the editable
+# rebuild (hatchling from PyPI) that fails air-gapped — and the build above
+# installs the project --no-editable (a real wheel), so there is nothing to
+# rebuild at runtime anyway. CronJob vector-embedding wraps this with
+# push_job_metrics.sh.
 ENTRYPOINT []
-CMD ["python", "main.py"]
+CMD ["uv", "run", "--no-sync", "main.py"]

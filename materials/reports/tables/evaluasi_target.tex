@@ -1,0 +1,77 @@
+{
+\footnotesize
+\begin{longtable}{|>{\centering\arraybackslash}m{1.7cm}|m{5.6cm}|m{4cm}|m{3.1cm}|}
+\caption{Target Metrik, Instrumen Ukur, dan Status Evaluasi per Kebutuhan}
+\label{tab:evaluasi_target} \\
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.6cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{3.1cm}|}{\textbf{Status}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.6cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{3.1cm}|}{\textbf{Status}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+\multicolumn{4}{|l|}{\textbf{Kebutuhan Fungsional}} \\
+\hline
+KF-01 & \textit{Feature view} terversion dan rekonsiliasi otomatis & Feast \textit{registry}, Argo CD, Gitea & Terverifikasi struktural \\
+\hline
+KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, k6 & Menunggu pengukuran beban \\
+\hline
+KF-03 & \textit{Zero leakage} pada \textit{point-in-time join} & Feast PIT, probe \textit{leakage} & Menunggu pengukuran beban \\
+\hline
+KF-04 & \textit{Recall} memenuhi target, latensi sub-detik & Qdrant, k6 & Menunggu pengukuran beban \\
+\hline
+KF-05 & \textit{Pipeline end-to-end}, model terdaftar & Kubeflow Pipelines, MLflow & Terverifikasi struktural \\
+\hline
+KF-06 & Promosi kanari dan \textit{rollback} otomatis & KServe, Argo Rollouts, Prometheus & Terverifikasi struktural \\
+\hline
+KF-07 & \textit{Drift} memicu pelatihan ulang & \textit{drift-detector}, Argo CronWorkflow & Struktural; ketepatan menyusul \\
+\hline
+KF-08 & \textit{Lineage} data ke fitur ke model utuh & DataHub, OpenLineage & Terverifikasi struktural \\
+\hline
+KF-09 & \textit{Run} reproducible, selisih ulang kecil & MLflow & Menunggu pengukuran beban \\
+\hline
+KF-10 & Transisi status dan \textit{audit trail} & MLflow Model Registry & Terverifikasi struktural \\
+\hline
+KF-11 & Paritas fitur \textit{batch} dan \textit{stream} & dbt, Flink & Menunggu pengukuran beban \\
+\hline
+KF-12 & Konvergensi deklaratif tanpa \textit{drift} & Kustomize, Argo CD, Gitea & Terverifikasi struktural \\
+\hline
+KF-13 & Satu sesi memanggil seluruh SDK & SDK Feast, MLflow, KServe & Terverifikasi struktural \\
+\hline
+KF-14 & \textit{Job} luar kuota \textit{Pending}, admisi sesuai & Kueue \textit{ClusterQueue}, HPA, VPA, KEDA & Terverifikasi struktural \\
+\hline
+
+\multicolumn{4}{|l|}{\textbf{Kebutuhan Nonfungsional}} \\
+\hline
+KNF-01 & Latensi p99 sub-detik \textit{serving} dan vektor & k6, SLO Sloth & Menunggu pengukuran beban \\
+\hline
+KNF-02 & \textit{Throughput serving} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-perf-test}, KEDA & Menunggu pengukuran beban \\
+\hline
+KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Menunggu pengukuran beban \\
+\hline
+KNF-04 & Pemulihan otomatis, RTO dan RPO terjaga & Chaos Mesh, Velero, Sloth & Struktural; RTO/RPO menyusul \\
+\hline
+KNF-05 & \textit{Zero} kebocoran data temporal & Great Expectations, probe & Struktural; kebenaran data menyusul \\
+\hline
+KNF-06 & Metrik, log, dan \textit{trace} silang-rujuk & Prometheus, Loki, Tempo, OTel & Terverifikasi struktural \\
+\hline
+KNF-07 & TLS 1.3, AES-256, dan \textit{audit log} aktif & Istio mTLS, KES, OpenBao, Trivy & Terverifikasi struktural \\
+\hline
+KNF-08 & Penggantian komponen terisolasi & CRD, Helm, Kustomize & Terverifikasi struktural \\
+\hline
+KNF-09 & SSO satu sesi, skor survei lewat ambang & dex, oauth2-proxy, survei & Menunggu pengukuran survei \\
+\hline
+KNF-10 & Kompresi, utilisasi, dan atribusi biaya & OpenCost, ClickHouse & Menunggu pengukuran beban \\
+\hline
+KNF-11 & Rekonstruksi penuh dari Git & Argo CD, Kustomize & Terverifikasi struktural \\
+\hline
+KNF-12 & Cakupan uji dan \textit{phase-full} konvergen & Tekton CI, Argo CD & Terverifikasi struktural \\
+\hline
+
+\end{longtable}
+}

@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.cncf.kubernetes.operators.pod import (
     KubernetesPodOperator,
 )
@@ -40,27 +40,27 @@ from airflow.providers.cncf.kubernetes.operators.pod import (
 from kubernetes.client import models as k8s
 
 # Pushgateway DAG-outcome callbacks (shared module).
-from _observability import push_on_failure, push_on_success
+# DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
+# not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
+# directory on sys.path — `from _observability import …` then raises
+# ModuleNotFoundError at parse time. Register this file's own directory first
+# so the shared sibling module resolves regardless of where DAGS_FOLDER points.
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+sys.path.append(str(Path(__file__).resolve().parent))
+
+from _observability import push_on_failure, push_on_success  # noqa: E402
+from _config import (  # noqa: E402
+    USE_CASE, NAMESPACE, REGISTRY, IMAGE_TAG, IMAGE_PREFIX, ENV_FROM_SOURCES,
+)
 
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────
-# Configuration — from Airflow Variables with USE_CASE-derived defaults.
-# See data_pipeline.py for the full Variable contract.
+# Configuration — USE_CASE-derived names come from _config.py (single source).
+# DAG-local additions: OpenLineage namespace/producer for this quality gate.
 # ─────────────────────────────────────────────────────────────
-USE_CASE = Variable.get("USE_CASE", default_var="crypto")
-NAMESPACE = Variable.get(
-    "USE_CASE_NAMESPACE", default_var=f"use-case-{USE_CASE}"
-)
-REGISTRY = Variable.get("USE_CASE_REGISTRY", default_var="localhost:5000")
-IMAGE_TAG = Variable.get("USE_CASE_IMAGE_TAG", default_var="latest")
-IMAGE_PREFIX = Variable.get("USE_CASE_IMAGE_PREFIX", default_var=USE_CASE)
-PIPELINE_CONFIGMAP = Variable.get(
-    "USE_CASE_PIPELINE_CONFIGMAP", default_var=f"{USE_CASE}-pipeline-config"
-)
-PIPELINE_SECRET = Variable.get(
-    "USE_CASE_PIPELINE_SECRET", default_var=f"{USE_CASE}-pipeline-secrets"
-)
 OPENLINEAGE_NAMESPACE = Variable.get(
     "OPENLINEAGE_NAMESPACE", default_var=f"{USE_CASE}-pipeline"
 )
@@ -68,15 +68,6 @@ OPENLINEAGE_PRODUCER = Variable.get(
     "OPENLINEAGE_PRODUCER_QUALITY_GATE",
     default_var=f"airflow-{USE_CASE}-quality-gate",
 )
-
-ENV_FROM_SOURCES = [
-    k8s.V1EnvFromSource(
-        config_map_ref=k8s.V1ConfigMapEnvSource(name=PIPELINE_CONFIGMAP),
-    ),
-    k8s.V1EnvFromSource(
-        secret_ref=k8s.V1SecretEnvSource(name=PIPELINE_SECRET),
-    ),
-]
 
 # Runtime config — resolved lazily inside task callables. Reading os.getenv
 # at module level freezes the values into the scheduler's parsed-DAG cache;
@@ -98,6 +89,10 @@ def _runtime_config() -> dict[str, str | int]:
         "ch_port": int(os.getenv("CLICKHOUSE_PORT", str(_CH_PORT_DEFAULT))),
         "ch_db": os.getenv("CLICKHOUSE_DB", _CH_DB_DEFAULT),
         "openlineage_url": os.getenv("OPENLINEAGE_URL", _OPENLINEAGE_URL_DEFAULT),
+        # DataHub GMS PAT for the OpenLineage Bearer header. Supplied by the
+        # platform airflow-secrets Secret (envFrom on the worker base container);
+        # empty on a platform that pushes to an unauthenticated collector.
+        "openlineage_api_key": os.getenv("OPENLINEAGE_API_KEY", ""),
         "feature_table": os.getenv(
             "TABLE_BRONZE_FEATURES", _FEATURE_TABLE_DEFAULT
         ).split(".")[-1],
@@ -107,7 +102,10 @@ def _runtime_config() -> dict[str, str | int]:
 DEFAULT_ARGS = {
     "owner": "mlops-platform",
     "depends_on_past": False,
-    "retries": 1,
+    # 2 retries (was 1) is the residual self-heal for exogenous single-node
+    # IO storms that the platform Airflow concurrency cap can't throttle;
+    # matches lakehouse/data_pipeline (both retries=2).
+    "retries": 2,
     "retry_delay": timedelta(minutes=3),
     "execution_timeout": timedelta(minutes=30),
 }
@@ -224,11 +222,19 @@ def emit_openlineage_event(**context):
         "outputs": [],
     }
 
+    headers = {"Content-Type": "application/json"}
+    # DataHub GMS runs METADATA_SERVICE_AUTH_ENABLED=true: the OpenLineage POST
+    # is HTTP 401 without a PAT. OPENLINEAGE_API_KEY is the same token the
+    # provider transport's auth.apiKey uses (platform airflow-secrets). Optional
+    # so the DAG still parses/runs against an unauthenticated collector.
+    if cfg["openlineage_api_key"]:
+        headers["Authorization"] = f"Bearer {cfg['openlineage_api_key']}"
+
     try:
         req = Request(
             f"{cfg['openlineage_url']}/api/v1/lineage",
             data=json.dumps(event).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         urlopen(req, timeout=10)
@@ -244,6 +250,9 @@ with DAG(
     schedule="45 * * * *",
     start_date=datetime(2026, 4, 1),
     catchup=False,
+    # Auto-activate on first git-sync load (platform pauses new DAGs by
+    # default via DAGS_ARE_PAUSED_AT_CREATION=True). Safe — catchup=False.
+    is_paused_upon_creation=False,
     tags=["crypto", "quality", "great-expectations", "openlineage"],
     max_active_runs=1,
     on_success_callback=push_on_success,
@@ -258,31 +267,23 @@ with DAG(
         name="airflow-ge-validation",
         namespace=NAMESPACE,
         image=f"{REGISTRY}/{IMAGE_PREFIX}-analyzer:{IMAGE_TAG}",
-        cmds=["uv", "run", "main.py"],
+        cmds=["uv", "run", "--no-sync", "main.py"],
         env_from=ENV_FROM_SOURCES,
-        env_vars={
-            "ANALYSIS_MODE": "expectations",
-            "GE_CONFIG_PATH": "/app/ge/great_expectations.yaml",
-        },
+        # The analyzer builds GE ExpectationSuites in code (gx.get_context() +
+        # suite.add_expectation), parameterised entirely by env vars from the
+        # pipeline ConfigMap/Secret — it never reads a great_expectations.yaml
+        # file. The prior `great-expectations-config` ConfigMap volume +
+        # GE_CONFIG_PATH were vestigial: the ConfigMap was never created, so the
+        # mount failed every run. Removed — no file to mount.
+        env_vars={"ANALYSIS_MODE": "expectations"},
         image_pull_policy="IfNotPresent",
-        is_delete_operator_pod=True,
+        on_finish_action="delete_pod",
         get_logs=True,
         startup_timeout_seconds=300,
         container_resources=k8s.V1ResourceRequirements(
             requests={"cpu": "100m", "memory": "256Mi"},
             limits={"cpu": "500m", "memory": "1Gi"},
         ),
-        volumes=[
-            k8s.V1Volume(
-                name="ge-config",
-                config_map=k8s.V1ConfigMapVolumeSource(
-                    name="great-expectations-config",
-                ),
-            ),
-        ],
-        volume_mounts=[
-            k8s.V1VolumeMount(name="ge-config", mount_path="/app/ge"),
-        ],
     )
 
     # Task 2: SQL-based quality checks (fast, lightweight)

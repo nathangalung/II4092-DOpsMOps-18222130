@@ -45,8 +45,8 @@
 #   * bronze.crypto_ohlcv                 — raw 1-minute OHLCV from Coinbase
 #   * bronze.crypto_ohlcv_features        — stream-computed indicators (Flink)
 #   * gold.fct_training_data              — joined feature mart (dbt-built)
-#   * silver.crypto_predictions           — ml-bridge → ClickHouse sink
-#   * silver.crypto_drift_metrics         — Evidently → ClickHouse sink
+#   * gold.crypto_predictions             — ml-bridge → ClickHouse sink
+#   * gold.drift_metrics                  — drift detector → ClickHouse sink
 #
 # Dashboards are intentionally NOT auto-imported here.  Dashboard JSON
 # bundles drift fast (chart UUIDs are regenerated on each Superset save)
@@ -204,10 +204,10 @@ data:
          "table_name": "crypto_ohlcv_features"},
         {"database": "clickhouse-crypto", "schema": "gold",
          "table_name": "fct_training_data"},
-        {"database": "clickhouse-crypto", "schema": "silver",
+        {"database": "clickhouse-crypto", "schema": "gold",
          "table_name": "crypto_predictions"},
-        {"database": "clickhouse-crypto", "schema": "silver",
-         "table_name": "crypto_drift_metrics"},
+        {"database": "clickhouse-crypto", "schema": "gold",
+         "table_name": "drift_metrics"},
     ]
 
     # ────────────────────────────────────────────────────────────────────────

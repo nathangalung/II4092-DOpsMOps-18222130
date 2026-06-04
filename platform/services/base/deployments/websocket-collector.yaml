@@ -47,12 +47,22 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          # /live is delivery-gated (not plain process-liveness): it reports
+          # 503 only when the Kafka producer has gone KAFKA_DELIVERY_STALENESS_MS
+          # without a successful delivery *while still attempting sends*. This
+          # lets the kubelet restart a producer that wedged after a broker
+          # disruption (a fresh producer re-resolves partition leaders cleanly),
+          # giving the workload a self-heal path. failureThreshold 3 × 30s adds
+          # ~90s confirmation on top of the staleness window so a transient
+          # broker restart (which recovers well inside message.timeout.ms) does
+          # not trip a needless restart. See src/health.rs::liveness_wedged.
           livenessProbe:
             httpGet:
-              path: /health
+              path: /live
               port: 8080
-            initialDelaySeconds: 10
+            initialDelaySeconds: 60
             periodSeconds: 30
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /ready

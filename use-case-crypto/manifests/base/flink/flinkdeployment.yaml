@@ -338,7 +338,15 @@ spec:
     replicas: 1
     resource:
       memory: "3072m"
-      cpu: 2
+      # CPU right-sized 2 → 0.5 (2026-05-31): at idle the TM streams two
+      # symbols (~2 msg/s) through 4 slots — 2 full cores reserved as
+      # request==limit never scheduled on the single node once aggregate
+      # requests hit 94% (only ~1.4 cores free → TM Pending → job stuck in
+      # CREATED, attempt 10). 0.5 fits the headroom and honours the idle=1-pod
+      # invariant; a real load spike scales out horizontally via slots
+      # (numberOfTaskSlots=4) / parallelism / a TM replica bump, not a fat
+      # idle CPU reservation.
+      cpu: 0.5
 
   # Application-mode job block — operator submits the platform jar's main
   # class and manages lifecycle.  The jar is baked into the image at

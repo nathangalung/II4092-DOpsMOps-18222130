@@ -97,7 +97,26 @@ webhooks:
       name: kserve-webhook-server-service
       namespace: model-serving
       path: /mutate-pods
-  failurePolicy: Ignore
+  # failurePolicy: Fail (NOT Ignore) — storage-initializer injection is
+  # MANDATORY for predictor pods. A predictor pod admitted WITHOUT injection
+  # has no /mnt/models and crashloops on `InvalidModelURI`; it does NOT
+  # self-heal (a container restart re-runs the same un-injected spec — only
+  # ReplicaSet pod RECREATION re-triggers this webhook). Under `Ignore`, a
+  # controller that is down at pod CREATE (node reboot, controller restart,
+  # single-replica per the platform invariant) yields a PERMANENTLY broken
+  # predictor. Under `Fail`, the CREATE is rejected and the owning ReplicaSet
+  # backoff-retries (creation backoff can reach ~a couple minutes during a
+  # controller restart) until the controller's webhook is reachable, then
+  # admits the pod WITH injection — self-healing by construction.
+  # Safe here because the objectSelector below gates ONLY pods carrying
+  # `serving.kserve.io/inferenceservice` (KServe predictor/transformer/
+  # explainer pods). The controller-manager pod is unlabelled, so it is never
+  # gated → no bootstrap deadlock. (The generic "Fail pod-webhook bricks the
+  # cluster" caution targets BROAD selectors; this one is razor-tight.)
+  # `Ignore` was rational only while the selector was the wrong/broad
+  # `app: isvc-workload` placeholder (see objectSelector note below); now that
+  # the selector is correct, the original reason for `Ignore` is gone.
+  failurePolicy: Fail
   name: inferenceservice.kserve-webhook-server.pod-mutator
   namespaceSelector:
     matchExpressions:

@@ -34,7 +34,7 @@ spec:
             - name: materialization
               image: materialization:latest
               imagePullPolicy: IfNotPresent
-              command: ["uv", "run", "main.py"]
+              command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--mode", "materialize"]
               envFrom:
                 - configMapRef:

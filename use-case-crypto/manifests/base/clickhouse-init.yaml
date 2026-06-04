@@ -93,6 +93,20 @@ spec:
             - |
               set -euo pipefail
 
+              # Fail loudly if any credential is empty — e.g. the ESO-managed
+              # `crypto-clickhouse` Secret had not yet been populated when this
+              # PostSync hook fired (envFrom mounts an empty value, not a
+              # missing var, so `set -u` alone does NOT catch it). Seeding the
+              # NAMED COLLECTION with a blank SASL username/password makes
+              # librdkafka log "sasl.username and sasl.password must be set" and
+              # every bronze Kafka consumer stalls silently — the data path
+              # dies with no error at apply time. `:?` aborts the Job instead,
+              # and ArgoCD's PostSync retry re-runs it once ESO has synced.
+              : "${CLICKHOUSE_USER:?empty — pipeline-secrets not populated}"
+              : "${CLICKHOUSE_PASSWORD:?empty — pipeline-secrets not populated}"
+              : "${KAFKA_CLICKHOUSE_USERNAME:?empty — crypto-clickhouse ESO not synced}"
+              : "${KAFKA_CLICKHOUSE_PASSWORD:?empty — crypto-clickhouse ESO not synced}"
+
               echo "=== Applying medallion DDL to clickhouse-platform.storage:9000 ==="
               echo "ClickHouse admin: ${CLICKHOUSE_USER}"
               echo "Kafka SASL user:  ${KAFKA_CLICKHOUSE_USERNAME}"
@@ -139,7 +153,8 @@ spec:
                            kafka_security_protocol = 'SASL_SSL',
                            kafka_sasl_mechanism = 'SCRAM-SHA-512',
                            kafka_sasl_username = '${KAFKA_CLICKHOUSE_USERNAME}',
-                           kafka_sasl_password = '${KAFKA_CLICKHOUSE_PASSWORD}'"
+                           kafka_sasl_password = '${KAFKA_CLICKHOUSE_PASSWORD}',
+                           kafka_ssl_ca_location = '/etc/clickhouse-server/kafka-ca/ca.crt'"
 
               # ----------------------------------------------------------------
               # Step 2 — Apply medallion DDL (databases + tables + MVs)
@@ -181,6 +196,19 @@ spec:
                   echo "FATAL: kafka_crypto NAMED COLLECTION missing after apply" >&2
                   exit 1
                 }
+              # Dump the effective collection map (every value auto-masks to
+              # `[HIDDEN]`) so a reviewer can confirm the keys reached CH at
+              # apply time without leaking credentials to logs. NOTE: the table
+              # is `system.named_collections` (name + collection Map); CH 26.x
+              # has NO `system.named_collections_columns` — referencing it
+              # raised UNKNOWN_TABLE which the `|| true` below silently ate.
+              clickhouse-client \
+                --host=clickhouse-platform.storage.svc.cluster.local \
+                --port=9000 \
+                --user="${CLICKHOUSE_USER}" \
+                --password="${CLICKHOUSE_PASSWORD}" \
+                --query="SELECT name, collection FROM system.named_collections WHERE name = 'kafka_crypto' FORMAT Vertical" \
+                || true
 
               echo ""
               echo "=== Schema apply complete ==="
