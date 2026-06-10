@@ -28,6 +28,14 @@ metadata:
     app.kubernetes.io/part-of: argocd
 data:
   kustomize.buildOptions: --enable-helm --load-restrictor LoadRestrictionsNone
+  # Default app reconcile interval is 180s — on this single-node, IO-bound
+  # VPS the application-controller's 3-min full-tree refresh of ~40 apps is
+  # a top kine/SQLite write source (status updates) and held the controller
+  # at ~38% CPU. 600s + jitter cuts datastore fsync pressure ~3× while
+  # selfHeal still converges drift within minutes (webhook/manual syncs are
+  # unaffected). Requires application-controller restart to take effect.
+  timeout.reconciliation: 600s
+  timeout.reconciliation.jitter: 60s
   # ---------------------------------------------------------------------------
   # external-secrets.io/v1 ExternalSecret webhook injects defaults on apply:
   #   spec.data[*].remoteRef.conversionStrategy:  Default
@@ -564,7 +572,7 @@ data:
     # annotation, no SSA), so managedFieldsManagers above doesn't catch it.
     # Fall back to jq-path ignore for Secrets carrying ESO's reconcile-managed
     # label or data-hash annotation. Source declares `data: {}` as placeholder.
-    # Field-validated 2026-05-28 on `crypto-kserve-storage-secret`.
+    # Field-validated 2026-05-28 on a use-case KServe storage secret.
     jqPathExpressions:
       - 'select(.metadata.labels."reconcile.external-secrets.io/managed" == "true") | .data'
       - 'select(.metadata.annotations."reconcile.external-secrets.io/data-hash" != null) | .data'

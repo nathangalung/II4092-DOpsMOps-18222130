@@ -15,8 +15,12 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Xmake from source (avoids xmake.io DNS dependency)
-RUN curl -fsSL https://github.com/xmake-io/xmake/releases/latest/download/xmake-master.tar.gz -o /tmp/xmake.tar.gz && \
+# Install Xmake from source, pinned to v2.9.9 — the last 2.9.x release (satisfies
+# set_xmakever("2.9.0") in xmake.lua), tagged 2025-04 so within the April-2026
+# cap, and before the 3.0 major bump that could shift codegen. The prior
+# /releases/latest/ URL was unpinned: non-reproducible and liable to pull a
+# post-cap build. (Source tarball, not xmake.io — avoids that host's DNS.)
+RUN curl -fsSL https://github.com/xmake-io/xmake/releases/download/v2.9.9/xmake-master.tar.gz -o /tmp/xmake.tar.gz && \
     mkdir -p /tmp/xmake-build && tar xzf /tmp/xmake.tar.gz -C /tmp/xmake-build --strip-components=1 && \
     cd /tmp/xmake-build && ./configure --prefix=/usr/local && make -j$(nproc) && make install && \
     rm -rf /tmp/xmake.tar.gz /tmp/xmake-build

@@ -109,10 +109,17 @@ curl -s 'http://127.0.0.1:9090/api/v1/alerts' | jq '.data.alerts[] | select(.lab
 New manifest:
 
 - `use-case-crypto/manifests/base/scaling/scaledobjects.yaml` — three
-  `keda.sh/v1alpha1 ScaledObject` with `type: kafka` triggers:
+  `keda.sh/v1alpha1 ScaledObject` with `type: kafka` triggers (ADR-022 baseline):
   - `feature-engine-kafka-lag`  topic `crypto.validated`  lagThreshold 1000  1-10
   - `validator-kafka-lag`       topics `crypto.rest.raw` + `crypto.ws.raw`  lagThreshold 2000  1-8
   - `analyzer-kafka-lag`        topic `crypto.predictions.v1`  lagThreshold 500  1-5
+
+ADR-026 + ADR-027 follow-up: the live set is now
+`validator-kafka-lag`, `analyzer-kafka-lag`, and `gateway-http-rps`.
+`feature-engine-kafka-lag` is RETIRED (ADR-027 — the Flink speed layer owns
+crypto feature engineering and has NO ScaledObject; Flink elasticity is
+in-engine, see §14). `gateway-http-rps` is ADDED (ADR-026 — prometheus RPS +
+cpu + memory triggers, replacing the prometheus-adapter HPA).
 
 Bootstrap: `platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092`
 (in-cluster plain listener). When SASL is required a `triggerAuthentication`
@@ -122,7 +129,10 @@ Change:
 
 - `use-case-crypto/manifests/base/hpa/autoscaling.yaml` — `feature-engine-hpa`
   DELETED. KEDA ScaledObject generates its own HPA; dual controllers fight.
-  Gateway and dashboard-backend HPAs remain (CPU/RPS, not consumer-driven).
+  ADR-026 follow-up (2026-04-21): the gateway HPA also migrated to KEDA
+  (`gateway-http-rps`). The only plain HPAs left in this file are
+  `rest-collector-hpa` (CPU+mem) and `dashboard-backend-hpa` (CPU) — both
+  resource-driven, no custom metric, no adapter dependency.
 
 Verification:
 
@@ -131,10 +141,10 @@ kubectl -n use-case-crypto get scaledobject
 kubectl -n use-case-crypto get hpa   # KEDA-generated + gateway/dashboard-backend only
 # Generate load on a topic and watch replicas:
 kubectl -n data-ingestion exec kafka-cluster-0 -- \
-  kafka-producer-perf-test.sh --topic crypto.validated \
+  kafka-producer-perf-test.sh --topic crypto.rest.raw \
     --num-records 200000 --throughput 5000 \
     --record-size 1024 --producer-props bootstrap.servers=localhost:9092
-kubectl -n use-case-crypto get deploy feature-engine -w
+kubectl -n use-case-crypto get deploy validator -w   # KEDA scales validator on crypto.rest.raw lag
 ```
 
 Rollback: `git revert`. Recreate the deleted HPA from git history if needed.
@@ -202,10 +212,14 @@ Change:
   - Removed `allow-istio-system` (too broad).
   - Three prior "namespace → all pods" rules replaced with per-pod allowlists:
     - `allow-airflow-to-processing` names
-      `feature-engine|validator|analyzer` (ADR-025 dropped `flink-job` —
-      Airflow does not call the Flink JM directly)
+      `validator|analyzer` (ADR-025 dropped `flink-job` — Airflow does not
+      call the Flink JM directly; ADR-027 dropped `feature-engine` — the Rust
+      feature-engine is retired and the Flink speed layer owns crypto feature
+      engineering)
     - `allow-kfp-to-training-targets` names
-      `feature-engine|crypto-stream-processor|ml-bridge`
+      `ml-bridge` only (ADR-027 dropped `feature-engine`; the Flink
+      stream-processor is intentionally not exposed — KFP training reads
+      ClickHouse / Feast, not the live speed layer)
     - `allow-model-serving-to-serving-tier` names
       `gateway|ml-bridge`
   - `allow-ingress-to-gateway` scoped to `app: gateway` + port 8080 only.
@@ -354,6 +368,12 @@ historical record even if the code is reverted.
 
 ## 13 — ADR-025 cleanup (2026-04-21) — use-case-side edits
 
+> **The Flink-specific rows below (§13.2–§13.4) are SUPERSEDED by §14 (ADR-027).**
+> The `flink-job` Deployment → FlinkDeployment migration they describe was later
+> reverted (a Rust `feature-engine` became the stream processor), and §14 now
+> re-establishes Flink as the sole speed layer with a different shape (generic
+> image, `metrics: flink` PodMonitor, no PDB). Use §14 for the current state.
+
 ADR-025 retires every scale-to-zero placeholder. The platform side of this
 cleanup (file deletions, KServe runtime trim, platform kustomization edits)
 is documented in `platform/REMEDIATION_RUNBOOK.md` §13. This section captures
@@ -404,3 +424,76 @@ kubectl -n use-case-crypto get flinkdeployment crypto-stream-processor
 kubectl -n use-case-crypto get pdb crypto-stream-processor-jobmanager-pdb
 kubectl -n use-case-crypto get podmonitor crypto-stream-processor
 ```
+
+## 14 — ADR-027: Flink owns the crypto speed layer (End-state Y cutover)
+
+The Rust `feature-engine` Deployment is **retired**; the Flink `stream-processor`
+FlinkDeployment (`manifests/base/flink/stream-processor.yaml`) is the sole
+producer of `crypto.features.v1` (→ ClickHouse bronze) and the Valkey
+`features:{symbol}` online cache. The manifest swap is **atomic** — both wrote
+the same sinks, so they must never run together (double-writes ~2× bronze rows).
+Static gate (already green):
+
+```bash
+kustomize build --load-restrictor LoadRestrictionsNone use-case-crypto/manifests/overlays/local >/dev/null
+kustomize build --load-restrictor LoadRestrictionsNone use-case-crypto/manifests/overlays/cloud  >/dev/null
+```
+
+### 14.1 — Build the image (USER step — runs in your own terminal)
+
+`crypto-flink-job` must exist in the registry BEFORE the overlay is applied, or
+the speed layer is down. `make usecase-crypto-build` builds the generic platform
+`flink-job` image (Mill fat JAR) and retags it → `localhost:5000/crypto-flink-job:latest`:
+
+```bash
+make usecase-crypto-build          # platform-build-services (flink-job) + retag → crypto-flink-job + push
+# or just the processing slice once platform images exist:
+make platform-build-services usecase-crypto-build-processing
+```
+
+### 14.2 — Tear down the retired feature-engine (CRITICAL — apply does NOT prune)
+
+`make usecase-crypto-up` is `kubectl apply` with **no `--prune`**: removing
+feature-engine from the manifest does NOT delete the running Deployment. Left
+alone it keeps consuming `crypto.validated` and double-writing bronze + Valkey.
+Delete the orphans explicitly (sequence AFTER Flink is healthy for a staged
+cutover, or BEFORE applying for a hard cutover):
+
+```bash
+kubectl -n use-case-crypto delete deployment   crypto-feature-engine            --ignore-not-found
+kubectl -n use-case-crypto delete scaledobject crypto-feature-engine-kafka-lag  --ignore-not-found
+kubectl -n use-case-crypto delete servicemonitor crypto-feature-engine          --ignore-not-found
+kubectl -n use-case-crypto delete pdb          crypto-feature-engine-pdb        --ignore-not-found
+# KEDA GCs its generated HPA when the ScaledObject is gone — confirm:
+kubectl -n use-case-crypto get hpa,scaledobject | grep feature-engine || echo "feature-engine autoscaling gone OK"
+```
+
+> GitOps path: if the use case is reconciled by the ArgoCD `crypto-use-case`
+> ApplicationSet (`automated.prune: true`), pushing the cutover commit to Gitea
+> prunes these automatically — the manual deletes above are the imperative
+> (`make usecase-crypto-up`) path. Either way, verify the orphans are gone.
+
+### 14.3 — Apply + verify
+
+```bash
+make usecase-crypto-up    # or: kubectl apply -k use-case-crypto/manifests/overlays/local
+
+# Operator brings the job to RUNNING (JM + TM pods carry label metrics=flink):
+kubectl -n use-case-crypto get flinkdeployment crypto-stream-processor -o jsonpath='{.status.jobStatus.state}{"\n"}'
+kubectl -n use-case-crypto get pods -l metrics=flink
+
+# Bronze receiving stream-computed features (warm windows ≥ a few min):
+#   SELECT count(), max(created_at) FROM bronze.crypto_ohlcv_features WHERE created_at > now() - INTERVAL 5 MINUTE
+# Valkey online cache holds the pure indicator map (no symbol/timestamp keys):
+#   redis-cli -h valkey.storage.svc.cluster.local -a "$VALKEY_PASSWORD" GET features:BTC-USD
+```
+
+### 14.4 — Schema parity is pre-verified (the silent-failure guard)
+
+The Java `FeatureFunction` output was diffed field-by-field against the bronze
+Kafka-engine columns + MV SELECT and against the Rust writer + `feature-cache`
+reader (see ADR-027): exact-match keys, Valkey value byte-compatible. EXACTLY_ONCE
+→ bronze is safe because librdkafka defaults to `read_committed` and
+`bronze.crypto_ohlcv_features` is `ReplacingMergeTree`. No bronze reset is
+required for correctness; if a brief feature-engine/Flink overlap occurred during
+cutover, the ReplacingMergeTree dedupes on `(symbol,timestamp)` at merge.

@@ -39,7 +39,7 @@ if [ "$NO_CACHE" = "true" ]; then
 fi
 
 # =============================================================================
-# SERVICE DEFINITIONS - All 17 services
+# SERVICE DEFINITIONS - All 15 services
 # =============================================================================
 # Format: "name:context_path:dockerfile_relative_path"
 
@@ -57,11 +57,12 @@ validator:quality/validator:Dockerfile
 analyzer:quality/analyzer:Dockerfile
 "
 
-# Processing services (4)
+# Processing services (2) — the Flink stream-processor is NOT built here; its
+# image is produced by retagging the generic platform `flink-job` image
+# (see Makefile usecase-crypto-build-processing). The Rust feature-engine was
+# retired for crypto (ADR-027 End-state Y).
 SERVICE_GROUPS["processing"]="
 batch-processing:processing/batch:Dockerfile
-feature-engine:processing/stream/feature-engine:Dockerfile
-stream-processor:processing/stream-processor:Dockerfile
 vector-processing:processing/vector:Dockerfile
 "
 
@@ -234,7 +235,7 @@ show_help() {
     echo "Groups:"
     echo "  ingestion   - REST collector, WebSocket collector"
     echo "  quality     - Validator, Analyzer"
-    echo "  processing  - Batch, Feature engine, Flink, Vector"
+    echo "  processing  - Batch, Vector (Flink stream-processor retagged via Makefile, not built here)"
     echo "  training    - Trainer, Drift detector"
     echo "  serving     - Gateway, Feature cache, Inference engine"
     echo "  automation  - Materialization (retrain-on-drift = Argo CronWorkflow, not an image)"

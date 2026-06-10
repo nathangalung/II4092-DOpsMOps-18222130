@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -31,18 +32,27 @@ public class RedisSink implements Sink<String>, Serializable {
     private final String host;
     private final int port;
     private final String password;
+    private final String keyPrefix;
 
-    public RedisSink(String host, int port, String password) {
+    public RedisSink(String host, int port, String password, String keyPrefix) {
         this.host = host;
         this.port = port;
         // Normalise empty string to null so RedisURI.Builder doesn't call
         // AUTH with a blank credential against a no-auth dev Valkey.
         this.password = (password == null || password.isEmpty()) ? null : password;
+        // Per-stream key namespace (e.g. "features:trades:"). Supplied by
+        // StreamJob from STREAM_{NAME}_KEY_PREFIX so each stream owns a
+        // distinct Valkey keyspace and never clobbers another writer's
+        // `features:{symbol}` (the online feature cache is owned solely by
+        // the feature-engine service). Falls back to the legacy bare
+        // "features:" only if a caller passes null/empty — StreamJob always
+        // supplies a namespaced default.
+        this.keyPrefix = (keyPrefix == null || keyPrefix.isEmpty()) ? "features:" : keyPrefix;
     }
 
     @Override
     public SinkWriter<String> createWriter(WriterInitContext context) throws IOException {
-        return new RedisSinkWriter(host, port, password);
+        return new RedisSinkWriter(host, port, password, keyPrefix);
     }
 
     /**
@@ -56,8 +66,10 @@ public class RedisSink implements Sink<String>, Serializable {
         private final RedisClient client;
         private final StatefulRedisConnection<String, String> connection;
         private final RedisAsyncCommands<String, String> commands;
+        private final String keyPrefix;
 
-        public RedisSinkWriter(String host, int port, String password) {
+        public RedisSinkWriter(String host, int port, String password, String keyPrefix) {
+            this.keyPrefix = keyPrefix;
             // RedisURI.Builder lets us pass the password as a separate field,
             // avoiding hand-assembled URI strings and the escaping concerns
             // they bring. Logged URI omits the credential for safety.
@@ -76,20 +88,38 @@ public class RedisSink implements Sink<String>, Serializable {
         @Override
         public void write(String value, Context context) throws IOException {
             try {
-                JsonNode node = MAPPER.readTree(value);
-                String symbol = node.get("symbol").asText();
-                String key = "features:" + symbol;
+                JsonNode parsed = MAPPER.readTree(value);
+                JsonNode symbolNode = parsed.get("symbol");
+                if (symbolNode == null || symbolNode.isNull()) {
+                    LOG.warn("Valkey sink: record missing 'symbol' — skipped");
+                    return;
+                }
+                String symbol = symbolNode.asText();
+                String key = keyPrefix + symbol;
 
-                // Store with TTL
-                commands.setex(key, TTL_SECONDS, value);
+                // The online-cache payload is the indicator map ONLY. Strip the
+                // routing/scoring fields (symbol, timestamp) so the stored value
+                // is a pure {feature: number} object — the exact shape the
+                // feature-cache (BTreeMap<String,f64>) and gateway readers
+                // expect, and byte-compatible with the historical feature-engine
+                // writer (which cached the indicator map alone under the same
+                // bare `features:{symbol}` key).
+                ObjectNode payload = (ObjectNode) parsed;
+                payload.remove("symbol");
+                JsonNode tsNode = payload.remove("timestamp");
+                String stored = MAPPER.writeValueAsString(payload);
 
-                // Also store in sorted set for history
-                long timestamp = node.get("timestamp").asLong();
-                String historyKey = "features:history:" + symbol;
-                commands.zadd(historyKey, timestamp, value);
+                // Latest-value cache (idempotent, last-write-wins) with TTL.
+                commands.setex(key, TTL_SECONDS, stored);
 
-                // Trim old entries
-                commands.zremrangebyrank(historyKey, 0, -1000);
+                // Optional per-symbol history (sorted set scored by event time).
+                // Only when the record carried a numeric timestamp; the cached
+                // payload itself never includes it.
+                if (tsNode != null && tsNode.canConvertToLong()) {
+                    String historyKey = keyPrefix + "history:" + symbol;
+                    commands.zadd(historyKey, tsNode.asLong(), stored);
+                    commands.zremrangebyrank(historyKey, 0, -1000);
+                }
             } catch (Exception e) {
                 LOG.error("Valkey sink error", e);
                 throw new IOException("Failed to write to Valkey", e);

@@ -22,12 +22,6 @@ data:
   OUTPUT_TOPIC: "features"
   VALIDATOR_KAFKA__INPUT_TOPIC: "raw"
   VALIDATOR_KAFKA__OUTPUT_TOPIC: "validated"
-  FEATURE_KAFKA__INPUT_TOPIC: "validated"
-  FEATURE_KAFKA__OUTPUT_TOPIC: "features"
-  FEATURE_KAFKA__GROUP_ID: "feature-engine"
-  FEATURE_KAFKA__BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092"
-  FEATURE_REDIS__URL: "redis://valkey.storage.svc.cluster.local:6379"
-  FEATURE_REDIS__TTL_SECONDS: "3600"
 
   # --- Data source ---
   RESPONSE_FIELD_MAPPING: "timestamp,value"

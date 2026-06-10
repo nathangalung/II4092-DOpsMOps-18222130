@@ -105,6 +105,13 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        # OnRootMismatch: kubelet only recursively chowns the PVC when the
+        # top-level dir GID != fsGroup. Without it, every restart walks all
+        # ~70k objects in /data setting ownership (VolumePermissionChange-
+        # InProgress) — MinIO ContainerCreating-blocks for 15-20min on each
+        # cold start. Root dir was chowned to 1000 on first boot, so steady
+        # state matches and the recursive walk is skipped → seconds to Ready.
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -165,18 +172,29 @@ spec:
             # Single-pod bootstrap; bump for production load.
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: 1000m, memory: 2Gi }
+          # Probe timeouts widened for single-node IO latency: on a shared
+          # local-path disk under merge/journal pressure, /minio/health/ready
+          # can exceed the 1s default probe timeout, yielding "context deadline
+          # exceeded" and endpoint ejection -> downstream S3 clients (loki,
+          # tempo, pyroscope) get 503/no-healthy-upstream and crash-loop.
+          # timeoutSeconds + failureThreshold give slow-disk slack before eject.
           readinessProbe:
             httpGet: { path: /minio/health/ready, port: 9000 }
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 4
           livenessProbe:
             httpGet: { path: /minio/health/live, port: 9000 }
             initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           startupProbe:
             httpGet: { path: /minio/health/live, port: 9000 }
-            failureThreshold: 30
+            failureThreshold: 60
             periodSeconds: 10
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false  # MinIO writes to /tmp on boot

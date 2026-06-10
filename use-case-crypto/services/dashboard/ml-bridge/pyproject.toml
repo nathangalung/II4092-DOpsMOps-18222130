@@ -10,6 +10,15 @@ dependencies = [
     # Feast S3 file registry + Valkey online store; clickhouse extra pulls the offline-store
     # contrib + clickhouse-connect (definitions.py imports ClickhouseSource at load time).
     "feast[clickhouse,redis]>=0.61.0",
+    # Feast's clickhouse offline-store module imports both `psycopg` AND
+    # `psycopg_pool` at import time, but `feast[clickhouse]` pulls neither.
+    # FeatureStore(repo_path) eagerly imports the offline_store config class
+    # declared in feature_store.yaml (clickhouse) even though the reader only
+    # reads the Valkey online store, so both imports must resolve or `/latest`
+    # 500s with FeastModuleImportError ("No module named 'psycopg_pool'"). The
+    # `binary` extra bundles libpq; the `pool` extra pulls `psycopg-pool`
+    # (module `psycopg_pool`). Mirrors the materialization writer (#502).
+    "psycopg[binary,pool]>=3.2",
     "pydantic>=2.12.0",
     # boto3 for Feast's S3 file registry (registry_type: file, path: s3://feast/...).
     # feast[clickhouse,redis] does NOT pull an S3 client; S3RegistryStore needs it

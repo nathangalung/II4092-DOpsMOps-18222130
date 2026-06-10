@@ -8,10 +8,16 @@
 #
 # Generator design (per cycle-7 advisor):
 #   - `list:` with a SINGLE element pointing at `manifests/overlays/local`.
-#   - Honest about single-cluster reality. Multi-environment (cloud /
-#     local-data) is a FUTURE extension: either add elements to the list
-#     (deploy multiple at once, only useful across clusters) or swap to a
+#   - Honest about single-cluster reality. Multi-CLUSTER (cloud) is the
+#     genuine FUTURE extension: either add elements to the list (deploy
+#     multiple at once, only useful across clusters) or swap to a
 #     `clusters:` generator with cluster-label-driven overlay selection.
+#   - `overlays/local-data` and `overlays/local-train` are NOT generated
+#     here and are NOT future environments. They are live sub-phase overlays
+#     applied imperatively by the Makefile (`usecase-crypto-deploy-data` /
+#     `usecase-crypto-deploy-train`) on the SAME local cluster, deliberately
+#     kept out of the generator so Argo reconciles only the steady-state
+#     `overlays/local` set.
 #   - Rejected at design time: multi-overlay list (overlays are mutually
 #     exclusive on one cluster), cluster-generator (pays infra cost we
 #     haven't paid), matrix-generator (over-engineered).

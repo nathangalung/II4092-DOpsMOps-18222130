@@ -60,11 +60,6 @@ spec:
       # KEDA queries each consumer group used by the workloads it scales.
       - resource:
           type: group
-          name: feature-engine
-          patternType: literal
-        operations: [Describe, Read]
-      - resource:
-          type: group
           name: validator
           patternType: literal
         operations: [Describe, Read]
@@ -75,7 +70,7 @@ spec:
         operations: [Describe, Read]
 ---
 # ----------------------------------------------------------------------------
-# crypto-app-consumer  —  validator/feature-engine/analyzer Deployments
+# crypto-app-consumer  —  validator/analyzer Deployments + Flink stream-processor
 # ----------------------------------------------------------------------------
 # These workloads read and write `crypto.*` topics. Single shared credential is
 # acceptable because they share trust boundary (same use-case namespace, same
@@ -104,11 +99,6 @@ spec:
         operations: [Describe, Read, Write, Create]
       - resource:
           type: group
-          name: feature-engine
-          patternType: literal
-        operations: [Describe, Read]
-      - resource:
-          type: group
           name: validator
           patternType: literal
         operations: [Describe, Read]
@@ -125,7 +115,7 @@ spec:
           name: flink-
           patternType: prefix
         operations: [Describe, Read]
-      # Transactional producers (idempotent writes from feature-engine)
+      # Transactional producers (idempotent writes from the Flink stream-processor)
       - resource:
           type: transactionalId
           name: crypto.
@@ -187,8 +177,8 @@ spec:
 # ClickHouse bronze layer pulls `crypto.*` topics via the Kafka table engine
 # (init_clickhouse.sql) and `cdc.pipeline.predictions` via gold layer. Each
 # `Kafka()` table belongs to a unique consumer group (clickhouse_bronze_<topic>
-# or clickhouse_cdc_<topic>) so offsets don't collide with feature-engine /
-# analyzer.
+# or clickhouse_cdc_<topic>) so offsets don't collide with the Flink
+# stream-processor / analyzer.
 #
 # Read-only — ClickHouse never publishes back to Kafka. No transactionalId
 # resource needed.

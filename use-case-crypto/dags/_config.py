@@ -103,7 +103,16 @@ def k8s_pod(
         cmds=cmds,
         arguments=args or [],
         env_from=ENV_FROM_SOURCES,
-        image_pull_policy="IfNotPresent",
+        # `Always` (not IfNotPresent) against the in-cluster registry
+        # (localhost:5000). With `:latest` + IfNotPresent, k8s pins whatever
+        # digest the node cached at first pull FOREVER — a rebuilt+pushed image is
+        # never re-pulled, so every KPO child (batch_features, drift_check,
+        # scoring, sentiment, feast_materialize, dbt_run) silently runs stale
+        # code. That masked the missing `clickhouse_password` field in
+        # config.py → ClickHouse Code 194 auth failures on batch-features. The
+        # registry is in-cluster, so re-pulling each run is cheap and
+        # air-gap-safe (mirrors #301/#459/#291).
+        image_pull_policy="Always",
         # Keep FAILED task pods for post-mortem (`kubectl logs`/`describe`);
         # delete only successful ones to stay tidy on the single node. Mirrors
         # the platform Airflow KubernetesExecutor policy
@@ -111,7 +120,16 @@ def k8s_pod(
         # a child pod that errors must be inspectable, or the failure is opaque.
         on_finish_action="delete_succeeded_pod",
         get_logs=True,
-        startup_timeout_seconds=300,
+        # 600s (not 300s): on the single IO-constrained node, a cold
+        # `Always`-pull of a freshly-rebuilt child image (256MB, all-new
+        # layers) measured 4m33s — past a 300s startup deadline — so KPO
+        # marked the task up_for_retry even though the pod itself ran to
+        # exit 0. Steady-state Always-pulls only re-verify cached layers
+        # (seconds), so the wider deadline only adds headroom for the
+        # post-rebuild cold pull; a healthy pod still starts fast. Mirrors
+        # the disk-distress timeout bumps (#203 kserve rollout 300→900s,
+        # #285 upgrade-job 1800→3600s).
+        startup_timeout_seconds=600,
         container_resources=k8s.V1ResourceRequirements(
             requests={"cpu": cpu_req, "memory": mem_req},
             limits={"cpu": cpu_lim, "memory": mem_lim},

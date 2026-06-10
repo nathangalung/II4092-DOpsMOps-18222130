@@ -54,7 +54,14 @@ def _render_repo(repo_path: str) -> None:
             ) from exc
 
     tmpl = Path(template_dir, "feature_store.yaml.tmpl").read_text()
-    rendered = re.sub(r"\$\{(\w+)\}", _sub, tmpl)
+    # Substitute per line, skipping full-line `#` comments. A template note like
+    # `# creds arrive as ${VAR}` documents the mechanism and must NOT be treated
+    # as a real placeholder (it would trip the missing-var guard below). Real
+    # `${VAR}` placeholders live on config lines and still fail loud when unset.
+    rendered = "".join(
+        line if line.lstrip().startswith("#") else re.sub(r"\$\{(\w+)\}", _sub, line)
+        for line in tmpl.splitlines(keepends=True)
+    )
 
     repo = Path(repo_path)
     repo.mkdir(parents=True, exist_ok=True)

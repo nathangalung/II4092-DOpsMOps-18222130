@@ -49,14 +49,10 @@ services:
       enabled: true
       language: python
       description: "Batch feature computation (technical indicators, lag, returns)"
-    feature_engine:
-      enabled: true
-      language: rust
-      description: "Real-time streaming feature computation"
     stream_processor:
       enabled: true
       language: java
-      description: "Apache Flink stream processing (Trade/Orderbook feature functions)"
+      description: "Real-time streaming feature computation (Flink FlinkDeployment, speed layer)"
     vector:
       enabled: true
       language: python
@@ -91,7 +87,11 @@ services:
       language: rust
       description: "Redis-backed online feature serving"
     inference_engine:
-      enabled: true
+      # Crypto serves BOTH models via KServe InferenceService (crypto-predictor +
+      # signal-classifier), not the platform C++ engine. Disabled so the unused
+      # crypto-inference-engine image is never built/retagged; the platform still
+      # offers this component for use-cases that prefer C++ gRPC serving.
+      enabled: false
       language: cpp
       description: "ONNX Runtime inference (<5ms p99)"
 

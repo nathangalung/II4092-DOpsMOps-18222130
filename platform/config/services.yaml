@@ -73,11 +73,9 @@ services:
       optional_deps: [spark] # Runs without Spark for small datasets
       # If disabled: no historical feature computation
       # Alternatives: dbt, Apache Beam
-    feature_engine:
-      enabled: true
-      language: rust
-      description: "Real-time streaming feature computation"
-      depends_on: [kafka, valkey]
+    # feature_engine: RETIRED — real-time feature computation is owned by the
+    # Flink stream job (flink_job below); use-case overlays ship the
+    # FlinkDeployment. Keeping one speed-layer owner avoids dual writers.
     flink_job:
       enabled: true
       language: java

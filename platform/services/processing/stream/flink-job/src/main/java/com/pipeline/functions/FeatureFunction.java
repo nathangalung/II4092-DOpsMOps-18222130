@@ -3,7 +3,7 @@ package com.pipeline.functions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import com.pipeline.Tags;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -13,58 +13,71 @@ import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Keyed process function for feature computation.
- * Maintains state per symbol for time-series indicators.
- * All indicator types and periods are configurable via environment variables.
- * Updated for Flink 2.x API.
+ * Keyed feature-computation function — the Flink stream processor that owns the
+ * crypto speed layer (replaces the retired Rust feature-engine).
+ *
+ * <p>State per symbol: the primary value window (e.g. close), the secondary
+ * value window (e.g. volume), and — when trend convergence is enabled — the
+ * MACD-line window used to derive a real stateful signal line.
+ *
+ * <p>Two outputs per tick (emitted EVERY tick, like the feature-engine; the
+ * indicators self-gate to warm-up defaults rather than the operator gating
+ * emission):
+ * <ul>
+ *   <li><b>main</b> → the full feature record (input passthrough + indicators)
+ *       with an ISO-normalised string {@code timestamp}, destined for the Kafka
+ *       → ClickHouse bronze contract.</li>
+ *   <li><b>{@link Tags#CACHE_TAG}</b> → the indicator-only projection (plus
+ *       {@code symbol} + numeric {@code timestamp} for sink routing/scoring),
+ *       destined for the Valkey online cache under {@code features:{symbol}}.</li>
+ * </ul>
+ *
+ * <p>All indicator math is the faithful Rust-parity port in {@link Indicators};
+ * the only deliberate divergence is the trend signal line — see
+ * {@link #computeTrend} — which is a correct stateful MACD EMA rather than the
+ * feature-engine's {@code convergence*0.2} approximation.
  */
 public class FeatureFunction extends KeyedProcessFunction<String, String, String> {
     private static final Logger LOG = LoggerFactory.getLogger(FeatureFunction.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    // Configurable fields — read from env vars, set via use-case ConfigMap
+
+    /** Bronze timestamp format — matches the feature-engine's "%Y-%m-%d %H:%M:%S%.3f". */
+    private static final DateTimeFormatter BRONZE_TS =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+    /** Tolerated input string timestamp with a space separator (UTC assumed). */
+    private static final DateTimeFormatter SPACE_TS =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSS]");
+    /** Below this magnitude a numeric timestamp is seconds, not milliseconds. */
+    private static final long EPOCH_MILLIS_THRESHOLD = 100_000_000_000L;
+
     private final String primaryValueField;
     private final String secondaryValueField;
-    private final int[] rollingMeanPeriods;
-    private final int[] expAvgPeriods;
-    private final int momentumPeriod;
-    private final int windowSize;
-    private final int minDataPoints;
+    private final IndicatorConfig config;
 
     private transient ListState<Double> primaryValueHistory;
     private transient ListState<Double> secondaryValueHistory;
+    private transient ListState<Double> macdHistory;
 
     public FeatureFunction() {
-        // Read configuration from environment variables (set via ConfigMap)
-        this.primaryValueField = System.getenv().getOrDefault("PRIMARY_VALUE_FIELD", "value");
-        this.secondaryValueField = System.getenv().getOrDefault("SECONDARY_VALUE_FIELD", "value_2");
-        this.rollingMeanPeriods = parsePeriods(System.getenv().getOrDefault("FLINK_ROLLING_MEAN_PERIODS", "7,14"));
-        this.expAvgPeriods = parsePeriods(System.getenv().getOrDefault("FLINK_EXP_AVG_PERIODS", "12,26"));
-        this.momentumPeriod = Integer.parseInt(System.getenv().getOrDefault("FLINK_MOMENTUM_PERIOD", "14"));
-        this.windowSize = Integer.parseInt(System.getenv().getOrDefault("FLINK_WINDOW_SIZE", "30"));
-        this.minDataPoints = Math.max(momentumPeriod, maxPeriod(rollingMeanPeriods, expAvgPeriods));
+        this.primaryValueField = envOrDefault("PRIMARY_VALUE_FIELD", "value");
+        this.secondaryValueField = envOrDefault("SECONDARY_VALUE_FIELD", "value_2");
+        this.config = IndicatorConfig.fromEnv();
     }
 
-    private static int[] parsePeriods(String csv) {
-        String[] parts = csv.split(",");
-        int[] periods = new int[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            periods[i] = Integer.parseInt(parts[i].trim());
-        }
-        return periods;
-    }
-
-    private static int maxPeriod(int[]... arrays) {
-        int max = 0;
-        for (int[] arr : arrays) {
-            for (int v : arr) {
-                if (v > max) max = v;
-            }
-        }
-        return max;
+    private static String envOrDefault(String key, String def) {
+        String v = System.getenv(key);
+        return (v == null || v.isEmpty()) ? def : v;
     }
 
     @Override
@@ -73,116 +86,182 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
             new ListStateDescriptor<>("primary_values", Types.DOUBLE));
         secondaryValueHistory = getRuntimeContext().getListState(
             new ListStateDescriptor<>("secondary_values", Types.DOUBLE));
+        macdHistory = getRuntimeContext().getListState(
+            new ListStateDescriptor<>("macd_line", Types.DOUBLE));
     }
 
     @Override
     public void processElement(String value, Context ctx, Collector<String> out) throws Exception {
         JsonNode input = MAPPER.readTree(value);
 
-        // Skip records that don't have the expected primary value field (e.g., ticker data)
+        // Skip records lacking the primary value field (e.g. ticker-only data).
         if (!input.has(primaryValueField) || input.get(primaryValueField).isNull()) {
+            return;
+        }
+        JsonNode symbolNode = input.get("symbol");
+        if (symbolNode == null || symbolNode.isNull()) {
+            return;
+        }
+        String symbol = symbolNode.asText();
+
+        // Robustly resolve the event time (ISO-8601 string, space-separated
+        // datetime, or epoch s/ms). Drop the record if unparseable rather than
+        // emit a corrupt 1970 timestamp into the bronze table.
+        Long epochMillis = parseEpochMillis(input.get("timestamp"));
+        if (epochMillis == null) {
+            LOG.warn("Unparseable timestamp for symbol={} — record skipped", symbol);
             return;
         }
 
         double primaryValue = input.get(primaryValueField).asDouble();
-        double secondaryValue = input.has(secondaryValueField) ? input.get(secondaryValueField).asDouble() : 0.0;
-        String symbol = input.get("symbol").asText();
-        long timestamp = input.get("timestamp").asLong();
+        boolean hasSecondary = input.has(secondaryValueField) && !input.get(secondaryValueField).isNull();
 
-        // Update state
+        // --- Update windowed state ---
         List<Double> primaryValues = toList(primaryValueHistory.get());
-        List<Double> secondaryValues = toList(secondaryValueHistory.get());
-
         primaryValues.add(primaryValue);
-        secondaryValues.add(secondaryValue);
+        trim(primaryValues, config.windowSize);
+        primaryValueHistory.update(primaryValues);
 
-        // Keep window size
-        if (primaryValues.size() > windowSize) {
-            primaryValues = primaryValues.subList(primaryValues.size() - windowSize, primaryValues.size());
-            secondaryValues = secondaryValues.subList(secondaryValues.size() - windowSize, secondaryValues.size());
+        List<Double> secondaryValues = toList(secondaryValueHistory.get());
+        if (hasSecondary) {
+            secondaryValues.add(input.get(secondaryValueField).asDouble());
+            trim(secondaryValues, config.windowSize);
+            secondaryValueHistory.update(secondaryValues);
         }
 
-        primaryValueHistory.update(primaryValues);
-        secondaryValueHistory.update(secondaryValues);
+        // --- Stateless indicators (faithful feature-engine parity) ---
+        Map<String, Double> features = Indicators.computeAll(primaryValues, secondaryValues, config);
 
-        // Compute features if enough data
-        if (primaryValues.size() >= minDataPoints) {
-            ObjectNode features = MAPPER.createObjectNode();
-            features.put("symbol", symbol);
-            features.put("timestamp", timestamp);
-            features.put(primaryValueField, primaryValue);
-            features.put(secondaryValueField, secondaryValue);
+        // --- Stateful trend (MACD) triple ---
+        if (config.trendConvergenceEnabled) {
+            computeTrend(primaryValues, features);
+        }
 
-            // Rolling mean — configurable periods
-            for (int period : rollingMeanPeriods) {
-                features.put("rolling_mean_" + period, rollingMean(primaryValues, period));
+        // --- Main output: full bronze record (passthrough + indicators) ---
+        ObjectNode bronze = MAPPER.createObjectNode();
+        bronze.put("symbol", symbol);
+        bronze.put("timestamp", formatBronzeTs(epochMillis));
+        // Passthrough every original field except the ones we set explicitly,
+        // mirroring the feature-engine's flattened original_values (OHLCV + source).
+        Iterator<Map.Entry<String, JsonNode>> fields = input.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> e = fields.next();
+            String name = e.getKey();
+            if (!name.equals("symbol") && !name.equals("timestamp")) {
+                bronze.set(name, e.getValue());
             }
+        }
+        putFeatures(bronze, features);
+        out.collect(MAPPER.writeValueAsString(bronze));
 
-            // Exponential average — configurable periods
-            for (int period : expAvgPeriods) {
-                features.put("rolling_ema_" + period, expAvg(primaryValues, period));
-            }
+        // --- Side output: indicator-only online-cache projection ---
+        ObjectNode cache = MAPPER.createObjectNode();
+        cache.put("symbol", symbol);
+        cache.put("timestamp", epochMillis);
+        putFeatures(cache, features);
+        ctx.output(Tags.CACHE_TAG, MAPPER.writeValueAsString(cache));
+    }
 
-            // Momentum — configurable period
-            features.put("momentum_" + momentumPeriod, momentum(primaryValues, momentumPeriod));
+    /**
+     * Append the convergence (MACD line) to per-key state and derive a real
+     * EMA signal line + histogram. DELIBERATE divergence from the feature-engine
+     * (which used {@code signal = convergence*0.2}): a proper stateful EMA over
+     * the MACD line is the correct, standard MACD signal. See the speed-layer
+     * ADR — the bronze stream features are not on the offline-training path, so
+     * this strictly improves correctness without affecting batch↔stream parity
+     * (which is asserted on volume SMA, not the trend triple).
+     */
+    private void computeTrend(List<Double> primaryValues, Map<String, Double> features) throws Exception {
+        if (config.expAvgPeriods.length < 2) {
+            return; // need a fast + slow period to form a convergence line
+        }
+        int fast = config.expAvgPeriods[0];
+        int slow = config.expAvgPeriods[1];
+        double convergence = (primaryValues.size() < slow)
+            ? 0.0
+            : Indicators.expAvg(primaryValues, fast) - Indicators.expAvg(primaryValues, slow);
 
-            // Dispersion
-            features.put("dispersion", dispersion(primaryValues));
+        List<Double> macdLine = toList(macdHistory.get());
+        macdLine.add(convergence);
+        trim(macdLine, config.windowSize);
+        macdHistory.update(macdLine);
 
-            // Value change
-            if (primaryValues.size() >= 2) {
-                double prevValue = primaryValues.get(primaryValues.size() - 2);
-                features.put("value_change", (primaryValue - prevValue) / prevValue);
-            }
+        double signal = Indicators.expAvg(macdLine, config.macdSignalPeriod);
+        double hist = convergence - signal;
 
-            out.collect(MAPPER.writeValueAsString(features));
+        features.put("trend_convergence", convergence);
+        features.put("trend_signal", signal);
+        features.put("trend_hist", hist);
+    }
+
+    private static void putFeatures(ObjectNode node, Map<String, Double> features) {
+        for (Map.Entry<String, Double> e : features.entrySet()) {
+            node.put(e.getKey(), e.getValue());
         }
     }
 
-    private List<Double> toList(Iterable<Double> iter) {
+    private static List<Double> toList(Iterable<Double> iter) {
         List<Double> list = new ArrayList<>();
-        iter.forEach(list::add);
+        if (iter != null) {
+            iter.forEach(list::add);
+        }
         return list;
     }
 
-    /** Rolling mean over a window period */
-    private double rollingMean(List<Double> values, int period) {
-        if (values.size() < period) return 0;
-        return values.subList(values.size() - period, values.size())
-            .stream().mapToDouble(d -> d).average().orElse(0);
-    }
-
-    /** Exponential weighted average */
-    private double expAvg(List<Double> values, int period) {
-        if (values.size() < period) return 0;
-        double multiplier = 2.0 / (period + 1);
-        double result = values.get(0);
-        for (int i = 1; i < values.size(); i++) {
-            result = (values.get(i) - result) * multiplier + result;
+    /** Keep at most {@code maxSize} trailing elements in place. */
+    private static void trim(List<Double> values, int maxSize) {
+        int excess = values.size() - maxSize;
+        for (int i = 0; i < excess; i++) {
+            values.remove(0);
         }
-        return result;
     }
 
-    /** Momentum oscillator */
-    private double momentum(List<Double> values, int period) {
-        if (values.size() < period + 1) return 50;
+    private static String formatBronzeTs(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis).atZone(ZoneOffset.UTC).format(BRONZE_TS);
+    }
 
-        double gains = 0, losses = 0;
-        for (int i = values.size() - period; i < values.size(); i++) {
-            double change = values.get(i) - values.get(i - 1);
-            if (change > 0) gains += change;
-            else losses -= change;
+    /**
+     * Parse an event timestamp into epoch milliseconds. Accepts:
+     * RFC3339 / ISO-8601 (with offset or {@code Z}), a space-separated
+     * {@code yyyy-MM-dd HH:mm:ss[.SSS]} datetime (UTC assumed), or a numeric
+     * epoch (seconds or milliseconds). Returns {@code null} when unparseable.
+     */
+    static Long parseEpochMillis(JsonNode tsNode) {
+        if (tsNode == null || tsNode.isNull()) {
+            return null;
         }
-
-        if (losses == 0) return 100;
-        double rs = gains / losses;
-        return 100 - (100 / (1 + rs));
+        if (tsNode.isNumber()) {
+            return normaliseEpoch(tsNode.asLong());
+        }
+        String s = tsNode.asText().trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        try {
+            return Instant.parse(s).toEpochMilli();
+        } catch (Exception ignored) {
+            // not a Z/offset instant — fall through
+        }
+        try {
+            return OffsetDateTime.parse(s).toInstant().toEpochMilli();
+        } catch (Exception ignored) {
+            // not an offset datetime — fall through
+        }
+        try {
+            String normalised = s.contains("T") ? s.replace('T', ' ') : s;
+            LocalDateTime ldt = LocalDateTime.parse(normalised, SPACE_TS);
+            return ldt.toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (Exception ignored) {
+            // not a space/T datetime — fall through
+        }
+        try {
+            return normaliseEpoch(Long.parseLong(s));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
-    /** Standard deviation dispersion */
-    private double dispersion(List<Double> values) {
-        DescriptiveStatistics stats = new DescriptiveStatistics();
-        values.forEach(stats::addValue);
-        return stats.getStandardDeviation();
+    private static long normaliseEpoch(long v) {
+        return Math.abs(v) < EPOCH_MILLIS_THRESHOLD ? v * 1000L : v;
     }
 }

@@ -39,14 +39,13 @@ images:
   - name: analyzer
     newName: localhost:5000/crypto-analyzer
     newTag: latest
-  # Processing
-  - name: feature-engine
-    newName: localhost:5000/crypto-feature-engine
+  # Processing — Flink stream-processor. Base FlinkDeployment references the
+  # generic platform image name `flink-job`; this maps it to the crypto-tagged
+  # registry ref. The spec/image rewrite on the FlinkDeployment CR is enabled
+  # by the `images:` FieldSpec in base/kustomize-config/name-reference.yaml.
+  - name: flink-job
+    newName: localhost:5000/crypto-flink-job
     newTag: latest
-  # ADR-023/025: the FlinkDeployment CR hardcodes the image reference
-  # (`image: crypto-stream-processor:latest`); kustomize image transformers can't
-  # match it because the operator CR is outside the set they rewrite.
-  # The build pipeline tags/pushes the image, and the CR pulls by name.
   - name: batch-processing
     newName: localhost:5000/crypto-batch-processing
     newTag: latest
@@ -67,8 +66,9 @@ replicas:
     count: 1
   - name: analyzer
     count: 1
-  - name: feature-engine
-    count: 1
+  # Flink JM/TM replica counts live on the FlinkDeployment CR
+  # (jobManager.replicas / taskManager.replicas); kustomize `replicas:` only
+  # supports Deployment/StatefulSet/ReplicaSet/Rollout, not FlinkDeployment.
 
 patches:
   # Always — forces registry digest check on each pod create. IfNotPresent
@@ -108,26 +108,9 @@ patches:
         path: /spec/jobTemplate/spec/template/spec/containers/0/resources/requests/cpu
         value: "50m"
 
-  # Further reduce memory for heavy services
-  - target:
-      kind: Deployment
-      name: feature-engine
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: "100m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: "500m"
-  # ADR-023/025: flink-job Deployment is gone. Flink JM/TM resources are
-  # sized on the FlinkDeployment CR directly (see base/flink/flinkdeployment.yaml
-  # → jobManager.resource / taskManager.resource).
+  # Flink stream-processor resources are sized on the FlinkDeployment CR
+  # (jobManager/taskManager.resource), not a Deployment-shaped patch; the old
+  # feature-engine reduction patch is removed (mirrors overlays/local).
   - target:
       kind: Deployment
       name: analyzer

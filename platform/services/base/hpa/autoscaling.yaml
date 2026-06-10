@@ -192,16 +192,6 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: feature-engine-pdb
-spec:
-  maxUnavailable: 1
-  selector:
-    matchLabels:
-      app: feature-engine
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
   name: batch-processing-pdb
 spec:
   maxUnavailable: 1

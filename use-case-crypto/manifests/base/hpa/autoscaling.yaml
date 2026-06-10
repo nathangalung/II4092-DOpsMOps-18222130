@@ -40,16 +40,11 @@ spec:
           periodSeconds: 120
 ---
 # -----------------------------------------------------------------------------
-# feature-engine autoscaling is OWNED BY KEDA (ADR-022).
-# -----------------------------------------------------------------------------
-# Prior to ADR-022 this file shipped a HorizontalPodAutoscaler on feature-
-# engine with CPU + memory + an `External kafka_consumer_lag` metric routed
-# through kafka-exporter + prometheus-adapter. That path was replaced by a
-# KEDA ScaledObject at scaling/scaledobjects.yaml :: feature-engine-kafka-lag,
-# which talks to the broker directly and avoids the metrics-adapter label-
-# match bug (R7 in AUDIT_FINAL_2026-04-20). KEDA generates its own HPA on
-# admission; declaring one here would collide.
-# Do NOT re-add a feature-engine-hpa resource to this file.
+# NOTE: no feature-engine HPA — the bespoke Rust feature-engine Deployment is
+# retired (the Flink `stream-processor` FlinkDeployment owns the crypto speed
+# layer). Flink elasticity is owned inside the engine (task-slot parallelism +
+# operator-managed TM scale-out keyed off the flink-features Kafka-lag SLO), so
+# no Kubernetes HPA — and no KEDA ScaledObject — is declared for it here.
 # -----------------------------------------------------------------------------
 ---
 # -----------------------------------------------------------------------------
@@ -157,34 +152,10 @@ spec:
     matchLabels:
       app: analyzer
 ---
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: feature-engine-pdb
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: feature-engine
----
-# ADR-023/025: targets the JobManager pod created by the Flink Operator
-# for the crypto-stream-processor FlinkDeployment. Operator-managed pods carry
-# `app: <deployment-name>` + `component: jobmanager|taskmanager`; selector
-# labels are NOT rewritten by kustomize namePrefix, so the app value is
-# the hard-coded FlinkDeployment name.  The PDB resource name picks up
-# the `crypto-` prefix in each overlay (→ crypto-stream-processor-jobmanager-pdb).
-# minAvailable: 1 keeps the single JM up during drains; TaskManagers are
-# replaceable and do not need PDB protection.
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: stream-processor-jobmanager-pdb
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: crypto-stream-processor
-      component: jobmanager
+# NOTE: no feature-engine PDB — the bespoke Rust feature-engine Deployment is
+# retired (the Flink `stream-processor` FlinkDeployment owns the speed layer).
+# Flink JM/TM pod disruption is managed by the Flink Kubernetes Operator, not a
+# Kubernetes PDB, so no PDB is declared for it here.
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

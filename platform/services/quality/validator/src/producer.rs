@@ -23,8 +23,9 @@ impl KafkaProducer {
             .set("message.timeout.ms", "120000")
             // zstd: universally supported by librdkafka + matches Strimzi broker
             // `compression.type=zstd`. lz4 here previously triggered consumer
-            // "Decompression (codec 0x4) ... Not implemented" on the rdkafka
-            // crate builds that omit lz4-sys (e.g. feature-engine image).
+            // "Decompression (codec 0x4) ... Not implemented" on rdkafka
+            // crate builds that omit lz4-sys (seen on the since-retired
+            // feature-engine image).
             .set("compression.type", "zstd");
         config.apply_security(&mut cc);
         let producer: FutureProducer = cc.create()?;

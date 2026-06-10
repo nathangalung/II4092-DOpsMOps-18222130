@@ -63,6 +63,14 @@ Operator picks them up.
 
 ## ADR-022 (use-case implementation) — Crypto KEDA ScaledObjects
 
+> **Amended by ADR-026 + ADR-027.** The original three-row baseline below is
+> kept for provenance. The live set is now `validator-kafka-lag`,
+> `analyzer-kafka-lag`, and `gateway-http-rps`: the `feature-engine` row is
+> RETIRED (ADR-027 — the Rust feature-engine is retired and the Flink speed
+> layer owns crypto feature engineering with NO ScaledObject) and a
+> `gateway-http-rps` ScaledObject is ADDED (ADR-026 — prometheus RPS + cpu +
+> memory triggers, replacing the retired prometheus-adapter HPA).
+
 Maps to platform ADR-022 (KEDA ScaledObjects for stream consumers).
 
 `use-case-crypto/manifests/base/scaling/scaledobjects.yaml` declares three
@@ -79,9 +87,20 @@ KEDA queries Kafka brokers directly via
 
 HPA/KEDA collision: `feature-engine-hpa` is **deleted** (not patched) to avoid
 dual-controller fighting. `use-case-crypto/manifests/base/hpa/autoscaling.yaml`
-now contains only the explanation comment.
+no longer declares `feature-engine-hpa`; an explanatory comment marks where it was.
 
 ## ADR-023 (use-case implementation) — Crypto FlinkDeployment CR
+
+> **SUPERSEDED BY ADR-027.** The original shape below (a bespoke
+> `crypto-stream-processor` image carrying a `com.usecase.functions.*`
+> extension jar, a single-JM metrics port, and reuse of the
+> `crypto-feature-engine` consumer group) was retired. End-state Y (ADR-027)
+> runs the **generic** platform `flink-job` image with **no** extension jar
+> (the feature function is the platform `com.pipeline.functions.FeatureFunction`),
+> scrapes JM **and** TM via a PodMonitor on `:9249`, owns the `flink-features`
+> consumer group, and is the sole speed-layer producer (the Rust feature-engine
+> is retired). The manifest moved to `flink/stream-processor.yaml`. The
+> historical record below is kept for provenance.
 
 Maps to platform ADR-023 (FlinkDeployment CR replaces in-pod Deployment).
 
@@ -91,7 +110,12 @@ Maps to platform ADR-023 (FlinkDeployment CR replaces in-pod Deployment).
   operator's Flink 2.2.0 base image)
 - **Mode**: `application` (driver-in-JM, matches prior shape)
 - **jarURI**: `local:///opt/flink/usrlib/crypto-stream-processor.jar`
-- **entryClass**: `io.mlops.crypto.flink.CryptoStreamJob`
+- **entryClass**: `com.pipeline.StreamJob` — the platform's domain-agnostic
+  harness. Streams are config-driven (`ENABLED_STREAMS` + `STREAM_<NAME>_*` in
+  the `pipeline-config` ConfigMap); the crypto overlay jar contributes the
+  `com.usecase.functions.*` feature functions, resolved by reflection at deploy
+  time. (No `CryptoStreamJob` subclass exists — the use-case ships functions,
+  not a bespoke entrypoint.)
 - **Checkpointing**: `s3://flink-checkpoints/crypto/` (MinIO-backed),
   interval 60s. Credentials from Vault via ExternalSecret `crypto-flink-s3`
 - **Observability**: OpenLineage listener (ADR-018) emits to DataHub GMS;
@@ -124,10 +148,13 @@ The `use-case-crypto` namespace is on the ADR-009 Istio opt-out allowlist
 - `allow-same-namespace` (intra-ns trust — single trust boundary)
 - Per-peer-namespace rules named by destination pods:
   `allow-airflow-to-processing` selector lists
-  `feature-engine|validator|analyzer` (post-ADR-025; `flink-job` removed
-  because Airflow does not call Flink JM directly)
+  `validator|analyzer` (post-ADR-025 `flink-job` removed because Airflow does
+  not call Flink JM directly; post-ADR-027 `feature-engine` removed — Rust
+  feature-engine retired, Flink owns the speed layer)
   `allow-kfp-to-training-targets` selector lists
-  `feature-engine|crypto-stream-processor|ml-bridge`
+  `ml-bridge` only (post-ADR-027 `feature-engine` removed; the Flink
+  stream-processor is not exposed — KFP training reads ClickHouse / Feast,
+  not the live speed layer)
 - `allow-prometheus-scrape` includes port 9249 (Flink reporter, ADR-023)
 - `allow-ingress-to-gateway` restricts istio-system → only `app: gateway`
   pod on `:8080`
@@ -198,6 +225,123 @@ scale-down window.
 Apply order matters: APIService deletions BEFORE Deployment deletion (or
 `kubectl apply` leaves APIService pointing at non-existent Service and every
 custom-metric HPA query returns `failed to fetch metric` for ~30 min).
+
+## ADR-027 (use-case implementation) — Flink owns the crypto speed layer (End-state Y)
+
+Supersedes ADR-023. The crypto streaming feature path is owned end-to-end by a
+single Apache Flink application-mode `FlinkDeployment`
+(`use-case-crypto/manifests/base/flink/stream-processor.yaml`). The bespoke Rust
+`feature-engine` Deployment is **retired**.
+
+### Decision
+
+One engine for the speed layer. The platform `flink-job` image
+(`com.pipeline.StreamJob`, a domain-agnostic harness) runs **as-is** — crypto
+references it through the overlay `images:` mapping
+(`flink-job` → `localhost:5000/crypto-flink-job:latest`), exactly like every
+other service. There is **no** crypto extension jar and **no**
+`crypto-stream-processor` image (the ADR-023 shape): the feature function is the
+platform `com.pipeline.functions.FeatureFunction`, wired purely by env on the
+FlinkDeployment podTemplate (`ENABLED_STREAMS=time_series`,
+`STREAM_TIME_SERIES_*`, `VALKEY_HOST/PORT`). All indicator knobs stay in
+`configmaps/features.yaml` (inherited via `pipeline-config`). A new use case
+copies `use-case-crypto/`, edits these env values, and reuses the same image.
+
+### Dual sink (lambda speed layer)
+
+1. **Kafka** `crypto.features.v1` (EXACTLY_ONCE, txn-id prefix `crypto.flink-features`)
+   → ClickHouse `bronze.crypto_features_kafka` Kafka-engine → MV →
+   `bronze.crypto_ohlcv_features`. Feeds the batch↔stream parity oracle (KF-11 /
+   SK-F-11).
+2. **Valkey** `features:{symbol}` (online low-latency cache) — enabled by
+   `STREAM_TIME_SERIES_KEY_PREFIX`; `RedisSink` strips the routing fields
+   (`symbol`, numeric `timestamp`) so the stored value is the pure
+   `{feature: number}` map.
+
+### Schema parity (the make-or-break of the cutover — VERIFIED statically)
+
+`bronze.crypto_features_kafka` and the `feature-cache` reader were built for the
+**Rust** feature-engine's JSON. Replacing that producer with the **Java**
+`FeatureFunction` only works if the serialized fields match. Verified field-by-field:
+
+- **Bronze**: `FeatureFunction` main output is `{symbol, timestamp (string
+  "yyyy-MM-dd HH:mm:ss.SSS"), <passthrough OHLCV + source>, <indicators>}`.
+  `Indicators.computeAll` emits exact-match keys for every MV-consumed column —
+  `rolling_mean_7/14`, `rolling_ema_12/26`, `momentum_14`, `band_upper/lower`,
+  `dispersion`, `value_change`, `secondary_avg` — plus `trend_convergence` /
+  `trend_signal` from the stateful `computeTrend`. The period suffixes are driven
+  by `FLINK_ROLLING_MEAN_PERIODS=7,14`, `FLINK_EXP_AVG_PERIODS=12,26`,
+  `FLINK_MOMENTUM_PERIOD=14`; bands + trend are enabled in `features.yaml`. Extra
+  keys (`value`, `band_middle`, `trend_hist`) are ignored by `JSONEachRow`.
+- **Valkey**: `RedisSink` writes the indicator map alone (`BTreeMap<String,f64>`-
+  compatible) — byte-compatible with the historical writer, so `feature-cache`'s
+  `serde_json::from_str::<Features>` parses identically.
+
+### EXACTLY_ONCE → bronze isolation
+
+Flink writes transactional records to `crypto.features.v1` (feature-engine wrote
+plain). The ClickHouse Kafka engine consumes via **librdkafka, whose
+`isolation.level` default is `read_committed`** — so aborted-transaction records
+are never surfaced, and `bronze.crypto_ohlcv_features`
+(`ReplicatedReplacingMergeTree ORDER BY (symbol,timestamp)`) dedupes any
+transient restart duplicate on merge. No isolation config change required.
+
+### Deliberate divergence — `trend_signal`
+
+`FeatureFunction.computeTrend` derives a real **stateful EMA** signal line over
+the MACD-line window, replacing the feature-engine's `signal = convergence*0.2`
+approximation. This strictly improves correctness; it does **not** affect
+batch↔stream parity, which is asserted on the volume SMA (`secondary_avg` ↔ dbt
+`volume_sma_20`), not the trend triple.
+
+### Kustomize plumbing (the CRD is opaque to kustomize)
+
+- **Image**: the image transformer does not walk `FlinkDeployment.spec.image`
+  (a CRD field, not a PodSpec container path). An `images:` FieldSpec in
+  `kustomize-config/name-reference.yaml` teaches it to — additive, so regular
+  Deployment images keep being rewritten.
+- **Name references**: `namePrefix: crypto-` does not rewrite CRD-internal string
+  refs. nameReference rules rewrite `spec/serviceAccount` (`flink`→`crypto-flink`)
+  and the podTemplate `configMapRef` (`pipeline-config`→`crypto-pipeline-config`).
+  The `secretRef` envFroms (`pipeline-secrets`, `flink-s3-secret`,
+  `crypto-app-consumer`) stay **raw** — each is an ExternalSecret `target.name`
+  literal, so the rendered ref already matches the live Secret.
+- **Operator reachability**: crypto has istio-injection disabled, so NetworkPolicy
+  is the sole layer. `allow-flink-operator` permits the operator
+  (`flink-operator` ns) → JM REST `:8081`; without it the FlinkDeployment hangs
+  in RECONCILING (regression class of the #475 status disconnect).
+  `allow-prometheus-scrape` gains port `:9249`.
+
+### Kafka ACL (zero change)
+
+The shared `crypto-app-consumer` KafkaUser already grants group `flink-*`, topic
+`crypto.*` (R/W), and transactionalId `crypto.*` (Write). The stream's group
+`flink-features`, topics `crypto.validated`/`crypto.features.v1`, and txn-id
+prefix `crypto.flink-features` all fall under those prefixes — EXACTLY_ONCE works
+with no ACL edit.
+
+### Cutover — atomic swap, not "both running"
+
+feature-engine and Flink target the **same** sinks; rendering both would
+double-write bronze (~2× rows per `(symbol,timestamp)`). So the swap is atomic in
+one change: Flink **in** the data path, feature-engine **out** (resource line,
+ScaledObject, kafka-sasl patch entry, ServiceMonitor→PodMonitor, PDB, SLO →
+`flink-features`). feature-engine **source is kept on disk** for rollback (re-add
+one resource line). The data-path slice of the retirement collapses into Phase 2;
+the cosmetic scrub (dead `pipeline-config` group-id key, scram-users ACL entries,
+Tekton CI build step, secondary overlays, chaos exp) follows.
+
+**Apply ordering (hard dependency):** `crypto-flink-job` must exist in the
+registry (`make usecase-crypto-build`) **before** applying the overlay, or the
+speed layer is down until it does. The static gate is
+`kustomize build --load-restrictor LoadRestrictionsNone
+use-case-crypto/manifests/overlays/local` (verified: image/SA/configMapRef
+rewrite correctly, secretRefs stay raw, no dangling patches).
+
+### Classloader
+
+The bundled fat jar sets Flink `classloader.parent-first-patterns` to shadow the
+bundled Flink core + logging, so it runs cleanly on the `flink:2.2.0` base image.
 
 ## Drift-driven retrain (ADR-017 use-case implementation)
 

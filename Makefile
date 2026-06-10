@@ -134,7 +134,6 @@ PLATFORM_SERVICES := \
   rest-collector:ingestion/rest-collector \
   validator:quality/validator \
   analyzer:quality/analyzer \
-  feature-engine:processing/stream/feature-engine \
   flink-job:processing/stream/flink-job \
   vector-processing:processing/vector \
   trainer:trainer \
@@ -144,7 +143,6 @@ PLATFORM_SERVICES := \
   gateway:serving/gateway \
   feature-cache:serving/feature-cache \
   inference-engine:serving/inference-engine \
-  scoring:serving/scoring \
   drift-reporter:drift-reporter
 
 # Pass-through to scripts/render-scalability.sh, scripts/scale.sh, scripts/apply-component.sh
@@ -538,6 +536,18 @@ seed-gitea: ## Push platform/ tree into the in-cluster gitea (force-push, idempo
 	@bash $(SCRIPTS)/seed-gitea.sh
 
 # =============================================================================
+# PLATFORM TEMPLATE CONFIGURATION — config-driven kustomization
+# =============================================================================
+# Mirrors usecase-crypto-generate-kustomization: platform/config/services.yaml
+# (enabled flags) is the single source of truth for which service templates
+# platform/services/base/kustomization.yaml includes.
+.PHONY: platform-generate-kustomization
+platform-generate-kustomization: ## Generate platform/services/base/kustomization.yaml from platform/config/services.yaml
+	@echo "$(YELLOW)Generating platform/services/base/kustomization.yaml from services config...$(NC)"
+	@uv run scripts/generate_kustomization.py
+	@echo "$(GREEN)Done. Verify with: kubectl kustomize platform/services/overlays | head$(NC)"
+
+# =============================================================================
 # SCALABILITY PRIMITIVES — HPA / VPA / KEDA
 # =============================================================================
 .PHONY: install-hpa install-vpa install-keda-scaledobject
@@ -788,10 +798,8 @@ usecase-crypto-lint-data: ## Lint Data services
 	@uv run --with ruff ruff check $(SERVICES_SRC)/quality/drift/
 	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/batch/
 	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/vector/
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clippy -- -D warnings
 	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo clippy -- -D warnings
-	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.compile
 	@echo "$(GREEN)Data lint passed.$(NC)"
 
 usecase-crypto-lint-train: ## Lint Train services
@@ -821,12 +829,10 @@ usecase-crypto-test-data: ## Test Data services
 	@cd $(SERVICES_SRC)/quality/validator && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/quality/analyzer && uv run pytest tests/ -v
 	@cd $(SERVICES_SRC)/quality/drift && uv run pytest tests/ -v
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
 	@cd $(SERVICES_SRC)/processing/batch && uv run pytest tests/ -v
 	@cd $(SERVICES_SRC)/processing/vector && uv run pytest tests/ -v
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo nextest run 2>/dev/null || cargo test
-	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.test
 	@echo "$(GREEN)Data tests passed.$(NC)"
 
 usecase-crypto-test-train: ## Test Train services
@@ -1122,7 +1128,7 @@ usecase-crypto-build-quality: ## Retag quality images from generic
 		echo "$(GREEN)  + $(USE_CASE_PREFIX)-analyzer (retagged)$(NC)"; \
 	else echo "$(YELLOW)  - analyzer SKIPPED$(NC)"; fi
 
-usecase-crypto-build-processing: ## Rebuild batch (overlay) + retag others + build stream-processor
+usecase-crypto-build-processing: ## Rebuild batch (overlay) + retag others
 	@echo "$(YELLOW)── Processing ──$(NC)"
 	@if [ "$(call svc_enabled,processing,batch)" = "true" ]; then \
 		TMPDIR=$$(mktemp -d) && \
@@ -1133,19 +1139,10 @@ usecase-crypto-build-processing: ## Rebuild batch (overlay) + retag others + bui
 		$(call _push,$(USE_CASE_PREFIX)-batch-processing) && \
 		echo "$(GREEN)  + $(USE_CASE_PREFIX)-batch-processing (overlay rebuild)$(NC)"; \
 	else echo "$(YELLOW)  - batch-processing SKIPPED$(NC)"; fi
-	@if [ "$(call svc_enabled,processing,feature_engine)" = "true" ]; then \
-		docker tag feature-engine:$(VERSION) $(USE_CASE_PREFIX)-feature-engine:$(VERSION) && \
-		$(call _push,$(USE_CASE_PREFIX)-feature-engine) && \
-		echo "$(GREEN)  + $(USE_CASE_PREFIX)-feature-engine (retagged)$(NC)"; \
-	else echo "$(YELLOW)  - feature-engine SKIPPED$(NC)"; fi
 	@if [ "$(call svc_enabled,processing,stream_processor)" = "true" ]; then \
-		if ! docker image inspect flink-job:$(VERSION) >/dev/null 2>&1; then \
-			echo "$(RED)ERROR: Platform base image flink-job:$(VERSION) not found. Run: make platform-build-services$(NC)"; \
-			exit 1; \
-		fi; \
-		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-stream-processor:$(VERSION) $(USECASE_DIR)/services/processing/stream-processor && \
-		$(call _push,$(USE_CASE_PREFIX)-stream-processor) && \
-		echo "$(GREEN)  + $(USE_CASE_PREFIX)-stream-processor (overlay with Trade/Orderbook functions)$(NC)"; \
+		docker tag flink-job:$(VERSION) $(USE_CASE_PREFIX)-flink-job:$(VERSION) && \
+		$(call _push,$(USE_CASE_PREFIX)-flink-job) && \
+		echo "$(GREEN)  + $(USE_CASE_PREFIX)-flink-job (retagged generic flink-job → Flink stream-processor)$(NC)"; \
 	else echo "$(YELLOW)  - stream-processor SKIPPED$(NC)"; fi
 	@if [ "$(call svc_enabled,processing,vector)" = "true" ]; then \
 		docker tag vector-processing:$(VERSION) $(USE_CASE_PREFIX)-vector-processing:$(VERSION) && \
@@ -1191,11 +1188,6 @@ usecase-crypto-build-serving: ## Retag serving images from generic
 		$(call _push,$(USE_CASE_PREFIX)-inference-engine) && \
 		echo "$(GREEN)  + $(USE_CASE_PREFIX)-inference-engine (retagged)$(NC)"; \
 	else echo "$(YELLOW)  - inference-engine SKIPPED$(NC)"; fi
-	@if docker image inspect scoring:$(VERSION) >/dev/null 2>&1; then \
-		docker tag scoring:$(VERSION) $(USE_CASE_PREFIX)-scoring:$(VERSION) && \
-		$(call _push,$(USE_CASE_PREFIX)-scoring) && \
-		echo "$(GREEN)  + $(USE_CASE_PREFIX)-scoring (retagged)$(NC)"; \
-	else echo "$(YELLOW)  - scoring SKIPPED (image not built)$(NC)"; fi
 
 usecase-crypto-build-observability: ## Retag observability images from generic
 	@echo "$(YELLOW)── Observability ──$(NC)"
@@ -1317,11 +1309,13 @@ usecase-crypto-up: ## Deploy all use-case-crypto microservices (data + train + s
 # GitOps-native answer; `rollout restart` is the pragmatic local-registry one.
 #
 # ml-bridge (Argo Rollout) re-pulls via its own controller on restart. The
-# crypto-stream-processor Deployment IS a Deployment, but it is the Flink
-# native-mode JobManager (label type=flink-native-kubernetes) owned by the
-# Flink Kubernetes Operator — a manual `rollout restart` would fight operator
-# reconciliation and bounce the running job, so the selector below excludes it
-# (the operator re-pulls on FlinkDeployment spec change instead).
+# `type!=flink-native-kubernetes` selector below is a domain-agnostic guard: any
+# Flink native-mode JobManager Deployment (label type=flink-native-kubernetes) is
+# owned by the Flink Kubernetes Operator, so a manual `rollout restart` would
+# fight operator reconciliation and bounce the running job (the operator re-pulls
+# on FlinkDeployment spec change instead). No such Deployment ships in this use
+# case today — the microstructure FlinkDeployment was removed — but the guard is
+# kept so the target stays correct if an operator-managed job is reintroduced.
 usecase-crypto-roll: ## Roll all use-case Deployments to pull freshly-built :latest images (run after *-build)
 	@echo "$(BLUE)Rolling $(NAMESPACE) Deployments (excl. Flink-operator-managed) to pull freshly-built :latest images$(NC)"
 	@kubectl rollout restart deployment -n $(NAMESPACE) -l 'type!=flink-native-kubernetes'
@@ -1479,7 +1473,6 @@ usecase-crypto-test-python: ## Run Python tests (uv + pytest)
 usecase-crypto-test-rust: ## Run Rust tests (cargo-nextest)
 	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/quality/validator && cargo nextest run 2>/dev/null || cargo test
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/serving/gateway && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/serving/feature-cache && cargo nextest run 2>/dev/null || cargo test
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo nextest run 2>/dev/null || cargo test
@@ -1490,7 +1483,6 @@ usecase-crypto-test-go: ## Run Go tests
 
 usecase-crypto-test-java: ## Run Java tests (Mill)
 	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
-	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.test
 
 usecase-crypto-test-cpp: ## Run C++ tests (xmake — requires protoc, grpc, onnxruntime)
 	@(pkg-config --exists grpc++ protobuf 2>/dev/null && test -d /opt/onnxruntime) || { echo "$(YELLOW)  SKIP: C++ system deps not installed$(NC)"; exit 0; }
@@ -1517,7 +1509,6 @@ usecase-crypto-lint-python: ## Lint Python (ruff via uv)
 usecase-crypto-lint-rust: ## Lint Rust (clippy)
 	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo clippy -- -D warnings
 	@cd $(SERVICES_SRC)/quality/validator && cargo clippy -- -D warnings
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clippy -- -D warnings
 	@cd $(SERVICES_SRC)/serving/gateway && cargo clippy -- -D warnings
 	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clippy -- -D warnings
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo clippy -- -D warnings
@@ -1528,7 +1519,6 @@ usecase-crypto-lint-go: ## Lint Go (golangci-lint)
 
 usecase-crypto-lint-java: ## Lint Java (Mill compile check)
 	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
-	@cd $(USECASE_DIR)/services/processing/stream-processor && mill flink.compile
 
 usecase-crypto-lint-cpp: ## Lint C++ (xmake compile check)
 	@which xmake > /dev/null 2>&1 || { echo "$(YELLOW)  SKIP: xmake not installed$(NC)"; exit 0; }
@@ -1541,7 +1531,6 @@ usecase-crypto-format: ## Format all use-case code
 	@echo "$(YELLOW)Formatting code...$(NC)"
 	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo fmt 2>/dev/null || true
 	@cd $(SERVICES_SRC)/quality/validator && cargo fmt 2>/dev/null || true
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo fmt 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/gateway && cargo fmt 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/feature-cache && cargo fmt 2>/dev/null || true
 	@uv run --with ruff ruff format $(SERVICES_SRC)/ 2>/dev/null || true
@@ -1558,7 +1547,6 @@ usecase-crypto-clean: ## Clean use-case build artifacts
 	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
 	@cd $(SERVICES_SRC)/ingestion/websocket-collector && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/quality/validator && cargo clean 2>/dev/null || true
-	@cd $(SERVICES_SRC)/processing/stream/feature-engine && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/gateway && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/inference-engine && xmake clean 2>/dev/null || rm -rf build 2>/dev/null || true

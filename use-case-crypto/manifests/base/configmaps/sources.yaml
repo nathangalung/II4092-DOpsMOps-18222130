@@ -15,14 +15,20 @@ data:
   CLICKHOUSE_TABLE: "bronze.crypto_ohlcv_features"
   DRIFT_SINK_TABLE: "gold.drift_multi_scale"
   DRIFT_SINK_SYMBOL: "BTC-USD"
-  # --- rest-collector config path ---
-  # The rest-collector reads its data-source and endpoint definitions from
-  # a file-based config (see configmaps/rest-collector-config.yaml) because
-  # per-endpoint polling cannot be expressed as flat env vars. The patches/
-  # rest-collector.yaml file mounts the ConfigMap at the path below.
-  CONFIG_PATH: "/etc/rest-collector/config.yaml"
+  # --- rest-collector config path (intentionally NOT set here) ---
+  # CONFIG_PATH is rest-collector-specific: it points viper at the file-based
+  # source registry mounted at /etc/rest-collector/config.yaml (per-endpoint
+  # polling can't be expressed as flat env vars; see rest-collector-config.yaml).
+  # It used to live in this SHARED ConfigMap, but every workload doing
+  # `envFrom: pipeline-config` inherited it — including the Python batch loader,
+  # whose load_config() then followed CONFIG_PATH to /etc/rest-collector/
+  # config.yaml (absent in the batch image), skipped its baked
+  # /app/config/config.yaml, left technical_indicators={}, and silently wrote
+  # sma_*/volatility_* as ClickHouse DEFAULT 0. So CONFIG_PATH is now pinned
+  # per-rest-collector-workload instead: patches/rest-collector.yaml (Deployment)
+  # and cronjobs/supplementary*.yaml. Do NOT re-add it to this shared ConfigMap.
 
-  # --- Symbol list (consumed by non-Go services — analyzer, feature-engine) ---
+  # --- Symbol list (consumed by non-Go services — analyzer) ---
   # Keep in sync with data_sources[].symbols in rest-collector-config.yaml
   # and with SYMBOLS in schema.yaml.
   COINBASE_SYMBOLS: "BTC-USD,ETH-USD"

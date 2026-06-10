@@ -36,10 +36,11 @@ data:
   RAW_OHLCV_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
 
   # =========================================================================
-  # STREAM FEATURES — Computed by Rust feature-engine (real-time, bronze layer)
+  # STREAM FEATURES — Computed by the Flink stream-processor (real-time, bronze)
   # =========================================================================
-  # The feature-engine reads from crypto.validated Kafka topic and computes
-  # these technical indicators in real-time, writing to bronze.crypto_ohlcv_features.
+  # The Flink stream-processor reads from the crypto.validated Kafka topic and
+  # computes these technical indicators in real-time, writing to
+  # bronze.crypto_ohlcv_features.
   #
   # Moving averages
   STREAM_FEATURE_SMA: "sma_20,sma_50"
@@ -148,5 +149,4 @@ data:
   TOPIC_VALIDATED: "crypto.validated"
   TOPIC_FEATURES: "crypto.features.v1"
   TOPIC_TRADES: "crypto.trades.v1"
-  TOPIC_ORDERBOOK: "crypto.orderbook.v1"
   TOPIC_SENTIMENT: "crypto.supplementary"

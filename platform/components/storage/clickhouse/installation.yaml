@@ -197,7 +197,7 @@ spec:
       # Strimzi :9093 TLS listener advertises SASL_SSL / SCRAM-SHA-512. The
       # ClickHouse Kafka engine ONLY reliably feeds SASL settings to librdkafka
       # from this server `<kafka>` block — NOT from a SQL `CREATE NAMED
-      # COLLECTION`. Field-verified 2026-05-29 (#464): a `Kafka(kafka_crypto)`
+      # COLLECTION`. Field-verified 2026-05-29 (#464): a `Kafka(kafka_<usecase>)`
       # consumer ignored the collection's flat `kafka_sasl_*`/`kafka_broker_list`
       # keys, came up with no credentials, and fell back to the :9092 PLAINTEXT
       # listener ("connecting to a PLAINTEXT broker listener?" SSL handshake

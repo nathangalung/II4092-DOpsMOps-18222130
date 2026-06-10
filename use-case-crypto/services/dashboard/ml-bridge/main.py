@@ -43,7 +43,14 @@ def _render_feast_repo() -> None:
 
     repo_path = os.getenv("FEAST_REPO_PATH", "/app/feature_store")
     tmpl = Path(template_dir, "feature_store.yaml.tmpl").read_text()
-    rendered = re.sub(r"\$\{(\w+)\}", _sub, tmpl)
+    # Substitute per line, skipping full-line `#` comments (mirrors the
+    # materialization writer): a documentation note like `# creds via ${VAR}`
+    # must not be mistaken for a real placeholder. Config-line `${VAR}` still
+    # fails loud when unset.
+    rendered = "".join(
+        line if line.lstrip().startswith("#") else re.sub(r"\$\{(\w+)\}", _sub, line)
+        for line in tmpl.splitlines(keepends=True)
+    )
 
     repo = Path(repo_path)
     repo.mkdir(parents=True, exist_ok=True)

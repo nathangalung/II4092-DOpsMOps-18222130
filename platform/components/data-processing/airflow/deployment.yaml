@@ -176,6 +176,38 @@ metadata:
   name: airflow-config
   namespace: data-processing
 data:
+  # --- Python runtime (single-node IO-contention hardening) ------------
+  # PYTHONDONTWRITEBYTECODE disables CPython's .pyc bytecode cache write.
+  # Root cause it fixes (proven by faulthandler + iostat, 2026-06-07): on
+  # this single-node box `sda` runs IO-saturated under the DB/MinIO/
+  # ClickHouse working set (r_await ~200ms, %util ~70%). CPython's default
+  # behaviour is to write a compiled .pyc next to every imported module
+  # (importlib._bootstrap_external.set_data -> _write_atomic). Importing
+  # airflow touches thousands of modules; on the contended disk each .pyc
+  # write-back STALLS, and the cumulative stall during `airflow api-server`
+  # import overran the webserver startupProbe budget. Kubernetes then
+  # SIGKILLed the container mid-_write_atomic — the atomic temp file is
+  # orphaned, so no .pyc ever lands — and the next boot re-compiles cold
+  # and stalls again: a crashloop that never converges (observed 34
+  # restarts, 0 bytes of stdout because the process died before its first
+  # log line). The scheduler/dag-processor avoided it only because each got
+  # one complete cold-write boot whose container writable layer then
+  # persisted warm; the webserver was killed mid-write on every cycle.
+  # With the flag set, CPython compiles in memory and skips the write
+  # entirely (CPU-for-disk trade — correct on this 24-core, disk-bound
+  # node). Applied platform-wide via this shared ConfigMap so every airflow
+  # process inherits it, most importantly the KubernetesExecutor worker
+  # pods: each task runs in a FRESH cold container, so without the flag
+  # every task would rewrite the full .pyc set = a write storm that scales
+  # with task throughput and re-feeds the IO saturation. Empirically:
+  # `airflow version` returns in 9.4s with the flag vs an unbounded hang
+  # without. Domain-agnostic; cloud/SSD overlays may drop it (no benefit,
+  # no harm). PYTHONUNBUFFERED keeps stdout/stderr unbuffered so any future
+  # startup hang is visible on SIGKILL instead of swallowed in stdio
+  # buffers (it was NOT the cause of the 0-byte logs — the import simply
+  # had not reached its first print — but it makes the next failure legible).
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
   # --- Filesystem layout -----------------------------------------------
   # AIRFLOW_HOME relocated to `/tmp/airflow-home` so UID 50000 can write
   # airflow.cfg on first run.  DAGs delivered by git-sync v4 sidecar into
@@ -218,22 +250,36 @@ data:
   # :8080, which serves the execution app by default (`api-server --apps all`).
   # Workers inherit this via the pod_template `base` container envFrom airflow-config.
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow.data-processing.svc.cluster.local:8080/execution/"
-  # Execution-API (AIP-72 Task SDK) workload-JWT lifetime. The 600s (10 min)
-  # default is too short for this single-node spinning-HDD box: under concurrent
-  # load (lakehouse dbt build + hourly DAG worker pods all hitting `sda`), a
-  # KubernetesExecutor worker can sit Pending/ContainerCreating > 10 min, so the
-  # scheduler-minted token expires before the worker's first
-  # `/execution/.../start` call → `ServerResponseError: Invalid auth token:
-  # Signature has expired`, failing the task (seen on batch_features +
-  # emit_openlineage under peak IO). With the concurrency caps below now
-  # attacking the root cause (the pod-creation stampede), this TTL is
-  # defense-in-depth for residual exogenous IO storms: 3600s covers
-  # worst-case pod-start latency even when `sda` is saturated by work the
-  # cap can't throttle (e.g. a concurrent dbt build). The Task SDK still
-  # refreshes the token via /heartbeat once the task runs, so this only
-  # widens the mint→first-call window. Distinct from
-  # [api_auth] jwt_expiration_time (86400s — the REST/public-API token).
+  # Execution-API (AIP-72 Task SDK) EXECUTION-token lifetime — the token the
+  # api-server MINTS and returns *after* the worker's first successful
+  # `PATCH /execution/.../run`. It scopes the running task's subsequent
+  # /heartbeat + XCom + state calls and auto-refreshes at 20% remaining, so
+  # the 600s (10 min) default is already ample once the task is running. This
+  # knob does NOT gate the first /run call — that is gated by the scheduler-
+  # minted WORKLOAD token, whose lifetime is [scheduler] task_queued_timeout
+  # (set immediately below). Raising THIS value therefore never widened the
+  # mint→/run window, which is why the earlier 3600s bump did not fix the
+  # "Signature has expired" task failures. Kept at 3600s as a comfortable
+  # execution-token TTL (fewer mid-task refreshes under IO pressure).
+  # Distinct from [api_auth] jwt_expiration_time (86400s — REST/public-API).
   AIRFLOW__EXECUTION_API__JWT_EXPIRATION_TIME: "3600"
+  # Scheduler-minted WORKLOAD-token lifetime AND the deadline a QUEUED task
+  # instance has to reach the api-server. In the AIP-72 flow the scheduler
+  # mints the workload token with `exp = task_queued_timeout` and the worker
+  # presents it on its first `PATCH /execution/.../run`; the api-server then
+  # (a) returns 409 if the TI is no longer QUEUED — which it won't be once
+  # the scheduler has failed it for exceeding this very deadline — and
+  # (b) returns 401 "Signature has expired" if the token itself has lapsed.
+  # BOTH failure walls are this one knob. The 600s default is fatal here: on
+  # the single-node spinning HDD `sda`, KubernetesExecutor worker pods sit
+  # ContainerCreating 25–45 min (42 min worst observed) under concurrent
+  # sandbox creation, so every scheduled task's first /run lands past the
+  # 600s wall → supervisor SIGKILLs the task child at bootstrap before task
+  # code runs (recorded as exit_code 1 / ServerResponseError). 3000s (50 min)
+  # clears the 42-min worst-case boot yet stays UNDER the 3600s hourly cadence
+  # ceiling (tightest DAG schedule is hourly with max_active_runs_per_dag=1),
+  # so a TI can never linger queued past its own next schedule boundary.
+  AIRFLOW__SCHEDULER__TASK_QUEUED_TIMEOUT: "3000"
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "True"
   # DAG parse-timeout headroom for the single-node spinning-HDD constraint.
@@ -287,17 +333,17 @@ data:
   # cap) they are catastrophic: when several DAGs hit a schedule boundary
   # together, KubernetesExecutor creates a burst of worker pods that all
   # contend for sandbox creation on `sda`. Some pods then sit Pending for
-  # tens of minutes (34 min observed) — long enough that the Execution-API
-  # workload-JWT minted at pod-creation expires before the container
-  # starts, so the worker's first `/execution/.../run` call returns 401
-  # "Signature has expired" and the task Errors; the same contention also
-  # trips the scheduler's task_queued_timeout, requeuing duplicate pods
-  # (409 invalid-state). Capping concurrency keeps out-of-cap tasks in
-  # SCHEDULED state (no pod, no JWT burned, no queue-timeout) — the
-  # treadmill-free fix for both failure modes.
+  # tens of minutes (42 min worst observed) — and the workload token the
+  # scheduler minted at queue time (exp = task_queued_timeout, raised to
+  # 3000s above) is exactly what the worker's first `/execution/.../run`
+  # call must beat. Capping concurrency cuts the stampede so boots finish
+  # sooner and fewer pods race that wall; the task_queued_timeout raise
+  # moves the wall itself. Together they keep out-of-cap tasks in SCHEDULED
+  # state (no pod, no token burned) until the cluster can actually start
+  # them, instead of burning a doomed pod on every schedule boundary.
   #   PARALLELISM ............ cluster-wide ceiling on running tasks =
   #     concurrent worker pods. 6 (vs 32) caps simultaneous sandbox
-  #     creations on `sda` while leaving headroom for the crypto DAGs.
+  #     creations on `sda` while leaving headroom for the use-case DAGs.
   #   MAX_ACTIVE_TASKS_PER_DAG one DAG can't monopolise the cluster
   #     ceiling; 4 leaves room for other DAGs to progress under the cap.
   #   MAX_ACTIVE_RUNS_PER_DAG conservative platform default of 1 (the most
@@ -1042,14 +1088,17 @@ spec:
           # NullPool default that airflow-config sets for the fork-heavy
           # scheduler/dag-processor). The api-server is a request/response web
           # tier: it does NOT fork long-lived DB-writing helpers, so it never hit
-          # the cross-fork `bad record mac` corruption NullPool guards against.
-          # With NullPool it would instead pay a fresh TCP+TLS handshake to the
-          # (mesh-external, SSL-required) postgresql-rw on EVERY query — startup
-          # issues hundreds of schema/serdes/DAG-load queries, so on the spinning
-          # HDD that overruns the 5-min startupProbe budget → `/api/v2/version`
-          # 500s → CrashLoop. Pooling keeps connections warm so init fits the
-          # window, and keeps the execution-API path fast as KubernetesExecutor
-          # scales task pods. Container env overrides envFrom.
+          # the cross-fork `bad record mac` corruption NullPool guards against —
+          # making pooling safe here. Pooling keeps libpq connections warm so the
+          # execution-API path stays fast as KubernetesExecutor scales task pods
+          # (avoids a fresh TCP+TLS handshake to the mesh-external, SSL-required
+          # postgresql-rw on every query). This is a RUNTIME perf choice, NOT the
+          # cure for the historical startup CrashLoop: that was the .pyc
+          # write-back stalling on the IO-contended disk during import, fixed by
+          # PYTHONDONTWRITEBYTECODE in airflow-config (see the Python-runtime note
+          # there). DB connectivity was never the startup blocker — postgres logs
+          # showed a single clean SSL session per cycle. Container env overrides
+          # envFrom.
           env:
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_ENABLED
               value: "True"

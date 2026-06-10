@@ -10,7 +10,6 @@ name: Service Tests
 #   - services/dashboard/backend         (Go)
 #   - services/dashboard/frontend        (TypeScript, bun)
 #   - services/websocket-collector       (Rust, depends on platform crate via path)
-#   - services/processing/stream-processor (Java, Mill)
 #   - services/retraining                (Python, app.py only — image build, no unit tests)
 #   - services/processing/batch          (dbt-style transformers overlay, no unit tests)
 
@@ -131,31 +130,6 @@ jobs:
           flags: rust-${{ matrix.service }}
           fail_ci_if_error: false
 
-  # Mill build; the flink test module is configured in build.mill even
-  # though no test classes ship yet (the stream-processor assembly is
-  # layered on top of platform's flink-job image, integration tests run there).
-  java-tests:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: "21"
-          distribution: "temurin"
-
-      - name: Install Mill
-        run: |
-          curl -L https://raw.githubusercontent.com/lefou/millw/main/millw > mill
-          chmod +x mill
-          sudo mv mill /usr/local/bin/mill
-
-      - name: Run tests
-        working-directory: services/processing/stream-processor
-        run: mill flink.test
-
   frontend-tests:
     runs-on: ubuntu-latest
 
@@ -190,7 +164,6 @@ jobs:
         python-tests,
         go-tests,
         rust-tests,
-        java-tests,
         frontend-tests,
       ]
     if: always()
@@ -201,13 +174,11 @@ jobs:
           echo "Python tests:   ${{ needs.python-tests.result }}"
           echo "Go tests:       ${{ needs.go-tests.result }}"
           echo "Rust tests:     ${{ needs.rust-tests.result }}"
-          echo "Java tests:     ${{ needs.java-tests.result }}"
           echo "Frontend tests: ${{ needs.frontend-tests.result }}"
 
           if [ "${{ needs.python-tests.result }}"   = "failure" ] || \
              [ "${{ needs.go-tests.result }}"       = "failure" ] || \
              [ "${{ needs.rust-tests.result }}"     = "failure" ] || \
-             [ "${{ needs.java-tests.result }}"     = "failure" ] || \
              [ "${{ needs.frontend-tests.result }}" = "failure" ]; then
             echo "Some tests failed"
             exit 1

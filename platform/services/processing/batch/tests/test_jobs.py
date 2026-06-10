@@ -167,6 +167,86 @@ class TestFeatureEngineeringJob:
         assert "target_return_1h" in result.columns
 
     @patch("jobs.features.clickhouse_connect")
+    def test_write_features_keeps_rows_with_unwritten_nan_column(
+        self, mock_ch: MagicMock, mock_config: Config
+    ) -> None:
+        """Regression #500: a computed-but-UNWRITTEN all-NaN column (e.g.
+        dispersion_1) must NOT wipe valid rows. The old blanket
+        df.dropna() in _process_symbol did exactly that → green-but-empty
+        insert. The drop is now scoped to write_cols (the sink's columns)."""
+        mock_client = MagicMock()
+        mock_ch.get_client.return_value = mock_client
+        # DESCRIBE TABLE rows are (name, type, ...); the sink does NOT expose
+        # volatility_1, so it can never be a write target.
+        describe = MagicMock()
+        describe.result_rows = [
+            ("symbol", "String"),
+            ("timestamp", "DateTime64"),
+            ("close", "Float64"),
+            ("rolling_mean_20", "Float64"),
+        ]
+        mock_client.query.return_value = describe
+
+        job = FeatureEngineeringJob(mock_config)
+        job.connect()
+
+        df = pd.DataFrame(
+            {
+                "symbol": ["A", "A"],
+                "timestamp": pd.date_range("2024-01-01", periods=2, freq="1h"),
+                "close": [100.0, 101.0],
+                "rolling_mean_20": [100.0, 100.5],  # written col, present → keep rows
+                "dispersion_1": [np.nan, np.nan],  # all-NaN, NOT a sink column
+            }
+        )
+        job._write_features(df, "A")
+
+        mock_client.insert.assert_called_once()
+        _, kwargs = mock_client.insert.call_args
+        assert len(kwargs["data"]) == 2  # both rows survived the scoped dropna
+        assert "dispersion_1" not in kwargs["column_names"]
+        assert set(kwargs["column_names"]) == {
+            "symbol",
+            "timestamp",
+            "close",
+            "rolling_mean_20",
+        }
+
+    @patch("jobs.features.clickhouse_connect")
+    def test_write_features_drops_rows_with_written_nan(
+        self, mock_ch: MagicMock, mock_config: Config
+    ) -> None:
+        """Counterpart to the above: a NaN in a WRITTEN column still drops that
+        row (so NaN-target training rows never reach the sink)."""
+        mock_client = MagicMock()
+        mock_ch.get_client.return_value = mock_client
+        describe = MagicMock()
+        describe.result_rows = [
+            ("symbol", "String"),
+            ("timestamp", "DateTime64"),
+            ("close", "Float64"),
+            ("rolling_mean_20", "Float64"),
+        ]
+        mock_client.query.return_value = describe
+
+        job = FeatureEngineeringJob(mock_config)
+        job.connect()
+
+        df = pd.DataFrame(
+            {
+                "symbol": ["A", "A"],
+                "timestamp": pd.date_range("2024-01-01", periods=2, freq="1h"),
+                "close": [100.0, 101.0],
+                "rolling_mean_20": [np.nan, 100.5],  # row 0 has NaN in a WRITTEN column
+            }
+        )
+        job._write_features(df, "A")
+
+        mock_client.insert.assert_called_once()
+        _, kwargs = mock_client.insert.call_args
+        assert len(kwargs["data"]) == 1  # only the non-NaN row survives
+
+    @patch("jobs.features.clickhouse_connect")
     def test_close(self, mock_ch: MagicMock, mock_config: Config) -> None:
         """Test connection closing."""
         mock_client = MagicMock()

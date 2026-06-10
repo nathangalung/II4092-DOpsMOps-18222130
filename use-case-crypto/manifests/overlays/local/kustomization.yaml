@@ -70,13 +70,13 @@ images:
   - name: analyzer
     newName: localhost:5000/crypto-analyzer
     newTag: latest
-  # Processing
-  - name: feature-engine
-    newName: localhost:5000/crypto-feature-engine
+  # Processing — Flink stream-processor. Base FlinkDeployment references the
+  # generic platform image name `flink-job`; this maps it to the crypto-tagged
+  # registry ref. The spec/image rewrite on the FlinkDeployment CR is enabled by
+  # the `images:` FieldSpec in base/kustomize-config/name-reference.yaml.
+  - name: flink-job
+    newName: localhost:5000/crypto-flink-job
     newTag: latest
-  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-stream-processor:latest`;
-  # kustomize image transformer cannot rewrite it because the operator CR is
-  # outside the set kustomize rewrites. Image is published by the build pipeline.
   # Batch/Vector — no standing Deployments. `batch-processing` runs as a
   # KubernetesPodOperator in Airflow DAG crypto_hourly_features (the DAG
   # sets the full image ref inline, so no Kustomize mapping is needed).
@@ -99,11 +99,11 @@ images:
   - name: feature-cache
     newName: localhost:5000/crypto-feature-cache
     newTag: latest
-  - name: inference-engine
-    newName: localhost:5000/crypto-inference-engine
-    newTag: latest
-  # inference-engine replaced by KServe InferenceService (crypto-predictor)
-  # scoring replaced by gateway's built-in scoring endpoint
+  # inference-engine: crypto serves via KServe InferenceService (crypto-predictor),
+  #   not the platform C++ engine — disabled in config/services.yaml (no image
+  #   built/retagged, no Deployment rendered). Rename entry removed (matched nothing).
+  # scoring: removed platform-wide — gateway's built-in scoring endpoint + the
+  #   ml-bridge batch-score task replaced it.
   # Observability
   - name: drift-reporter
     newName: localhost:5000/crypto-drift-reporter
@@ -139,9 +139,9 @@ replicas:
     count: 1
   - name: analyzer
     count: 1
-  # Processing
-  - name: feature-engine
-    count: 1
+  # Processing — Flink JM/TM replica counts live on the FlinkDeployment CR
+  # (jobManager.replicas / taskManager.replicas); kustomize `replicas:` only
+  # supports Deployment/StatefulSet/ReplicaSet/Rollout, not FlinkDeployment.
   # Serving
   - name: gateway
     count: 1
@@ -265,26 +265,9 @@ patches:
   # Base values are for production; local dev needs smaller footprint
   # =========================================================================
 
-  # Processing - heavy services reduced
-  - target:
-      kind: Deployment
-      name: feature-engine
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "128Mi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "512Mi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: "100m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: "500m"
-  # ADR-023/025: flink-job Deployment is gone. Flink JM/TM sizing is on the
-  # FlinkDeployment CR (see base/flink/flinkdeployment.yaml → jobManager.resource
-  # / taskManager.resource). This overlay does not override those values.
+  # Processing — the Flink stream-processor's resources are sized on the
+  # FlinkDeployment CR (jobManager/taskManager.resource); no Deployment-shaped
+  # resource patch applies. The old feature-engine reduction patch is removed.
   # Quality - reduce analyzer
   - target:
       kind: Deployment
@@ -354,20 +337,6 @@ patches:
       - op: replace
         path: /spec/config/min.insync.replicas
         value: "1"
-
-  # =========================================================================
-  # FlinkDeployment — kustomize image transformer cannot rewrite operator CRs,
-  # so we patch the image field directly to add the local registry prefix.
-  # =========================================================================
-  - target:
-      group: flink.apache.org
-      version: v1beta1
-      kind: FlinkDeployment
-      name: stream-processor
-    patch: |-
-      - op: replace
-        path: /spec/image
-        value: "localhost:5000/crypto-stream-processor:latest"
 
   # =========================================================================
   # HPA caps for VPS (single node — cap maxReplicas to 3)

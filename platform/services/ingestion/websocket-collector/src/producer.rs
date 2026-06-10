@@ -50,8 +50,8 @@ impl KafkaProducer {
             // zstd: universally supported by librdkafka builds + broker default
             // (Strimzi platform-kafka spec.kafka.config.compression.type=zstd).
             // lz4 here triggered consumer-side "Decompression (codec 0x4) ...
-            // Not implemented" on the Rust feature-engine whose rdkafka crate
-            // was built without lz4-sys.
+            // Not implemented" on rdkafka crate builds without lz4-sys
+            // (seen on the since-retired Rust feature-engine).
             .set("compression.type", "zstd")
             .set("linger.ms", "5")
             .set("batch.size", "65536")

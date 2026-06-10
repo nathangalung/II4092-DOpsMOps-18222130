@@ -297,12 +297,11 @@ class ExpectationsRunner:
                 results_df = pd.DataFrame(records)
                 # Result table is env-driven (QUALITY_RESULTS_TABLE) so a use-case can
                 # schema-qualify it independently of the client's default database (the
-                # crypto use-case runs CLICKHOUSE_DB=default and qualifies every table).
-                # Crypto sets `features.quality_write_buffer` (a Null-engine staging
-                # table); a MaterializedView funnels rows into
-                # `gold.data_quality_expectations`. We never target the
-                # `features.data_quality_expectations` View directly — it is read-only and
-                # rejects INSERTs ("Method write is not supported by storage View").
+                # use-case sets CLICKHOUSE_DB and qualifies every table). A use-case
+                # may set QUALITY_RESULTS_TABLE to a Null-engine staging table; a
+                # MaterializedView funnels rows into the durable results table. We
+                # never target a read-only View directly — it rejects INSERTs
+                # ("Method write is not supported by storage View").
                 self.client.insert(
                     os.getenv("QUALITY_RESULTS_TABLE", "quality_write_buffer"),
                     results_df.values.tolist(),

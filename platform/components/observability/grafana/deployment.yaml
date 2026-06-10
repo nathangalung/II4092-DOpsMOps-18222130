@@ -223,6 +223,13 @@ spec:
               value: "true"
             - name: GF_ALERTING_ENABLED
               value: "false"  # use unified alerting only
+            # SQLite WAL journal mode: writes append to -wal with batched
+            # fsyncs and readers don't block the writer — directly cuts the
+            # `database is locked` (SQLITE_BUSY) crash-restarts seen when the
+            # single-writer default rollback journal stalls behind node-wide
+            # IO contention (#306 follow-up; spinning sda, f_await 500ms+).
+            - name: GF_DATABASE_WAL
+              value: "true"
           resources:
             requests: { cpu: 100m, memory: 384Mi }
             # 256Mi limit OOMed on Grafana 12.x dashboard-service bleve-index

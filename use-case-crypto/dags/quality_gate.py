@@ -276,7 +276,11 @@ with DAG(
         # GE_CONFIG_PATH were vestigial: the ConfigMap was never created, so the
         # mount failed every run. Removed — no file to mount.
         env_vars={"ANALYSIS_MODE": "expectations"},
-        image_pull_policy="IfNotPresent",
+        # Always-pull off the in-cluster registry: `:latest` + IfNotPresent pins a
+        # stale node-cached digest forever, silently running old analyzer code
+        # after a rebuild. In-cluster registry → cheap re-pull, air-gap-safe
+        # (mirrors #301/#459/#291).
+        image_pull_policy="Always",
         on_finish_action="delete_pod",
         get_logs=True,
         startup_timeout_seconds=300,

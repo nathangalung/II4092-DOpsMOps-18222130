@@ -105,16 +105,22 @@ def compute_dispersion_features(
         value_col = numeric_cols[0]
 
     for window in windows:
+        # window=1 → rolling(1).std() is always NaN — an all-NaN column that
+        # would pollute a downstream dropna (the #500 green-but-empty cause).
+        # Skip degenerate windows entirely (the range feature was already so
+        # guarded; the dispersion std was not).
+        if window <= 1:
+            continue
+
         # Rolling standard deviation of returns
         returns = df[value_col].pct_change()
         result[f"dispersion_{window}"] = returns.rolling(window=window).std()
 
         # Rolling range / value
-        if window > 1:
-            rolling_max = df[value_col].rolling(window=window).max()
-            rolling_min = df[value_col].rolling(window=window).min()
-            result[f"range_{window}"] = (rolling_max - rolling_min) / df[
-                value_col
-            ].replace(0, np.nan)
+        rolling_max = df[value_col].rolling(window=window).max()
+        rolling_min = df[value_col].rolling(window=window).min()
+        result[f"range_{window}"] = (rolling_max - rolling_min) / df[
+            value_col
+        ].replace(0, np.nan)
 
     return result

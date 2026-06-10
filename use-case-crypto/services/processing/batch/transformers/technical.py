@@ -197,21 +197,26 @@ def compute_volatility_features(
     has_ohlcv = all(c in df.columns for c in ["high", "low", "close"])
 
     for window in windows:
+        # window=1 → rolling(1).std() is always NaN — an all-NaN column that
+        # would pollute a downstream dropna (the #500 green-but-empty cause).
+        # Skip degenerate windows entirely.
+        if window <= 1:
+            continue
+
         returns = df[value_col].pct_change()
         result[f"volatility_{window}"] = returns.rolling(window=window).std()
 
-        if window > 1:
-            if has_ohlcv:
-                # Use high/low range for OHLCV data (more accurate)
-                result[f"range_{window}"] = (
-                    df["high"].rolling(window=window).max()
-                    - df["low"].rolling(window=window).min()
-                ) / df["close"]
-            else:
-                rolling_max = df[value_col].rolling(window=window).max()
-                rolling_min = df[value_col].rolling(window=window).min()
-                result[f"range_{window}"] = (rolling_max - rolling_min) / df[
-                    value_col
-                ].replace(0, np.nan)
+        if has_ohlcv:
+            # Use high/low range for OHLCV data (more accurate)
+            result[f"range_{window}"] = (
+                df["high"].rolling(window=window).max()
+                - df["low"].rolling(window=window).min()
+            ) / df["close"]
+        else:
+            rolling_max = df[value_col].rolling(window=window).max()
+            rolling_min = df[value_col].rolling(window=window).min()
+            result[f"range_{window}"] = (rolling_max - rolling_min) / df[
+                value_col
+            ].replace(0, np.nan)
 
     return result

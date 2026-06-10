@@ -16,8 +16,7 @@
 #   entirely (fewer APIServices, fewer moving parts, one autoscaler control
 #   plane instead of two).
 #
-# KEDA now owns four workloads in this use case:
-#   - feature-engine   kafka trigger   (crypto.validated → crypto.features.v1)
+# KEDA now owns three workloads in this use case:
 #   - validator        kafka triggers  (crypto.rest.raw + crypto.ws.raw)
 #   - analyzer         kafka trigger   (crypto.predictions.v1)
 #   - gateway          prometheus + cpu + memory triggers (HTTP request serving)
@@ -39,66 +38,17 @@
 # `gateway-hpa` from hpa/autoscaling.yaml — do NOT re-add either.
 # =============================================================================
 ---
-# ------------------------- FEATURE-ENGINE -----------------------------------
-apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
-metadata:
-  name: feature-engine-kafka-lag
-  namespace: use-case-crypto
-  labels:
-    app.kubernetes.io/part-of: mlops-platform
-    app.kubernetes.io/component: scaling
-    use-case: crypto
-    scaled-resource: feature-engine
-  annotations:
-    # Match the platform convention: KEDA-managed HPAs carry the
-    # `keda.sh/managed-by` label so AlertManager can suppress the stock
-    # HPA-external-metric-stale alerts (which do not apply here).
-    scaledobject.keda.sh/transfer-hpa-ownership: "true"
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: feature-engine
-  minReplicaCount: 1
-  maxReplicaCount: 10
-  pollingInterval: 15      # seconds between lag polls
-  cooldownPeriod: 180      # seconds of low lag before scale-to-min
-  idleReplicaCount: 0      # keep at least minReplicas; never scale to zero
-  advanced:
-    horizontalPodAutoscalerConfig:
-      behavior:
-        scaleUp:
-          stabilizationWindowSeconds: 30
-          policies:
-            - type: Pods
-              value: 4
-              periodSeconds: 30
-        scaleDown:
-          stabilizationWindowSeconds: 300
-          policies:
-            - type: Percent
-              value: 50
-              periodSeconds: 120
-  triggers:
-    - type: kafka
-      authenticationRef:
-        name: crypto-keda-kafka-auth
-      metadata:
-        # 9093 = `tls` listener (SCRAM-SHA-512 + TLS). Plain 9092 worked
-        # at the socket level but the broker enforces ACLs regardless of
-        # listener and rejected anonymous connections (cycle-3 §3.1).
-        bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
-        sasl: scram_sha512
-        tls: enable
-        consumerGroup: feature-engine
-        topic: crypto.validated
-        # Scale up when any partition's lag exceeds 1,000 messages.
-        # Target is lag per replica; at 10 replicas the group can
-        # buffer up to ~10k before we hit the SLO-burn alert
-        # (crypto-pipeline-lag, observability/slos.yaml).
-        lagThreshold: "1000"
-        offsetResetPolicy: latest
+# ------------------------- STREAM PROCESSOR (Flink) -------------------------
+# The crypto speed layer is the Flink FlinkDeployment `stream-processor`
+# (flink/stream-processor.yaml), NOT a Kubernetes Deployment — so KEDA cannot
+# drive it via a `scaleTargetRef` (ScaledObject targets Deployment/StatefulSet
+# only). Flink elasticity is owned INSIDE the engine: 4 task slots give in-place
+# parallelism headroom (2→4) on the single TM pod, and the operator-level
+# autoscaler/parallelism + a TM-replica bump cover real-load scale-out. The
+# Kafka-lag SLO on the `flink-features` consumer group (observability/slos.yaml)
+# is the burn-rate signal. There is therefore intentionally NO ScaledObject for
+# the stream processor here (this replaces the retired feature-engine-kafka-lag
+# SO, which targeted the bespoke Rust feature-engine Deployment).
 ---
 # ------------------------- VALIDATOR ----------------------------------------
 # Validator has TWO ingress topics (REST-polled + WebSocket-streamed) so we

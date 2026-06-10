@@ -51,7 +51,12 @@ COPY src ./src
 # UnknownHostException, and the launcher-level mill-runner-daemon pom fetch
 # happens before any user code runs — a single DNS blip kills the whole job.
 # Mill's `out/` is preserved across iterations so completed work is not redone.
-RUN for i in 1 2 3 4 5; do \
+# Coursier download cache (BuildKit): persists resolved Maven/Flink jars across
+# builds so a source edit no longer re-downloads ~100MB of dependencies. Mill's
+# `out/` stays in-layer (not a cache mount) so the assembled fat jar remains
+# COPY-able from this stage.
+RUN --mount=type=cache,id=coursier,target=/root/.cache/coursier \
+    for i in 1 2 3 4 5; do \
         mill -j 0 flink.assembly && exit 0; \
         echo "[build] attempt $i failed, retrying in 15s..."; \
         sleep 15; \
@@ -59,23 +64,51 @@ RUN for i in 1 2 3 4 5; do \
     echo "[build] failed after 5 attempts" >&2; \
     exit 1
 
-# Runtime image — eclipse-temurin 21-jre-alpine.
-#   - Matches the JDK 21 builder so the fat JAR runs on the same major it
-#     was compiled against (no AOT bytecode-version mismatch risk).
-#   - Matches Flink 2.2's officially supported Java 21 runtime line.
-#   - JRE-only base — application-mode submission via Flink Operator runs
-#     this image only for the MiniCluster fallback path (see CMD below);
-#     the operator-driven path uses a use-case overlay image built on top
-#     of flink:2.2.0-scala_2.12-java21 (see use-case/manifests/.../flink/).
-FROM eclipse-temurin:21-jre-alpine
+# Runtime image — official Flink 2.2 distribution (Java 21 line).
+#   - Operator application-mode: the flink-kubernetes-operator drives the
+#     standard Flink `standalone-job` entrypoint against THIS image (the
+#     FlinkDeployment `job.jarURI: local:///opt/flink/usrlib/flink-job.jar`
+#     points at the fat JAR placed below). This is the real operator-managed
+#     JobManager+TaskManager path — NOT a MiniCluster-in-a-pod (the prior
+#     in-pod runtime was flagged as an anti-pattern; see speed-layer ADR).
+#   - One image, not two: the fat JAR still bundles Flink core, but Flink's
+#     default `classloader.parent-first-patterns` (org.apache.flink.*,
+#     org.slf4j, log4j) load the framework + logging from the base image's
+#     /opt/flink/lib, so the bundled copies are shadowed — no duplicate-class
+#     or SLF4J-binding conflict. Only the application + Kafka connector +
+#     Jackson/Lettuce/commons-math3 are loaded from the user jar (child-first).
+FROM flink:2.2.0-scala_2.12-java21
 
-RUN adduser -D -u 1000 -s /sbin/nologin app
+# Place the application fat JAR where the operator's standalone-job entrypoint
+# and the FlinkDeployment jarURI expect user code.
+COPY --from=builder /app/out/flink/assembly.dest/out.jar /opt/flink/usrlib/flink-job.jar
 
-# Copy the fat JAR (includes Flink runtime + all dependencies)
-COPY --from=builder --chown=1000:1000 /app/out/flink/assembly.dest/out.jar /app/flink-job.jar
+# Activate the Hadoop S3 filesystem plugin so the JobManager + TaskManager can
+# resolve the `s3://` scheme used by Kubernetes-HA storage, checkpoints, and
+# savepoints (stream-processor.yaml: high-availability.storageDir +
+# state.{checkpoints,savepoints}.dir on MinIO). Without it the JM crashes at
+# startup with UnsupportedFileSystemSchemeException for scheme 's3'.
+#
+#   - WHY hadoop, not presto: the FlinkDeployment tunes the S3 client via
+#     `s3.connection.maximum` / `s3.connection.request.timeout` /
+#     `s3.socket.timeout`, which Flink forwards as `fs.s3a.*` — Hadoop-S3A
+#     semantics. The presto plugin ignores those keys, so hadoop keeps the
+#     manifest config honest. Credentials arrive via AWS_* env (S3A's default
+#     EnvironmentVariableCredentialsProvider), endpoint/path-style via the
+#     forwarded `s3.endpoint` / `s3.path.style.access`.
+#   - WHY copy into plugins/, not ENABLE_BUILT_IN_PLUGINS: that env var is
+#     handled only by the image's docker-entrypoint.sh, which the
+#     flink-kubernetes-operator bypasses (it drives KubernetesApplication-
+#     ClusterEntrypoint directly). Flink scans plugins/<name>/ at startup
+#     regardless of entrypoint, so a build-time copy is robust either way.
+#   - The shipped jar is a self-contained shaded uber-jar (relocated
+#     hadoop-aws + aws-sdk); the single-file copy needs no extra hadoop libs.
+#     Glob the version (S3 plugins are not scala-versioned).
+# Runs as root (before USER flink) so it can write under /opt/flink/plugins.
+RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop && \
+    cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/plugins/s3-fs-hadoop/
 
-USER 1000:1000
-
-# MiniCluster mode: runs JobManager + TaskManager in one JVM process
-# StreamExecutionEnvironment.getExecutionEnvironment() auto-creates a local MiniCluster
-CMD ["java", "-Xmx512m", "-cp", "/app/flink-job.jar", "com.pipeline.StreamJob"]
+# The official Flink image already runs as the non-root `flink` user (uid 9999),
+# matching the FlinkDeployment podTemplate securityContext. No CMD/ENTRYPOINT
+# override — the operator supplies the standalone-job command + args at submit.
+USER flink

@@ -46,17 +46,6 @@ data:
   # Uses oneOf to accept both OHLCV candles and ticker data (price/bid/ask)
   VALIDATOR_SCHEMA: '{"type":"object","required":["symbol","timestamp"],"oneOf":[{"required":["open","high","low","close","volume"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"open":{"type":"number"},"high":{"type":"number"},"low":{"type":"number"},"close":{"type":"number"},"volume":{"type":"number"}}},{"required":["price"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"price":{"type":"number"},"bid":{"type":"number"},"ask":{"type":"number"},"volume":{"type":"number"},"spread":{"type":"number"}}}]}'
 
-  # --- Feature engine (FEATURE prefix with __ separator) ---
-  FEATURE_KAFKA__INPUT_TOPIC: "crypto.validated"
-  FEATURE_KAFKA__OUTPUT_TOPIC: "crypto.features.v1"
-  FEATURE_KAFKA__GROUP_ID: "feature-engine"
-  FEATURE_KAFKA__BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
-  FEATURE_KAFKA__SECURITY_PROTOCOL: "SASL_SSL"
-  FEATURE_KAFKA__SASL_MECHANISM: "SCRAM-SHA-512"
-  FEATURE_KAFKA__SSL_CA_LOCATION: "/etc/kafka/ca/ca.crt"
-  FEATURE_VALKEY__URL: "redis://valkey.storage.svc.cluster.local:6379"
-  FEATURE_REDIS__TTL_SECONDS: "3600"
-
   # --- ClickHouse sink (writable — points to actual tables, not views) ---
   CLICKHOUSE_SINK_TABLE: "bronze.crypto_ohlcv_features"
   DATA_TABLE: "bronze.crypto_ohlcv"
@@ -65,26 +54,11 @@ data:
 
   # --- Supplementary topics (consumed by batch jobs) ---
   KAFKA_SUPPLEMENTARY_TOPIC: "crypto.supplementary"
-  # Trade / orderbook topic names are declared on the consumers that need them
-  # (crypto-websocket-collector sets COINBASE_{TRADES,ORDERBOOK}_TOPIC via the
-  # deployment patch; Flink StreamJob reads STREAM_{TRADES,ORDERBOOK}_TOPIC
-  # below). No shared KAFKA_TRADES_TOPIC / KAFKA_ORDERBOOK_TOPIC env is
-  # needed — the convention is per-consumer.
-
-  # --- Flink stream wiring (consumed by platform StreamJob via reflection) ---
-  # Platform ships com.pipeline.functions.FeatureFunction (time-series primitive).
-  # Use-case-crypto ships Trade/Orderbook microstructure functions through the
-  # crypto-stream-processor overlay image — see use-case-crypto/services/processing/stream-processor.
-  ENABLED_STREAMS: "time_series,trades,orderbook"
-  STREAM_TIME_SERIES_TOPIC: "crypto.validated"
-  STREAM_TIME_SERIES_FUNCTION: "com.pipeline.functions.FeatureFunction"
-  STREAM_TIME_SERIES_GROUP: "flink-time-series"
-  STREAM_TRADES_TOPIC: "crypto.trades.v1"
-  STREAM_TRADES_FUNCTION: "com.usecase.functions.TradeFeatureFunction"
-  STREAM_TRADES_GROUP: "flink-trades"
-  STREAM_ORDERBOOK_TOPIC: "crypto.orderbook.v1"
-  STREAM_ORDERBOOK_FUNCTION: "com.usecase.functions.OrderbookFeatureFunction"
-  STREAM_ORDERBOOK_GROUP: "flink-orderbook"
+  # The trades topic name is declared on the consumer that needs it
+  # (crypto-websocket-collector sets COINBASE_TRADES_TOPIC via the deployment
+  # patch; crypto.trades.v1 is consumed by the iceberg-sink connector +
+  # ClickHouse bronze.crypto_trades_kafka). No shared KAFKA_TRADES_TOPIC env
+  # is needed — the convention is per-consumer.
 
   # --- Sentiment batch processing (writable targets → gold layer) ---
   SENTIMENT_RAW_TABLE: "bronze.crypto_sentiment"

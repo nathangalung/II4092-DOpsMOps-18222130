@@ -1,7 +1,7 @@
 # =============================================================================
 # KafkaTopic: crypto.features.v1
 # =============================================================================
-# Gold-tier — engineered features emitted by Flink / feature-engine for online
+# Gold-tier — engineered features emitted by the Flink stream-processor for online
 # serving (read by Feast online store loader + KServe Transformer).
 #
 # The `.v1` suffix is the schema-version contract: breaking Avro changes bump

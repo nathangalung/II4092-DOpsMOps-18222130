@@ -60,8 +60,20 @@ object flink extends JavaModule {
 
   // Test module — JUnit Jupiter 5.14.0 GA (Jan 6 2026); 6.1.0 ships May → excluded.
   object test extends JavaTests with TestModule.Junit5 {
+    // Layout is src/test/{java,resources} (two dirs up from this nested module:
+    // flink/test → flink → flink-job), mirroring the main module's src/main/java
+    // override. WITHOUT this, Mill scans the default `flink/test/src`, discovers
+    // ZERO tests, and the suite "passes" vacuously — the whole flink-job test
+    // tree had silently never run.
+    def sources = Task.Sources(moduleDir / os.up / os.up / "src" / "test" / "java")
+    def resources = Task.Sources(moduleDir / os.up / os.up / "src" / "test" / "resources")
+
+    // junit-platform-launcher MUST match the Jupiter engine's platform version
+    // (Jupiter 5.14.0 ⇒ Platform 1.14.0); otherwise the launcher Mill injects is
+    // older and discovery dies with "OutputDirectoryCreator not available".
     def mvnDeps = super.mvnDeps() ++ Seq(
-      mvn"org.junit.jupiter:junit-jupiter:5.14.0"
+      mvn"org.junit.jupiter:junit-jupiter:5.14.0",
+      mvn"org.junit.platform:junit-platform-launcher:1.14.0"
     )
   }
 }

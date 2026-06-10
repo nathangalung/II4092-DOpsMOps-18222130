@@ -27,12 +27,9 @@ spec:
             - name: WS_ENABLED
               value: "true"
             - name: WS_SUBSCRIBE_MSG
-              value: '{"type":"subscribe","product_ids":["BTC-USD","ETH-USD"],"channels":["ticker","matches","level2_batch"]}'
+              value: '{"type":"subscribe","product_ids":["BTC-USD","ETH-USD"],"channels":["ticker","matches"]}'
             - name: KAFKA_TOPIC
               value: "crypto.ws.raw"
             # Coinbase parser routes `match` / `last_match` to this topic.
             - name: COINBASE_TRADES_TOPIC
               value: "crypto.trades.v1"
-            # Coinbase parser routes `l2update` to this topic.
-            - name: COINBASE_ORDERBOOK_TOPIC
-              value: "crypto.orderbook.v1"

@@ -92,6 +92,13 @@ spec:
                 - secretRef:
                     name: crypto-app-consumer
               env:
+                # rest-collector source-registry path. Moved off the shared
+                # pipeline-config ConfigMap (it leaked into non-rest-collector
+                # envFrom consumers → Python batch loader sma_*/volatility_* = 0);
+                # explicit set also fails loud if the mount is missing. See
+                # configmaps/sources.yaml.
+                - name: CONFIG_PATH
+                  value: "/etc/rest-collector/config.yaml"
                 - name: HISTORY_BACKFILL_ON_START
                   value: "false"
                 - name: POLLING_ENABLED

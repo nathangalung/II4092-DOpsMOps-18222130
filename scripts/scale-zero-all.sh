@@ -8,7 +8,9 @@
 #
 # Excluded: kube-system (built-in local-path-provisioner lives here), cnpg-system,
 # kyverno (policy admission), istio-system (mesh), keda, external-secrets,
-# cert-manager.
+# cert-manager. Also platform-registry — it is the push-target for `make *-build`;
+# scaling it to 0 breaks the build (platform-registry-up only CHECKS reachability,
+# it never re-ups the registry), so it must stay running through a scale-zero.
 # =============================================================================
 set -euo pipefail
 
@@ -25,6 +27,7 @@ declare -a EXCLUDE=(
 # Operator namespaces — kept up unless NUKE_ALL=1
 if [[ "$NUKE_ALL" == "0" ]]; then
   EXCLUDE+=(
+    platform-registry
     cnpg-system
     kyverno
     istio-system

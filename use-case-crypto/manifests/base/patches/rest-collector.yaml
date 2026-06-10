@@ -26,6 +26,17 @@ spec:
               mountPath: /etc/rest-collector
               readOnly: true
           env:
+            # Pin viper at the mounted source registry (/etc/rest-collector/
+            # config.yaml). Formerly inherited from the shared pipeline-config
+            # ConfigMap, but that leaked this rest-collector-only path into every
+            # envFrom consumer — notably the Python batch loader, whose
+            # load_config() then followed it to a path absent in the batch image,
+            # skipped its baked /app/config/config.yaml, and silently wrote
+            # sma_*/volatility_* as ClickHouse DEFAULT 0. Set explicitly here so
+            # rest-collector also fails LOUD (viper SetConfigFile) if the mount is
+            # ever missing, instead of degrading to env-only sources.
+            - name: CONFIG_PATH
+              value: "/etc/rest-collector/config.yaml"
             - name: SENTIMENT_CRYPTOPANIC_ENABLED
               value: "false"
             - name: SENTIMENT_FEARGREED_ENABLED

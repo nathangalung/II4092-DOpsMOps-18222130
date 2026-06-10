@@ -270,7 +270,7 @@ spec:
         # Validate Dockerfiles exist for all enabled services
         echo "--- Dockerfile check ---"
         for svc in rest-collector websocket-collector validator analyzer \
-                    feature-engine gateway feature-cache ml-bridge \
+                    gateway feature-cache ml-bridge \
                     dashboard-backend dashboard-frontend; do
           if [ ! -f "services/"*"/${svc}/Dockerfile" ] 2>/dev/null && \
              [ ! -f "../platform/services/"*"/${svc}/Dockerfile" ] 2>/dev/null; then
@@ -406,10 +406,9 @@ spec:
           build_image "validator"            "${SRC}/out/validator"
           build_image "analyzer"             "${SRC}/out/analyzer"
         fi
-        # Data: Processing
+        # Data: Processing (Flink stream-processor image is retagged from the
+        # generic flink-job image by the Makefile, not built here)
         if [ "${PHASE}" = "2" ] || [ "${PHASE}" = "all" ]; then
-          build_image "feature-engine"       "${SRC}/out/feature-engine"
-          build_image "stream-processor"     "${SRC}/out/stream-processor"
           build_image "batch-processing"     "${SRC}/out/batch-processing"
           build_image "vector-processing"    "${SRC}/out/vector-processing"
         fi

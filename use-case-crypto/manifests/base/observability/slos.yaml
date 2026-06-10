@@ -85,26 +85,25 @@ metadata:
     tier: use-case
     use-case: crypto
 spec:
-  service: crypto-feature-engine
+  service: crypto-stream-processor
   labels:
     tier: use-case
     use-case: crypto
-    component: feature-engine
+    component: stream-processor
   slos:
-    - name: feature-engine-lag-under-10k
+    - name: stream-processor-lag-under-10k
       objective: 99.0
       description: >-
-        99% of 1-minute windows over 7 days must see consumer-group
-        `feature-engine` reporting a lag of <10,000 events against the
-        `crypto.validated` topic (thesis §4.3.2 — the pipeline keeps up
-        with market tick velocity).  Burn threshold aligns with the KEDA
-        ScaledObject's scale-up threshold (1,000 per replica × up to
-        10 replicas).
+        99% of 1-minute windows over 7 days must see the Flink stream-processor
+        source consumer-group `flink-features` reporting a lag of <10,000 events
+        against the `crypto.validated` topic (thesis §4.3.2 — the speed layer
+        keeps up with market tick velocity).  The 10k budget reflects the engine
+        absorbing transient bursts across its task slots before falling behind.
       sli:
         events:
           errorQuery: >-
             sum(kafka_consumergroup_lag{
-              consumergroup="feature-engine",
+              consumergroup="flink-features",
               topic="crypto.validated"}) > bool 10000
           totalQuery: >-
             vector(1)
@@ -115,7 +114,7 @@ spec:
           router: crypto-team
           use-case: crypto
         annotations:
-          summary: feature-engine consumer lag on crypto.validated is breaching budget
+          summary: Flink stream-processor consumer lag on crypto.validated is breaching budget
           runbook_url: https://runbooks/crypto/pipeline-lag
         pageAlert:
           labels: { severity: warning, routing_key: jira }

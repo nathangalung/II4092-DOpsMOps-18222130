@@ -126,7 +126,7 @@ patches:
   #   creation with `serviceaccount "default-editor" not found`.
   #   Point at `pipeline-runner` SA which is shipped by KFP (defined in
   #   pipelines.yaml) and has the KFP-runner ClusterRoleBinding from
-  #   use-case-crypto/manifests/base/rbac/kfp-runner.yaml.
+  #   the use-case's manifests/base/rbac/kfp-runner.yaml.
   #   kfp.Client.create_recurring_run(service_account=) is silently ignored
   #   by v2beta1 server — this ConfigMap is the only authoritative knob.
   - target:
@@ -427,19 +427,31 @@ patches:
             path: /healthz
             port: 6060
           initialDelaySeconds: 30
-          periodSeconds: 20
+          periodSeconds: 30
           failureThreshold: 3
           timeoutSeconds: 10
+      # livenessProbe relaxed 2026-06-06. Single-node k3s kine/sqlite IO
+      # pressure briefly stalls the controller's :6060 /healthz handler (or
+      # the listener drops -> `connection refused`, an instant TCP RST). The
+      # prior window (failureThreshold 5 x periodSeconds 30 = 150s,
+      # initialDelay 60s) tripped kubelet liveness SIGKILL x100s ->
+      # CrashLoopBackOff, which was the real restart driver -- NOT leader
+      # election (the controller acquires its lease fine at one replica; logs
+      # show "successfully acquired lease"). Widened to a 300s tolerance
+      # window (5 x 60s) at half the probe frequency, initialDelay 90s, to
+      # match the upstream-generous base in pipelines.yaml. timeoutSeconds 30
+      # only helps the slow-response (context-deadline) case; it does nothing
+      # for connection-refused, but is harmless.
       - op: add
         path: /spec/template/spec/containers/0/livenessProbe
         value:
           httpGet:
             path: /healthz
             port: 6060
-          initialDelaySeconds: 60
-          periodSeconds: 30
+          initialDelaySeconds: 90
+          periodSeconds: 60
           failureThreshold: 5
-          timeoutSeconds: 10
+          timeoutSeconds: 30
       - op: add
         path: /spec/template/spec/terminationGracePeriodSeconds
         value: 30

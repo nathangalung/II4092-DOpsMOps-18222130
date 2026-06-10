@@ -38,7 +38,6 @@ resources:
   - ../base/kafka-topics/validated.yaml
   - ../base/kafka-topics/features.v1.yaml
   - ../base/kafka-topics/trades.v1.yaml
-  - ../base/kafka-topics/orderbook.v1.yaml
   - ../base/kafka-topics/predictions.v1.yaml
   - ../base/kafka-topics/supplementary.yaml
   - ../base/kafka-topics/iceberg-dlq.yaml

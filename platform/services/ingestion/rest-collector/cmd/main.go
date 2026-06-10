@@ -258,7 +258,7 @@ func backfillHistorical(
 				logger,
 			)
 			if !lastTS.IsZero() {
-				// Data exists — backfill from last timestamp (with 1 candle overlap for safety)
+				// Data exists — backfill from last timestamp (with 1 record overlap for safety)
 				gapStart := lastTS.Add(-time.Duration(src.Granularity) * time.Second)
 				if gapStart.After(defaultStart) {
 					startDate = gapStart

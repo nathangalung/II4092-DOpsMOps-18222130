@@ -78,33 +78,9 @@ spec:
     # narrowest correct value here.
     direction: to
 ---
-# --- Feature-engine CPU stress: prove HPA/KEDA reaction, 3× per week
-apiVersion: chaos-mesh.org/v1alpha1
-kind: Schedule
-metadata:
-  name: feature-engine-cpu-stress
-  namespace: chaos-mesh
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-    argocd.argoproj.io/sync-wave: "10"
-  labels:
-    app.kubernetes.io/part-of: mlops-platform
-    experiment.thesis: KNF-11-autoscale
-spec:
-  schedule: "0 14 * * 1,3,5"           # Mon/Wed/Fri 14:00
-  historyLimit: 10
-  concurrencyPolicy: Forbid
-  type: StressChaos
-  stressChaos:
-    mode: one
-    selector:
-      labelSelectors:
-        app: feature-engine
-    stressors:
-      cpu:
-        workers: 2
-        load: 90
-    duration: "5m"
+# (The KNF-11-autoscale CPU-stress Schedule lives with the use case —
+# use-case-*/manifests/base/chaos/ — because the workload with a CPU-based
+# scaler is pipeline-specific. Platform keeps infrastructure chaos only.)
 ---
 # --- Time skew on OpenTelemetry Collector gateway: 200ms drift, weekly
 apiVersion: chaos-mesh.org/v1alpha1
@@ -162,7 +138,7 @@ spec:
         size: 512MB
     duration: "10m"
 ---
-# Workflow that sequences the CNPG + Kafka + feature-engine experiments
+# Workflow that sequences the CNPG + Kafka + frontend-stress experiments
 # back-to-back once a month — “game day” drill.  Can be triggered manually
 # with `kubectl -n chaos-mesh apply -f <this-file>` to test the full
 # recovery story end-to-end.
@@ -181,7 +157,7 @@ spec:
   templates:
     - name: game-day
       templateType: Serial
-      children: [cnpg-kill, kafka-loss, fe-stress]
+      children: [cnpg-kill, kafka-loss, frontend-stress]
     - name: cnpg-kill
       templateType: PodChaos
       deadline: "5m"
@@ -206,12 +182,18 @@ spec:
           labelSelectors: { strimzi.io/name: platform-kafka-broker }
         loss: { loss: "10", correlation: "25" }
         direction: to
-    - name: fe-stress
+    # CPU stress against a platform workload with a CPU-based HPA
+    # (datahub-frontend, max 3) so the drill also proves autoscaling
+    # absorbs pressure during combined failures. Selector pins the
+    # namespace explicitly — without `namespaces:` chaos-mesh scopes to
+    # the Chaos object's own namespace and the stress matches nothing.
+    - name: frontend-stress
       templateType: StressChaos
       deadline: "10m"
       stressChaos:
         mode: one
         selector:
-          labelSelectors: { app: feature-engine }
+          namespaces: [data-governance]
+          labelSelectors: { app: datahub-frontend }
         stressors:
           cpu: { workers: 2, load: 95 }

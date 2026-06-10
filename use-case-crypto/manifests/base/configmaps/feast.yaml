@@ -36,9 +36,11 @@ metadata:
     component: feast
 data:
   feature_store.yaml.tmpl: |
-    # Rendered at pod start (materialization writer main.py + ml-bridge reader
-    # lifespan) by single-pass ${VAR} substitution from the pod env — Feast's
-    # own YAML parser does NOT expand ${VAR}.
+    # Rendered at pod start: the CLICKHOUSE_USER / CLICKHOUSE_PASSWORD /
+    # VALKEY_PASSWORD placeholders below are substituted from the pod
+    # environment (pipeline-secrets envFrom); Feast's own YAML parser does not
+    # expand them. This note deliberately carries no token syntax so the
+    # single-pass renderer never mistakes a comment for a substitution target.
     project: crypto
     provider: local
     registry:

@@ -97,6 +97,14 @@ spec:
                 - secretRef:
                     name: crypto-app-consumer
               env:
+                # Pin viper at the mounted /etc/rest-collector/config.yaml source
+                # registry. Moved here off the shared pipeline-config ConfigMap,
+                # which leaked this rest-collector-only path into non-rest-collector
+                # envFrom consumers (the Python batch loader → sma_*/volatility_*
+                # = 0). Explicit set also gives fail-loud SetConfigFile semantics
+                # if the config mount is ever missing. See configmaps/sources.yaml.
+                - name: CONFIG_PATH
+                  value: "/etc/rest-collector/config.yaml"
                 - name: JOB_NAME
                   value: "supplementary_source"
                 - name: USE_CASE

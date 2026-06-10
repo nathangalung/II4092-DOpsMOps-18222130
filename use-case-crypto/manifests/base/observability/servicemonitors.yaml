@@ -78,30 +78,14 @@ spec:
       scrapeTimeout: 10s
 ---
 # -----------------------------------------------------------------------------
-# Processing
+# Processing — Flink stream-processor (speed layer)
 # -----------------------------------------------------------------------------
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: feature-engine
-  namespace: use-case-crypto
-  labels:
-    app.kubernetes.io/part-of: use-case-crypto
-    usecase: crypto
-spec:
-  selector:
-    matchLabels: { app: feature-engine }
-  endpoints:
-    - port: http
-      path: /metrics
-      interval: 30s
-      scrapeTimeout: 10s
----
-# ADR-023/025: PodMonitor (not ServiceMonitor) because the Flink Operator
-# does not auto-create a Service exposing the Prometheus reporter port.
-# Selector targets the JobManager pod labels the operator applies to the
-# FlinkDeployment `crypto-stream-processor` (see flink/flinkdeployment.yaml —
-# `metrics.reporter.prom.port: "9249"`).
+# A PodMonitor (not a ServiceMonitor): the Flink Prometheus reporter (port 9249)
+# runs on BOTH the JobManager and every TaskManager pod, but the operator only
+# fronts the JM REST (8081) with a Service — TM metrics have no Service. The
+# PodMonitor scrapes pods directly by the `metrics: flink` label set on the
+# FlinkDeployment podTemplate (flink/stream-processor.yaml), which the operator
+# propagates to JM + TM pods. Replaces the retired feature-engine ServiceMonitor.
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -112,12 +96,10 @@ metadata:
     usecase: crypto
 spec:
   selector:
-    matchLabels:
-      app: crypto-stream-processor
-      component: jobmanager
+    matchLabels: { metrics: flink }
   podMetricsEndpoints:
-    - port: metrics
-      path: /metrics
+    - port: metrics          # containerPort 9249 (named) on JM + TM
+      path: /
       interval: 30s
       scrapeTimeout: 10s
 ---

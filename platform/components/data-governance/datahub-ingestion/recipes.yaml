@@ -43,15 +43,15 @@ data:
         password: ${PG_PASSWORD}
         include_tables: true
         include_views: true
-        include_query_lineage: true
-        include_usage_statistics: true
         profiling: { enabled: true, limit: 10000 }
-        classification:
-          enabled: true
-          classifiers:
-            - type: datahub
-              config:
-                confidence_level_threshold: 0.7
+        # Classification DISABLED for the same reason as clickhouse.yml: the
+        # datahub_classify info-type NER path fetches the spaCy en_core_web_sm
+        # model from github.com at runtime, which the air-gapped istio-STRICT mesh
+        # blocks -> SystemExit:1. This source passed before only because the empty
+        # platform metadb never triggered the NER path; disabling it removes that
+        # latent failure. Profiling (data-quality signal) stays on. Re-enable by
+        # baking en_core_web_sm into the datahub-ingestion image.
+        classification: { enabled: false }
     sink:
       type: datahub-rest
       config:
@@ -66,14 +66,24 @@ data:
     source:
       type: clickhouse
       config:
-        host_port: clickhouse-platform.storage.svc.cluster.local:9000
+        host_port: clickhouse-platform.storage.svc.cluster.local:8123
         username: ${CH_USER}
         password: ${CH_PASSWORD}
         include_tables: true
         include_views: true
         profiling: { enabled: true, include_field_stddev_value: true, limit: 50000 }
-        classification:
-          enabled: true
+        # Classification (datahub_classify info-type NER) DISABLED. At runtime
+        # datahub_classify.infotype_helper lazily downloads the spaCy model
+        # `en_core_web_sm` (~12.8 MB) from github.com; this cluster is air-gapped
+        # with istio STRICT egress, so the fetch fails and the classification
+        # worker raises SystemExit:1, aborting the whole pipeline (verified
+        # 2026-06-07). The data this platform catalogs (warehouse OHLCV / technical
+        # features / symbols) carries no PII, so info-type classification yields
+        # nothing of value. Profiling — the data-quality governance signal (row
+        # counts, null fraction, min/max/stddev) — is retained. To re-enable
+        # classification, bake en_core_web_sm into the datahub-ingestion image so
+        # no runtime egress is required.
+        classification: { enabled: false }
     sink:
       type: datahub-rest
       config:

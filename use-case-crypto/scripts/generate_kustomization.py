@@ -36,12 +36,10 @@ SERVICE_RESOURCES = {
     ("quality", "analyzer"): [
         "deployments/analyzer.yaml",
     ],
-    # Processing
-    ("processing", "feature_engine"): [
-        "deployments/feature-engine.yaml",
-    ],
+    # Processing — Flink stream-processor (speed layer). References the generic
+    # platform flink-job image via the FlinkDeployment CR; no inherited Deployment.
     ("processing", "stream_processor"): [
-        "flink/flinkdeployment.yaml",
+        "flink/stream-processor.yaml",
     ],
     ("processing", "batch"): [
         "deployments/batch-processing.yaml",
@@ -254,7 +252,8 @@ def generate_kustomization(services: dict, dry_run: bool = False) -> str:
     lines.append("")
     lines.append("  # --- Service patches ---")
     lines.append("  - path: patches/rest-collector.yaml")
-    lines.append("  - path: patches/feature-engine.yaml")
+    # No feature-engine patch — the Flink stream-processor (flink/stream-processor.yaml)
+    # carries its Kafka/Valkey wiring inline in the FlinkDeployment podTemplate.
     lines.append("  - path: patches/supplementary-source.yaml")
     lines.append("  - path: patches/supplementary-data.yaml")
     lines.append("  - path: patches/backfill.yaml")

@@ -24,8 +24,8 @@ resources:
   - ../base/connectors/debezium-postgres.yaml
   - ../base/connectors/iceberg-sink.yaml
   # KafkaUsers + KEDA TriggerAuthentication (cycle-3 §3.1). Required for
-  # data because validator + feature-engine + analyzer all consume Kafka
-  # over SCRAM-SHA-512 once the broker enforces ACLs on the plain listener.
+  # data because validator + analyzer + the Flink stream-processor all
+  # consume Kafka over SCRAM-SHA-512 once the broker enforces ACLs.
   - ../base/kafka-users/scram-users.yaml
   - ../base/kafka-users/triggerauth.yaml
 
@@ -42,11 +42,12 @@ resources:
   - ../../../platform/services/base/deployments/analyzer.yaml
 
   # --- Data: Processing ---
-  # ADR-023/025: stream processing = FlinkDeployment CR (Flink Operator).
-  # The CR file also declares the flink ServiceAccount/Role/RoleBinding and
-  # the flink-s3-secret ExternalSecret needed for checkpoints + HA.
-  - ../../../platform/services/base/deployments/feature-engine.yaml
-  - ../base/flink/flinkdeployment.yaml
+  # Flink stream-processor (generic flink-job image) is the speed layer:
+  # crypto.validated → OHLCV features → online `features:{symbol}` Valkey
+  # cache + crypto.features.v1 (ADR-027 End-state Y; the Rust feature-engine
+  # was retired). Self-contains its ServiceAccount/Role/RoleBinding and the
+  # flink-s3-secret ExternalSecret.
+  - ../base/flink/stream-processor.yaml
   - ../base/cronjobs/vector-embedding.yaml
   # batch-features, batch-sentiment, dbt-run, backfill → Airflow DAGs
 
@@ -67,15 +68,24 @@ patches:
   - path: ../base/configmaps/quality.yaml
   - path: ../base/configmaps/serving.yaml
   - path: ../base/patches/rest-collector.yaml
-  - path: ../base/patches/feature-engine.yaml
   - path: ../base/patches/supplementary-source.yaml
   # backfill.yaml removed: targeted nonexistent CronJob "incremental-backfill".
   # Backfill is handled by rest-collector's built-in HISTORY_BACKFILL_ON_START.
   - path: ../base/patches/websocket-collector.yaml
-  # SCRAM/TLS Kafka credentials for validator + analyzer + feature-engine +
-  # rest-collector + websocket-collector. Must come last so it composes with
-  # the per-service patches above (kustomize merges by container name).
+  # SCRAM/TLS Kafka credentials for validator + analyzer + rest-collector +
+  # websocket-collector (the Flink stream-processor gets SCRAM via the
+  # crypto-app-consumer Secret envFrom on its podTemplate, not this patch).
+  # Must come last so it composes with the per-service patches above
+  # (kustomize merges by container name).
   - path: ../base/patches/kafka-sasl.yaml
+
+# Teach kustomize's image transformer to rewrite the FlinkDeployment's
+# CRD-level `spec/image` — the builtin transformer only walks PodSpec
+# images, so without this the overlay's `flink-job → crypto-flink-job`
+# remap silently no-ops and the base `flink-job` placeholder is pulled.
+# Mirrors base/kustomization.yaml.
+configurations:
+  - ../base/kustomize-config/name-reference.yaml
 
 labels:
   - pairs:

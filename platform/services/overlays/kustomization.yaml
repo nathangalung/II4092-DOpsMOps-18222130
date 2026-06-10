@@ -58,8 +58,6 @@ images:
     newName: localhost:5000/analyzer
   - name: batch-processing
     newName: localhost:5000/batch-processing
-  - name: feature-engine
-    newName: localhost:5000/feature-engine
   - name: vector-processing
     newName: localhost:5000/vector-processing
   - name: trainer
@@ -93,8 +91,6 @@ replicas:
   - name: validator
     count: 1
   - name: analyzer
-    count: 1
-  - name: feature-engine
     count: 1
   - name: gateway
     count: 1

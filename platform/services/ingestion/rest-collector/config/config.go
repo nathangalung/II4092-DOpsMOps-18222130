@@ -88,7 +88,7 @@ type EndpointConfig struct {
 //
 //   Kind: one of "object" (single JSON object), "array_of_objects"
 //         (JSON list of objects), "array_of_arrays" (JSON list of
-//         positional arrays like time-series candles).
+//         positional arrays like time-series rows).
 //   FieldMapping:   json_field -> output_key, used for object /
 //                   array_of_objects. Only listed fields are copied.
 //   ArrayFields:    positional field names for array_of_arrays. Entry

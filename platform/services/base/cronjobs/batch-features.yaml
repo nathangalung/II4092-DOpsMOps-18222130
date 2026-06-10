@@ -49,10 +49,14 @@ spec:
                 limits:
                   cpu: "2"
                   memory: "4Gi"
-              volumeMounts:
-                - name: config
-                  mountPath: /app/config
-          volumes:
-            - name: config
-              configMap:
-                name: pipeline-config
+              # No /app/config mount by design. A use-case overlay image bakes
+              # its feature config at /app/config/config.yaml (the Python loader's
+              # default path when CONFIG_PATH is unset). A full-dir mount of the
+              # flat pipeline-config ConfigMap here (no subPath, keys are
+              # KEY=VALUE not a config.yaml) would clobber that dir → loader finds
+              # no config.yaml → technical_indicators stays {} → sma_*/
+              # volatility_* write as ClickHouse DEFAULT 0. Every pipeline-config
+              # value already reaches the container via envFrom above. This base
+              # CronJob runs the no-bake platform image so the mount was inert,
+              # but it is the exact reintroduction vector for an overlay image —
+              # removed here too. See use-case-crypto sma=0 / CONFIG_PATH fix.

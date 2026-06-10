@@ -1,7 +1,7 @@
 # =============================================================================
 # use-case-crypto :: Chaos Mesh resilience experiments (thesis §4.5 KNF-11)
 # =============================================================================
-# Platform-level chaos (CNPG kill, Kafka loss, feature-engine stress, OTEL
+# Platform-level chaos (CNPG kill, Kafka loss, datahub-frontend stress, OTEL
 # time skew, MinIO pressure) ships in platform/components/security/chaos-
 # mesh/experiments.yaml. That covers INFRASTRUCTURE resilience.
 #
@@ -10,6 +10,7 @@
 #   1. Crypto gateway network loss (edge flakiness)
 #   2. feature-cache pod kill (serving-side cache invalidation)
 #   3. ml-bridge → MLflow API latency (model-registry flakiness)
+#   4. Gateway CPU stress (KNF-11 autoscale proof via the KEDA cpu trigger)
 #
 # Each experiment is a Schedule (low cadence) + a one-shot manual version
 # included in the `crypto-game-day` Workflow at the bottom.
@@ -112,6 +113,39 @@ spec:
         namespaces: [use-case-crypto]
         labelSelectors:
           app: ml-bridge
+---
+# --- 4. Gateway CPU stress — proves the KEDA cpu trigger on the gateway
+#     (scaling/scaledobjects.yaml `gateway-http-rps`, cpu utilization 60%,
+#     maxReplicaCount 20) actually scales out under load and returns to the
+#     1-replica idle baseline afterwards (single-node mandate). This is the
+#     KNF-11-autoscale experiment: it moved here from the platform chaos set
+#     because the gateway is the pipeline service with a CPU-based scaler —
+#     the platform keeps only infrastructure-level chaos.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: gateway-cpu-stress
+  namespace: chaos-mesh
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    use-case: crypto
+    experiment.thesis: KNF-11-autoscale
+spec:
+  schedule: "0 14 * * 1,3,5"           # Mon/Wed/Fri 14:00
+  historyLimit: 6
+  concurrencyPolicy: Forbid
+  type: StressChaos
+  stressChaos:
+    mode: one
+    selector:
+      namespaces: [use-case-crypto]
+      labelSelectors:
+        app: gateway
+    stressors:
+      cpu:
+        workers: 2
+        load: 90
+    duration: "5m"
 ---
 # --- crypto-game-day Workflow — sequences the 3 experiments for manual
 #     thesis-viva demonstration.  `kubectl apply -f` this file during the

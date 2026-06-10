@@ -60,9 +60,9 @@ images:
   - name: analyzer
     newName: crypto-analyzer
     newTag: v1.0.0
-  # Processing
-  - name: feature-engine
-    newName: crypto-feature-engine
+  # Processing — Flink stream-processor (generic flink-job image, crypto-tagged)
+  - name: flink-job
+    newName: crypto-flink-job
     newTag: v1.0.0
   - name: vector-processing
     newName: crypto-vector-processing
@@ -72,9 +72,6 @@ images:
   - name: trainer
     newName: crypto-trainer
     newTag: v1.0.0
-  # ADR-023/025: FlinkDeployment CR hardcodes `image: crypto-stream-processor:latest`;
-  # kustomize image transformer cannot rewrite it because the operator CR is
-  # outside the set kustomize rewrites. Image is published by the build pipeline.
   # Serving
   - name: gateway
     newName: crypto-gateway
@@ -82,9 +79,8 @@ images:
   - name: feature-cache
     newName: crypto-feature-cache
     newTag: v1.0.0
-  - name: inference-engine
-    newName: crypto-inference-engine
-    newTag: v1.0.0
+  # inference-engine omitted — crypto serves via KServe (crypto-predictor);
+  #   disabled in config/services.yaml, so no image is built/retagged.
   # Dashboard
   - name: dashboard-backend
     newName: crypto-dashboard-backend
@@ -111,9 +107,8 @@ replicas:
     count: 3
   - name: analyzer
     count: 2
-  # Processing
-  - name: feature-engine
-    count: 3
+  # Processing — Flink JM/TM replicas live on the FlinkDeployment CR, not here
+  # (kustomize `replicas:` does not support the FlinkDeployment kind).
   # Serving
   - name: gateway
     count: 3

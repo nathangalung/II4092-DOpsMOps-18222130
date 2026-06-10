@@ -12,7 +12,7 @@
 #     base RBAC Roles/RoleBindings, and pipeline-infrastructure ConfigMap.
 #   - use-case-crypto/ owns the ServiceAccount (Vault-bound), domain
 #     ConfigMap patches (schema/topics/features/...), KSERVE_INFERENCE_URL,
-#     the FlinkDeployment CR (crypto stream job), and every crypto-branded CR.
+#     and every crypto-branded CR.
 #
 # TO CREATE A NEW USE CASE:
 #   1. Copy the entire use-case-crypto/ directory
@@ -64,12 +64,19 @@ resources:
   - ../../../platform/services/base/deployments/validator.yaml
   - ../../../platform/services/base/deployments/analyzer.yaml
 
-  # --- Processing (generic Deployments from platform) ---
-  # ADR-023/025: stream processing is owned by the FlinkDeployment CR in
-  # flink/flinkdeployment.yaml (Flink Kubernetes Operator). No inherited
-  # flink-job Deployment — the crypto overlay jar is embedded in the image
-  # the CR references.
-  - ../../../platform/services/base/deployments/feature-engine.yaml
+  # --- Processing — Flink stream-processor (the crypto speed layer) ---
+  # An application-mode FlinkDeployment running the platform `flink-job` image
+  # owns the entire streaming feature path: consumes crypto.validated, computes
+  # the OHLCV indicator set, and DUAL-sinks to (1) Kafka crypto.features.v1
+  # (EXACTLY_ONCE → ClickHouse bronze) and (2) the Valkey online cache
+  # `features:{symbol}`. This RETIRES the bespoke Rust feature-engine Deployment
+  # (atomic swap — see flink/stream-processor.yaml header): one engine, replayable
+  # checkpointed state, operator-managed lifecycle. The platform StreamJob stays
+  # domain-agnostic; all crypto wiring is env on the FlinkDeployment podTemplate.
+  # NOTE the apply ordering: the `crypto-flink-job` image must exist in the
+  # registry (make usecase-crypto-build) BEFORE applying this overlay, or the
+  # speed layer is down until it does.
+  - flink/stream-processor.yaml
 
   # --- Serving (generic Deployments from platform) ---
   - ../../../platform/services/base/deployments/gateway.yaml
@@ -225,16 +232,11 @@ resources:
   - superset/bootstrap-configmap.yaml
   - superset/bootstrap-job.yaml
 
-  # --- Autoscaling (KEDA Kafka-lag ScaledObjects) ---
-  # KEDA replaces the feature-engine HPA external-metric path with a native
-  # Kafka trigger (ADR-022). Validator + analyzer scale on Kafka lag too.
-  # Gateway / dashboard-backend keep their HPAs (CPU/RPS-based).
+  # --- Autoscaling (KEDA Kafka-lag + HTTP-RPS ScaledObjects) ---
+  # KEDA owns event-driven scaling here (ADR-022/-026): validator + analyzer
+  # scale on Kafka lag, gateway scales on prometheus HTTP-RPS + cpu + memory.
+  # rest-collector + dashboard-backend keep plain CPU HPAs in hpa/autoscaling.yaml.
   - scaling/scaledobjects.yaml
-
-  # --- Stream processing (FlinkDeployment CR, ADR-023) ---
-  # Replaces the in-pod `flink-job` Deployment with an operator-managed
-  # FlinkDeployment running the crypto overlay jar in application mode.
-  - flink/flinkdeployment.yaml
 
   # --- Progressive delivery (Argo Rollout on ml-bridge, ADR-016/025) ---
   # Rollout owns ml-bridge pod lifecycle. The inherited platform file
@@ -295,15 +297,13 @@ patches:
 
   # --- Service patches (layer domain behavior onto inherited Deployments) ---
   - path: patches/rest-collector.yaml
-  - path: patches/feature-engine.yaml
   - path: patches/supplementary-source.yaml
   - path: patches/websocket-collector.yaml
   # Wires SCRAM-SHA-512 / TLS Kafka credentials into validator, analyzer,
-  # feature-engine, rest-collector, websocket-collector — adds the
-  # `crypto-app-consumer` Secret as envFrom and mounts the broker CA at
-  # `/etc/kafka/ca/ca.crt` (matches KAFKA_SSL_CA_LOCATION in topics.yaml).
-  # Must come after feature-engine.yaml so its envFrom override composes
-  # with the inline /tmp/config.yaml command without dropping creds.
+  # rest-collector, websocket-collector — adds the `crypto-app-consumer` Secret
+  # as envFrom and mounts the broker CA at `/etc/kafka/ca/ca.crt` (matches
+  # KAFKA_SSL_CA_LOCATION in topics.yaml). The Flink stream-processor carries
+  # the same credential surface inline in its FlinkDeployment podTemplate.
   - path: patches/kafka-sasl.yaml
 
   # --- Tekton Task step resources (Kyverno require-resource-limits) ---
@@ -339,9 +339,9 @@ patches:
 # Teaches kustomize about KEDA ScaledObject / ScaledJob scaleTargetRef so
 # namePrefix rewrites the Deployment name inside those CRs the same way it
 # already does for the built-in HorizontalPodAutoscaler. Without this, our
-# four ScaledObjects (feature-engine, validator, analyzer, gateway) would
-# render with `scaleTargetRef.name: feature-engine` etc. — targeting a
-# non-existent Deployment after the `crypto-` prefix is applied.
+# three ScaledObjects (validator, analyzer, gateway) would render with
+# `scaleTargetRef.name: validator` etc. — targeting a non-existent Deployment
+# after the `crypto-` prefix is applied.
 # See kustomize-config/name-reference.yaml for the transformer contract.
 configurations:
   - kustomize-config/name-reference.yaml

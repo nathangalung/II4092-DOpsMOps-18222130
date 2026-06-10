@@ -7,7 +7,6 @@
 # on every Kafka-touching workload in this use case:
 #   - validator             (Rust, librdkafka)
 #   - analyzer              (Python, confluent-kafka)
-#   - feature-engine        (Rust, librdkafka)
 #   - rest-collector        (Python producer)
 #   - websocket-collector   (Python producer)
 #
@@ -16,10 +15,11 @@
 # `crypto-app-consumer` secretRef.  Volume + volumeMount append cleanly via
 # the `name` mergeKey.
 #
-# Flink, dashboard-backend, gateway, and ml-bridge are NOT covered here —
-# follow-up tasks will migrate them once the streaming workloads are stable
-# (each has its own credential surface: Flink reads via the FlinkDeployment
-# CR's kafkaConfig stanza, dashboard via Spring Kafka properties, etc.).
+# The Flink stream-processor is NOT patched here — it carries the identical
+# credential surface (envFrom crypto-app-consumer + the /etc/kafka/ca mount)
+# inline in its FlinkDeployment podTemplate (flink/stream-processor.yaml),
+# because a strategic-merge Deployment patch cannot target a FlinkDeployment CR.
+# dashboard-backend / gateway / ml-bridge are not Kafka clients.
 # =============================================================================
 ---
 apiVersion: apps/v1
@@ -59,34 +59,6 @@ spec:
     spec:
       containers:
         - name: analyzer
-          envFrom:
-            - configMapRef:
-                name: pipeline-config
-            - secretRef:
-                name: pipeline-secrets
-            - secretRef:
-                name: crypto-app-consumer
-          volumeMounts:
-            - name: kafka-ca
-              mountPath: /etc/kafka/ca
-              readOnly: true
-      volumes:
-        - name: kafka-ca
-          secret:
-            secretName: crypto-app-consumer
-            items:
-              - key: ca.crt
-                path: ca.crt
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: feature-engine
-spec:
-  template:
-    spec:
-      containers:
-        - name: feature-engine
           envFrom:
             - configMapRef:
                 name: pipeline-config

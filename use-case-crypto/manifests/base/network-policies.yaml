@@ -9,7 +9,7 @@
 # Posture:
 #   1. `default-deny-ingress` denies all ingress to the namespace.
 #   2. `allow-same-namespace` allows crypto-internal east-west traffic
-#      (feature-engine → validator, gateway → feature-cache, etc.).
+#      (stream-processor JM↔TM, gateway → feature-cache, etc.).
 #      Crypto is a single trust boundary — intra-namespace IS trusted.
 #   3. Every external source gets a NARROWLY-SCOPED policy that names
 #      the destination pods AND ports.  Any broad `podSelector: {}` from
@@ -19,9 +19,8 @@
 # Green-path preservation (audit §2.3 Stages 1-3+5):
 #   - Stage 1  collectors → Kafka (egress only; no ingress rule needed)
 #   - Stage 2  validator ← Kafka (egress only)
-#   - Stage 3  feature-engine ← Kafka + Airflow batch trigger (see
-#                `allow-airflow-to-processing`; Flink stream processing is
-#                owned by the FlinkDeployment CR, label `app: crypto-stream-processor`)
+#   - Stage 3  stream-processor (Flink) ← Kafka (egress only); Flink operator
+#                → JM REST 8081 ingress (see `allow-flink-operator`)
 #   - Stage 5  ml-bridge → MLflow (egress only; ingress needed from
 #                dashboard-frontend + gateway, both intra-ns)
 #
@@ -75,17 +74,42 @@ spec:
         - protocol: TCP
           port: 9090
         - protocol: TCP
-          port: 9249    # Flink JM/TM Prometheus reporter (crypto-stream-processor)
+          port: 9249    # Flink stream-processor (JM + TM Prometheus reporter)
         - protocol: TCP
           port: 50053   # gRPC metrics
   policyTypes:
     - Ingress
 ---
+# Flink Kubernetes Operator → JobManager REST (8081). The operator runs in the
+# `flink-operator` namespace and reconciles this use case's FlinkDeployment by
+# polling the JM REST API for job/savepoint status. Crypto has istio-injection
+# disabled (ADR-009), so NetworkPolicy is the SOLE layer — without this rule the
+# default-deny blocks the operator's status calls and the FlinkDeployment hangs
+# in RECONCILING despite a healthy job (regression class of #475). Scoped by
+# source namespace + port 8081 (only the Flink JM listens there), mirroring the
+# `allow-prometheus-scrape` namespace+port pattern, so no fragile match on the
+# operator-derived pod labels is needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-flink-operator
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flink-operator
+      ports:
+        - protocol: TCP
+          port: 8081
+  policyTypes:
+    - Ingress
+---
 # Allow Istio ingressgateway to reach the crypto gateway on 8080 ONLY.
-# Other pods (feature-cache, dashboard-*, ml-bridge, analyzer,
-# crypto-stream-processor) MUST NOT be reachable from istio-system directly —
-# they are accessed via the in-namespace gateway which proxies after
-# AuthorizationPolicy.
+# Other pods (feature-cache, dashboard-*, ml-bridge, analyzer) MUST NOT be
+# reachable from istio-system directly — they are accessed via the
+# in-namespace gateway which proxies after AuthorizationPolicy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -137,11 +161,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        # ADR-023/025: `flink-job` removed — stream processing uses the
-        # FlinkDeployment CR (`app: crypto-stream-processor`). Airflow DAGs do
-        # not call Flink directly; if that changes, add `crypto-stream-processor`
-        # here and bind it to port 8081 (JobManager REST).
-        values: [feature-engine, validator, analyzer]
+        values: [validator, analyzer]
   ingress:
     - from:
         - namespaceSelector:
@@ -150,13 +170,11 @@ spec:
   policyTypes:
     - Ingress
 ---
-# KFP (model-lifecycle) launches training / retraining pipelines — only
-# needs to reach feature-engine (to kick feature computation), the
-# FlinkDeployment JobManager (to submit Flink jobs on 8081), and
-# ml-bridge (to register the resulting model).  NO access to gateway /
-# dashboard / cache.  The FlinkDeployment lives in this namespace with
-# `app: crypto-stream-processor` (the CR's metadata.name); selectors target that
-# label directly (kustomize namePrefix does not rewrite selector values).
+# KFP (model-lifecycle) launches training / retraining pipelines — needs to
+# reach ml-bridge (to register the resulting model). Training data comes from
+# ClickHouse / Feast, not a live stream-processor call, so the speed layer
+# (Flink) is intentionally NOT exposed here.  NO access to gateway /
+# dashboard / cache.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -166,7 +184,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [feature-engine, crypto-stream-processor, ml-bridge]
+        values: [ml-bridge]
   ingress:
     - from:
         - namespaceSelector:
@@ -177,7 +195,7 @@ spec:
 ---
 # KServe + Knative — inference routing runs in front of gateway (which
 # hosts the crypto web UI) and can reach ml-bridge (which proxies model
-# metadata).  NO access to feature-engine / validator / crypto-stream-processor.
+# metadata).  NO access to the Flink stream-processor / validator.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -218,54 +236,5 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-  policyTypes:
-    - Ingress
----
-# Flink Kubernetes Operator (flink-operator ns) → JobManager REST (8081).
-# The operator DEPLOYS the FlinkDeployment via the K8s API, but it OBSERVES job
-# health by polling the JobManager REST endpoint (READY confirmation, job
-# status, checkpoint/savepoint triggers). `default-deny-ingress` blocks that
-# cross-namespace call: the operator can create the Deployment but never reads
-# the JM back, so `jobManagerDeploymentStatus` is pinned at DEPLOYING and
-# `jobStatus.state` at RECONCILING — and `status.error` carries the
-# TimeoutException — even while the job is RUNNING and checkpointing normally.
-# Argo CD's FlinkDeployment health check then computes Degraded from that stale
-# status + populated error, dragging the whole use-case Application to Degraded.
-#   `allow-same-namespace` already covers JM<->TaskManager RPC (intra-ns), which
-#   is why the job runs fine; only the operator's cross-ns observe was denied.
-# Scope: ingress to the JobManager pod ONLY (app=crypto-stream-processor,
-# component=jobmanager — TaskManagers expose no operator-polled REST) from the
-# flink-operator namespace on 8081 only.
-#   The selector MUST use matchExpressions (not matchLabels): the kustomize
-#   `labels` transformer appends commonLabels (app.kubernetes.io/*, environment,
-#   platform) into any matchLabels block, but the JobManager pod is created by
-#   the Flink operator — not kustomize — so it carries ONLY app/component/type.
-#   A matchLabels selector would render with the extra common labels and match
-#   nothing (silent no-op). matchExpressions is left untouched by the transformer
-#   (same pattern as allow-kfp-to-training-targets above), so app + component
-#   are ANDed to target the JobManager pod exactly (TaskManagers excluded).
-#   kustomize namePrefix does not rewrite selector values either, so the `app`
-#   value stays `crypto-stream-processor`.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-flink-operator-to-jobmanager
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [crypto-stream-processor]
-      - key: component
-        operator: In
-        values: [jobmanager]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: flink-operator
-      ports:
-        - protocol: TCP
-          port: 8081
   policyTypes:
     - Ingress

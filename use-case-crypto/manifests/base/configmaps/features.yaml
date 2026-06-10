@@ -27,18 +27,24 @@ data:
   SIMILARITY_RETURN_FIELD: "return_24h"
 
   # --- Flink stream processing parameters ---
+  # Flink is the SINGLE crypto stream processor (ADR speed-layer; thesis
+  # SK-F-11/KF-11 name "stream (Flink)"). These knobs define the emitted feature
+  # set so it matches the 20-key bronze.crypto_ohlcv_features contract exactly.
+  # Periods are LOAD-BEARING for the column NAMES (rolling_mean_{p}/
+  # rolling_ema_{p}/momentum_{p}) — keep 7,14 / 12,26 / 14 in lockstep with
+  # init_clickhouse.sql.
   PRIMARY_VALUE_FIELD: "close"
   SECONDARY_VALUE_FIELD: "volume"
   FLINK_ROLLING_MEAN_PERIODS: "7,14"
   FLINK_EXP_AVG_PERIODS: "12,26"
   FLINK_MOMENTUM_PERIOD: "14"
-
-  # --- Rust feature engine indicator parameters ---
-  FEATURE_INDICATORS__ROLLING_MEAN_PERIODS: "7,14"
-  FEATURE_INDICATORS__EXP_AVG_PERIODS: "12,26"
-  FEATURE_INDICATORS__MOMENTUM_PERIOD: "14"
-  FEATURE_INDICATORS__TREND_CONVERGENCE_ENABLED: "true"
-  FEATURE_INDICATORS__DEVIATION_BANDS_ENABLED: "true"
-  FEATURE_INDICATORS__DEVIATION_BANDS_PERIOD: "20"
-  FEATURE_INDICATORS__DISPERSION_PERIOD: "14"
-  FEATURE_INDICATORS__WINDOW_SIZE: "200"
+  FLINK_WINDOW_SIZE: "200"
+  FLINK_TREND_CONVERGENCE_ENABLED: "true"
+  FLINK_DEVIATION_BANDS_ENABLED: "true"
+  FLINK_DEVIATION_BANDS_PERIOD: "20"
+  FLINK_DISPERSION_PERIOD: "14"
+  FLINK_SECONDARY_AVG_PERIOD: "20"
+  # MACD signal line period (standard 9). The Flink stream computes a real
+  # stateful EMA-9 of the MACD line for trend_signal/trend_hist — the corrected
+  # form vs the legacy convergence*0.2 approximation (see ADR).
+  FLINK_MACD_SIGNAL_PERIOD: "9"

@@ -1,5 +1,6 @@
 package com.pipeline;
 
+import com.pipeline.sinks.KafkaSinkFactory;
 import com.pipeline.sinks.RedisSink;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +9,7 @@ import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.KafkaSourceBuilder;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
-import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.slf4j.Logger;
@@ -19,40 +20,54 @@ import java.util.Properties;
 /**
  * Domain-agnostic Flink streaming harness.
  *
- * The set of streams (topics + feature functions) is declared entirely at
- * deploy time through environment variables; the harness itself holds no
- * reference to any use-case concept (crypto, stock, IoT, log, ...).
+ * <p>The set of streams (topics + feature functions + sinks) is declared
+ * entirely at deploy time through environment variables; the harness itself
+ * holds no reference to any use-case concept (financial ticks, IoT telemetry,
+ * logs, ...).
  *
- * Env contract
+ * <p><b>Dual-sink model.</b> A stream's {@link KeyedProcessFunction} emits two
+ * projections of each record: its <em>main</em> output (the full feature record)
+ * goes to a Kafka topic for the durable bronze path; its
+ * {@link Tags#CACHE_TAG} side output (the indicator-only projection) goes to the
+ * Valkey online-serving cache. Either sink is optional per stream — configure
+ * whichever the use-case needs.
+ *
+ * <p>Env contract
+ * <pre>
  *   KAFKA_BROKERS                       Bootstrap servers (required)
  *   KAFKA_SECURITY_PROTOCOL             PLAINTEXT | SASL_PLAINTEXT | SASL_SSL | SSL
  *                                         (optional; default PLAINTEXT). When SASL_*,
- *                                         the JAAS config is built from
- *                                         KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD.
+ *                                         JAAS is built from KAFKA_SASL_USERNAME / _PASSWORD.
  *   KAFKA_SASL_MECHANISM                e.g. SCRAM-SHA-512 (required when SASL_*).
  *   KAFKA_SASL_USERNAME / _PASSWORD     SCRAM creds, injected from a KafkaUser secret.
- *   KAFKA_SSL_CA_LOCATION               PEM path for ssl.truststore.location
- *                                         (Strimzi cluster CA cert; required for SSL/SASL_SSL).
- *   VALKEY_HOST, VALKEY_PORT, VALKEY_PASSWORD   Sink parameters (required;
- *                                         Valkey speaks Redis-RESP — Lettuce client below)
- *   ENABLED_STREAMS                     Comma-separated stream names, e.g.
- *                                         "time_series" or
- *                                         "time_series,trades,orderbook"
- *                                       Default: "time_series"
+ *   KAFKA_SSL_CA_LOCATION               PEM path for ssl.truststore.location.
+ *   VALKEY_HOST, VALKEY_PORT, VALKEY_PASSWORD   Online-cache sink parameters.
+ *   ENABLED_STREAMS                     Comma-separated stream names (default "time_series").
  *
  *   For every stream NAME in ENABLED_STREAMS:
- *     STREAM_{NAME}_TOPIC               Kafka topic (required)
- *     STREAM_{NAME}_FUNCTION            Fully-qualified class name of a
- *                                         KeyedProcessFunction&lt;String,String,String&gt;
+ *     STREAM_{NAME}_TOPIC               Source Kafka topic (required)
+ *     STREAM_{NAME}_FUNCTION            FQCN of a KeyedProcessFunction&lt;String,String,String&gt;
  *                                         (required; loaded via reflection)
- *     STREAM_{NAME}_GROUP               Consumer group id (optional,
- *                                         defaults to flink-{name})
+ *     STREAM_{NAME}_GROUP               Source consumer group (default flink-{name})
+ *     STREAM_{NAME}_SINK_TOPIC          Kafka sink topic for the main output
+ *                                         (default env OUTPUT_TOPIC; omit to disable
+ *                                         the durable Kafka sink)
+ *     STREAM_{NAME}_SINK_TXN_ID_PREFIX  When set, the Kafka sink runs EXACTLY_ONCE
+ *                                         with this transactional.id prefix (must match
+ *                                         the broker's transactionalId ACL). Omit for
+ *                                         AT_LEAST_ONCE. (default env KAFKA_SINK_TXN_ID_PREFIX)
+ *     STREAM_{NAME}_KEY_PREFIX          Valkey key namespace for the CACHE_TAG side
+ *                                         output. SET to enable the online-cache sink;
+ *                                         omit to disable it. Use the bare "features:"
+ *                                         to own the canonical online feature cache
+ *                                         (features:{symbol}); use "features:{name}:"
+ *                                         to keep a stream's cache in its own keyspace.
+ * </pre>
  *
- * Use-case responsibility
- *   Use-cases ship a container image that extends this image (or otherwise
- *   augments the classpath) with their own function classes and declare
- *   the above env vars from their ConfigMap. The platform image ships only
- *   com.pipeline.functions.FeatureFunction as a time-series primitive.
+ * <p>Use-cases ship a container image that extends this image with their own
+ * function classes and declare the above env vars from their ConfigMap. The
+ * platform image ships {@code com.pipeline.functions.FeatureFunction} as a
+ * time-series primitive.
  */
 public class StreamJob {
     private static final Logger LOG = LoggerFactory.getLogger(StreamJob.class);
@@ -63,11 +78,11 @@ public class StreamJob {
         env.enableCheckpointing(60000);
 
         final String kafkaBrokers = required("KAFKA_BROKERS");
-        final String valkeyHost = System.getenv().getOrDefault("VALKEY_HOST", "localhost");
-        final int valkeyPort = Integer.parseInt(System.getenv().getOrDefault("VALKEY_PORT", "6379"));
-        final String valkeyPassword = System.getenv().getOrDefault("VALKEY_PASSWORD", "");
+        final String valkeyHost = env("VALKEY_HOST", "localhost");
+        final int valkeyPort = Integer.parseInt(env("VALKEY_PORT", "6379"));
+        final String valkeyPassword = env("VALKEY_PASSWORD", "");
 
-        final String enabled = System.getenv().getOrDefault("ENABLED_STREAMS", "time_series");
+        final String enabled = env("ENABLED_STREAMS", "time_series");
         LOG.info("ENABLED_STREAMS={}", enabled);
 
         int wired = 0;
@@ -78,7 +93,7 @@ public class StreamJob {
             final String up = name.toUpperCase();
             final String topic = System.getenv("STREAM_" + up + "_TOPIC");
             final String funcClass = System.getenv("STREAM_" + up + "_FUNCTION");
-            final String group = System.getenv().getOrDefault("STREAM_" + up + "_GROUP", "flink-" + name);
+            final String group = env("STREAM_" + up + "_GROUP", "flink-" + name);
 
             if (topic == null || topic.isEmpty() || funcClass == null || funcClass.isEmpty()) {
                 LOG.warn("Stream '{}' skipped — missing STREAM_{}_TOPIC or STREAM_{}_FUNCTION", name, up, up);
@@ -91,14 +106,48 @@ public class StreamJob {
                     Class.forName(funcClass).getDeclaredConstructor().newInstance();
 
             KafkaSource<String> src = buildKafkaSource(kafkaBrokers, topic, group);
-            DataStream<String> out = env
+            SingleOutputStreamOperator<String> processed = env
                 .fromSource(src, WatermarkStrategy.noWatermarks(), name + " Source")
                 .keyBy(StreamJob::extractSymbol)
                 .process(fn)
                 .name(name + " Feature Computation");
 
-            out.sinkTo(new RedisSink(valkeyHost, valkeyPort, valkeyPassword))
-                .name(name + " Valkey Sink (RESP)");
+            boolean sinkWired = false;
+
+            // --- Durable Kafka sink (main output → bronze contract) ---
+            final String sinkTopic = env("STREAM_" + up + "_SINK_TOPIC", System.getenv("OUTPUT_TOPIC"));
+            if (sinkTopic != null && !sinkTopic.isEmpty()) {
+                final String txnPrefix = env(
+                    "STREAM_" + up + "_SINK_TXN_ID_PREFIX", System.getenv("KAFKA_SINK_TXN_ID_PREFIX"));
+                Properties producerProps = kafkaSecurityProperties();
+                if (txnPrefix != null && !txnPrefix.isEmpty()) {
+                    // Comfortably below the broker's transaction.max.timeout.ms
+                    // (Strimzi/Kafka default 900000) and far above the 60s
+                    // checkpoint interval. Flink's own default (1h) EXCEEDS the
+                    // broker max, so the transactional producer would fail to init.
+                    producerProps.setProperty("transaction.timeout.ms", "600000");
+                }
+                processed.sinkTo(new KafkaSinkFactory(kafkaBrokers, sinkTopic, producerProps, txnPrefix).createSink())
+                    .name(name + " Kafka Sink");
+                LOG.info("Stream '{}' Kafka sink → topic={} delivery={}",
+                    name, sinkTopic,
+                    (txnPrefix != null && !txnPrefix.isEmpty()) ? "EXACTLY_ONCE(" + txnPrefix + ")" : "AT_LEAST_ONCE");
+                sinkWired = true;
+            }
+
+            // --- Valkey online-cache sink (CACHE_TAG side output) ---
+            final String keyPrefix = System.getenv("STREAM_" + up + "_KEY_PREFIX");
+            if (keyPrefix != null && !keyPrefix.isEmpty()) {
+                processed.getSideOutput(Tags.CACHE_TAG)
+                    .sinkTo(new RedisSink(valkeyHost, valkeyPort, valkeyPassword, keyPrefix))
+                    .name(name + " Valkey Cache Sink (RESP)");
+                LOG.info("Stream '{}' Valkey cache sink → keyPrefix={}", name, keyPrefix);
+                sinkWired = true;
+            }
+
+            if (!sinkWired) {
+                LOG.warn("Stream '{}' has NO sink — set STREAM_{}_SINK_TOPIC and/or STREAM_{}_KEY_PREFIX", name, up, up);
+            }
 
             LOG.info("Wired stream '{}' topic={} function={}", name, topic, funcClass);
             wired++;
@@ -110,6 +159,11 @@ public class StreamJob {
         }
 
         env.execute("Feature Stream (" + wired + " streams)");
+    }
+
+    private static String env(String key, String def) {
+        String v = System.getenv(key);
+        return (v == null || v.isEmpty()) ? def : v;
     }
 
     private static String required(String key) {
@@ -144,12 +198,13 @@ public class StreamJob {
     }
 
     /**
-     * Build Kafka client security Properties from env vars. Returns empty
-     * when KAFKA_SECURITY_PROTOCOL is unset / PLAINTEXT (Strimzi 9092
-     * listener path used by single-node dev clusters without auth).
+     * Build Kafka client security Properties from env vars. Returns empty when
+     * KAFKA_SECURITY_PROTOCOL is unset / PLAINTEXT (Strimzi 9092 listener path
+     * used by single-node dev clusters without auth). Shared by the source
+     * (consumer) and the sink (producer).
      *
-     * SSL truststore uses PEM type — Kafka 3.0+ supports loading the
-     * Strimzi-emitted ca.crt directly without a JKS conversion step.
+     * <p>SSL truststore uses PEM type — Kafka 3.0+ loads the Strimzi-emitted
+     * ca.crt directly without a JKS conversion step.
      */
     private static Properties kafkaSecurityProperties() {
         Properties p = new Properties();
@@ -160,7 +215,7 @@ public class StreamJob {
         p.setProperty("security.protocol", proto);
 
         if (proto.startsWith("SASL_")) {
-            String mech = System.getenv().getOrDefault("KAFKA_SASL_MECHANISM", "SCRAM-SHA-512");
+            String mech = env("KAFKA_SASL_MECHANISM", "SCRAM-SHA-512");
             String user = required("KAFKA_SASL_USERNAME");
             String pass = required("KAFKA_SASL_PASSWORD");
             p.setProperty("sasl.mechanism", mech);
@@ -172,7 +227,7 @@ public class StreamJob {
         }
 
         if (proto.endsWith("SSL")) {
-            String ca = System.getenv().getOrDefault("KAFKA_SSL_CA_LOCATION", "/etc/kafka/ca/ca.crt");
+            String ca = env("KAFKA_SSL_CA_LOCATION", "/etc/kafka/ca/ca.crt");
             p.setProperty("ssl.truststore.type", "PEM");
             p.setProperty("ssl.truststore.location", ca);
         }

@@ -45,7 +45,7 @@ sources:
             tests:
               - not_null
       - name: crypto_ohlcv_features
-        description: "Stream-computed features from feature-engine + Flink"
+        description: "Stream-computed features from the Flink stream-processor"
         columns:
           - name: symbol
             tests:

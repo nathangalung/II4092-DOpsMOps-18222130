@@ -39,7 +39,7 @@ components:
     valkey:
       enabled: true
       description: "Online feature store + caching (key-value, BSD-3-Clause)"
-      required_by: [feature_cache, feature_engine, flink_job, materialization]
+      required_by: [feature_cache, flink_job, materialization]
     minio:
       enabled: true
       description: "S3-compatible artifact storage + data lake"

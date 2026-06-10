@@ -1,16 +1,19 @@
 # =============================================================================
-# INFERENCE ENGINE — Model Serving (Python + ONNX Runtime)
+# INFERENCE ENGINE — Model Serving (C++ + ONNX Runtime, gRPC)
 # =============================================================================
-# Loads trained models from MLflow Model Registry and serves predictions.
+# Loads an ONNX model from MODEL_PATH (default /app/models/model.onnx) and
+# serves predictions over gRPC on :50052 (custom Inference + Health RPCs,
+# InsecureServerCredentials — TLS is terminated by the Istio sidecar).
+#
+# Domain-agnostic platform serving OPTION. A use-case may serve via this C++
+# engine OR via a KServe InferenceService; a use-case that serves via KServe
+# leaves this component disabled (config/services.yaml).
 #
 # Platform tool integration:
-#   - MLflow (v3.6.0): Model versioning, experiment tracking, artifact storage
-#   - KServe: Alternative model serving via InferenceService CRDs
-#     Supports autoscaling, canary deployments, A/B testing
-#     Example: kubectl apply -f inference-service.yaml
-#   - MinIO: Model artifact storage (S3-compatible)
-#   - Feast: Feature retrieval for inference requests
-#   - Prometheus: Inference latency and throughput metrics
+#   - MinIO: model artifact storage (S3-compatible), staged to MODEL_PATH
+#   - Feast: feature retrieval for inference requests
+#   - KServe: the alternative serving path (InferenceService CRDs) most
+#     use-cases choose instead of this engine
 # =============================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -29,17 +32,12 @@ spec:
     metadata:
       labels:
         app: inference-engine
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8085"
     spec:
       containers:
         - name: inference-engine
           image: inference-engine:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8085
-              name: http
             - containerPort: 50052
               name: grpc
           envFrom:
@@ -54,16 +52,18 @@ spec:
             limits:
               cpu: "2"
               memory: "4Gi"
+          # The binary serves only gRPC on :50052 (no HTTP endpoint) — probe the
+          # TCP port. A native grpc: probe would require the standard
+          # grpc.health.v1 service, but this binary exposes a *custom* Health RPC
+          # (common.HealthRequest), so tcpSocket is the correct readiness signal.
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 8085
+            tcpSocket:
+              port: 50052
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
-            httpGet:
-              path: /ready
-              port: 8085
+            tcpSocket:
+              port: 50052
             initialDelaySeconds: 10
             periodSeconds: 10
 ---
@@ -75,9 +75,6 @@ spec:
   selector:
     app: inference-engine
   ports:
-    - port: 8085
-      targetPort: 8085
-      name: http
     - port: 50052
       targetPort: 50052
       name: grpc

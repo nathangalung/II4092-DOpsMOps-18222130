@@ -109,9 +109,6 @@ class FeatureEngineeringJob:
             logger.warning(f"No data after filtering for {symbol}")
             return
 
-        df = df.dropna()
-
-        logger.info(f"Writing {len(df)} feature records for {symbol}")
         self._write_features(df, symbol)
 
     def _load_raw_data(
@@ -178,9 +175,9 @@ class FeatureEngineeringJob:
         different subsets — so we intersect df.columns with the live
         destination schema (`DESCRIBE TABLE`) and write only the overlap.
         This makes the job robust to schema evolution and prevents
-        `NO_SUCH_COLUMN` insert failures (e.g. writing rsi_14/macd into a
-        table that does not declare them). Column order follows the df so
-        `data` and `column_names` stay aligned.
+        `NO_SUCH_COLUMN` insert failures (e.g. writing a computed indicator
+        column into a table that does not declare it). Column order follows
+        the df so `data` and `column_names` stay aligned.
         """
         df["computed_at"] = datetime.now(tz=UTC)
 
@@ -198,6 +195,22 @@ class FeatureEngineeringJob:
             )
             return
 
+        # Drop rows with NaN ONLY in the columns we actually write. A blanket
+        # df.dropna() (previously in _process_symbol) wiped EVERY row whenever
+        # any computed-but-UNWRITTEN column was all-NaN on warm-up — e.g.
+        # dispersion_1/volatility_1 = rolling(window=1).std() is structurally
+        # all-NaN — producing a green-but-empty insert (#500). Scoping the drop
+        # to write_cols keeps rows whose WRITTEN features are present, while
+        # still dropping rows with NaN in written targets/features.
+        df = df.dropna(subset=write_cols)
+        if df.empty:
+            logger.warning(
+                f"All rows for {symbol} have NaN in written columns; "
+                f"skipping write"
+            )
+            return
+
+        logger.info(f"Writing {len(df)} feature records for {symbol}")
         self.client.insert(
             table=FEATURES_TABLE,
             data=df[write_cols].values.tolist(),

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -210,8 +211,20 @@ def _lakefs_headers() -> dict[str, str]:
 
 
 def _branch_name(run_id: str) -> str:
-    """Deterministic branch name from the Airflow run ID."""
-    sanitized = run_id.replace(":", "_").replace("+", "_")
+    """Deterministic, lakeFS-valid branch name from the Airflow run ID.
+
+    lakeFS rejects a branch id that contains anything outside
+    [letters, digits, underscore, dash] (HTTP 400: "branch id must consist of
+    letters, digits, underscores and dashes, and cannot start with a dash").
+    Scheduled run_ids (``scheduled__2026-06-02T18:15:00+00:00``) sanitised
+    cleanly under the old ``:``/``+`` → ``_`` replace, but manual/backfill
+    run_ids carry a microsecond component (``manual__…T09:59:27.812605+00:00``)
+    whose ``.`` survived and made every manual trigger fail at
+    create_lakefs_branch. Replace every disallowed character so ANY run_id —
+    scheduled, manual, or backfill — yields a valid id; the constant
+    ``dbt-run-`` prefix guarantees it never starts with a dash.
+    """
+    sanitized = re.sub(r"[^A-Za-z0-9_-]", "_", run_id)
     return f"dbt-run-{sanitized}"
 
 

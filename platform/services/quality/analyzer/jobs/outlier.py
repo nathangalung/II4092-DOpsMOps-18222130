@@ -129,8 +129,8 @@ class OutlierDetector:
         """Store outliers to ClickHouse."""
         try:
             # Env-driven result table (OUTLIER_RESULTS_TABLE) so the use-case can
-            # schema-qualify it; crypto sets `gold.quality_outliers` (the base table —
-            # `features.quality_outliers` is a read-only View). Default stays the bare
+            # schema-qualify it; a use-case may point it at a base table (NOT a
+            # read-only View, which rejects INSERTs). Default stays the bare
             # name to keep this platform service domain-agnostic.
             self.client.insert(
                 os.getenv("OUTLIER_RESULTS_TABLE", "quality_outliers"),

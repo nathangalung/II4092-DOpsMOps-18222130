@@ -13,37 +13,82 @@ FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 WORKDIR /dbt
 
 # `uv tool install` (NOT `uvx`): installs dbt as a PERSISTENT tool whose `dbt`
-# console-script lands on PATH at /usr/local/bin/dbt. Every consumer invokes a
+# console-script lands on PATH (UV_TOOL_BIN_DIR below). Every consumer invokes a
 # real `dbt` command — the Airflow KubernetesPodOperator (cmds=["dbt"]) and the
 # Tekton dbt-clickhouse-task (`dbt deps` / `dbt run`). The prior `uvx … dbt`
 # ENTRYPOINT left NO `dbt` on PATH (uvx runs the tool ephemerally), so those
 # bare-`dbt` invocations failed with "executable not found" and the gold dbt
 # marts never materialised. uvx also cached its env under the build user's HOME
 # (/root), unreachable by the runtime USER 1000 (HOME=/home/app) → a runtime
-# re-resolve that breaks on an air-gapped node. Pinning UV_TOOL_DIR/CACHE to a
-# world-readable /opt path + `uv tool install` makes the toolchain deterministic
-# and offline-safe regardless of HOME.
-ENV UV_TOOL_BIN_DIR=/usr/local/bin \
+# re-resolve that breaks on an air-gapped node.
+#
+# All three uv dirs live under a single world-readable /opt/uv tree so the
+# toolchain is deterministic, HOME-independent and offline-safe:
+#   * UV_TOOL_BIN_DIR=/opt/uv/bin — the `dbt` console-script. Deliberately NOT
+#     /usr/local/bin (root-owned): /opt/uv is pre-owned by the runtime user
+#     (1000), so the WHOLE toolchain is installed *as* USER 1000 and every file
+#     is born 1000-owned. That eliminates the old trailing
+#     `chown -R 1000:1000 /opt/uv`, which on overlayfs copy-up'd every one of the
+#     tens-of-thousands of install files into a fresh layer — ~21 min of IO on
+#     this single node AND a near-doubled image (each file duplicated across two
+#     layers). /opt/uv/bin is prepended to PATH so bare `dbt` still resolves.
+#     (Verified no consumer hardcodes /usr/local/bin/dbt — all callers use PATH.)
+#   * UV_TOOL_DIR=/opt/uv/tools — the persistent tool venv.
+#   * UV_CACHE_DIR=/opt/uv/cache — build-time wheel cache; purged in-layer below
+#     (`uv cache clean`) so the downloaded wheels never ship in the image.
+# Python-interpreter resolution is left at uv's default: as USER 1000 uv uses a
+# discoverable interpreter or, failing that, fetches a managed CPython into the
+# user HOME at build time (network is up then) — either way the resulting tool
+# venv is self-contained and works offline at runtime. (Deliberately NOT pinning
+# UV_PYTHON_DOWNLOADS=never: that has no download fallback and could fail the
+# build if the base interpreter isn't discoverable as non-root.)
+ENV UV_TOOL_BIN_DIR=/opt/uv/bin \
     UV_TOOL_DIR=/opt/uv/tools \
-    UV_CACHE_DIR=/opt/uv/cache
-RUN uv tool install "dbt-core" --with "dbt-clickhouse==1.10.0" \
-    && dbt --version
+    UV_CACHE_DIR=/opt/uv/cache \
+    PATH=/opt/uv/bin:$PATH
 
-# Copy project files
-COPY dbt/dbt_project.yml dbt/profiles.yml ./
-COPY dbt/packages.yml ./
-COPY dbt/macros/ ./macros/
-COPY dbt/models/ ./models/
-COPY dbt/tests/ ./tests/
-
-# Install dbt packages (dbt-utils for unique_combination_of_columns etc).
-# `dbt` is now a real PATH command (uv tool install above), so no uvx wrapper.
-RUN dbt deps --profiles-dir /dbt --project-dir /dbt
-
+# Create the runtime user up front and pre-own the (still-EMPTY) install +
+# project dirs. chown on empty dirs is O(1); because every RUN/COPY below runs as
+# USER 1000, each installed/copied file is born 1000-owned — no recursive
+# post-install chown, no overlayfs copy-up.
 RUN useradd -u 1000 -m -s /usr/sbin/nologin app \
-    && chown -R 1000:1000 /dbt /opt/uv
+    && mkdir -p /opt/uv/bin /opt/uv/tools /opt/uv/cache /dbt \
+    && chown -R 1000:1000 /opt/uv /dbt
 
 USER 1000:1000
+
+# `USER` only changes uid/gid — it does NOT set $HOME (the base image leaves it at
+# /root, unwritable by uid 1000). uv's managed-Python download fallback and dbt's
+# own state both write under $HOME; point it at the 1000-owned home that
+# `useradd -m` created so neither can hit a permission wall mid-build or at runtime.
+ENV HOME=/home/app
+
+# Retry the install: the slim base resolves PyPI/registry hostnames through the
+# build network, which intermittently returns EAI_AGAIN ("failed to lookup
+# address information: Try again") on this single node. A bare RUN fails the whole
+# build on one transient DNS hiccup; a bounded backoff loop (5 attempts, 5/10/15/20s)
+# makes it resilient while still failing hard if the install is genuinely broken
+# (mirrors the kaniko DNS-transient retry pattern, #211). `uv cache clean` runs in
+# the SAME layer so the downloaded wheels never persist into the shipped image.
+RUN for i in 1 2 3 4 5; do \
+        uv tool install "dbt-core" --with "dbt-clickhouse==1.10.0" && break; \
+        [ "$i" = 5 ] && { echo "uv tool install failed after 5 attempts" >&2; exit 1; }; \
+        echo "uv tool install attempt $i failed (transient DNS?); retry in $((i * 5))s" >&2; \
+        sleep $((i * 5)); \
+    done \
+    && dbt --version \
+    && uv cache clean
+
+# Copy project files. --chown so they are born 1000-owned too (no copy-up chown).
+COPY --chown=1000:1000 dbt/dbt_project.yml dbt/profiles.yml ./
+COPY --chown=1000:1000 dbt/packages.yml ./
+COPY --chown=1000:1000 dbt/macros/ ./macros/
+COPY --chown=1000:1000 dbt/models/ ./models/
+COPY --chown=1000:1000 dbt/tests/ ./tests/
+
+# Install dbt packages (dbt-utils for unique_combination_of_columns etc).
+# `dbt` is a real PATH command (uv tool install above), so no uvx wrapper.
+RUN dbt deps --profiles-dir /dbt --project-dir /dbt
 
 # Real `dbt` on PATH — consumers may run it directly (cmds=["dbt"], `dbt run`).
 ENTRYPOINT ["dbt"]
