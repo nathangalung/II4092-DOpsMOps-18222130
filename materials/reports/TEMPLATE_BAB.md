@@ -83,6 +83,8 @@ Studi literatur berisi tinjauan pustaka, landasan teori, dan penelitian terdahul
 
 Studi literatur bukan rangkuman; isi harus diolah secara sistematis. Alur penulisan yang dianjurkan: kasus → teori dasar → metode → penelitian terdahulu.
 
+Catatan struktur (revisi 2026-06): Bab II tidak lagi memiliki subbab "Cakupan Studi Literatur". Cakupan ditulis sebagai 1–2 paragraf pembuka tanpa nomor langsung setelah judul bab, mengikuti aturan paragraf pembuka bab pada `WRITING_GUIDE.md` §3.8. Subbab pertama langsung masuk materi (DataOps dan MLOps). Aturan kedalaman subbab mengikuti `WRITING_GUIDE.md` §3.9: subbab dengan empat paragraf atau lebih yang memuat lebih dari satu topik dipecah menjadi sub-subbab, sedangkan subbab pendek satu topik dibiarkan tanpa pemecahan.
+
 ### 3.1 Format Gambar, Tabel, Rumus, dan Kode Program
 
 Gambar:

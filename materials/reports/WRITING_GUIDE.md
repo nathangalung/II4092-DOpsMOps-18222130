@@ -92,39 +92,41 @@ For long tables of raw numbers (per-symbol metrics, full hyperparameter sweeps),
 Each architectural layer that has more than one credible open-source candidate carries a small comparison table in Bab II, immediately after the prose introducing the layer. The pattern is fixed so reviewers can scan across layers:
 
 - 4 candidates per table (the chosen tool plus 3 credible alternatives).
-- 4 criteria per table on a 1–5 scale. Criteria are layer-specific, not generic — pick the dimensions that drive the decision for that layer (e.g. *Latensi Rendah* for vector index, *K8s-Native* for orchestration, *Transaksi ACID* for table format).
-- Total column sums to /20. The chosen tool holds the unique highest Total in its table and justifies it with a textual paragraph; it must not be hand-waved.
-- The scoring rubric is stated once in prose immediately before the first scored table in Bab II (currently `message_broker_comparison`): 1 = criterion not met, 3 = partial support needing extra components or configuration, 5 = fully met by built-in capability, with 2 and 4 as intermediate levels. Scores derive from official documentation.
+- 4 criteria per table on a 0–2 scale. Criteria are layer-specific, not generic — pick the dimensions that drive the decision for that layer (e.g. *Latensi Rendah* for vector index, *K8s-Native* for orchestration, *Transaksi ACID* for table format).
+- Total column sums to /8. The chosen tool holds the unique highest Total in its table and justifies it with a textual paragraph; it must not be hand-waved.
+- The scoring rubric is stated once in prose immediately before the first scored table in Bab II (currently `message_broker_comparison`): 0 = criterion not met or feature absent, 1 = partial support that still needs extra components or carries a meaningful limitation, 2 = fully met by built-in capability. Scores derive from official documentation and project maintenance status. The narrow 3-level scale is deliberate: each level has an explicit justification, avoiding the false precision of a 5-point scale.
+- The rubric also anchors the open-source claim: the license criterion follows OSI-approved license status, and stewardship under a neutral foundation (Apache Software Foundation, CNCF, Linux Foundation) counts as supporting evidence of open governance feeding the maturity and community criteria. Only state a foundation affiliation in prose when it is certain (e.g. Kafka under ASF, Valkey under Linux Foundation, OpenBao under Linux Foundation).
 - Highest Total = the platform primary pick for the evaluated function. A lower-scoring row may still be deployed in a complementary role (e.g. Flink for streaming beside Spark for batch); the prose around the table must say so explicitly.
 - `mlops_maturity_comparison.tex` and `architecture_comparison.tex` are non-scored (color matrix and longtable respectively) and sit outside the rubric.
 - Caption above, label `tab:<topic>_comparison`, file `tables/<topic>_comparison.tex`.
+- Placement spec is `\begin{table}[!htb]`, never `[H]`. `[H]` blocks text reflow: when the table does not fit the rest of the page it drags a large white gap with it. `[!htb]` lets body text fill the page and moves the table to the top of the next page, which is the agreed layout rule (text fills, table follows; a short last page of a section or chapter is fine). The three MLOps level figures follow the same `[!htb]` rule and sit directly after the first paragraph of the Tingkat Kematangan subsection, in level order 0, 1, 2.
 
 Layers currently covered:
 
-- `feature_store_comparison.tex` — §2.5
-- `offline_storage_comparison.tex`, `online_storage_comparison.tex` — §2.5.2
-- `vector_index_comparison.tex` — §2.5.3
-- `orchestration_comparison.tex` — §2.6.2
-- `tracking_comparison.tex` — §2.6.1
-- `serving_comparison.tex` — §2.6.3
-- `message_broker_comparison.tex` — §2.4.2 (Message broker: Kafka vs Redpanda vs Pulsar vs NATS JetStream)
-- `schema_registry_comparison.tex` — §2.4.2
-- `data_processing_comparison.tex` — §2.4
-- `lakehouse_format_comparison.tex` — §2.4.5
-- `object_storage_comparison.tex` — §2.4.6 (Object storage: MinIO vs Ceph RGW vs SeaweedFS vs Garage)
-- `data_versioning_comparison.tex` — §2.4.6 (Data versioning: lakeFS vs DVC vs Nessie vs Pachyderm)
-- `metadata_comparison.tex` — §2.7
-- `monitoring_comparison.tex` — §2.9
-- `dashboarding_comparison.tex` — §2.9
-- `gitops_comparison.tex` — §2.10
-- `identity_comparison.tex` — §2.11 (Identity Provider: Dex vs Keycloak vs Authelia vs Authentik)
-- `secrets_comparison.tex` — §2.11 (Secrets manager: OpenBao vs Vault vs Sealed Secrets vs SOPS)
-- `service_mesh_comparison.tex` — §2.11 (Service mesh: Istio vs Linkerd vs Cilium vs Consul Connect)
-- `api_gateway_comparison.tex` — §2.11
-- `policy_comparison.tex` — §2.11 (Policy engine: Kyverno vs OPA Gatekeeper vs jsPolicy vs Kubewarden)
-- `runtime_security_comparison.tex` — §2.11
-- `mlops_maturity_comparison.tex` — §2.2.3 (color-coded maturity matrix, non-scored, carries its own legend)
-- `architecture_comparison.tex` — §2.12 (longtable; *Aspek × Saat Ini × Diusulkan × Keuntungan × Referensi*, the only table allowed to use a different shape because it summarises across the whole architecture).
+- `feature_store_comparison.tex` — §2.4
+- `offline_storage_comparison.tex`, `online_storage_comparison.tex` — §2.4.2
+- `vector_index_comparison.tex` — §2.4.3
+- `orchestration_comparison.tex` — §2.5.2
+- `tracking_comparison.tex` — §2.5.1
+- `serving_comparison.tex` — §2.5.3
+- `message_broker_comparison.tex` — §2.3.2 (Message broker: Kafka vs Redpanda vs Pulsar vs NATS JetStream)
+- `schema_registry_comparison.tex` — §2.3.2
+- `data_processing_comparison.tex` — §2.3
+- `lakehouse_format_comparison.tex` — §2.3.5
+- `object_storage_comparison.tex` — §2.3.6 (Object storage: MinIO vs Ceph RGW vs SeaweedFS vs Garage)
+- `data_versioning_comparison.tex` — §2.3.6 (Data versioning: lakeFS vs DVC vs Nessie vs Pachyderm)
+- `metadata_comparison.tex` — §2.6
+- `monitoring_comparison.tex` — §2.8
+- `dashboarding_comparison.tex` — §2.8
+- `gitops_comparison.tex` — §2.9
+- `identity_comparison.tex` — §2.10.1 (Identity Provider: Dex vs Keycloak vs Authelia vs Authentik)
+- `secrets_comparison.tex` — §2.10.1 (Secrets manager: OpenBao vs Vault vs Sealed Secrets vs SOPS)
+- `service_mesh_comparison.tex` — §2.10.2 (Service mesh: Istio vs Linkerd vs Cilium vs Consul Connect)
+- `api_gateway_comparison.tex` — §2.10.2
+- `policy_comparison.tex` — §2.10.2 (Policy engine: Kyverno vs OPA Gatekeeper vs jsPolicy vs Kubewarden)
+- `runtime_security_comparison.tex` — §2.10.2
+- `mlops_maturity_comparison.tex` — §2.1.3 (color-coded maturity matrix, non-scored, carries its own legend)
+- `architecture_comparison.tex` — §2.11 (longtable; *Aspek × Saat Ini × Diusulkan × Keuntungan × Referensi*, the only table allowed to use a different shape because it summarises across the whole architecture).
 
 When adding a new comparison table, follow the same shape and place an `\input{tables/<file>}` directive immediately after the introductory paragraph that names the alternatives.
 
@@ -289,6 +291,14 @@ stabil pada cluster verifikasi dan data pengamatan kuantitatif tersedia.
 Rantai keterhubungan: T-N ↔ K-N ; tidak menambah klaim baru di luar bab sebelumnya
 Catatan pengisian: bab ini diisi setelah hasil evaluasi pada Bab VI terkonsolidasi.
 ```
+
+### 3.8 Chapter lead-in paragraphs
+
+Every chapter opens with one short unnumbered lead-in (1 paragraph, maximum 2) placed directly after the \chapter heading and before the first \section. The lead-in states what the chapter covers and how it connects to the surrounding chapters; it is not a numbered subbab and must not duplicate the Sistematika Penulisan list in Bab I. Bab I through Bab VII all follow this rule (Bab II formerly used a numbered Cakupan section; converted 2026-06).
+
+### 3.9 Section depth in Bab II
+
+Split a \section into \subsection blocks only when it carries four or more narrative paragraphs covering more than one distinct topic; each resulting subsection must still hold at least two paragraphs. Sections with two or three paragraphs on a single topic stay flat. Current splits: §2.2 Kubernetes (Peran/Objek vs Penskalaan/Operator) and §2.10 Keamanan (Identitas+Rahasia vs Mesh+Gateway+Kebijakan). §2.10 keeps a one-paragraph section lead-in (defense-in-depth framing) because that content spans both subsections, mirroring the chapter lead-in pattern.
 
 ## 4. Working order while drafting
 
