@@ -44,8 +44,10 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # RespectIgnoreDifferences removed 2026-06-10 — with the argocd-cm
+      # array-wildcard ignores it silently no-ops real changes inside the same
+      # array element (argo-cd#25284). Full rationale in applicationset.yaml.
       - ApplyOutOfSyncOnly=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff: { duration: 15s, factor: 2, maxDuration: 10m }

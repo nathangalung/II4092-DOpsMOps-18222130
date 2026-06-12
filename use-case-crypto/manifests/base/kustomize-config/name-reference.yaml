@@ -133,6 +133,18 @@ nameReference:
     fieldSpecs:
       - path: spec/serviceAccount
         kind: FlinkDeployment
+      # Tekton EventListener (triggers.tekton.dev) is opaque to kustomize the
+      # same way: namePrefix renames the ServiceAccount resource
+      # `tekton-triggers-sa` → `crypto-tekton-triggers-sa`, but the EL's
+      # spec.serviceAccountName kept the bare name, so the Triggers
+      # controller's generated `el-*` Deployment failed pod creation with
+      # `serviceaccount "tekton-triggers-sa" not found` (26d outage of the CI
+      # webhook listener). The overlay JSON patch that tried to fix this
+      # targeted the POST-prefix name `crypto-build-listener`, which patches
+      # never see (they match pre-prefix names) — removed in favour of this
+      # rule.
+      - path: spec/serviceAccountName
+        kind: EventListener
   - kind: ConfigMap
     fieldSpecs:
       - path: spec/podTemplate/spec/containers/envFrom/configMapRef/name

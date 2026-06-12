@@ -324,7 +324,6 @@ spec:
                 datahub-metadata \
                 great-expectations \
                 tempo-traces \
-                falco-audit \
                 pyroscope-profiles \
                 platform-models ; do
                 mc mb --ignore-existing "platform/${b}"
@@ -357,10 +356,6 @@ spec:
                 platform/clickhouse-backups || true
               mc ilm add --noncurrent-expire-days 90 \
                 platform/velero-backups || true
-              # Falco audit: keep current versions 30d, non-current 7d
-              # (raw syscall traces; volume is high, retention modest).
-              mc ilm add --expire-days 30 --noncurrent-expire-days 7 \
-                platform/falco-audit || true
               # Tempo blocks: compactor sets block_retention=14d; the
               # non-current lifecycle here only covers orphaned WAL flushes.
               mc ilm add --noncurrent-expire-days 1 \

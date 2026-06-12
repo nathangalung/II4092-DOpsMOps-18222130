@@ -128,9 +128,23 @@ data:
     source:
       type: dbt
       config:
-        manifest_path: /dbt/target/manifest.json
-        catalog_path: /dbt/target/catalog.json
-        run_results_paths: [ /dbt/target/run_results.json ]
+        # Platform convention path: the use-case's dbt orchestration uploads
+        # manifest/catalog/run_results to s3://pipeline-artifacts/dbt/target/
+        # after every successful build (Airflow lakehouse DAG, dbt_run task).
+        # s3 replaces the old dbt-artifacts PVC handoff, which was impossible:
+        # dbt builds run in the use-case namespace and PVCs don't cross
+        # namespaces, so the PVC sat Pending (WaitForFirstConsumer) forever
+        # and this CronJob stayed suspended. The dbt source's
+        # aws_connection_needed_if_s3_uris_present validator REQUIRES
+        # aws_connection when any path is an s3 URI.
+        manifest_path: s3://pipeline-artifacts/dbt/target/manifest.json
+        catalog_path: s3://pipeline-artifacts/dbt/target/catalog.json
+        run_results_paths: [ "s3://pipeline-artifacts/dbt/target/run_results.json" ]
+        aws_connection:
+          aws_endpoint_url: http://minio.storage.svc.cluster.local:9000
+          aws_region: us-east-1
+          aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+          aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
         target_platform: clickhouse
         target_platform_instance: platform-clickhouse
         # Emits column-level lineage from dbt → ClickHouse.

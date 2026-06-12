@@ -95,8 +95,10 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # RespectIgnoreDifferences removed 2026-06-10 — argo-cd#25284: with the
+      # global argocd-cm array-wildcard ignores it no-ops real changes inside
+      # the same array element (e.g. an image bump next to an ignored env var).
       - ApplyOutOfSyncOnly=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }

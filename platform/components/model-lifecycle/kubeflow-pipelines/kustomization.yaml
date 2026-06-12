@@ -381,13 +381,54 @@ patches:
       kind: PersistentVolumeClaim
       metadata:
         name: seaweedfs-pvc
+  # Upstream renamed the Service `seaweedfs-service` → `seaweedfs`, and also
+  # ships a ServiceAccount, NetworkPolicy, DestinationRule and
+  # AuthorizationPolicy for it. Delete the whole set — a Service with no
+  # backing Deployment otherwise sits endpoint-less in model-lifecycle
+  # forever (observed live as orphan `svc/seaweedfs`).
   - target:
       kind: Service
-      name: seaweedfs-service
+      name: seaweedfs
     patch: |-
       $patch: delete
       apiVersion: v1
       kind: Service
+      metadata:
+        name: seaweedfs
+  - target:
+      kind: ServiceAccount
+      name: seaweedfs
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: seaweedfs
+  - target:
+      kind: NetworkPolicy
+      name: seaweedfs
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: seaweedfs
+  - target:
+      kind: DestinationRule
+      name: ml-pipeline-seaweedfs
+    patch: |-
+      $patch: delete
+      apiVersion: networking.istio.io/v1
+      kind: DestinationRule
+      metadata:
+        name: ml-pipeline-seaweedfs
+  - target:
+      kind: AuthorizationPolicy
+      name: seaweedfs-service
+    patch: |-
+      $patch: delete
+      apiVersion: security.istio.io/v1beta1
+      kind: AuthorizationPolicy
       metadata:
         name: seaweedfs-service
 

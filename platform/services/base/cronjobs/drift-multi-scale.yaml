@@ -20,6 +20,17 @@ metadata:
     scale: minute
 spec:
   schedule: "* * * * *" # Every minute
+  # suspend declared explicitly: with ServerSideApply, a field git never sets
+  # is owned by whoever patched it live — a manual `suspend: true` is invisible
+  # to the ArgoCD diff (app stays Synced while the CronJob sleeps; #513 froze
+  # 7 CronJobs for 14 days this way). Declaring it gives ArgoCD ownership, so
+  # any out-of-band suspend self-heals on the next sync.
+  suspend: false
+  # Bounds missed-schedule lookback after unsuspend/downtime: without it the
+  # controller counts every missed slot and hard-stops at >100 ("too many
+  # missed start times") — a fast cron suspended >100 periods never fires
+  # again. 300s = catch up at most the last 5 minutes, skip the rest.
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
@@ -66,6 +77,8 @@ metadata:
     scale: hourly
 spec:
   schedule: "*/15 * * * *" # Every 15 minutes
+  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
@@ -107,6 +120,8 @@ metadata:
     scale: daily
 spec:
   schedule: "0 */6 * * *" # Every 6 hours
+  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
@@ -148,6 +163,8 @@ metadata:
     scale: weekly
 spec:
   schedule: "0 */12 * * *" # Every 12 hours
+  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3

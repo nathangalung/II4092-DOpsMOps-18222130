@@ -150,9 +150,12 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # RespectIgnoreDifferences removed 2026-06-10 — argo-cd#25284: with the
+      # global argocd-cm array-wildcard ignores it no-ops real changes inside
+      # the same array element. The /status ignore below is diff-side and
+      # works without it (status is never in the rendered manifest anyway).
       - ApplyOutOfSyncOnly=true
       - PruneLast=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff: { duration: 15s, factor: 2, maxDuration: 10m }

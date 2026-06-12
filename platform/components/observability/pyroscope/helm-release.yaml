@@ -163,13 +163,17 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      # No RespectIgnoreDifferences here (removed 2026-06-10). The STS ghost
+      # fields below don't need it: server-side apply never asserts fields the
+      # rendered chart leaves unset, so the K8s server defaults
+      # (persistentVolumeClaimRetentionPolicy etc.) survive every apply
+      # untouched; the jsonPointer ignores suppress the ghost *diff*, and with
+      # ApplyOutOfSyncOnly a ghost-only resource never enters the apply set at
+      # all. Respect, meanwhile, is actively harmful: combined with the global
+      # argocd-cm array-wildcard ignores it back-patches live array elements
+      # into desired state and silently no-ops real changes in the same
+      # element (argo-cd#25284 — proven live on the crypto use-case app).
       - ApplyOutOfSyncOnly=true
-      # RespectIgnoreDifferences is what makes the sync engine actually
-      # honor `ignoreDifferences` during reconcile. Without it, Argo will
-      # still apply server-side and re-diff against the rendered manifest,
-      # leaving the STS persistentVolumeClaimRetentionPolicy ghost OutOfSync
-      # even though it is listed in ignoreDifferences below.
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }

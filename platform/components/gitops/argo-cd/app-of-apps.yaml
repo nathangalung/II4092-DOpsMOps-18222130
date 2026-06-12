@@ -205,9 +205,20 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          # RespectIgnoreDifferences=true was removed 2026-06-10. The argocd-cm
+          # ignore rules are global and several use array wildcards (e.g.
+          # apps_Deployment .spec.template.spec.containers[]?.env[]?..divisor,
+          # Tekton .spec.steps[]?.*) — with Respect enabled, Argo back-patches
+          # the LIVE array element into the desired state at sync time, so any
+          # real change in the same element (an image bump next to an ignored
+          # env var) becomes a silent no-op apply and the app sticks OutOfSync
+          # forever (argo-cd#25284, #11876; proven live 2026-06-10 on the
+          # crypto use-case KafkaUsers/Tasks/PrometheusServiceLevel).
+          # Diff-side ignoreDifferences still work without it, and with
+          # ApplyOutOfSyncOnly a resource whose only drift is ignored never
+          # enters the apply set — runtime-mutated fields stay preserved.
           - ApplyOutOfSyncOnly=true
           - PruneLast=true
-          - RespectIgnoreDifferences=true
           # Section apps render sub-Applications (sloth, chaos-mesh, falco, velero,
           # trivy-operator) that install CRDs *plus* CRs of those CRDs in the same
           # kustomize render. Without this, ArgoCD's dry-run validation rejects

@@ -25,11 +25,17 @@
 #                         retrain-on-drift, vector-embedding). Pure stdlib
 #                         (urllib) — no pip / no requests dependency.
 #
-# Domain-agnostic shape: every metric is labelled
-#   {use_case="crypto", job="<job>", instance="<pod>"}
+# Domain-agnostic shape: every metric is grouped
+#   {use_case="crypto", job="<job>"}
 # so SLOs / alert routes in alertmanagerconfig.yaml can target the
 # `use_case` label and a single dashboard panel renders ALL crypto batch
 # runs without per-script wiring.
+#
+# Grouping key deliberately EXCLUDES the pod name: Pushgateway groups are
+# immortal (no TTL), so keying on a per-run pod name leaks one group per
+# fire (288/day for a */5 cron) until the gateway restarts. A stable
+# {job, use_case} key makes each push REPLACE the previous run — exactly
+# the `crypto_job_last_*` semantics the metric names promise.
 # =============================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -55,7 +61,9 @@ data:
   # Env-var contract (set by the workload):
   #   PUSHGATEWAY_URL     default http://pushgateway.observability.svc.cluster.local:9091
   #   JOB_NAME            REQUIRED — pushgateway job label
-  #   INSTANCE            default $HOSTNAME (pod name)
+  #   INSTANCE            optional extra grouping key — default EMPTY so each
+  #                       run replaces the last (per-pod values leak immortal
+  #                       Pushgateway groups; see header)
   #   USE_CASE            default "crypto"
   #   ROWS_FILE           optional — path to a file the workload writes
   #                       with `rows_ingested=N` lines; sourced into the
@@ -68,7 +76,7 @@ data:
 
     : "${PUSHGATEWAY_URL:=http://pushgateway.observability.svc.cluster.local:9091}"
     : "${JOB_NAME:?JOB_NAME is required for pushgateway emit}"
-    : "${INSTANCE:=${HOSTNAME:-unknown}}"
+    : "${INSTANCE:=}"
     : "${USE_CASE:=crypto}"
     : "${ROWS_FILE:=/tmp/push_rows}"
 
@@ -90,9 +98,13 @@ data:
 
     _post_pushgateway() {
       _payload="$1"
-      _url="${PUSHGATEWAY_URL}/metrics/job/${JOB_NAME}/use_case/${USE_CASE}/instance/${INSTANCE}"
+      _url="${PUSHGATEWAY_URL}/metrics/job/${JOB_NAME}/use_case/${USE_CASE}"
+      [ -n "${INSTANCE}" ] && _url="${_url}/instance/${INSTANCE}"
+      # printf '%s\n' — $(...) strips the heredoc's trailing newline and
+      # Pushgateway's text parser hard-rejects a body that doesn't end in
+      # one ("unexpected end of input stream" → HTTP 400, metrics dropped).
       if command -v curl >/dev/null 2>&1; then
-        printf '%s' "${_payload}" | curl -fsS --max-time 10 \
+        printf '%s\n' "${_payload}" | curl -fsS --max-time 10 \
           --data-binary @- "${_url}" \
           && echo "[push-helper] pushed metrics to ${_url}" \
           || echo "[push-helper] WARN: curl push failed; metrics dropped" >&2
@@ -100,7 +112,7 @@ data:
         # Busybox wget (alpine default) only supports --post-file=FILE / --post-data=STR.
         # GNU --method=POST --body-file= is not recognized; use --post-file.
         _tmp=$(mktemp 2>/dev/null || echo /tmp/_pgw_$$)
-        printf '%s' "${_payload}" > "${_tmp}"
+        printf '%s\n' "${_payload}" > "${_tmp}"
         wget -q --post-file="${_tmp}" --header="Content-Type: text/plain" \
              -O - "${_url}" >/dev/null \
           && echo "[push-helper] pushed metrics to ${_url} (wget)" \
@@ -164,7 +176,6 @@ data:
 
     import argparse
     import os
-    import socket
     import sys
     import time
     import urllib.error
@@ -212,9 +223,11 @@ data:
             default=0,
             help="wall-clock duration seconds (0 = use START env)",
         )
+        # Empty default on purpose — a per-pod instance value would key a new
+        # immortal Pushgateway group every run (see ConfigMap header).
         parser.add_argument(
             "--instance",
-            default=os.environ.get("INSTANCE", socket.gethostname()),
+            default=os.environ.get("INSTANCE", ""),
         )
         parser.add_argument("--use-case", default=os.environ.get("USE_CASE", "crypto"))
         parser.add_argument(
@@ -236,8 +249,10 @@ data:
         payload = build_payload(args.rc, duration, args.rows, now)
         full_url = (
             f"{args.url.rstrip('/')}/metrics/job/{args.job}"
-            f"/use_case/{args.use_case}/instance/{args.instance}"
+            f"/use_case/{args.use_case}"
         )
+        if args.instance:
+            full_url += f"/instance/{args.instance}"
         try:
             push(full_url, payload)
         except (urllib.error.URLError, RuntimeError) as exc:

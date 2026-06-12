@@ -180,7 +180,7 @@ Run through this list when the draft is close to done.
 
 ### 3.6 Per-Bab template comments (central store)
 
-Every chapter file under `chapters/` carries a fenced LaTeX comment block at the top that names the subbab layout, the link to the RM/T chain, and any standing notes for that bab. The same blocks are repeated here so the template survives even if a chapter file is rewritten end-to-end during drafting. If the inline comment ever drifts from this section, treat this section as the source of truth and resync.
+Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I header already follows this convention; trim the remaining chapters' long headers when each chapter gets its revision pass.
 
 **Bab I — Pendahuluan**
 

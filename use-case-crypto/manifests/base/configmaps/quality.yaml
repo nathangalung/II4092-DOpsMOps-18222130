@@ -47,3 +47,15 @@ data:
   # --- Drift detection (references DRIFT_FEATURES_TO_MONITOR from schema.yaml) ---
   # NOTE: DRIFT_FEATURES_TO_MONITOR is defined in schema.yaml as the canonical source.
   # Services read it from there via envFrom. Do NOT redefine here.
+
+  # --- Drift reporting (Evidently) ---
+  # Read by platform/services/drift-reporter (lakehouse DAG evidently_report
+  # task). Without EVIDENTLY_HOST the reporter falls back to localhost:8000
+  # and saves HTML into the ephemeral task pod's /tmp — reports vanish with
+  # the pod. Point it at the platform Evidently workspace so snapshots
+  # persist and are browsable. The features table is the gold training mart;
+  # its numeric columns minus EXCLUDE_COLUMNS (schema.yaml) are profiled.
+  EVIDENTLY_HOST: "evidently.observability.svc.cluster.local"
+  EVIDENTLY_PORT: "8000"
+  EVIDENTLY_FEATURES_TABLE: "gold.fct_training_data"
+  EVIDENTLY_PROJECT: "crypto-monitoring"

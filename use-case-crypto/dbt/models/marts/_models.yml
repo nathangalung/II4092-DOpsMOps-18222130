@@ -13,6 +13,10 @@ models:
       - name: close
         tests:
           - not_null
+      - name: volume_sma_20
+        description: "Trailing 20-event volume mean — parity anchor against the stream feature `secondary_avg` (KF-11; see experiments/parity/)"
+        tests:
+          - not_null
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:

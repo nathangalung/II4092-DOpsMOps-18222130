@@ -106,6 +106,9 @@ spec:
             runAsUser: 101
             runAsGroup: 101
             fsGroup: 101
+            # Same rationale as the server podTemplate: avoid recursive chown
+            # of the snapshot/log PVC on every restart (single-node disk).
+            fsGroupChangePolicy: OnRootMismatch
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: clickhouse-keeper
@@ -254,6 +257,12 @@ spec:
             runAsUser: 101
             runAsGroup: 101
             fsGroup: 101
+            # OnRootMismatch: skip the recursive chown of the data PVC when the
+            # root dir already matches fsGroup. Field-observed 2026-06-12: the
+            # default policy chowned ~150k MergeTree part files for ~5 minutes
+            # of disk IO on every pod (re)start — an IO storm this single-node
+            # disk cannot absorb during recovery.
+            fsGroupChangePolicy: OnRootMismatch
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: clickhouse
@@ -266,6 +275,16 @@ spec:
                 allowPrivilegeEscalation: false
                 runAsNonRoot: true
                 capabilities: { drop: ["ALL"] }
+              # Cold boot after an outage replays/attaches every MergeTree
+              # table before /ping answers; field-observed 2026-06-12 this
+              # exceeded the operator's default liveness window (~90s) and
+              # kubelet SIGKILLed a healthy boot (exit 137), restarting the
+              # load from zero. startupProbe holds liveness/readiness off for
+              # up to 10 min; operator defaults still apply once started.
+              startupProbe:
+                httpGet: { path: /ping, port: 8123 }
+                periodSeconds: 10
+                failureThreshold: 60
               volumeMounts:
                 # Strimzi cluster CA — Kafka engine SSL verification target.
                 # `kafka/ssl_ca_location` in settings (above) points here.

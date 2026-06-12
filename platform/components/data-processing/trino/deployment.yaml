@@ -35,14 +35,23 @@ spec:
     template:
       type: Opaque
       data:
+        # compress=0: clickhouse-jdbc 0.7.x fails to LZ4-decode responses from
+        # this ClickHouse 26.3 ("Magic is not correct - expect [-126]") even
+        # though curl with the same query/creds gets a valid LZ4 frame —
+        # uncompressed HTTP sidesteps the driver's Lz4InputStream entirely.
         clickhouse.properties: |
           connector.name=clickhouse
-          connection-url=jdbc:clickhouse://clickhouse-platform.storage.svc.cluster.local:8123/
+          connection-url=jdbc:clickhouse://clickhouse-platform.storage.svc.cluster.local:8123/?compress=0
           connection-user={{ .ch_user }}
           connection-password={{ .ch_password }}
+        # Database `pipeline`, not `platform`: the pipeline schema
+        # (runs/quality_checks/predictions) lives in the dedicated `pipeline`
+        # database created by the declarative bootstrap, and the catalog's
+        # `platform` role owns those tables. Trino's postgresql connector
+        # exposes only the schemas of the database in this URL.
         postgresql.properties: |
           connector.name=postgresql
-          connection-url=jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/platform
+          connection-url=jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/pipeline
           connection-user={{ .pg_user }}
           connection-password={{ .pg_password }}
         iceberg.properties: |
@@ -83,6 +92,13 @@ data:
     node-scheduler.include-coordinator=true
     http-server.http.port=8085
     discovery.uri=http://localhost:8085
+    # Meshed (istio-injected) callers reach this unmeshed coordinator through
+    # their outbound Envoy, which stamps X-Forwarded-Proto onto the request.
+    # Jetty rejects forwarded headers outright (HTTP 406 "Server configuration
+    # does not allow processing of the X-Forwarded-Proto header") unless
+    # processing is opted in — without this, every in-mesh client (Superset,
+    # meshed ad-hoc pods) gets 406 before reaching Trino at all.
+    http-server.process-forwarded=true
     # Pod-IP announcer URI: without this Trino registers nodes with an
     # empty `httpUri` because the default `node.internal-address-source=HOSTNAME`
     # resolves to the pod's randomized name which fails to round-trip on
@@ -203,3 +219,33 @@ spec:
         - name: catalog-secrets
           secret:
             secretName: trino-catalog-secrets
+---
+# PeerAuthentication — port-level PERMISSIVE on the coordinator's :8085.
+# data-processing is in-mesh and the istio-system default PeerAuth is STRICT,
+# but Airflow KubernetesExecutor worker pods are deliberately mesh-EXCLUDED
+# (see airflow/deployment.yaml pod-template: the sidecar never exits and
+# wedges short-lived task pods). The lakehouse DAG's trino_quality_check task
+# POSTs to /v1/statement from those plaintext workers; under STRICT the
+# coordinator's sidecar resets the handshake (`ConnectionResetError 104`)
+# before Trino ever sees the request. PERMISSIVE on :8085 accepts BOTH the
+# workers' plaintext AND mTLS from in-mesh callers (Superset, DataHub).
+# Same carve-out pattern as airflow api-server / spark / flink / karapace /
+# pushgateway. NetworkPolicy still confines who may reach :8085; this only
+# governs the mTLS requirement, not authorization.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: trino-permissive
+  namespace: data-processing
+  labels:
+    app: trino
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      app: trino
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    "8085":
+      mode: PERMISSIVE

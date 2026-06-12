@@ -128,9 +128,17 @@ def _ol_emit(payload: dict) -> None:
     correctness).  Matches the platform convention for observability
     emission (§ADR-014)."""
     try:
+        headers = {"Content-Type": "application/json"}
+        # GMS metadata-service auth rejects anonymous OpenLineage POSTs with
+        # 401. Same token the openlineage provider transport uses; sourced
+        # from the airflow-secrets envFrom present on scheduler AND worker
+        # pods, read at call time so a rotation needs no restart.
+        api_key = os.getenv("OPENLINEAGE_API_KEY", "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         resp = requests.post(
             OPENLINEAGE_URL, json=payload, timeout=10,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         if resp.status_code >= 400:
             logger.warning(
@@ -335,18 +343,45 @@ def merge_lakefs_branch_fn(**context) -> None:
     logger.info("Merging LakeFS branch '%s' into '%s'", branch, LAKEFS_MAIN_BRANCH)
 
     try:
-        resp = requests.post(
-            f"{LAKEFS_ENDPOINT}/api/v1/repositories/{LAKEFS_REPO}/refs/{branch}/merge/{LAKEFS_MAIN_BRANCH}",
+        # dbt's primary target is ClickHouse; the lakeFS branch only carries
+        # changes when a run also lands lakehouse (Iceberg-on-lakeFS) files.
+        # lakeFS hard-fails a no-diff merge (HTTP 400 "update branch main:
+        # no changes"), so a run that wrote nothing to the branch must
+        # short-circuit to success instead of failing the whole DAG.
+        diff = requests.get(
+            f"{LAKEFS_ENDPOINT}/api/v1/repositories/{LAKEFS_REPO}/refs/{LAKEFS_MAIN_BRANCH}/diff/{branch}",
             headers=_lakefs_headers(),
             auth=_lakefs_auth(),
-            json={"message": f"Merge dbt run {context['run_id']}"},
-            timeout=60,
+            params={"amount": 1},  # existence probe, not a listing
+            timeout=30,
         )
-        resp.raise_for_status()
+        diff.raise_for_status()
+        if not diff.json().get("results"):
+            logger.info(
+                "Branch '%s' has no changes vs '%s' — nothing to merge (no-op run)",
+                branch, LAKEFS_MAIN_BRANCH,
+            )
+        else:
+            resp = requests.post(
+                f"{LAKEFS_ENDPOINT}/api/v1/repositories/{LAKEFS_REPO}/refs/{branch}/merge/{LAKEFS_MAIN_BRANCH}",
+                headers=_lakefs_headers(),
+                auth=_lakefs_auth(),
+                json={"message": f"Merge dbt run {context['run_id']}"},
+                timeout=60,
+            )
+            if resp.status_code == 400 and "no changes" in resp.text:
+                # Race-safe belt: diff saw changes but a concurrent commit
+                # landed them on main first. Treat exactly like the no-op.
+                logger.info("Merge collapsed to no-op: %s", resp.text)
+            else:
+                resp.raise_for_status()
+                logger.info(
+                    "Branch '%s' merged to '%s' successfully",
+                    branch, LAKEFS_MAIN_BRANCH,
+                )
     except Exception:
         _ol_emit(_ol_event("FAIL", ol_run_id, "merge_lakefs_branch"))
         raise
-    logger.info("Branch '%s' merged to '%s' successfully", branch, LAKEFS_MAIN_BRANCH)
     _ol_emit(_ol_event(
         "COMPLETE", ol_run_id, job_name="merge_lakefs_branch",
         inputs=[_ol_dataset(lakefs_ns, branch)],
@@ -387,13 +422,51 @@ def delete_lakefs_branch_fn(**context) -> None:
 # ─────────────────────────────────────────────────────────────
 # Trino federated quality check
 # ─────────────────────────────────────────────────────────────
+def _trino_query(sql: str) -> list[list]:
+    """Run one SQL statement via Trino's REST protocol; return all rows.
+
+    The Airflow worker image ships no Trino client library, and the official
+    client protocol is just an HTTP loop — POST /v1/statement, then GET each
+    `nextUri` until the terminal page — so plain `requests` keeps this task
+    dependency-free. Trino paces the polling server-side (each GET long-polls
+    up to ~1s), matching what the official clients do.
+    """
+    headers = {
+        "X-Trino-User": TRINO_USER,
+        "Content-Type": "text/plain; charset=utf-8",
+    }
+    resp = requests.post(
+        f"http://{TRINO_HOST}:{TRINO_PORT}/v1/statement",
+        data=sql.encode("utf-8"),
+        headers=headers,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    rows: list[list] = []
+    # Bounded loop as a belt to the task-level execution_timeout: these are
+    # aggregate probes, not long scans — 600 pages is far beyond any of them.
+    for _ in range(600):
+        if payload.get("error"):
+            raise RuntimeError(
+                f"Trino query failed: {payload['error'].get('message')} — {sql!r}"
+            )
+        rows.extend(payload.get("data") or [])
+        next_uri = payload.get("nextUri")
+        if not next_uri:
+            return rows
+        resp = requests.get(next_uri, headers=headers, timeout=30)
+        resp.raise_for_status()
+        payload = resp.json()
+    raise TimeoutError(f"Trino query did not finish within 600 pages: {sql!r}")
+
+
 def trino_quality_check_fn(**context) -> None:
     """Run cross-source quality checks via Trino federated queries.
 
     Compares ClickHouse gold layer row counts against PostgreSQL
     pipeline.predictions to detect data inconsistencies.
     """
-    import trino as trino_client  # delayed import — available in Airflow image
 
     ol_run_id = _ol_run_id(context)
     ch_input = _ol_dataset(
@@ -409,59 +482,34 @@ def trino_quality_check_fn(**context) -> None:
         inputs=[ch_input, pg_input],
     ))
 
-    conn = trino_client.dbapi.connect(
-        host=TRINO_HOST,
-        port=TRINO_PORT,
-        user=TRINO_USER,
-        catalog="system",
-        schema="runtime",
+    # ── Check 1: Gold layer row count (ClickHouse) ──────────
+    rows = _trino_query(
+        "SELECT count(*) AS gold_count FROM clickhouse.gold.fct_ohlcv_features"
     )
-    cursor = conn.cursor()
+    gold_count = rows[0][0] if rows else 0
+    logger.info("[Trino QC] ClickHouse gold.fct_ohlcv_features rows: %d", gold_count)
 
-    try:
-        # ── Check 1: Gold layer row count (ClickHouse) ──────────
-        cursor.execute(
-            """
-            SELECT count(*) AS gold_count
-            FROM clickhouse.gold.fct_ohlcv_features
-            """
-        )
-        row = cursor.fetchone()
-        gold_count = row[0] if row else 0
-        logger.info("[Trino QC] ClickHouse gold.fct_ohlcv_features rows: %d", gold_count)
+    # ── Check 2: Predictions row count (PostgreSQL) ─────────
+    rows = _trino_query(
+        "SELECT count(*) AS pred_count FROM postgresql.pipeline.predictions"
+    )
+    pred_count = rows[0][0] if rows else 0
+    logger.info("[Trino QC] PostgreSQL pipeline.predictions rows: %d", pred_count)
 
-        # ── Check 2: Predictions row count (PostgreSQL) ─────────
-        cursor.execute(
-            """
-            SELECT count(*) AS pred_count
-            FROM postgresql.pipeline.predictions
-            """
-        )
-        row = cursor.fetchone()
-        pred_count = row[0] if row else 0
-        logger.info("[Trino QC] PostgreSQL pipeline.predictions rows: %d", pred_count)
+    # ── Check 3: Coverage ratio ─────────────────────────────
+    if gold_count > 0:
+        coverage = pred_count / gold_count
+        logger.info("[Trino QC] Prediction coverage ratio: %.4f", coverage)
+    else:
+        coverage = 0.0
+        logger.warning("[Trino QC] Gold layer is empty — coverage ratio undefined")
 
-        # ── Check 3: Coverage ratio ─────────────────────────────
-        if gold_count > 0:
-            coverage = pred_count / gold_count
-            logger.info("[Trino QC] Prediction coverage ratio: %.4f", coverage)
-        else:
-            coverage = 0.0
-            logger.warning("[Trino QC] Gold layer is empty — coverage ratio undefined")
-
-        # ── Check 4: Recent gold data freshness ─────────────────
-        cursor.execute(
-            """
-            SELECT max(timestamp) AS latest_ts
-            FROM clickhouse.gold.fct_ohlcv_features
-            """
-        )
-        row = cursor.fetchone()
-        latest_ts = row[0] if row else None
-        logger.info("[Trino QC] Latest gold layer timestamp: %s", latest_ts)
-    finally:
-        cursor.close()
-        conn.close()
+    # ── Check 4: Recent gold data freshness ─────────────────
+    rows = _trino_query(
+        "SELECT max(timestamp) AS latest_ts FROM clickhouse.gold.fct_ohlcv_features"
+    )
+    latest_ts = rows[0][0] if rows else None
+    logger.info("[Trino QC] Latest gold layer timestamp: %s", latest_ts)
 
     # Push metrics to XCom for downstream consumers / alerting
     ti = context["ti"]
@@ -490,6 +538,62 @@ def trino_quality_check_fn(**context) -> None:
     ))
 
 
+# ─────────────────────────────────────────────────────────────
+# dbt_run pod script — build, then publish dbt artifacts to MinIO.
+#
+# Module-level (column-0) so the <<'PY' heredoc terminator stays at the
+# start of line. No Jinja markers ({{ }}) — Airflow templates KPO
+# `arguments`, so the script must stay Jinja-inert. All values resolve
+# at RUNTIME inside the pod from envFrom:
+#   S3_ENDPOINT / AWS_DEFAULT_REGION   — pipeline-config (platform CM)
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — pipeline-secrets (ESO)
+#   DBT_ARTIFACTS_BUCKET / DBT_ARTIFACTS_PREFIX — optional overrides;
+#     defaults are the platform convention the datahub-ingest-dbt recipe
+#     reads (recipes.yaml in platform/components/data-governance).
+# ─────────────────────────────────────────────────────────────
+_DBT_BUILD_AND_PUBLISH = """\
+set -e
+dbt build --profiles-dir /dbt --project-dir /dbt
+set +e
+# catalog.json is only emitted by `docs generate` (build emits
+# manifest/run_results); DataHub uses it for column-level schemas.
+dbt docs generate --profiles-dir /dbt --project-dir /dbt \
+  || echo "WARN: dbt docs generate failed - catalog.json in MinIO stays stale" >&2
+uv run --with 'boto3<1.41' - <<'PY'
+import os
+import pathlib
+import sys
+
+import boto3
+
+bucket = os.environ.get("DBT_ARTIFACTS_BUCKET", "pipeline-artifacts")
+prefix = os.environ.get("DBT_ARTIFACTS_PREFIX", "dbt/target")
+s3 = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT"],
+    aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+)
+uploaded = 0
+for name in ("manifest.json", "catalog.json", "run_results.json"):
+    path = pathlib.Path("/dbt/target") / name
+    if not path.exists():
+        print(f"skip {name}: not present in /dbt/target", file=sys.stderr)
+        continue
+    s3.upload_file(str(path), bucket, f"{prefix}/{name}")
+    uploaded += 1
+    print(f"uploaded s3://{bucket}/{prefix}/{name}")
+if uploaded == 0:
+    raise SystemExit("no dbt artifacts found to upload")
+PY
+if [ $? -ne 0 ]; then
+  echo "WARN: dbt artifact upload to MinIO failed - datahub-ingest-dbt keeps reading the previous artifacts" >&2
+fi
+exit 0
+"""
+
+
 # ═════════════════════════════════════════════════════════════
 # DAG: Crypto Lakehouse Pipeline
 # ═════════════════════════════════════════════════════════════
@@ -497,6 +601,8 @@ def trino_quality_check_fn(**context) -> None:
 #   create_lakefs_branch → dbt_run → [trino_quality_check,
 #                                      merge_lakefs_branch → trigger_evidently]
 #   dbt_run (on failure) → delete_lakefs_branch (cleanup/rollback)
+#   dbt_run also publishes manifest/catalog/run_results to MinIO for
+#   the platform datahub-ingest-dbt CronJob (best-effort, never fatal)
 # ═════════════════════════════════════════════════════════════
 with DAG(
     dag_id=f"{USE_CASE}_lakehouse",
@@ -533,11 +639,32 @@ with DAG(
     )
 
     # ── Step 2: Run dbt on the LakeFS branch ───────────────
+    # Beyond `dbt build`, this task publishes the dbt artifacts
+    # (manifest/catalog/run_results JSON) to MinIO at the platform
+    # convention path s3://pipeline-artifacts/dbt/target/ — the
+    # datahub-ingest-dbt CronJob (platform data-governance) reads them
+    # from there. The artifacts live only in this pod's filesystem, so
+    # the upload MUST happen in-pod; a PVC handoff is impossible (the
+    # CronJob runs in data-governance, this pod in the use-case
+    # namespace — PVCs don't cross namespaces).
+    #
+    # Failure semantics are deliberate:
+    #   * `dbt build` failure  → task fails (set -e) → delete_lakefs_branch
+    #     rolls the branch back, exactly as before.
+    #   * `dbt docs generate` / upload failure → loud WARN, exit 0. Metadata
+    #     publication is secondary to the data publish — a MinIO blip must
+    #     not roll back a successful gold build; DataHub just re-ingests
+    #     the previous artifacts until the next run.
+    # Endpoint/creds come from envFrom (pipeline-config S3_ENDPOINT +
+    # pipeline-secrets AWS_*); bucket/prefix are env-overridable so the
+    # convention stays config-driven. `uv run --with boto3` mirrors the
+    # platform's ephemeral-dep pattern (#409); boto3<1.41 respects the
+    # April 2026 version cap.
     dbt_run = k8s_pod(
         "dbt_run",
         image=_image("dbt-project"),
-        cmds=["dbt"],
-        args=["build", "--profiles-dir", "/dbt", "--project-dir", "/dbt"],
+        cmds=["/bin/sh", "-c"],
+        args=[_DBT_BUILD_AND_PUBLISH],
         cpu_req="200m",
         mem_req="512Mi",
         cpu_lim="1",

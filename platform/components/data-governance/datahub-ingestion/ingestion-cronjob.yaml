@@ -77,16 +77,6 @@ metadata:
   name: datahub-ingestion
   namespace: data-governance
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: dbt-artifacts
-  namespace: data-governance
-spec:
-  accessModes: ["ReadWriteOnce"]
-  storageClassName: local-path
-  resources: { requests: { storage: 1Gi } }
----
 apiVersion: batch/v1
 kind: CronJob
 metadata: { name: datahub-ingest-postgres, namespace: data-governance }
@@ -637,16 +627,18 @@ apiVersion: batch/v1
 kind: CronJob
 metadata: { name: datahub-ingest-dbt, namespace: data-governance }
 spec:
+  # 30 min after the use-case dbt orchestration (Airflow lakehouse DAG at
+  # :15) publishes fresh artifacts to MinIO.
   schedule: "45 */6 * * *"
-  # Suspended at platform layer: the recipe reads
-  # /dbt/target/{manifest,catalog,run_results}.json from the dbt-artifacts PVC,
-  # which is only populated by the use-case `dbt-run` Job (lives in the
-  # data-processing namespace, owned by the use-case repo, not this platform
-  # repo). On a platform-only deploy those files do not exist, every run hits
-  # `FileNotFoundError: /dbt/target/manifest.json`, and BackoffLimitExceeded
-  # fires every 6h. The use-case repo unsuspends this CronJob (sets
-  # `suspend: false` via Kustomize patch) once dbt-run lands.
-  suspend: true
+  # Active (was `suspend: true` while the recipe read a dbt-artifacts PVC —
+  # a dead design: dbt builds run as Airflow pods in the use-case namespace
+  # and PVCs don't cross namespaces, so the claim sat Pending
+  # (WaitForFirstConsumer, no consumer) and dragged the ArgoCD app
+  # Progressing forever). The recipe now reads
+  # s3://pipeline-artifacts/dbt/target/* from MinIO; the artifact-gate
+  # initContainer below makes a platform-only deploy (no use-case, no
+  # artifacts yet) skip cleanly instead of failing BackoffLimitExceeded.
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -672,6 +664,44 @@ spec:
             runAsUser: 1000
             fsGroup: 1000
             seccompProfile: { type: RuntimeDefault }
+          initContainers:
+            # Graceful missing-artifact gate. `datahub ingest` hard-fails
+            # (NoSuchKey) when the dbt artifacts have never been published —
+            # true on a fresh platform-only deploy — and a 6-hourly
+            # BackoffLimitExceeded would re-degrade the app the suspend flag
+            # used to protect. The gate probes MinIO with mc (UV mandate: no
+            # python invocation; image matches bucket-bootstrap) and ALWAYS
+            # exits 0: artifacts present → touch /gate/present; absent →
+            # loud log, main container skips with success.
+            # Istio's native-sidecar proxy is injected as the FIRST
+            # initContainer, so this one already has mesh networking.
+            - name: artifact-gate
+              image: pgsty/mc:RELEASE.2026-04-17T00-00-00Z
+              imagePullPolicy: IfNotPresent
+              envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
+              # mc writes its config under $HOME/.mc — point HOME at the
+              # writable gate volume (root fs is read-only).
+              env: [{ name: HOME, value: "/gate" }]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  if mc alias set minio http://minio.storage.svc.cluster.local:9000 \
+                        "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" --api S3v4 \
+                     && mc stat minio/pipeline-artifacts/dbt/target/manifest.json >/dev/null 2>&1; then
+                    touch /gate/present
+                    echo "dbt artifacts found in MinIO - proceeding with ingest"
+                  else
+                    echo "dbt artifacts not found at s3://pipeline-artifacts/dbt/target/ (no use-case dbt build has published yet, or MinIO unreachable) - skipping this ingest cycle"
+                  fi
+              volumeMounts:
+                - { name: gate, mountPath: /gate }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits:   { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
           containers:
             - name: ingest
               image: acryldata/datahub-ingestion:v1.5.0.3
@@ -686,6 +716,10 @@ spec:
               args:
                 - |
                   set -e
+                  if [ ! -f /gate/present ]; then
+                    echo "SKIP: no dbt artifacts in MinIO yet (see artifact-gate log) - exiting success"
+                    exit 0
+                  fi
                   # UV mandate: switched from `python -c expandvars` (no
                   # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
@@ -694,9 +728,9 @@ spec:
                   awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' /recipes/$RECIPE_FILE > /tmp/recipe.yml
                   datahub ingest -c /tmp/recipe.yml
               volumeMounts:
-                - { name: recipes,       mountPath: /recipes, readOnly: true }
-                - { name: dbt-artifacts, mountPath: /dbt,     readOnly: true }
-                - { name: tmp,           mountPath: /tmp }
+                - { name: recipes, mountPath: /recipes, readOnly: true }
+                - { name: gate,    mountPath: /gate,    readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
               resources:
                 # Single-pod bootstrap; bump for production load.
                 requests: { cpu: 200m, memory: 256Mi }
@@ -706,6 +740,6 @@ spec:
                 readOnlyRootFilesystem: true
                 capabilities: { drop: ["ALL"] }
           volumes:
-            - { name: recipes,       configMap: { name: datahub-ingestion-recipes } }
-            - { name: dbt-artifacts, persistentVolumeClaim: { claimName: dbt-artifacts } }
+            - { name: recipes, configMap: { name: datahub-ingestion-recipes } }
+            - { name: gate, emptyDir: {} }
             - { name: tmp, emptyDir: {} }

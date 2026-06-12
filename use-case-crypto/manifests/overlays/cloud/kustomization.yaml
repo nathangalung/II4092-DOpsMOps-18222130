@@ -153,16 +153,9 @@ patches:
         path: /secrets/0/name
         value: crypto-kserve-storage-secret
 
-  # Fix Tekton EventListener → ServiceAccount reference
-  - target:
-      group: triggers.tekton.dev
-      version: v1beta1
-      kind: EventListener
-      name: crypto-build-listener
-    patch: |-
-      - op: replace
-        path: /spec/serviceAccountName
-        value: crypto-tekton-triggers-sa
+  # NOTE: no EventListener serviceAccountName patch — see the explanation in
+  # overlays/local/kustomization.yaml; the rename is handled by the
+  # nameReference rule in base/kustomize-config/name-reference.yaml.
 
   # Fix Tekton RoleBinding → ServiceAccount subject name
   - target:

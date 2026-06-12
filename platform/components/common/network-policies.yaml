@@ -194,6 +194,7 @@ spec:
         - { protocol: TCP, port: 9090 }  # Prometheus remote-write
         - { protocol: TCP, port: 9091 }  # Pushgateway
         - { protocol: TCP, port: 8000 }  # Evidently
+        - { protocol: TCP, port: 9093 }  # Alertmanager (falcosidekick + cross-ns alert posters)
 ---
 # ──────────────────────────────────────────────────────────────────────────
 # security

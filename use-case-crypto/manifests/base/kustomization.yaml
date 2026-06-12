@@ -355,3 +355,13 @@ labels:
       app.kubernetes.io/part-of: mlops-platform
       app.kubernetes.io/managed-by: kustomize
     includeSelectors: true
+    # includeSelectors only covers kinds kustomize knows (Deployment,
+    # Service, …). Argo Rollouts is a CRD, so its pod template must be
+    # listed explicitly — otherwise Service selectors gain these labels
+    # while Rollout-managed pods don't, and the Service matches nothing
+    # (ml-bridge had zero endpoints because of exactly this).
+    fields:
+      - path: spec/template/metadata/labels
+        kind: Rollout
+        group: argoproj.io
+        create: true

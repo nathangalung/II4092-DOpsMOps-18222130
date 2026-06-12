@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import logging
 import os
-import socket
 import time
 import urllib.error
 import urllib.request
@@ -58,13 +57,21 @@ def _build_payload(rc: int, duration_s: int, rows: int, now: int) -> bytes:
 
 def _push(job: str, rc: int, *, duration_s: int = 0, rows: int = 0,
           instance: str | None = None) -> None:
-    """POST to Pushgateway. Never raises — metrics are best-effort."""
-    instance = instance or socket.gethostname()
+    """POST to Pushgateway. Never raises — metrics are best-effort.
+
+    Grouping key is {job, use_case} ONLY — Pushgateway groups never expire,
+    so keying on a per-run value (run_id, pod name) leaks one immortal group
+    per DagRun. A stable key makes each push replace the previous run, which
+    is exactly the `crypto_job_last_*` semantics. Run-level history lives in
+    the Airflow metadata DB, not the gateway.
+    """
     now = int(time.time())
     url = (
         f"{PUSHGATEWAY_URL.rstrip('/')}/metrics/job/{job}"
-        f"/use_case/{USE_CASE}/instance/{instance}"
+        f"/use_case/{USE_CASE}"
     )
+    if instance:
+        url += f"/instance/{instance}"
     req = urllib.request.Request(
         url,
         data=_build_payload(rc, duration_s, rows, now),
@@ -113,7 +120,6 @@ def push_on_success(context: dict[str, Any]) -> None:
         _dag_job_label(context),
         rc=0,
         duration_s=_run_duration_seconds(context),
-        instance=getattr(context.get("dag_run"), "run_id", "unknown_run"),
     )
 
 
@@ -123,5 +129,4 @@ def push_on_failure(context: dict[str, Any]) -> None:
         _dag_job_label(context),
         rc=1,
         duration_s=_run_duration_seconds(context),
-        instance=getattr(context.get("dag_run"), "run_id", "unknown_run"),
     )

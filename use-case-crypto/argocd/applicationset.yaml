@@ -81,9 +81,21 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          # RespectIgnoreDifferences=true was removed 2026-06-10. Combined with
+          # the argocd-cm array-wildcard ignore rules (KafkaUser
+          # .spec.authorization.acls[]?.operations, Tekton Task
+          # .spec.steps[]?.*, sloth .spec.slos[]?.alerting.*) it back-patches
+          # LIVE array elements into the desired state at sync time, so a real
+          # change inside the same array element becomes a silent no-op apply:
+          # the app reports "serverside-applied" yet stays OutOfSync forever
+          # (argo-cd#25284, #11876 — proven live on this app's KafkaUsers,
+          # Tekton Tasks and PrometheusServiceLevel after the feature-engine
+          # scrub). The ignoreDifferences entries below still work without it:
+          # they suppress the diff, and with ApplyOutOfSyncOnly a resource
+          # whose only drift is in ignored paths never enters the apply set —
+          # which is what actually preserves the runtime-mutated storageUri.
           - ApplyOutOfSyncOnly=true
           - PruneLast=true
-          - RespectIgnoreDifferences=true
         retry:
           limit: 5
           backoff: { duration: 15s, factor: 2, maxDuration: 10m }

@@ -19,6 +19,14 @@ metadata:
     mlops-platform.io/use-case: crypto
 spec:
   schedule: "*/5 * * * *" # Every 5 minutes
+  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # `kubectl patch` to suspend:true otherwise hides from the diff and the app
+  # stays Synced while the CronJob sleeps (#513, 14 days frozen).
+  # startingDeadlineSeconds bounds missed-schedule lookback so a suspend or
+  # downtime >100 periods can't permanently stop scheduling ("too many
+  # missed start times").
+  suspend: false
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3

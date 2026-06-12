@@ -15,9 +15,10 @@ Who runs what:
 - **Data scientist** — online feature-serving non-null check (`feast/`, KF-02),
   drift injection + retrain trigger (`drift/`), MLflow replay / stage-transition
   audits (KF-07, KF-09, KF-10).
-- **Data engineer** — medallion data-landed + freshness (`etl/`, KF-11), DataHub
-  lineage walk (`lineage/`, KF-08), point-in-time + leakage probes (KF-03,
-  KNF-05), throughput + consumer-lag (KNF-02).
+- **Data engineer** — medallion data-landed + freshness (`etl/`), batch↔stream
+  feature parity (`parity/`, KF-11), DataHub lineage walk (`lineage/`, KF-08),
+  point-in-time + leakage probes (KF-03, KNF-05), throughput + consumer-lag
+  (KNF-02).
 - **Business / platform owner** — cost + utilisation + SLO + security evidence
   (KNF-07, KNF-09, KNF-10), reproducibility on a fresh node (KNF-11).
 
@@ -75,7 +76,7 @@ sibling, so a prefix change there must be mirrored here by hand.
 | KF-08 | SK-F-08 | `experiments/lineage/lineage-walk.sh discover` then `walk '<urn>'` — DataHub GMS lineage graph (`crypto.ws.raw` → prediction) |
 | KF-09 | SK-F-09 | Two MLflow runs + replay from snapshot (≤1% metric delta) |
 | KF-10 | SK-F-10 | MLflow stage transitions none→staging→production→archived + audit trail |
-| KF-11 | SK-F-11 | batch (dbt) vs stream (Flink) value parity on `volume_indicators` (the SK-F-11 acceptance). Shared landing substrate it sits on: `experiments/etl/data-landed-check.sh` (medallion rows + freshness — a data-engineer health probe, not the parity test itself) |
+| KF-11 | SK-F-11 | `./experiments/parity/parity-check.sh` — batch (dbt `volume_sma_20`) ↔ stream (Flink `secondary_avg`) tolerance match-rate on the same trailing 20-event volume mean (the SK-F-11 acceptance). Substrate health first: `experiments/etl/data-landed-check.sh` (medallion rows + freshness — a data-engineer health probe, not the parity test itself) |
 | KF-12 | SK-F-12 | YAML replica change in Gitea → Argo CD sync, no drift |
 | KF-13 | SK-F-13 | One UV notebook: Feast + KServe + MLflow SDKs |
 | KF-14 | SK-F-14 | Kueue `ClusterQueue` saturation (jobs beyond quota → `Pending`) |
@@ -109,5 +110,6 @@ experiments/
 ├── drift/                # synthetic drift injector (UV / PEP 723)
 ├── feast/                # online feature-serving non-null check (UV / PEP 723)
 ├── etl/                  # medallion data-landed / freshness probe (clickhouse-client)
-└── lineage/              # DataHub GMS lineage walk (GraphQL via curl)
+├── lineage/              # DataHub GMS lineage walk (GraphQL via curl)
+└── parity/               # batch↔stream feature parity oracle (KF-11, clickhouse-client)
 ```

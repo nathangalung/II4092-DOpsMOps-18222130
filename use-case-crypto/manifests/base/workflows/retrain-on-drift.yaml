@@ -282,16 +282,20 @@ spec:
                   experiment_id = _resolve(
                       "experiments", experiment_name, "experiment_id"
                   )
+                  # KFP v2beta1 validates runtime_config.parameters against the
+                  # pipeline's root inputDefinitions and rejects unknown keys
+                  # with 400 "parameter(s) provided are not required by
+                  # pipeline" (proven live 2026-06-10, 4 consecutive failed
+                  # CronWorkflow runs). retraining_pipeline declares no trigger
+                  # metadata params, so trigger provenance rides in the run
+                  # display_name here plus the Pushgateway gauges below —
+                  # NOT in runtime params. pipeline_version_id is intentionally
+                  # omitted: the API server resolves the latest version.
                   body = {
-                      "display_name": f"crypto-retrain-{int(time.time())}",
+                      "display_name": (
+                          f"{experiment_name}-drift-{feature}-{int(time.time())}"
+                      ),
                       "pipeline_version_reference": {"pipeline_id": pipeline_id},
-                      "runtime_config": {
-                          "parameters": {
-                              "trigger_reason": {"string_value": f"drift({feature})"},
-                              "psi_observed":   {"number_value": psi},
-                              "ks_observed":    {"number_value": ks},
-                          }
-                      },
                       "experiment_id": experiment_id,
                   }
                   r = requests.post(

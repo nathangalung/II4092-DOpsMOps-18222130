@@ -515,6 +515,19 @@ metadata:
   # namespace set by Kustomize overlay (use-case-crypto for local, etc.)
 spec:
   serviceAccountName: tekton-triggers-sa
+  # The Triggers controller generates the `el-*` Deployment from this spec.
+  # Without an explicit resources block the generated container has none and
+  # the platform Kyverno policy `require-resource-limits` rejects every pod
+  # (ReplicaSet FailedCreate) — the listener then sits 0/1 forever.
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            containers:
+              - resources:
+                  requests: { cpu: 50m, memory: 64Mi }
+                  limits: { cpu: 200m, memory: 128Mi }
   triggers:
     - name: gitea-push
       interceptors:

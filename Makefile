@@ -587,7 +587,7 @@ platform-registry-up: ## Verify in-cluster registry reachable on :5000 (platform
 		exit 1; \
 	fi
 
-platform-build-services: platform-registry-up ## Build + push 15 generic images to $(PLATFORM_REGISTRY)
+platform-build-services: platform-registry-up ## Build + push all $(PLATFORM_SERVICES) generic images to $(PLATFORM_REGISTRY)
 	@echo "$(BLUE)══════════════════════════════════════════════════════════$(NC)"
 	@echo "$(BLUE)  Building generic platform images → $(PLATFORM_REGISTRY)$(NC)"
 	@echo "$(BLUE)══════════════════════════════════════════════════════════$(NC)"

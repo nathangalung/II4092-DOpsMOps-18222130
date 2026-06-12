@@ -49,6 +49,14 @@ labels:
       environment: development
       platform: k3s
     includeSelectors: true
+    # Same Rollout pod-template carve-out as base/kustomization.yaml:
+    # kustomize doesn't know the Rollout CRD's template path, so without
+    # this the Service selector gains these pairs but Rollout pods don't.
+    fields:
+      - path: spec/template/metadata/labels
+        kind: Rollout
+        group: argoproj.io
+        create: true
 
 # Image name mapping: base uses generic names with a `:latest` placeholder
 # tag. Overlay sets newName + newTag — production-pin semver here in cloud,
@@ -201,16 +209,12 @@ patches:
         path: /spec/target/name
         value: crypto-kserve-storage-secret
 
-  # Fix Tekton EventListener → ServiceAccount reference
-  - target:
-      group: triggers.tekton.dev
-      version: v1beta1
-      kind: EventListener
-      name: crypto-build-listener
-    patch: |-
-      - op: replace
-        path: /spec/serviceAccountName
-        value: crypto-tekton-triggers-sa
+  # NOTE: no EventListener serviceAccountName patch here. A previous patch
+  # targeted `name: crypto-build-listener`, but `patches:` match PRE-prefix
+  # names (the working RoleBinding patches below target un-prefixed names),
+  # so it never applied and the listener pod failed with
+  # `serviceaccount "tekton-triggers-sa" not found`. The rename is now done
+  # by the nameReference rule in base/kustomize-config/name-reference.yaml.
 
   # Fix Tekton RoleBinding → ServiceAccount subject name
   - target:

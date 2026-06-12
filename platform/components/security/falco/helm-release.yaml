@@ -11,8 +11,8 @@
 #     Falco          — detects compliant YAML that becomes non-compliant at
 #                      RUNTIME (e.g. an image that drops a malicious binary
 #                      after passing Cosign verification)
-#     Falcosidekick  — fan-out alerts to Alertmanager, Slack, Loki, and the
-#                      audit-log S3 bucket (bucket `falco-audit` on MinIO)
+#     Falcosidekick  — fan-out alerts to Alertmanager + Loki (Loki's object
+#                      store is MinIO, so events land in MinIO via Loki)
 #
 # Driver choice: `modern_ebpf` (CO-RE eBPF), which needs no kernel headers
 # and works on every k3s node the platform targets (kernel >= 5.8).
@@ -63,7 +63,7 @@ spec:
             listen_port: 8765
             ssl_enabled: false
           # File output is kept OFF; all alerts go to falcosidekick which
-          # forwards to Alertmanager + Loki (structured) + S3 (raw audit).
+          # forwards to Alertmanager + Loki (structured).
           file_output: { enabled: false }
           stdout_output: { enabled: true }
           # Outputs queued in-memory to survive brief sidekick outages.
@@ -151,33 +151,25 @@ spec:
             requests: { cpu: 50m,  memory: 64Mi }
             limits:   { cpu: 500m, memory: 256Mi }
           config:
+            # SINGLE SOURCE of output config = the Secret below
+            # (falco-sidekick-outputs). When `existingSecret` is set the
+            # falcosidekick subchart STILL renders its own Secret with the
+            # full ~384-key env set, but every value is the chart default
+            # (all empty — verified live 2026-06-11, every output key
+            # length 0): any `config.<output>.*` values written here are
+            # silently dropped from the render. The Deployment's envFrom
+            # lists the chart Secret first and the existingSecret second,
+            # and Kubernetes gives the LAST source precedence on key
+            # collisions — so the Secret below is authoritative. The outputs
+            # that used to sit here (alertmanager/loki/prometheus) now
+            # live in that Secret as canonical FALCOSIDEKICK env names.
             existingSecret: falco-sidekick-outputs
-            prometheus:
-              # Exposes /metrics with per-rule firing counters.
-              extralabels: "cluster:platform"
-            alertmanager:
-              hostport: http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093
-              minimumpriority: notice
-            loki:
-              hostport: http://loki.observability.svc.cluster.local:3100
-              tenant: falco
-              minimumpriority: notice
-              extralabels: "cluster:platform,source:falco"
-            s3:
-              # Raw audit trail retained in MinIO (30-day lifecycle policy
-              # set on `falco-audit` in bucket-bootstrap.yaml).
-              bucket: falco-audit
-              region: us-east-1
-              endpoint: http://minio.storage.svc.cluster.local:9000
-              prefix: events/
-              s3forcepathstyle: true
-              minimumpriority: warning
           # webui DISABLED (2026-05-29): the bundled redis/redis-stack StatefulSet
           # OOM/RDB-thrashed on the single-disk node (451 restarts — persisted dump
           # reload + BGSAVE loop saturating sda). The UI is redundant: every alert
-          # already fans out to Loki (Grafana visualises), Alertmanager, and the
-          # `falco-audit` S3 bucket per the `config:` block above. Disabling drops a
-          # chronically-broken component AND relieves IO. Re-enable with a non-
+          # already fans out to Loki (Grafana visualises) and Alertmanager per
+          # the Secret below. Disabling drops a chronically-broken component AND
+          # relieves IO. Re-enable with a non-
           # persistent redis (`--save "" --appendonly no`) if a dashboard is needed.
           webui:
             enabled: false
@@ -235,35 +227,45 @@ spec:
   revisionHistoryLimit: 10
 ---
 # =============================================================================
-# falcosidekick output credentials (MinIO S3 + Alertmanager basic auth).
-# Reuses platform/minio/root (matches Velero/Loki/Tempo pattern).
+# falcosidekick FULL output configuration (the helm values `config:` block is
+# inert once `existingSecret` is set — see comment there). Keys are the
+# canonical FALCOSIDEKICK env names (yaml path uppercased, dots → underscores:
+# `loki.hostPort` → LOKI_HOSTPORT); the Deployment envFrom-mounts this Secret.
+# Plain Secret, NOT an ExternalSecret: every value here is static in-cluster
+# wiring with zero credential material, and ESO's validating webhook rejects
+# an ExternalSecret without data/dataFrom remote refs. The only remote ref
+# this ever held was the MinIO keypair for the AWSS3 output, which is
+# intentionally DISABLED: falcosidekick ≤2.33.0 UploadS3 discards the
+# endpoint-resolver client when AWS_S3_ENDPOINT is set (zero-value s3.Client
+# → nil-deref panic in retry middleware → CrashLoopBackOff). The fix landed
+# in 2.34.0 (2026-05-25), past the April-2026 version cap. Raw event archival
+# is covered by the Loki output (Loki object store is MinIO). Kept a Secret
+# (not ConfigMap) because the falcosidekick chart's `existingSecret` mounts
+# via envFrom.secretRef.
 # =============================================================================
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
+apiVersion: v1
+kind: Secret
 metadata:
   name: falco-sidekick-outputs
   namespace: falco
   labels:
     app.kubernetes.io/part-of: mlops-platform
     app.kubernetes.io/component: falco
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: platform-openbao
-    kind: ClusterSecretStore
-  target:
-    name: falco-sidekick-outputs
-    creationPolicy: Owner
-    template:
-      type: Opaque
-      data:
-        AWSACCESSKEYID: "{{ .minio_user }}"
-        AWSSECRETACCESSKEY: "{{ .minio_pass }}"
-  data:
-    - secretKey: minio_user
-      remoteRef: { key: platform/minio/root, property: username }
-    - secretKey: minio_pass
-      remoteRef: { key: platform/minio/root, property: password }
+type: Opaque
+stringData:
+  # --- Prometheus /metrics extra labels ---
+  PROMETHEUS_EXTRALABELS: "cluster:platform"
+  # --- Alertmanager ---
+  ALERTMANAGER_HOSTPORT: "http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093"
+  # falcosidekick's default endpoint is /api/v1/alerts, but Alertmanager >=0.27
+  # removed the v1 API (returns 410 Gone) — v2 is the only alerts API.
+  ALERTMANAGER_ENDPOINT: "/api/v2/alerts"
+  ALERTMANAGER_MINIMUMPRIORITY: "notice"
+  # --- Loki (Grafana visualises; tenant isolates falco streams) ---
+  LOKI_HOSTPORT: "http://loki.observability.svc.cluster.local:3100"
+  LOKI_TENANT: "falco"
+  LOKI_MINIMUMPRIORITY: "notice"
+  LOKI_EXTRALABELS: "cluster:platform,source:falco"
 ---
 apiVersion: v1
 kind: Namespace

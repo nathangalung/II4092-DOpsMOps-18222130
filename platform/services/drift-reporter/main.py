@@ -29,6 +29,8 @@ class Config:
 
     CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
     CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
+    CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
     FEATURES_TABLE = os.getenv(
         "EVIDENTLY_FEATURES_TABLE", "gold.fct_features"
     )
@@ -49,6 +51,8 @@ def get_clickhouse_client():
     return clickhouse_connect.get_client(
         host=Config.CLICKHOUSE_HOST,
         port=Config.CLICKHOUSE_PORT,
+        username=Config.CLICKHOUSE_USER,
+        password=Config.CLICKHOUSE_PASSWORD,
     )
 
 
@@ -261,6 +265,10 @@ def main() -> None:
             logger.error(f"Report generation failed for {symbol}: {e}")
 
     logger.info(f"Report generation complete: {total_reports} reports")
+    if total_reports == 0:
+        # Zero reports means every symbol failed or had no data — a green
+        # exit here would hide a broken feature pipeline from the DAG.
+        raise SystemExit("No reports generated for any symbol")
 
 
 if __name__ == "__main__":

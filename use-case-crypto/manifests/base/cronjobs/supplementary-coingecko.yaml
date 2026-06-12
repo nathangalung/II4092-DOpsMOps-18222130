@@ -11,6 +11,12 @@ metadata:
     mlops-platform.io/use-case: crypto
 spec:
   schedule: "15 * * * *"
+  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
+  # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
+  # controller stops scheduling permanently).
+  suspend: false
+  startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1

@@ -39,6 +39,14 @@ ind AS (
         -- Moving averages
         avg(close) OVER w20 AS sma_20,
         avg(close) OVER w50 AS sma_50,
+        -- Volume SMA (20) — the batch↔stream parity anchor (KF-11/SK-F-11).
+        -- MUST mirror the stream side exactly: Flink's Indicators.rollingMean
+        -- over the secondary (volume) field with FLINK_SECONDARY_AVG_PERIOD=20
+        -- (configmaps/features.yaml) emits `secondary_avg` into
+        -- bronze.crypto_ohlcv_features; both are a trailing mean over the last
+        -- 20 events INCLUDING the current row, per symbol, event-time order.
+        -- experiments/parity/parity-check.sh asserts the two columns agree.
+        avg(volume) OVER w20 AS volume_sma_20,
         -- EMA (finite-window exponential weighting, beta = 1 - 2/(N+1);
         -- current row reversed to index 0 so it carries the highest weight)
         arraySum(arrayMap((v, k) -> v * pow(1 - 2.0 / 13, k),
@@ -92,7 +100,7 @@ ind AS (
 SELECT
     symbol, timestamp, date, hour,
     open, high, low, close, volume,
-    sma_20, sma_50, ema_12, ema_26,
+    sma_20, sma_50, volume_sma_20, ema_12, ema_26,
     -- MACD line + signal (signal = SMA(9) of MACD; a stable, common signal-line
     -- form — avoids a second recursive EMA over an already-approximated EMA)
     ema_12 - ema_26 AS macd,
