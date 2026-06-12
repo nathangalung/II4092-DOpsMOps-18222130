@@ -1,6 +1,7 @@
 {
 \footnotesize
-\begin{longtable}{|>{\centering\arraybackslash}m{1cm}|>{\centering\arraybackslash}m{0.7cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.5cm}|>{\centering\arraybackslash}m{1.8cm}|>{\centering\arraybackslash}m{1.8cm}|}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{|>{\centering\arraybackslash}m{1cm}|>{\centering\arraybackslash}m{0.7cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.3cm}|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.8cm}|>{\centering\arraybackslash}m{1.8cm}|}
 \caption{Perbandingan Framework Tingkat Kematangan MLOps} \label{tab:mlops_maturity_comparison} \\
 \hline
 \textbf{FW} & \textbf{L} & \textbf{DevOps Practices} & \textbf{ML Pipeline Automation} & \textbf{CI/CD Integration} & \textbf{CT (Continuous Training)} & \textbf{Monitoring \& Feedback Loop} & \textbf{Governance \& Lineage} \\
@@ -40,7 +41,7 @@
 \cline{2-8}
 & \textbf{Rel-\linebreak iab-\linebreak le} & \cellcolor{green!20}\textbf{Ya} (terintegrasi) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (CI/CD terintegrasi) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{prod monitoring}, \textit{rollback}) & \cellcolor{green!20}\textbf{Ya} (IaC, pengujian otomatis) \\
 \cline{2-8}
-& \textbf{Sca-\linebreak lab-\linebreak le} & \cellcolor{green!20}\textbf{Ya} (multi-\textit{account}/region) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}, multi-region) & \cellcolor{green!20}\textbf{Ya} (otomasi penuh) & \cellcolor{green!20}\textbf{Ya} (\textit{auto retrain} melalui \textit{drift detection}) & \cellcolor{green!20}\textbf{Ya} (\textit{drift detection}, optimasi otomatis) & \cellcolor{green!20}\textbf{Ya} (\textit{centralized feature store}, \textit{full governance}) \\
+& \textbf{Sca-\linebreak lab-\linebreak le} & \cellcolor{green!20}\textbf{Ya} (multi-\textit{account} dan multi-region) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}, multi-region) & \cellcolor{green!20}\textbf{Ya} (otomasi penuh) & \cellcolor{green!20}\textbf{Ya} (\textit{auto retrain} melalui \textit{drift detection}) & \cellcolor{green!20}\textbf{Ya} (\textit{drift detection}, optimasi otomatis) & \cellcolor{green!20}\textbf{Ya} (\textit{centralized feature store}, \textit{full governance}) \\
 \hline
 \multirow{5}{=}{\centering\textbf{Giga Om}} & \textbf{L0} & \cellcolor{red!20}Tidak ada (\textit{no standards}) & \cellcolor{red!20}Manual (inkonsisten) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Minimal & \cellcolor{red!20}Minimal (keamanan minimal) \\
 \cline{2-8}
@@ -50,7 +51,7 @@
 \cline{2-8}
 & \textbf{L3} & \cellcolor{green!20}\textbf{Ya} (\textit{fully integrated}) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}) & \cellcolor{green!20}\textbf{Ya} (komprehensif) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{comprehensive monitoring/alerting}) & \cellcolor{green!20}\textbf{Ya} (\textit{automated governance}, \textit{self-service}) \\
 \cline{2-8}
-& \textbf{L4} & \cellcolor{green!20}\textbf{Ya} (\textit{fully adaptive}) & \cellcolor{green!20}\textbf{Ya} (\textit{AI-optimized}) & \cellcolor{green!20}\textbf{Ya} (\textit{self-optimizing}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning} dari produksi) & \cellcolor{green!20}\textbf{Ya} (platform terintegrasi dan adaptif penuh) \\
+& \textbf{L4} & \cellcolor{green!20}\textbf{Ya} (\textit{fully adaptive}) & \cellcolor{green!20}\textbf{Ya} (\textit{AI-opti\-mized}) & \cellcolor{green!20}\textbf{Ya} (\textit{self-opti\-mizing}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning} dari produksi) & \cellcolor{green!20}\textbf{Ya} (platform terintegrasi dan adaptif penuh) \\
 \end{longtable}
 }
 

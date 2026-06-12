@@ -1,0 +1,20 @@
+\begin{table}[H]
+\centering
+\caption{Evaluasi Alternatif Penyimpanan Objek S3-Kompatibel \textit{Open-Source}}
+\label{tab:object_storage_comparison}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}m{3.2cm}|>{\centering\arraybackslash}m{2cm}|>{\centering\arraybackslash}m{1.8cm}|>{\centering\arraybackslash}m{1.8cm}|>{\centering\arraybackslash}m{2.1cm}|>{\centering\arraybackslash}m{1cm}|}
+\hline
+\multicolumn{1}{|>{\centering\arraybackslash}m{3.2cm}|}{\textbf{Penyimpanan Objek}} & \textbf{Kompati\-bilitas S3} & \textbf{\textit{Footprint} Satu \textit{Node}} & \textbf{Enkripsi KMS} & \textbf{Dukungan K8s} & \textbf{Total} \\
+\hline
+MinIO & 5 & 5 & 5 & 5 & 20 \\
+\hline
+SeaweedFS & 4 & 4 & 3 & 4 & 15 \\
+\hline
+Ceph RGW & 4 & 2 & 4 & 4 & 14 \\
+\hline
+Garage & 3 & 4 & 2 & 3 & 12 \\
+\hline
+\end{tabular}
+\end{table}

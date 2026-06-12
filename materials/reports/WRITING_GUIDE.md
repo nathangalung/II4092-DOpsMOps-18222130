@@ -93,7 +93,10 @@ Each architectural layer that has more than one credible open-source candidate c
 
 - 4 candidates per table (the chosen tool plus 3 credible alternatives).
 - 4 criteria per table on a 1–5 scale. Criteria are layer-specific, not generic — pick the dimensions that drive the decision for that layer (e.g. *Latensi Rendah* for vector index, *K8s-Native* for orchestration, *Transaksi ACID* for table format).
-- Total column sums to /20. The chosen tool should justify its 20 with a textual paragraph; it must not be hand-waved.
+- Total column sums to /20. The chosen tool holds the unique highest Total in its table and justifies it with a textual paragraph; it must not be hand-waved.
+- The scoring rubric is stated once in prose immediately before the first scored table in Bab II (currently `message_broker_comparison`): 1 = criterion not met, 3 = partial support needing extra components or configuration, 5 = fully met by built-in capability, with 2 and 4 as intermediate levels. Scores derive from official documentation.
+- Highest Total = the platform primary pick for the evaluated function. A lower-scoring row may still be deployed in a complementary role (e.g. Flink for streaming beside Spark for batch); the prose around the table must say so explicitly.
+- `mlops_maturity_comparison.tex` and `architecture_comparison.tex` are non-scored (color matrix and longtable respectively) and sit outside the rubric.
 - Caption above, label `tab:<topic>_comparison`, file `tables/<topic>_comparison.tex`.
 
 Layers currently covered:
@@ -104,16 +107,23 @@ Layers currently covered:
 - `orchestration_comparison.tex` — §2.6.2
 - `tracking_comparison.tex` — §2.6.1
 - `serving_comparison.tex` — §2.6.3
+- `message_broker_comparison.tex` — §2.4.2 (Message broker: Kafka vs Redpanda vs Pulsar vs NATS JetStream)
+- `schema_registry_comparison.tex` — §2.4.2
 - `data_processing_comparison.tex` — §2.4
 - `lakehouse_format_comparison.tex` — §2.4.5
+- `object_storage_comparison.tex` — §2.4.6 (Object storage: MinIO vs Ceph RGW vs SeaweedFS vs Garage)
+- `data_versioning_comparison.tex` — §2.4.6 (Data versioning: lakeFS vs DVC vs Nessie vs Pachyderm)
 - `metadata_comparison.tex` — §2.7
 - `monitoring_comparison.tex` — §2.9
+- `dashboarding_comparison.tex` — §2.9
 - `gitops_comparison.tex` — §2.10
 - `identity_comparison.tex` — §2.11 (Identity Provider: Dex vs Keycloak vs Authelia vs Authentik)
 - `secrets_comparison.tex` — §2.11 (Secrets manager: OpenBao vs Vault vs Sealed Secrets vs SOPS)
 - `service_mesh_comparison.tex` — §2.11 (Service mesh: Istio vs Linkerd vs Cilium vs Consul Connect)
+- `api_gateway_comparison.tex` — §2.11
 - `policy_comparison.tex` — §2.11 (Policy engine: Kyverno vs OPA Gatekeeper vs jsPolicy vs Kubewarden)
-- `mlops_maturity_comparison.tex` — §2.2.3
+- `runtime_security_comparison.tex` — §2.11
+- `mlops_maturity_comparison.tex` — §2.2.3 (color-coded maturity matrix, non-scored, carries its own legend)
 - `architecture_comparison.tex` — §2.12 (longtable; *Aspek × Saat Ini × Diusulkan × Keuntungan × Referensi*, the only table allowed to use a different shape because it summarises across the whole architecture).
 
 When adding a new comparison table, follow the same shape and place an `\input{tables/<file>}` directive immediately after the introductory paragraph that names the alternatives.
@@ -178,7 +188,7 @@ Run through this list when the draft is close to done.
 - Each Bab V section refers back to the matching Bab IV section.
 - Each kesimpulan point answers exactly one tujuan.
 
-### 3.6 Per-Bab template comments (central store)
+### 3.7 Per-Bab template comments (central store)
 
 Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I header already follows this convention; trim the remaining chapters' long headers when each chapter gets its revision pass.
 
@@ -197,17 +207,24 @@ Catatan: kripto hanya use-case verifikasi; tidak masuk latar belakang.
 **Bab II — Studi Literatur**
 
 ```
-- II.1 Cakupan Studi Literatur     : ruang lingkup dan peta tematik
-- II.2 DataOps dan MLOps           : definisi, perbedaan, integrasi
-- II.3 Kubernetes dan Cloud-Native : orkestrasi platform
-- II.4 Lapis Data dan Pemrosesan   : ingestasi, streaming, batch, lakehouse
-- II.5 Layanan Fitur dan Vektor    : feature store, online/offline, HNSW
-- II.6 Siklus Hidup Model          : pelatihan, pelacakan, penyajian
-- II.7 Tata Kelola dan Lineage     : katalog, kualitas, lineage
-- II.8 GitOps dan Observabilitas   : Argo CD, Prometheus, Grafana
-- II.9 Keamanan dan Kebijakan      : RBAC, secrets, policy, runtime
-- II.10 Sintesis dan Posisi TA     : perbandingan arsitektur saat ini vs diusulkan
-Tabel perbandingan: tiap subbab dengan alternatif diakhiri \input{tables/<file>_comparison.tex}.
+- II.1 Cakupan Studi Literatur      : ruang lingkup dan peta tematik
+- II.2 DataOps dan MLOps            : definisi, kematangan, integrasi
+- II.3 Kubernetes dan Cloud-Native  : orkestrasi, scaling (HPA/VPA/KEDA), operator, runtime
+- II.4 Manajemen Data               : Lambda/Kappa, Kafka+Karapace, Flink, Spark+dbt,
+                                      lakehouse (Iceberg/Trino), MinIO/lakeFS, PG/MySQL/OpenSearch
+- II.5 Layanan Fitur                : Feast, ClickHouse, Valkey, Qdrant, HNSW, point-in-time
+- II.6 Siklus Hidup Model           : MLflow, KFP+Argo Workflows, Notebooks/Katib/Trainer, KServe
+- II.7 Tata Kelola Data             : DataHub, Great Expectations, OpenLineage
+- II.8 Deteksi Drift                : PSI, Kolmogorov-Smirnov, retraining loop
+- II.9 Observabilitas               : Prometheus/Loki/Tempo/Grafana/OTel, Sloth, Evidently,
+                                      Pyroscope, Pushgateway, OpenCost, Superset
+- II.10 GitOps                      : Argo CD, Gitea, Tekton, Argo Rollouts
+- II.11 Keamanan Platform           : Dex+oauth2-proxy, SpiceDB, OpenBao+ESO+KES, Istio,
+                                      APISIX, Kyverno/OPA, Falco, Trivy, Velero, Chaos Mesh
+- II.12 Penelitian Terkait          : posisi platform terhadap pekerjaan terdahulu
+Tabel perbandingan: tiap subbab dengan alternatif diakhiri \input{tables/<file>_comparison.tex}
+(daftar lengkap pada §2.1 dokumen ini).
+Penjelasan tool: setiap tool pada platform/components diberi definisi dan citasi resmi.
 ```
 
 **Bab III — Analisis Masalah**

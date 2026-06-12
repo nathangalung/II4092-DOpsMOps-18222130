@@ -1,13 +1,14 @@
 {
 \footnotesize
-\begin{longtable}{|m{2cm}|m{2.5cm}|m{2.5cm}|m{3cm}|m{2cm}|}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{|m{2cm}|m{2.5cm}|m{2.5cm}|m{2.8cm}|m{2cm}|}
 \caption{Perbandingan Detail Arsitektur Saat Ini dengan yang Diusulkan}
 \label{tab:architecture_comparison} \\
 \hline
 \multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Keuntungan Terukur}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Manfaat yang Diharapkan}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
 \hline
 \endfirsthead
@@ -15,7 +16,7 @@
 \multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Keuntungan Terukur}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Manfaat yang Diharapkan}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
 \hline
 \endhead
@@ -45,7 +46,7 @@ Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey,
 Validitas Temporal &
 \textit{Point-in-time} \textit{join} dilakukan manual dan rentan kesalahan, sehingga banyak tim mengalami \textit{data leakage}. &
 \textit{Point-in-time join} otomatis dari Feast dengan pola verifikasi yang lebih sistematis. &
-Pendekatan ini mencegah kebocoran data temporal yang dapat menghasilkan estimasi performa \textit{backtest} yang terlalu optimistis dan tidak realistis di produksi. &
+Pendekatan ini mencegah kebocoran data temporal yang dapat menghasilkan estimasi performa yang terlalu optimistis saat evaluasi dan tidak realistis di produksi. &
 \autocite{polyzotis2018data} \\
 \hline
 Pemrosesan Data &
@@ -98,7 +99,7 @@ Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{depl
 \hline
 Pengalaman \textit{Developer} &
 \textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan alat yang terpisah. &
-Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan otentikasi tunggal di seluruh antarmuka pengembang. &
+Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan otentikasi tunggal di seluruh antarmuka pengembang. &
 \textit{Onboarding} dapat dipercepat dan produktivitas \textit{data scientist} meningkat karena hambatan akses infrastruktur berkurang. &
 \autocite{paleyes2022challenges,rella2022mlops} \\
 \hline
@@ -110,7 +111,7 @@ Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber day
 \hline
 Keamanan \& \textit{Compliance} &
 Kontrol akses beragam di tiap sistem, dan \textit{audit} tersebar tanpa pandangan terpadu. &
-RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan otentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada klaster, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan citra. &
+RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan otentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada klaster, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan citra. &
 Risiko insiden keamanan dapat berkurang melalui kontrol terpusat dan proses audit menjadi lebih ringkas. &
 \autocite{ahmad2024mlops} \\
 \hline
