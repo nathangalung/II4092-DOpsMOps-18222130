@@ -25,7 +25,7 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\textwidth]{figures/Integrate_General_Arch.png}
+    \includegraphics[width=0.95\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_General_Arch.png}
     \caption{Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
     \label{fig:integrate-general}
 \end{figure}
@@ -44,28 +44,28 @@ Empat peran utama mempunyai akses yang berbeda pada platform yang sama. Gambar~\
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/Integrate_BusUs_Arch.png}
+    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_BusUs_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Business User}}
     \label{fig:integrate-busus}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/Integrate_DatEng_Arch.png}
+    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatEng_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
     \label{fig:integrate-dateng}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/Integrate_DatSci_Arch.png}
+    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatSci_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
     \label{fig:integrate-datsci}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/Integrate_MLEng_Arch.png}
+    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_MLEng_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
     \label{fig:integrate-mleng}
 \end{figure}
@@ -167,14 +167,14 @@ Bagian ini menjawab T-4 dengan merancang sub-sistem layanan fitur yang menyatuka
 \subsection{Dukungan \textit{Vector Embeddings} dan HNSW}
 \label{subsec:vektor-embedding}
 
-\textit{Embedding} dihasilkan oleh model \texttt{sentence-transformers/all-mpnet-base-v2} \autocite{devlin2019bert} berdimensi 768 untuk teks, dan disimpan sebagai fitur dengan dimensi yang konsisten antara fase pelatihan dan fase \textit{inference}. Pencarian tetangga terdekat dijalankan oleh Qdrant \autocite{qdrant2025} dengan indeks HNSW \autocite{malkov2020efficient} berparameter \texttt{m=16} dan \texttt{ef\_construct=200} yang memberi keseimbangan baik antara waktu kueri dan kualitas. Qdrant menyediakan kueri \textit{gRPC} berlatensi rendah serta penyaringan \textit{payload} pada saat pencarian, sehingga \textit{embedding} dapat digabung dengan fitur tabular dari Valkey untuk membentuk \textit{request} \textit{inference} yang lengkap. \textcite{bruch2023hybrid} dan \textcite{campese2024coherence} memberi rujukan untuk fungsi peleburan hasil pencarian pada konteks \textit{hybrid retrieval}.
+\textit{Embedding} dihasilkan oleh model \texttt{sentence-transformers/}\allowbreak\texttt{all-mpnet-base-v2} \autocite{reimers2019sentence} berdimensi 768 untuk teks, dan disimpan sebagai fitur dengan dimensi yang konsisten antara fase pelatihan dan fase \textit{inference}. Pencarian tetangga terdekat dijalankan oleh Qdrant \autocite{qdrant2025} dengan indeks HNSW \autocite{malkov2020efficient} berparameter \texttt{m=16} dan \texttt{ef\_construct=200} yang memberi keseimbangan baik antara waktu kueri dan kualitas. Qdrant menyediakan kueri \textit{gRPC} berlatensi rendah serta penyaringan \textit{payload} pada saat pencarian, sehingga \textit{embedding} dapat digabung dengan fitur tabular dari Valkey untuk membentuk \textit{request} \textit{inference} yang lengkap. \textcite{bruch2023hybrid} dan \textcite{campese2024coherence} memberi rujukan untuk fungsi peleburan hasil pencarian pada konteks \textit{hybrid retrieval}.
 
 Parameter HNSW dikonfigurasi melalui \textit{collection} Qdrant yang dideklarasikan oleh \textit{init Job} sehingga penambahan koleksi baru dapat dilakukan dengan menambah berkas YAML, tanpa intervensi langsung pada Qdrant. \textit{Snapshot} koleksi vektor dijalankan secara berkala ke MinIO sebagai bagian dari pencadangan Velero untuk objek terkait. Pemilihan dimensi 768 berdasarkan model \textit{all-mpnet-base-v2} memberi keseimbangan antara kualitas semantik dan biaya penyimpanan, dan dapat disesuaikan dengan model alternatif tanpa mengubah kontrak Feast. Latensi p95 ditargetkan di bawah dua puluh milidetik untuk pencarian top-10 pada koleksi berukuran sampai sepuluh juta vektor, mengikuti panduan kinerja yang dirangkum oleh \textcite{malkov2020efficient}.
 
 \subsection{Jaminan \textit{Point-in-Time Correctness}}
 \label{subsec:jaminan-pit}
 
-Feast menjamin \textit{point-in-time correctness} melalui operasi \texttt{get\_historical\_features}. Operasi ini melakukan \textit{point-in-time join} antara entitas dan riwayat fitur dengan menggunakan \texttt{event\_timestamp} dan \texttt{created\_timestamp}, sehingga nilai fitur yang dipakai pada saat pelatihan identik dengan nilai yang akan tersedia pada saat \textit{inference} di waktu yang sama. \textcite{vela2022temporal} dan \textcite{kaufman2012leakage} memperlihatkan dampak buruk \textit{temporal leakage} pada validitas evaluasi model, dan Feast mencegah kebocoran tersebut secara struktural pada level kontrak data. Setiap \texttt{FeatureView} mendeklarasikan \texttt{ttl} untuk membatasi usia fitur yang dianggap valid, sehingga fitur usang tidak diam-diam masuk ke set pelatihan.
+Jaminan \textit{point-in-time correctness} pada Feast diwujudkan melalui operasi \texttt{get\_historical\_features}. Operasi ini melakukan \textit{point-in-time join} antara entitas dan riwayat fitur dengan menggunakan \texttt{event\_timestamp} dan \texttt{created\_timestamp}, sehingga nilai fitur yang dipakai pada saat pelatihan identik dengan nilai yang akan tersedia pada saat \textit{inference} di waktu yang sama. \textcite{vela2022temporal} dan \textcite{kaufman2012leakage} memperlihatkan dampak buruk \textit{temporal leakage} pada validitas evaluasi model, dan Feast mencegah kebocoran tersebut secara struktural pada level kontrak data. Setiap \texttt{FeatureView} mendeklarasikan \texttt{ttl} untuk membatasi usia fitur yang dianggap valid, sehingga fitur usang tidak diam-diam masuk ke set pelatihan.
 
 Mekanisme jaminan ini diuji melalui dua jalur. Pertama, \textit{notebook} reproduksi memanggil \texttt{get\_historical\_features} pada titik waktu historis dan membandingkan keluaran dengan ekstraksi manual yang dijalankan terhadap log peristiwa Kafka, sehingga validitas dapat dibuktikan pada level kasus. Kedua, kontrak antara \texttt{Online Store} dan \texttt{Offline Store} divalidasi dengan menjalankan kueri yang sama pada Valkey dan ClickHouse pada titik waktu yang sama dan membandingkan keluaran. Kombinasi dua jalur uji ini menutup ruang \textit{temporal leakage} struktural pada lapisan fitur tanpa bergantung pada disiplin manual pengembang \textit{pipeline}.
 

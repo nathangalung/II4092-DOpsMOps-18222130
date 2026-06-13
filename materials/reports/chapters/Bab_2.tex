@@ -12,6 +12,8 @@ Peta tematik bab ini juga menjadi rujukan saat menyusun matriks evaluasi alterna
 \section{DataOps dan MLOps}
 \label{sec:dataops-mlops}
 
+Dua disiplin operasional yang menjadi pokok penelitian ini diuraikan terlebih dahulu sebelum komponen teknis pendukungnya. DataOps dibahas sebagai praktik otomasi siklus hidup data, kemudian MLOps sebagai perluasan praktik DevOps ke siklus hidup model. Kerangka tingkat kematangan MLOps dipakai untuk menempatkan target kapabilitas platform pada jenjang yang dapat diukur. Subbab penutup membahas integrasi kedua disiplin yang menjadi celah penelitian sekaligus posisi platform ini.
+
 \subsection{DataOps}
 \label{subsec:dataops}
 
@@ -66,6 +68,8 @@ Integrasi tersebut diwujudkan melalui tiga jembatan teknis yang dijelaskan pada 
 \section{Kubernetes dan Orkestrasi \textit{Cloud-Native}}
 \label{sec:kubernetes}
 
+Seluruh komponen platform berjalan di atas Kubernetes, sehingga karakter lapis orkestrasi ini perlu dipahami sebelum membahas komponen di atasnya. Pembahasan dibagi dua, yaitu peran Kubernetes beserta objek dasar dan pilihan distribusinya, kemudian mekanisme penskalaan otomatis beserta ekosistem \textit{operator}. Urutan ini menempatkan konsep dasar sebelum mekanisme yang dibangun di atasnya. Rincian penerapannya pada tiap komponen dibahas pada Bab~\ref{chap:perancangan}.
+
 \subsection{Peran, Objek Dasar, dan Distribusi}
 \label{subsec:k8s-peran}
 
@@ -82,8 +86,10 @@ Komponen operator menyediakan abstraksi tingkat tinggi pada perangkat data dan m
 
 Lapisan \textit{runtime} dilengkapi oleh Knative Serving \autocite{knative2025} yang menambah kemampuan penskalaan ke nol pada beban kerja \textit{request-response} dan menjadi fondasi bagi KServe. Kueue \autocite{kueue2024} menyediakan antrean kerja untuk beban kerja \textit{batch} sehingga prioritas dan kuota dapat ditegakkan lintas \textit{namespace}. cert-manager \autocite{certmanager2025} mengotomasi penerbitan dan rotasi sertifikat TLS bagi \textit{Ingress} dan \textit{webhook} komponen platform. Ketiga komponen tersebut bekerja saling melengkapi, sebab Knative menyediakan penskalaan ke nol, Kueue menyediakan kontrol kuota lintas \textit{tenant}, dan cert-manager menjaga sertifikat \textit{webhook} serta \textit{Ingress} tetap berlaku.
 
-\section{Manajemen Data: Ingestasi, \textit{Streaming}, dan \textit{Batch}}
+\section{Manajemen Data: Ingestasi, Pemrosesan, dan Penyimpanan}
 \label{sec:manajemen-data}
+
+Lapis manajemen data mencakup jalur masuk data sampai tempat penyimpanannya. Pembahasan dimulai dari pola arsitektur aliran data, dilanjutkan komponen ingestasi dan pemrosesan, yaitu Kafka, Flink, serta Spark dan dbt. Tiga subbab berikutnya membahas lapis penyimpanan, dari format tabel \textit{lakehouse}, penyimpanan objek dengan versi data, hingga penyimpanan relasional dan indeks pencarian. Urutan tersebut mengikuti arah aliran data pada platform, dari peristiwa masuk sampai data siap dikonsumsi oleh lapis layanan fitur.
 
 \subsection{Pola Lambda dan Kappa}
 \label{subsec:lambda-kappa}
@@ -97,7 +103,7 @@ Platform ini mengadopsi pola Kappa dengan modifikasi pada lapis pemrosesan: alir
 
 Apache Kafka berperan sebagai \textit{distributed log} yang menyimpan kejadian dalam urutan tertentu dan memungkinkan pelanggan untuk memutar ulang aliran data dari posisi tertentu \autocite{apachekafka2024}. Kafka mendukung jaminan \textit{at-least-once} secara baku dan \textit{exactly-once} dengan transaksi, sehingga cocok untuk dipakai sebagai tulang punggung penghubung antara produsen data dan konsumen pemroses. Beberapa \textit{message broker} lain yang lazim dipertimbangkan adalah Redpanda \autocite{redpanda2025}, Apache Pulsar \autocite{apachepulsar2025}, dan NATS JetStream \autocite{nats2025}, dengan perbandingan pada Tabel~\ref{tab:message_broker_comparison}. Kafka dipilih karena ekosistem konektornya paling luas, \textit{operator} Strimzi menyediakan pengelolaan deklaratif yang matang pada Kubernetes, lisensinya tetap Apache 2.0 di bawah tata kelola \textit{Apache Software Foundation}, dan protokolnya dibaca langsung oleh komponen lain pada platform ini, yaitu konektor Flink, tabel \textit{Kafka engine} ClickHouse, dan \textit{scaler} KEDA.
 
-Tabel~\ref{tab:message_broker_comparison} dan seluruh tabel evaluasi alternatif lain pada bab ini memakai skala penilaian yang sama, yaitu 0 sampai 2 untuk tiap kriteria. Nilai 0 berarti kriteria tidak dipenuhi atau fiturnya tidak tersedia, nilai 1 berarti dukungan parsial yang masih memerlukan komponen tambahan atau menyisakan keterbatasan yang berarti, dan nilai 2 berarti kriteria dipenuhi penuh oleh kemampuan bawaan alat. Penilaian diturunkan dari dokumentasi resmi dan status pemeliharaan tiap proyek, sedangkan kolom Total menjumlahkan keempat kriteria sehingga nilai tertingginya 8. Kriteria lisensi mengacu pada status lisensi yang diakui \textit{Open Source Initiative}, dan naungan yayasan netral seperti \textit{Apache Software Foundation}, \textit{Cloud Native Computing Foundation}, atau \textit{Linux Foundation} dipakai sebagai bukti pendukung keterbukaan tata kelola yang ikut menimbang penilaian maturitas dan komunitas. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama platform ini untuk fungsi yang dievaluasi, dengan pertimbangan kualitatif yang diuraikan pada subbab terkait. Pada beberapa fungsi, alat dengan skor lebih rendah tetap dipakai sebagai pendamping dengan peran yang berbeda, misalnya Flink menangani jalur \textit{streaming} di samping Spark yang menjadi mesin \textit{batch} utama.
+Tabel~\ref{tab:message_broker_comparison} dan seluruh tabel evaluasi alternatif lain pada bab ini memakai skala penilaian yang sama, yaitu 0 sampai 2 untuk tiap kriteria. Nilai 0 berarti kriteria tidak dipenuhi atau fiturnya tidak tersedia, nilai 1 berarti dukungan parsial yang masih memerlukan komponen tambahan atau menyisakan keterbatasan yang berarti, dan nilai 2 berarti kriteria dipenuhi penuh oleh kemampuan bawaan alat. Penilaian diturunkan dari dokumentasi resmi dan status pemeliharaan tiap proyek, sedangkan kolom Total menjumlahkan keempat kriteria sehingga nilai tertingginya 8. Kriteria lisensi mengacu pada status lisensi yang diakui \textit{Open Source Initiative}, dan naungan yayasan netral seperti \textit{Apache Software Foundation} (ASF), \textit{Cloud Native Computing Foundation} (CNCF), atau \textit{Linux Foundation} (LF) dipakai sebagai bukti pendukung keterbukaan tata kelola yang ikut menimbang penilaian maturitas dan komunitas. Sebagai justifikasi status \textit{open source} tiap alat, kolom Lisensi (Yayasan) pada tiap tabel mencantumkan lisensi resmi beserta yayasan penaungnya, dan keterangan mandiri menandai proyek yang dikelola vendor atau komunitas tanpa naungan yayasan netral. Kolom tersebut bersifat informatif dan tidak mengubah perhitungan kolom Total. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama platform ini untuk fungsi yang dievaluasi, dengan pertimbangan kualitatif yang diuraikan pada subbab terkait. Pada beberapa fungsi, alat dengan skor lebih rendah tetap dipakai sebagai pendamping dengan peran yang berbeda, misalnya Flink menangani jalur \textit{streaming} di samping Spark yang menjadi mesin \textit{batch} utama.
 
 \input{tables/message_broker_comparison.tex}
 
@@ -157,6 +163,8 @@ Pemisahan tiga lapis penyimpanan tersebut mengikuti karakter beban kerja. Postgr
 \section{Layanan Fitur (\textit{Feature Store})}
 \label{sec:feature-store}
 
+Layanan fitur menghubungkan jalur data dengan jalur model sehingga keduanya membaca definisi fitur yang sama. Konsep dan peran \textit{feature store} dibahas terlebih dahulu, disusul pemisahan penyimpanan \textit{offline} dan \textit{online} yang menjadi inti arsitektur \textit{dual-store}. Dua subbab berikutnya membahas pencarian vektor untuk fitur \textit{embedding} serta jaminan \textit{point-in-time correctness} yang mencegah kebocoran temporal. Keempat topik tersebut menjadi dasar perancangan lapis layanan fitur pada Bab~\ref{chap:perancangan}.
+
 \subsection{Konsep dan Peran}
 \label{subsec:konsep-feature-store}
 
@@ -167,11 +175,13 @@ Tiga peran utama \textit{feature store} adalah: (1) penyimpan fitur dengan kontr
 \subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
 \label{subsec:offline-online-teori}
 
-Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}, sedangkan penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten. ClickHouse \autocite{clickhouse2024} dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey \autocite{valkey2025} dipilih sebagai \textit{online store} karena kompatibilitas wire-protocol RESP dengan ekosistem klien Redis serta lisensi BSD di bawah naungan Linux Foundation yang tetap terbuka pasca-perubahan lisensi Redis.
+Penyimpanan \textit{offline} dipakai untuk pelatihan dan \textit{batch scoring}, sedangkan penyimpanan \textit{online} dipakai untuk \textit{inference} dengan latensi rendah. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} membandingkan beberapa pilihan teknologi untuk kedua peran tersebut. Feast \autocite{feast2024} dipilih sebagai kerangka \textit{feature store} karena modularitas penyimpanan dan kontrak API yang konsisten. ClickHouse \autocite{clickhouse2024} dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey \autocite{valkey2025} dipilih sebagai \textit{online store} karena kompatibilitas wire-protocol RESP dengan ekosistem klien Redis serta lisensi BSD di bawah naungan Linux Foundation yang tetap terbuka pasca-perubahan lisensi Redis. Perbandingan Feast dengan beberapa kerangka \textit{feature store} \textit{open-source} lain disajikan pada Tabel~\ref{tab:feature_store_comparison}.
 
 \input{tables/offline_storage_comparison.tex}
 
 \input{tables/online_storage_comparison.tex}
+
+\input{tables/feature_store_comparison.tex}
 
 Karakter beban kerja antara \textit{offline} dan \textit{online} secara mendasar berbeda. \textit{Offline store} ClickHouse dioptimasi untuk kueri agregasi pada jutaan baris dengan kompresi kolumnar LZ4 atau ZSTD, sehingga cocok untuk pembuatan \textit{training dataset} dengan \textit{point-in-time join}. \textit{Online store} Valkey memakai struktur data kunci-nilai pada memori dengan latensi \textit{lookup} sub-milidetik, sehingga cocok untuk \textit{inference} yang membutuhkan ribuan \textit{lookup} per detik. \textit{Materialization} dari \textit{offline} ke \textit{online} dijalankan oleh \textit{job} terjadwal Kubernetes berdasarkan \texttt{FeatureView} pada Feast, dengan dukungan inkremental untuk fitur yang sering berubah dan dukungan penuh untuk fitur historis.
 
@@ -182,7 +192,7 @@ Fitur \textit{embedding} berdimensi tinggi memerlukan struktur indeks pendekatan
 
 \input{tables/vector_index_comparison.tex}
 
-Pemilihan Qdrant juga mempertimbangkan dukungan \textit{hybrid search} yang menggabungkan kueri vektor dengan filter atribut, sebagaimana dibahas oleh \textcite{bruch2023hybrid} sebagai pola pencarian yang banyak diadopsi pada sistem \textit{retrieval} modern. \textcite{devlin2019bert} memberi konteks akademik mengenai sumber \textit{embedding} dari model \textit{language} yang banyak dipakai sebagai masukan ke \textit{vector index}. Pada platform ini, Qdrant dijalankan sebagai \texttt{Deployment} dengan \textit{persistent volume}, \texttt{PodDisruptionBudget}, serta kunci API dari External Secrets Operator. Metrik jarak \textit{collection} dikonfigurasi pada layanan \textit{embedding} platform dengan nilai bawaan kosinus untuk \textit{embedding} yang dinormalkan. Indeks HNSW dikonfigurasi dengan parameter \texttt{m} dan \texttt{ef\_construct} yang dapat ditingkatkan ketika rasio panggilan ulang ingin diperbesar.
+Pemilihan Qdrant juga mempertimbangkan dukungan \textit{hybrid search} yang menggabungkan kueri vektor dengan filter atribut, sebagaimana dibahas oleh \textcite{bruch2023hybrid} sebagai pola pencarian yang banyak diadopsi pada sistem \textit{retrieval} modern. \textcite{devlin2019bert} dan \textcite{openai2022embedding} memberi konteks mengenai sumber \textit{embedding} dari model bahasa yang banyak dipakai sebagai masukan ke \textit{vector index}. Pada platform ini, Qdrant dijalankan sebagai \texttt{Deployment} dengan \textit{persistent volume}, \texttt{PodDisruptionBudget}, serta kunci API dari External Secrets Operator. Metrik jarak \textit{collection} dikonfigurasi pada layanan \textit{embedding} platform dengan nilai bawaan kosinus untuk \textit{embedding} yang dinormalkan. Indeks HNSW dikonfigurasi dengan parameter \texttt{m} dan \texttt{ef\_construct} yang dapat ditingkatkan ketika rasio panggilan ulang ingin diperbesar.
 
 \subsection{\textit{Point-in-Time Correctness}}
 \label{subsec:pit}
@@ -191,10 +201,10 @@ Jaminan \textit{point-in-time correctness} berarti nilai fitur yang dipakai saat
 
 Pada platform ini, jaminan \textit{point-in-time} dijamin oleh dua mekanisme. Pertama, \texttt{FeatureView} Feast mendaftarkan kolom \texttt{event\_timestamp} sebagai acuan \textit{join} historis dan kolom \texttt{created\_timestamp} sebagai penanda waktu penulisan fitur. Kedua, \textit{online store} memakai versi terbaru dari nilai fitur sehingga \textit{lookup} saat \textit{inference} membaca nilai yang konsisten dengan \texttt{event\_timestamp} terkini. Kombinasi keduanya menekan peluang kebocoran temporal saat pelatihan dan menjaga konsistensi nilai antara kedua fase.
 
-\input{tables/feature_store_comparison.tex}
-
 \section{Siklus Hidup Model}
 \label{sec:siklus-model}
+
+Siklus hidup model mencakup tahap eksperimen sampai model tersaji sebagai layanan. Pembahasan dimulai dari \textit{tracking} eksperimen dan \textit{registry} model, dilanjutkan orkestrasi \textit{pipeline} pelatihan. Dua subbab berikutnya membahas lingkungan eksperimen interaktif beserta \textit{hyperparameter tuning}, kemudian penyajian model pada lapis \textit{inference}. Urutan tersebut mengikuti perjalanan model dari kode eksperimen sampai \textit{endpoint} yang dipantau.
 
 \subsection{Eksperimen dan \textit{Tracking}}
 \label{subsec:tracking}

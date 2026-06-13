@@ -1,14 +1,15 @@
 {
 \footnotesize
-\begin{longtable}{|>{\centering\arraybackslash}m{1.2cm}|>{\centering\arraybackslash}m{1.5cm}|m{6.6cm}|m{4.6cm}|}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.75cm}|m{5.9cm}|m{4cm}|}
 \caption{Skenario Uji Penerimaan per Tujuan Platform}
 \label{tab:uji_penerimaan} \\
 \hline
-\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{6.6cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.6cm}|}{\textbf{Kriteria Penerimaan}} \\
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
 \hline
 \endfirsthead
 \hline
-\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{6.6cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.6cm}|}{\textbf{Kriteria Penerimaan}} \\
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
 \hline
 \endhead
 \endfoot
@@ -74,7 +75,7 @@ SK-N-04 & KNF-04 & Menyuntikkan \textit{fault} dengan Chaos Mesh (\texttt{pod-ch
 \hline
 SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{runtime} penyajian) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
 \hline
-SK-N-09 & KNF-09 & Mengakses konsol platform melalui satu sesi identitas dex dan mengumpulkan survei kemudahan penggunaan. & Seluruh konsol terhubung pada satu jalur autentikasi dan skor kemudahan melewati ambang survei. \\
+SK-N-09 & KNF-09 & Mengakses seluruh konsol platform melalui satu sesi identitas dex serta memeriksa ketersediaan dokumentasi operasional pada repositori Gitea. & Seluruh konsol dapat dicapai melalui satu jalur autentikasi tunggal tanpa login ulang dan dokumentasi prosedur inti tersedia. \\
 \hline
 SK-N-10 & KNF-10 & Mengukur rasio kompresi ClickHouse, utilisasi sumber daya, dan atribusi biaya \textit{workload} pada OpenCost. & Rasio kompresi dan utilisasi memenuhi target serta biaya per \textit{workload} dapat diatribusikan. \\
 \hline

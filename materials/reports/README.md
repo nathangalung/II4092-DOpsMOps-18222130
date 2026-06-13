@@ -49,7 +49,8 @@ reports/
 │   ├── Lampiran_A.tex
 │   └── Lampiran_B.tex
 ├── tables/                # \input-able .tex tables
-├── figures/               # images (.png/.jpg)
+├── figures/               # images (.png/.jpg), rendered outputs only
+├── diagrams/              # diagram-as-code sources (.eraser), see diagrams/README.md
 ├── listings/              # code listings
 └── algorithms/            # algorithm pseudocode
 

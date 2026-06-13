@@ -83,7 +83,9 @@ Studi literatur berisi tinjauan pustaka, landasan teori, dan penelitian terdahul
 
 Studi literatur bukan rangkuman; isi harus diolah secara sistematis. Alur penulisan yang dianjurkan: kasus → teori dasar → metode → penelitian terdahulu.
 
-Catatan struktur (revisi 2026-06): Bab II tidak lagi memiliki subbab "Cakupan Studi Literatur". Cakupan ditulis sebagai 1–2 paragraf pembuka tanpa nomor langsung setelah judul bab, mengikuti aturan paragraf pembuka bab pada `WRITING_GUIDE.md` §3.8. Subbab pertama langsung masuk materi (DataOps dan MLOps). Aturan kedalaman subbab mengikuti `WRITING_GUIDE.md` §3.9: subbab dengan empat paragraf atau lebih yang memuat lebih dari satu topik dipecah menjadi sub-subbab, sedangkan subbab pendek satu topik dibiarkan tanpa pemecahan.
+Catatan struktur (revisi 2026-06): Bab II tidak lagi memiliki subbab "Cakupan Studi Literatur". Cakupan ditulis sebagai 1–2 paragraf pembuka tanpa nomor langsung setelah judul bab, mengikuti aturan paragraf pembuka bab pada `WRITING_GUIDE.md` §3.8. Subbab pertama langsung masuk materi (DataOps dan MLOps). Aturan kedalaman subbab mengikuti `WRITING_GUIDE.md` §3.9: subbab dengan empat paragraf atau lebih yang memuat lebih dari satu topik dipecah menjadi sub-subbab, sedangkan subbab pendek satu topik dibiarkan tanpa pemecahan. Setiap subbab yang memiliki sub-subbab dibuka dengan satu paragraf pengantar singkat sebelum sub-subbab pertama, meniru pola proposal dan paragraf pembuka bab; kedalaman berhenti pada sub-subbab (tidak ada `\subsubsection`). Judul subbab 2.3 adalah "Manajemen Data: Ingestasi, Pemrosesan, dan Penyimpanan" agar mencakup sub-subbab penyimpanan, dan setiap tabel perbandingan di-`\input` pada sub-subbab yang merujuknya lewat `Tabel~\ref`.
+
+Catatan tabel perbandingan (revisi 2026-06): seluruh tabel evaluasi alternatif pada Bab II memakai skor 0–2 per kriteria (0 = tidak dipenuhi, 1 = parsial, 2 = penuh; Total maksimum 8) yang legendanya didefinisikan satu kali di awal subbab evaluasi Bab II, ditambah satu kolom tekstual **Lisensi (Yayasan)** di antara kriteria terakhir dan kolom Total, misalnya `Apache 2.0 (CNCF)`, `MPL 2.0 (LF)`, `BUSL 1.1 (mandiri)`. Kolom ini bersifat informasional sebagai bukti tata kelola *open source* (OSI + yayasan netral seperti ASF/CNCF/LF) dan tidak mengubah Total; `mandiri` berarti tanpa yayasan netral, `komunitas` khusus pgvector/PostgreSQL. Tata letak baku tujuh kolom (lebar, `\footnotesize`, `\tabcolsep`) didefinisikan pada `WRITING_GUIDE.md` §2.1 dan wajib identik di seluruh 23 tabel berskor.
 
 ### 3.1 Format Gambar, Tabel, Rumus, dan Kode Program
 
@@ -92,6 +94,7 @@ Gambar:
 - Judul (caption) berada di bawah gambar, ditengahkan secara horizontal, huruf kecil kecuali huruf pertama.
 - Nomor gambar tidak diakhiri tanda baca.
 - Resolusi cukup tinggi; hindari *screenshot*; gunakan re-draw (draw.io, PowerPoint, Figma, Canva) dengan zoom ekspor ≥ 300%.
+- Diagram arsitektur dikelola sebagai *diagram-as-code* di folder `diagrams/` (satu berkas `.eraser` per gambar, nama sama dengan PNG padanannya di `figures/`; lihat `diagrams/README.md` dan `WRITING_GUIDE.md` §1.7). Sumber kebenaran Gambar III.1 dan IV.1: `diagrams/Fragment_General_Arch.eraser` dan `diagrams/Integrate_General_Arch.eraser`. PNG tidak boleh diubah tanpa memperbarui berkas `.eraser` lebih dulu; render ulang manual di https://app.eraser.io lalu ekspor PNG menimpa berkas lama.
 
 Tabel:
 - Judul (caption) berada di atas tabel.
@@ -174,7 +177,8 @@ Template tidak menyertakan rincian; gunakan aturan `WRITING_GUIDE.md` §3.4:
 - `WRITING_GUIDE.md` – pedoman gambar/tabel/struktur bab.
 - `README.md` – konvensi struktur direktori dan penamaan berkas.
 - `daftar-pustaka.bib` – daftar pustaka BibLaTeX.
-- `figures/` – semua *figure* berformat PNG/JPG.
+- `figures/` – semua *figure* berformat PNG/JPG (hasil render saja).
+- `diagrams/` – sumber *diagram-as-code* (`.eraser`) untuk semua bab; dirender manual ke PNG di `figures/`.
 - `tables/` – tabel yang di-`\input` dari berkas utama.
 - `listings/` – kode program panjang.
 - `algorithms/` – pseudocode algoritma.
@@ -188,4 +192,4 @@ Apabila rantai pada §1 berubah (mis. tujuan diperluas atau dipersempit), perbar
 3. Daftar subbab pada Bab IV dan Bab V.
 4. Poin Kesimpulan pada Bab VII.
 
-Sinkronisasi rantai diperiksa setiap kali revisi besar selesai.
+Sinkronisasi rantai diperiksa setiap kali revisi besar selesai. Setelah revisi yang memindahkan atau menambah istilah, audit ulang Daftar Singkatan (`frontmatter/14_Daftar_Singkatan.tex`): hanya akronim yang benar-benar muncul pada Bab 1–5, urut alfabetis, kolom pemakaian pertama mengikuti bab kemunculan pertama (periksa dengan `grep` per akronim berurutan Bab 1 → 2 → 3 → 4 → 5; seluruh tabel perbandingan di-`\input` di Bab II).

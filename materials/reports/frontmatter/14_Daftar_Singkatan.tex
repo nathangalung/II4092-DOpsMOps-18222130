@@ -12,38 +12,49 @@
 % Singkatan berikut didaftar berdasarkan kemunculan aktual pada Bab 1--5.
 % Urutan ditampilkan alfabetis. Kolom Bab menunjuk lokasi pemakaian pertama.
 
-\begin{longtable}{@{} l >{\raggedright\arraybackslash}p{9.5cm} c @{}}
-\multicolumn{1}{l}{\textbf{Singkatan}} & \multicolumn{1}{l}{\textbf{Deskripsi}} & \multicolumn{1}{l}{\parbox[c]{3.0cm}{\raggedright \textbf{Pemakaian pertama kali}}} \\
+\begin{longtable}{@{} l >{\raggedright\arraybackslash}p{8cm} c @{}}
+\multicolumn{1}{l}{\textbf{Singkatan}} & \multicolumn{1}{l}{\textbf{Deskripsi}} & \multicolumn{1}{l}{\parbox[c]{2.5cm}{\raggedright \textbf{Pemakaian pertama kali}}} \\
 \hline
 
-ACID & \textit{Atomicity, Consistency, Isolation, Durability}, sifat transaksi basis data. & Bab~\ref{chap:perancangan} \\
-ANN & \textit{Approximate Nearest Neighbor}, kelas algoritma pencarian tetangga terdekat secara aproksimasi pada ruang vektor. & Bab~\ref{chap:perancangan} \\
+ACID & \textit{Atomicity, Consistency, Isolation, Durability}, sifat transaksi basis data. & Bab~\ref{chap:studi-literatur} \\
+AGPL & \textit{GNU Affero General Public License}, lisensi \textit{copyleft} kuat yang juga mencakup penggunaan melalui jaringan. & Bab~\ref{chap:studi-literatur} \\
+ANN & \textit{Approximate Nearest Neighbor}, kelas algoritma pencarian tetangga terdekat secara aproksimasi pada ruang vektor. & Bab~\ref{chap:studi-literatur} \\
 API & \textit{Application Programming Interface}. & Bab~\ref{chap:pendahuluan} \\
-APISIX & Apache APISIX, \textit{API gateway} berbasis Nginx dan etcd. & Bab~\ref{chap:perancangan} \\
-BERT & \textit{Bidirectional Encoder Representations from Transformers}, model bahasa berbasis \textit{Transformer}. & Bab~\ref{chap:perancangan} \\
+APISIX & Apache APISIX, \textit{API gateway} berbasis Nginx dan etcd. & Bab~\ref{chap:studi-literatur} \\
+ASF & \textit{Apache Software Foundation}, yayasan nirlaba penaung proyek \textit{open source} Apache. & Bab~\ref{chap:studi-literatur} \\
+BSD & \textit{Berkeley Software Distribution}, keluarga lisensi permisif perangkat lunak. & Bab~\ref{chap:studi-literatur} \\
+BSL & \textit{Business Source License}, lisensi \textit{source-available} dengan pembatasan pemakaian komersial. & Bab~\ref{chap:studi-literatur} \\
+BUSL & Penulisan SPDX untuk \textit{Business Source License} versi 1.1. & Bab~\ref{chap:studi-literatur} \\
 CD & \textit{Continuous Delivery} atau \textit{Continuous Deployment}. & Bab~\ref{chap:pendahuluan} \\
-CI & \textit{Continuous Integration}. & Bab~\ref{chap:pendahuluan} \\
-CNPG & \textit{CloudNativePG}, \textit{operator} Kubernetes untuk PostgreSQL. & Bab~\ref{chap:perancangan} \\
-CPU & \textit{Central Processing Unit}. & Bab~\ref{chap:perancangan} \\
-CT & \textit{Continuous Training}, pelatihan model secara berkelanjutan dengan pemicu \textit{drift} atau jadwal. & Bab~\ref{chap:pendahuluan} \\
-DORA & \textit{DevOps Research and Assessment}, metrik kinerja \textit{delivery} perangkat lunak. & Bab~\ref{chap:perancangan} \\
+CDC & \textit{Change Data Capture}, teknik penangkapan perubahan data pada basis data sumber. & Bab~\ref{chap:studi-literatur} \\
+CI & \textit{Continuous Integration}. & Bab~\ref{chap:studi-literatur} \\
+CNCF & \textit{Cloud Native Computing Foundation}, yayasan penaung proyek \textit{cloud native} di bawah Linux Foundation. & Bab~\ref{chap:studi-literatur} \\
+CNPG & \textit{CloudNativePG}, \textit{operator} Kubernetes untuk PostgreSQL. & Bab~\ref{chap:implementasi} \\
+CPU & \textit{Central Processing Unit}. & Bab~\ref{chap:studi-literatur} \\
+CT & \textit{Continuous Training}, pelatihan model secara berkelanjutan dengan pemicu \textit{drift} atau jadwal. & Bab~\ref{chap:studi-literatur} \\
 DSRM & \textit{Design Science Research Methodology}, kerangka metodologi penelitian rekayasa artefak. & Bab~\ref{chap:pendahuluan} \\
-GPU & \textit{Graphics Processing Unit}. & Bab~\ref{chap:perancangan} \\
-HNSW & \textit{Hierarchical Navigable Small World}, struktur graf untuk ANN. & Bab~\ref{chap:perancangan} \\
-HPA & \textit{Horizontal Pod Autoscaler}, kontrol penskalaan jumlah \textit{pod} pada Kubernetes. & Bab~\ref{chap:perancangan} \\
-HTML & \textit{HyperText Markup Language}. & Bab~\ref{chap:implementasi} \\
-JSON & \textit{JavaScript Object Notation}. & Bab~\ref{chap:perancangan} \\
-KEDA & \textit{Kubernetes Event-driven Autoscaling}, \textit{autoscaler} berbasis sinyal eksternal. & Bab~\ref{chap:perancangan} \\
-KS & \textit{Kolmogorov-Smirnov test}, uji statistik kesetaraan dua distribusi. & Bab~\ref{chap:perancangan} \\
+eBPF & \textit{extended Berkeley Packet Filter}, mekanisme menjalankan program tervalidasi di dalam kernel Linux. & Bab~\ref{chap:studi-literatur} \\
+ESO & \textit{External Secrets Operator}, \textit{operator} Kubernetes penyinkron rahasia dari pengelola rahasia eksternal. & Bab~\ref{chap:studi-literatur} \\
+GPU & \textit{Graphics Processing Unit}. & Bab~\ref{chap:studi-literatur} \\
+HNSW & \textit{Hierarchical Navigable Small World}, struktur graf untuk ANN. & Bab~\ref{chap:studi-literatur} \\
+HPA & \textit{Horizontal Pod Autoscaler}, kontrol penskalaan jumlah \textit{pod} pada Kubernetes. & Bab~\ref{chap:pendahuluan} \\
+HTML & \textit{HyperText Markup Language}. & Bab~\ref{chap:perancangan} \\
+JSON & \textit{JavaScript Object Notation}. & Bab~\ref{chap:studi-literatur} \\
+KEDA & \textit{Kubernetes Event-driven Autoscaling}, \textit{autoscaler} berbasis sinyal eksternal. & Bab~\ref{chap:pendahuluan} \\
+KES & \textit{Key Encryption Service}, layanan kunci enkripsi sisi server untuk MinIO. & Bab~\ref{chap:studi-literatur} \\
+KS & \textit{Kolmogorov-Smirnov test}, uji statistik kesetaraan dua distribusi. & Bab~\ref{chap:studi-literatur} \\
+LF & \textit{Linux Foundation}, yayasan nirlaba penaung ekosistem proyek \textit{open source}. & Bab~\ref{chap:studi-literatur} \\
 MLOps & \textit{Machine Learning Operations}, disiplin praktik operasional pengembangan dan penyajian model \textit{machine learning}. & Bab~\ref{chap:pendahuluan} \\
+MPL & \textit{Mozilla Public License}, lisensi \textit{copyleft} lemah berbasis berkas. & Bab~\ref{chap:studi-literatur} \\
+OIDC & \textit{OpenID Connect}, protokol identitas berbasis OAuth~2.0. & Bab~\ref{chap:studi-literatur} \\
+OLAP & \textit{Online Analytical Processing}, pemrosesan kueri analitis pada data bervolume besar. & Bab~\ref{chap:studi-literatur} \\
 ONNX & \textit{Open Neural Network Exchange}, format pertukaran model lintas \textit{framework}. & Bab~\ref{chap:perancangan} \\
-OIDC & \textit{OpenID Connect}, protokol identitas berbasis OAuth~2.0. & Bab~\ref{chap:perancangan} \\
-PSI & \textit{Population Stability Index}, metrik pergeseran distribusi fitur antar dua periode. & Bab~\ref{chap:perancangan} \\
-REST & \textit{Representational State Transfer}. & Bab~\ref{chap:perancangan} \\
-SDK & \textit{Software Development Kit}. & Bab~\ref{chap:perancangan} \\
-SLA & \textit{Service Level Agreement}. & Bab~\ref{chap:perancangan} \\
-SLO & \textit{Service Level Objective}. & Bab~\ref{chap:perancangan} \\
-TLS & \textit{Transport Layer Security}. & Bab~\ref{chap:perancangan} \\
-VPA & \textit{Vertical Pod Autoscaler}, kontrol penyetelan \textit{request}/\textit{limit} sumber daya \textit{pod}. & Bab~\ref{chap:perancangan} \\
+PSI & \textit{Population Stability Index}, metrik pergeseran distribusi fitur antar dua periode. & Bab~\ref{chap:studi-literatur} \\
+REST & \textit{Representational State Transfer}. & Bab~\ref{chap:studi-literatur} \\
+SDK & \textit{Software Development Kit}. & Bab~\ref{chap:studi-literatur} \\
+SLO & \textit{Service Level Objective}. & Bab~\ref{chap:studi-literatur} \\
+SSO & \textit{Single Sign-On}, autentikasi tunggal untuk banyak aplikasi. & Bab~\ref{chap:studi-literatur} \\
+TLS & \textit{Transport Layer Security}. & Bab~\ref{chap:pendahuluan} \\
+VPA & \textit{Vertical Pod Autoscaler}, kontrol penyetelan \textit{request}/\textit{limit} sumber daya \textit{pod}. & Bab~\ref{chap:pendahuluan} \\
 
 \end{longtable}

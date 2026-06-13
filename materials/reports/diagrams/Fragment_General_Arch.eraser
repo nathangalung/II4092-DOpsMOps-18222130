@@ -1,0 +1,71 @@
+// Fragment_General_Arch — Pandangan Umum Fragmentasi DataOps dan MLOps
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Fragment_General_Arch.png
+// Acuan: Gambar III.1 (fig:fragment-general), Subbab III.1.3, Lampiran C.
+// Diagram ini menggambarkan kondisi SEBELUM platform (status quo terfragmentasi):
+// setiap tahap memakai tumpukan ad hoc generik yang dirakit manual, sehingga
+// node sengaja TIDAK menamai komponen platform/components/ mana pun.
+// Domain-agnostik: sumber data tidak menyebut domain tertentu.
+
+direction right
+
+// ===== Aktor =====
+Business User [icon: user, color: gray]
+Data Engineer [icon: user, color: gray]
+Data Scientist [icon: user, color: gray]
+ML Engineer [icon: user, color: gray]
+
+Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+
+// ===== Wilayah Data Engineer =====
+Wilayah Data Engineer [icon: download, color: orange] {
+  Ingestasi Manual [icon: terminal, label: "Ingestasi Data Manual (skrip shell, CSV/FTP, email)"]
+  Kualitas Manual [icon: alert-triangle, label: "Kualitas Data Manual (pemeriksaan acak, tinjauan spreadsheet)"]
+  Penyimpanan Tak Terkelola [icon: database, label: "Penyimpanan Tidak Terorganisasi (basis data terpisah, shared drive, bucket objek)"]
+}
+
+// ===== Wilayah Data Scientist =====
+Wilayah Data Scientist [icon: flask-conical, color: yellow] {
+  Rekayasa Fitur Tersebar [icon: code, label: "Rekayasa Fitur Tersebar (notebook, SQL ad hoc, skrip Python)"]
+  Pengembangan Terisolasi [icon: laptop, label: "Pengembangan Model Terisolasi (laptop lokal, spreadsheet, Git per individu)"]
+  Pengujian Ad Hoc [icon: check-circle, label: "Pengujian Model Ad Hoc (notebook, kalkulasi spreadsheet)"]
+}
+
+// ===== Wilayah ML Engineer =====
+Wilayah ML Engineer [icon: send, color: red] {
+  Penyimpanan Model Tersebar [icon: archive, label: "Penyimpanan Model Tersebar (berkas .pkl, network drive, email)"]
+  Deployment Manual [icon: upload, label: "Deployment Manual (penulisan ulang kode, web framework, SSH)"]
+  Penyajian Dasar [icon: server, label: "Penyajian Model Dasar (REST API tunggal, cron job)"]
+  Pemantauan Dasar [icon: eye, label: "Pemantauan Dasar (berkas log, CPU/memori, peringatan email)"]
+}
+
+// ===== Alur Data Engineer =====
+Sumber Data Eksternal > Ingestasi Manual: ekstraksi manual
+Data Engineer > Ingestasi Manual: mengelola ekstraksi dan status
+Ingestasi Manual > Kualitas Manual: pemeriksaan sporadis
+Data Engineer > Kualitas Manual: menjalankan pemeriksaan dan laporan
+Kualitas Manual > Penyimpanan Tak Terkelola: setelah validasi
+Data Engineer > Penyimpanan Tak Terkelola: mengatur data dan akses
+
+// ===== Alur Data Scientist =====
+Penyimpanan Tak Terkelola > Rekayasa Fitur Tersebar: akses individual
+Data Scientist > Rekayasa Fitur Tersebar: membangun fitur dan keluaran
+Rekayasa Fitur Tersebar > Pengembangan Terisolasi: penyerahan ad hoc
+Data Scientist > Pengembangan Terisolasi: memindahkan model dan hasil
+Pengembangan Terisolasi > Pengujian Ad Hoc: validasi lokal
+Data Scientist > Pengujian Ad Hoc: memvalidasi kinerja dan hasil
+Pengujian Ad Hoc > Penyimpanan Model Tersebar: menyimpan artefak
+Data Scientist <> Penyimpanan Model Tersebar: simpan dan ambil model
+
+// ===== Alur ML Engineer =====
+Penyimpanan Model Tersebar > Deployment Manual: transfer manual
+ML Engineer > Deployment Manual: menangani deployment dan status
+Deployment Manual > Penyajian Dasar: rilis ke produksi
+ML Engineer > Penyajian Dasar: mengelola penyajian dan metrik
+Penyajian Dasar > Pemantauan Dasar: melacak kinerja
+ML Engineer > Pemantauan Dasar: pelacakan kinerja dan peringatan
+
+// ===== Putaran umpan balik manual =====
+Pemantauan Dasar > Data Scientist: peringatan dan pelatihan ulang
+Business User > Penyajian Dasar: meminta dan menerima prediksi
+Business User > Data Scientist: umpan balik dan laporan masalah

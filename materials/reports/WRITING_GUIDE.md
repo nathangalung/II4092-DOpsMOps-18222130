@@ -73,6 +73,10 @@ Common cases where a table beats a figure:
 
 Tables and figures are not rivals. A dashboard that shows a chart and the underlying table together gives the reader both pattern recognition and precise lookup. Use that pairing where it makes sense.
 
+### 1.7 Architecture diagrams as code
+
+All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`): `diagrams/Integrate_General_Arch.eraser` is the source of truth for `figures/Integrate_General_Arch.png` (Gambar IV.1). The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. The source groups nodes by the seven Bab IV layers plus the four user roles and the GitOps chain, and every node must name a tool that actually exists in `platform/components/`. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents.
+
 ## 2. Tables
 
 The figure guidance above already covers when to pick a table over a figure. A few additional rules for tables themselves:
@@ -96,6 +100,8 @@ Each architectural layer that has more than one credible open-source candidate c
 - Total column sums to /8. The chosen tool holds the unique highest Total in its table and justifies it with a textual paragraph; it must not be hand-waved.
 - The scoring rubric is stated once in prose immediately before the first scored table in Bab II (currently `message_broker_comparison`): 0 = criterion not met or feature absent, 1 = partial support that still needs extra components or carries a meaningful limitation, 2 = fully met by built-in capability. Scores derive from official documentation and project maintenance status. The narrow 3-level scale is deliberate: each level has an explicit justification, avoiding the false precision of a 5-point scale.
 - The rubric also anchors the open-source claim: the license criterion follows OSI-approved license status, and stewardship under a neutral foundation (Apache Software Foundation, CNCF, Linux Foundation) counts as supporting evidence of open governance feeding the maturity and community criteria. Only state a foundation affiliation in prose when it is certain (e.g. Kafka under ASF, Valkey under Linux Foundation, OpenBao under Linux Foundation).
+- Every scored table carries a textual **Lisensi (Yayasan)** column between the last criterion and Total: the official license plus the steward foundation in parentheses, e.g. `Apache 2.0 (CNCF)`, `MPL 2.0 (LF)`, `BUSL 1.1 (mandiri)`. `mandiri` marks vendor- or community-run projects without a neutral foundation; `komunitas` is reserved for pgvector under the PostgreSQL community. The column is informational only and never changes the Total; the legend paragraph in Bab II says so explicitly. Verified facts to keep: Featureform = MPL 2.0; OpenMetadata = Apache 2.0 under Linux Foundation (March 2026, via Collate); DataHub, Amundsen, Feast, Feathr, Milvus, KServe = LF AI & Data; MLflow, Valkey, OpenBao = LF; SOPS = CNCF; TorchServe = PyTorch Foundation (LF).
+- Standard scored-table layout so all 23 tables render identically inside the 14 cm text width: `[!htb]`, `\footnotesize`, `\setlength{\tabcolsep}{3pt}`, columns `m{2.6cm}` (name, left-aligned, header centered via `\multicolumn`), four criteria `m{1.5cm}` centered, `m{2.3cm}` Lisensi (Yayasan), `m{0.9cm}` Total. Long criterion headers break with `\-` or `\allowbreak` instead of widening the column.
 - Highest Total = the platform primary pick for the evaluated function. A lower-scoring row may still be deployed in a complementary role (e.g. Flink for streaming beside Spark for batch); the prose around the table must say so explicitly.
 - `mlops_maturity_comparison.tex` and `architecture_comparison.tex` are non-scored (color matrix and longtable respectively) and sit outside the rubric.
 - Caption above, label `tab:<topic>_comparison`, file `tables/<topic>_comparison.tex`.
@@ -189,6 +195,7 @@ Run through this list when the draft is close to done.
 - IV.1 contains a system-overview figure and a short description.
 - Each Bab V section refers back to the matching Bab IV section.
 - Each kesimpulan point answers exactly one tujuan.
+- Daftar Singkatan lists only acronyms that actually appear in Bab 1 to Bab 5, alphabetically, each with the chapter of first use; re-run the first-use grep after moving content between chapters (license and foundation acronyms ASF, CNCF, LF, MPL, BSL, BUSL, AGPL, BSD entered via the Lisensi (Yayasan) column and live in Bab II).
 
 ### 3.7 Per-Bab template comments (central store)
 
@@ -296,9 +303,11 @@ Catatan pengisian: bab ini diisi setelah hasil evaluasi pada Bab VI terkonsolida
 
 Every chapter opens with one short unnumbered lead-in (1 paragraph, maximum 2) placed directly after the \chapter heading and before the first \section. The lead-in states what the chapter covers and how it connects to the surrounding chapters; it is not a numbered subbab and must not duplicate the Sistematika Penulisan list in Bab I. Bab I through Bab VII all follow this rule (Bab II formerly used a numbered Cakupan section; converted 2026-06).
 
-### 3.9 Section depth in Bab II
+### 3.9 Section depth and section lead-ins in Bab II
 
-Split a \section into \subsection blocks only when it carries four or more narrative paragraphs covering more than one distinct topic; each resulting subsection must still hold at least two paragraphs. Sections with two or three paragraphs on a single topic stay flat. Current splits: §2.2 Kubernetes (Peran/Objek vs Penskalaan/Operator) and §2.10 Keamanan (Identitas+Rahasia vs Mesh+Gateway+Kebijakan). §2.10 keeps a one-paragraph section lead-in (defense-in-depth framing) because that content spans both subsections, mirroring the chapter lead-in pattern.
+Split a \section into \subsection blocks only when it carries four or more narrative paragraphs covering more than one distinct topic; each resulting subsection must still hold at least two paragraphs. Sections with two or three paragraphs on a single topic stay flat: currently §2.6 Tata Kelola, §2.7 Deteksi Drift, §2.8 Observabilitas, §2.9 GitOps, and §2.11 Penelitian Terkait. Six sections carry subsections: §2.1 DataOps dan MLOps, §2.2 Kubernetes, §2.3 Manajemen Data, §2.4 Layanan Fitur, §2.5 Siklus Hidup Model, and §2.10 Keamanan. Depth stops at \subsection; no \subsubsection is used anywhere in Bab II, so the heading tree is uniformly two levels deep.
+
+Every section that has subsections opens with one short lead-in paragraph (four sentences) placed between the \section heading and the first \subsection. The lead-in names the subsection topics and their reading order, mirroring the chapter lead-in pattern (§3.8) and the proposal's Bab 2 layout; it is navigational only and introduces no factual claim that is not made with a citation inside a subsection. Revision 2026-06: formerly only §2.10 carried such a lead-in; the other five were added, and §2.3 was retitled from "Ingestasi, Streaming, dan Batch" to "Manajemen Data: Ingestasi, Pemrosesan, dan Penyimpanan" so the title covers its three storage subsections. Comparison tables are \input in the subsection whose prose cites them via Tabel~\ref (e.g. tab:feature_store_comparison sits in §2.4.2 where Feast is selected, not in the point-in-time subsection).
 
 ## 4. Working order while drafting
 
