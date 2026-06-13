@@ -31,9 +31,11 @@ Kedua jalur tersebut menghadirkan pertukaran mendasar antara waktu pengembangan 
 
 Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan empat peran utama, yaitu \textit{business user}, \textit{data engineer}, \textit{data scientist}, dan \textit{machine learning engineer}. \textcite{kreuzberger2023mlops} memperlihatkan bahwa peran tersebut sering bekerja pada \textit{tool} yang berbeda sehingga muncul fragmentasi yang menghambat kolaborasi lintas tim. \textcite{paleyes2022challenges} menambahkan bahwa fragmentasi tersebut melahirkan integrasi yang lemah pada sambungan data dan model serta menurunkan kecepatan rilis dan kualitas keluaran. Gambar~\ref{fig:fragment-general} merangkum pandangan umum fragmentasi pada keempat peran tersebut, sementara rincian per peran disajikan pada Lampiran~\ref{appx:fragmentasi-peran}, karena beban inti yang menjadi titik tolak penelitian terletak bukan pada satu peran tertentu melainkan pada sambungan antar peran yang terputus di lapisan ingestasi, fitur, pelatihan, dan penyajian. Efek domino muncul ketika satu kontrak data antar lapis pecah lalu menyebar ke lapis di atasnya, yaitu kerusakan skema pada lapis ingestasi merambat ke pemrosesan, lalu ke fitur yang dipakai pelatihan, sehingga model pada lapis penyajian menerima distribusi yang berbeda dengan saat pelatihan.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth,height=0.9\textheight,keepaspectratio]{figures/Fragment_General_Arch.png}
+    \rotatebox{90}{%
+        \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Fragment_General_Arch.png}%
+    }
     \caption{Pandangan Umum Fragmentasi DataOps dan MLOps}
     \label{fig:fragment-general}
 \end{figure}
@@ -48,7 +50,32 @@ Setelah pemetaan kondisi saat ini, kebutuhan platform dirumuskan dalam dua kateg
 \subsection{Identifikasi Masalah Pengguna}
 \label{subsec:identifikasi-masalah}
 
-Identifikasi masalah pengguna dijabarkan dengan menelusuri empat rumusan masalah pada Bab~\ref{chap:pendahuluan}. Pertama, pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga sambungan antar lapis tidak lagi dirakit secara manual dan integrasi \textit{tool} dapat dipulihkan dari sumber kebenaran tunggal. Kedua, pengguna pada peran \textit{data engineer} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas. Ketiga, pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{kaufman2012leakage}. Keempat, pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, dengan landasan teknik penyajian vektor yang telah diulas pada Subbab~\ref{subsec:vektor-hnsw}.
+Identifikasi masalah pengguna diturunkan dari empat rumusan masalah pada Bab~\ref{chap:pendahuluan} dengan menelusuri kebutuhan tiap peran pada rantai produksi model. Keempat kebutuhan berikut menjadi titik berangkat penyusunan daftar formal kebutuhan fungsional dan nonfungsional, dan masing-masing dapat dirunut kembali ke peran yang melahirkannya.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Bidang kendali terpadu lintas peran}
+
+    Pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga sambungan antar lapis tidak lagi dirakit secara manual dan integrasi \textit{tool} dapat dipulihkan dari sumber kebenaran tunggal.
+
+    \vspace{0.5em}
+
+    \item \textbf{Tata kelola data yang seragam lintas siklus}
+
+    Pengguna pada peran \textit{data engineer} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas.
+
+    \vspace{0.5em}
+
+    \item \textbf{Deteksi \textit{drift} otomatis dan jaminan validitas temporal}
+
+    Pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{kaufman2012leakage}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Dukungan fitur multimoda berlatensi rendah}
+
+    Pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, dengan landasan teknik penyajian vektor yang telah diulas pada Subbab~\ref{subsec:vektor-hnsw}.
+\end{enumerate}
 
 Empat kebutuhan pengguna tersebut menyiratkan satu pola yang sama, yaitu kebutuhan untuk memutus sambungan ad hoc antar lapis dengan kontrak yang seragam dan dapat dipanggil dari satu antarmuka. Pengguna pada peran \textit{business user} menjadi penerima manfaat terakhir karena hanya melihat keluaran model pada lapis penyajian, sehingga kualitas kontrak pada lapis bawah menjadi penentu apakah keputusan bisnis dapat diambil dengan tepat waktu. Identifikasi tersebut menjadi titik berangkat untuk menyusun daftar formal kebutuhan fungsional pada Subbab~\ref{subsec:kf} dan kebutuhan nonfungsional pada Subbab~\ref{subsec:knf}. Daftar formal yang diturunkan dari pola tersebut menjadi dasar penyusunan kebutuhan fungsional dan nonfungsional pada dua subbab berikutnya, sehingga setiap kebutuhan dapat dirunut kembali ke sumber masalah yang melahirkannya dan diuji pemenuhannya pada Bab~\ref{chap:evaluasi}.
 
@@ -80,21 +107,40 @@ Bagian ini menyusun alternatif solusi yang dapat memenuhi kebutuhan fungsional d
 
 Empat alternatif solusi dipertimbangkan untuk membangun platform DataOps dan MLOps terintegrasi. Pemilihan empat alternatif didasarkan pada pemetaan pendekatan yang lazim dipakai oleh organisasi yang menerapkan MLOps pada skala produksi, mencakup pendekatan terkelola penuh, pendekatan \textit{open source} di atas Kubernetes, pendekatan kustom dari awal, dan pendekatan hibrida antara terkelola dan \textit{open source}. Setiap alternatif diuraikan dengan kelebihan, kekurangan, dan rujukan pustaka yang relevan agar pertimbangan dapat ditelusuri kembali. Keempat alternatif dinilai terhadap dua puluh enam kebutuhan yang sama dari Subbab~\ref{sec:analisis-kebutuhan} sehingga perbandingannya dapat diaudit kriteria demi kriteria.
 
-\textbf{Alternatif A: Layanan Terkelola dari Penyedia \textit{Cloud}.} Pendekatan ini menggunakan rangkaian layanan terkelola pada satu penyedia, mencakup layanan ingestasi, \textit{warehouse}, \textit{feature store}, pelatihan, dan penyajian. Kelebihannya berupa kecepatan adopsi dan integrasi bawaan antar layanan, sebagaimana dibahas oleh \textcite{li2023managed}. Kekurangannya berupa keterikatan terhadap satu penyedia, biaya operasional pada beban tinggi, dan keterbatasan dalam menyesuaikan komponen pada level rendah, sehingga pertukaran waktu lawan anggaran pada Subbab~\ref{subsec:biaya-berlangganan} tetap menjadi beban berjalan.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Alternatif A: Layanan Terkelola dari Penyedia \textit{Cloud}}
 
-\textbf{Alternatif B: Tumpukan \textit{Open Source} pada Kubernetes.} Pendekatan ini merangkai komponen \textit{open source} di atas Kubernetes sebagai bidang orkestrasi. \textcite{lakka2025kubernetes} dan \textcite{burgueno2025toward} memperlihatkan rancangan serupa pada lingkungan \textit{multi-cloud} dan \textit{edge}. Kelebihannya berupa fleksibilitas, transparansi versi, portabilitas, dan kemampuan menegakkan pola GitOps. Kekurangannya berupa kebutuhan tata kelola yang lebih ketat dan kurva belajar yang lebih panjang dibandingkan layanan terkelola, sehingga beban konfigurasi dari nol pada Subbab~\ref{subsec:beban-konfigurasi} perlu dikurangi melalui rancangan referensi yang utuh.
+    Pendekatan ini menggunakan rangkaian layanan terkelola pada satu penyedia, mencakup layanan ingestasi, \textit{warehouse}, \textit{feature store}, pelatihan, dan penyajian. Kelebihannya berupa kecepatan adopsi dan integrasi bawaan antar layanan, sebagaimana dibahas oleh \textcite{li2023managed}. Kekurangannya berupa keterikatan terhadap satu penyedia, biaya operasional pada beban tinggi, dan keterbatasan dalam menyesuaikan komponen pada level rendah, sehingga pertukaran waktu lawan anggaran pada Subbab~\ref{subsec:biaya-berlangganan} tetap menjadi beban berjalan.
 
-\textbf{Alternatif C: Pengembangan Kustom dari Awal.} Pendekatan ini membangun setiap lapisan secara mandiri tanpa banyak menggunakan komponen yang sudah jadi. Kelebihannya berupa kontrol penuh atas perilaku setiap komponen. Kekurangannya berupa biaya pengembangan dan pemeliharaan yang sangat besar, ketergantungan pada tim yang sangat kompeten, dan risiko menciptakan ulang masalah yang sudah diselesaikan oleh pustaka \textit{open source} yang teruji.
+    \vspace{0.5em}
 
-\textbf{Alternatif D: Hibrida antara Layanan Terkelola dan \textit{Open Source}.} Pendekatan ini menggunakan beberapa layanan terkelola, terutama pada lapisan dasar seperti penyimpanan dan jaringan, dipadukan dengan komponen \textit{open source} pada lapisan DataOps dan MLOps. Kelebihannya berupa keseimbangan antara kecepatan adopsi dan fleksibilitas. Kekurangannya berupa kompleksitas integrasi antara dua jenis komponen dan kebutuhan kontrak antar lapisan yang harus dirancang dengan saksama.
+    \item \textbf{Alternatif B: Tumpukan \textit{Open Source} pada Kubernetes}
+
+    Pendekatan ini merangkai komponen \textit{open source} di atas Kubernetes sebagai bidang orkestrasi. \textcite{lakka2025kubernetes} dan \textcite{burgueno2025toward} memperlihatkan rancangan serupa pada lingkungan \textit{multi-cloud} dan \textit{edge}. Kelebihannya berupa fleksibilitas, transparansi versi, portabilitas, dan kemampuan menegakkan pola GitOps. Kekurangannya berupa kebutuhan tata kelola yang lebih ketat dan kurva belajar yang lebih panjang dibandingkan layanan terkelola, sehingga beban konfigurasi dari nol pada Subbab~\ref{subsec:beban-konfigurasi} perlu dikurangi melalui rancangan referensi yang utuh.
+
+    \vspace{0.5em}
+
+    \item \textbf{Alternatif C: Pengembangan Kustom dari Awal}
+
+    Pendekatan ini membangun setiap lapisan secara mandiri tanpa banyak menggunakan komponen yang sudah jadi. Kelebihannya berupa kontrol penuh atas perilaku setiap komponen. Kekurangannya berupa biaya pengembangan dan pemeliharaan yang sangat besar, ketergantungan pada tim yang sangat kompeten, dan risiko menciptakan ulang masalah yang sudah diselesaikan oleh pustaka \textit{open source} yang teruji.
+
+    \vspace{0.5em}
+
+    \item \textbf{Alternatif D: Hibrida antara Layanan Terkelola dan \textit{Open Source}}
+
+    Pendekatan ini menggunakan beberapa layanan terkelola, terutama pada lapisan dasar seperti penyimpanan dan jaringan, dipadukan dengan komponen \textit{open source} pada lapisan DataOps dan MLOps. Kelebihannya berupa keseimbangan antara kecepatan adopsi dan fleksibilitas. Kekurangannya berupa kompleksitas integrasi antara dua jenis komponen dan kebutuhan kontrak antar lapisan yang harus dirancang dengan saksama.
+\end{enumerate}
 
 \subsection{Analisis Penentuan Solusi}
 \label{subsec:penentuan-solusi}
 
-Tabel~\ref{tab:evaluasi_kf} menyajikan evaluasi pemenuhan kebutuhan fungsional dan Tabel~\ref{tab:evaluasi_knf} menyajikan evaluasi pemenuhan kebutuhan nonfungsional. Skor total ditampilkan pada baris terakhir Tabel~\ref{tab:evaluasi_knf}. Alternatif B memperoleh skor total tertinggi, yaitu 49 dari 52, diikuti oleh Alternatif A dan Alternatif D dengan skor 43, dan Alternatif C dengan skor 30. Selisih skor antara Alternatif B dan dua pesaing terdekatnya sebesar enam poin terutama berasal dari KF jaminan validitas temporal, KF dukungan \textit{vector embeddings}, KNF portabilitas, dan KNF ekstensibilitas yang tidak dipenuhi penuh oleh pendekatan terkelola maupun hibrida.
+Tabel~\ref{tab:evaluasi_kf} menyajikan evaluasi pemenuhan kebutuhan fungsional, Tabel~\ref{tab:evaluasi_knf} menyajikan evaluasi pemenuhan kebutuhan nonfungsional, dan Tabel~\ref{tab:evaluasi_total} merekapitulasi total skor gabungan keduanya. Alternatif B memperoleh skor total tertinggi, yaitu 49 dari 52, diikuti oleh Alternatif A dan Alternatif D dengan skor 43, dan Alternatif C dengan skor 30. Selisih skor antara Alternatif B dan dua pesaing terdekatnya sebesar enam poin terutama berasal dari KF jaminan validitas temporal, KF dukungan \textit{vector embeddings}, KNF portabilitas, dan KNF ekstensibilitas yang tidak dipenuhi penuh oleh pendekatan terkelola maupun hibrida.
 
 \input{tables/evaluasi_kf.tex}
 
 \input{tables/evaluasi_knf.tex}
+
+\input{tables/evaluasi_total.tex}
 
 Alternatif B unggul terutama pada kebutuhan yang menyangkut jaminan validitas temporal, dukungan \textit{vector embeddings}, pemantauan \textit{drift} otomatis, ekstensibilitas, dan portabilitas. Alternatif A unggul pada kemudahan penggunaan dan kemudahan pemeliharaan, tetapi tertinggal pada konsistensi temporal, dukungan \textit{vector embeddings} pada \textit{feature store}, dan portabilitas. Alternatif C unggul pada kontrol penuh tetapi kalah pada hampir semua kebutuhan operasional. Alternatif D mendekati Alternatif A tetapi tertinggal pada portabilitas dan ekstensibilitas. Berdasarkan skor pemenuhan kebutuhan dan analisis komparatif yang sejalan dengan \textcite{burgueno2025toward}, \textcite{najafabadi2024analysis}, dan \textcite{lakka2025kubernetes}, Alternatif B dipilih sebagai solusi yang akan dirancang pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}.
