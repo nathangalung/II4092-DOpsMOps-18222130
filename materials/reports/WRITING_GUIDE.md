@@ -250,6 +250,8 @@ Catatan:
   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
   - Tabel KF (kolom: ID, Kebutuhan, Deskripsi, Tujuan) dan KNF (kolom: ID, Kebutuhan, Deskripsi, Target Metrik, Tujuan) sama-sama memuat kolom Tujuan yang menautkan tiap kebutuhan ke salah satu dari empat tujuan (T-1..T-4), mengikuti pengelompokan uji penerimaan pada Bab VI; untuk KNF kolom ini menunjuk tujuan utama karena KNF bersifat lintas-bidang.
+  - Urutan baris (sort subject) yang wajib dijaga: KF diurut menurut lapisan arsitektur (KF-01..04 lapisan fitur, KF-05..10 siklus hidup model dan tata kelola, KF-11..14 lapisan operasional); KNF diurut menurut taksonomi atribut kualitas (kinerja, skalabilitas, keandalan, konsistensi, observability, keamanan, ekstensibilitas, lalu atribut operasional jangka panjang). Urutan ID sengaja tidak mengikuti Tujuan karena keterunutan ke T sudah ditampung kolom Tujuan secara terpisah.
+  - ID KF-NN/KNF-NN terkunci satu lawan satu pada SK-F-NN/SK-N-NN di Bab VI dan dirujuk lintas bab; nomor tidak boleh diubah, perubahan urutan dilakukan lewat narasi pengelompokan bukan penomoran ulang.
   - Fragmentasi per peran (busus/dateng/datsci/mleng) dirinci pada Lampiran C agar Bab III tetap ramping.
 ```
 
