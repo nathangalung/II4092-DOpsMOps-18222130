@@ -199,7 +199,7 @@ Run through this list when the draft is close to done.
 
 ### 3.7 Per-Bab template comments (central store)
 
-Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I header already follows this convention; trim the remaining chapters' long headers when each chapter gets its revision pass.
+Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I, II, and III headers already follow this convention; trim the remaining Bab IV to VII long headers when each chapter gets its revision pass.
 
 **Bab I — Pendahuluan**
 
@@ -216,21 +216,20 @@ Catatan: kripto hanya use-case verifikasi; tidak masuk latar belakang.
 **Bab II — Studi Literatur**
 
 ```
-- II.1 Cakupan Studi Literatur      : ruang lingkup dan peta tematik
-- II.2 DataOps dan MLOps            : definisi, kematangan, integrasi
-- II.3 Kubernetes dan Cloud-Native  : orkestrasi, scaling (HPA/VPA/KEDA), operator, runtime
-- II.4 Manajemen Data               : Lambda/Kappa, Kafka+Karapace, Flink, Spark+dbt,
+- II.1 DataOps dan MLOps            : definisi, kematangan, integrasi
+- II.2 Kubernetes dan Cloud-Native  : orkestrasi, scaling (HPA/VPA/KEDA), operator, runtime
+- II.3 Manajemen Data               : Lambda/Kappa, Kafka+Karapace, Flink, Spark+dbt,
                                       lakehouse (Iceberg/Trino), MinIO/lakeFS, PG/MySQL/OpenSearch
-- II.5 Layanan Fitur                : Feast, ClickHouse, Valkey, Qdrant, HNSW, point-in-time
-- II.6 Siklus Hidup Model           : MLflow, KFP+Argo Workflows, Notebooks/Katib/Trainer, KServe
-- II.7 Tata Kelola Data             : DataHub, Great Expectations, OpenLineage
-- II.8 Deteksi Drift                : PSI, Kolmogorov-Smirnov, retraining loop
-- II.9 Observabilitas               : Prometheus/Loki/Tempo/Grafana/OTel, Sloth, Evidently,
+- II.4 Layanan Fitur                : Feast, ClickHouse, Valkey, Qdrant, HNSW, point-in-time
+- II.5 Siklus Hidup Model           : MLflow, KFP+Argo Workflows, Notebooks/Katib/Trainer, KServe
+- II.6 Tata Kelola Data             : DataHub, Great Expectations, OpenLineage
+- II.7 Deteksi Drift                : PSI, Kolmogorov-Smirnov, retraining loop
+- II.8 Observabilitas               : Prometheus/Loki/Tempo/Grafana/OTel, Sloth, Evidently,
                                       Pyroscope, Pushgateway, OpenCost, Superset
-- II.10 GitOps                      : Argo CD, Gitea, Tekton, Argo Rollouts
-- II.11 Keamanan Platform           : Dex+oauth2-proxy, SpiceDB, OpenBao+ESO+KES, Istio,
+- II.9 GitOps                       : Argo CD, Gitea, Tekton, Argo Rollouts
+- II.10 Keamanan Platform           : Dex+oauth2-proxy, SpiceDB, OpenBao+ESO+KES, Istio,
                                       APISIX, Kyverno/OPA, Falco, Trivy, Velero, Chaos Mesh
-- II.12 Penelitian Terkait          : posisi platform terhadap pekerjaan terdahulu
+- II.11 Penelitian Terkait          : posisi platform terhadap pekerjaan terdahulu
 Tabel perbandingan: tiap subbab dengan alternatif diakhiri \input{tables/<file>_comparison.tex}
 (daftar lengkap pada §2.1 dokumen ini).
 Penjelasan tool: setiap tool pada platform/components diberi definisi dan citasi resmi.
@@ -250,6 +249,7 @@ Catatan:
   - KF berorientasi kemampuan (apa yang dilakukan platform).
   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
+  - Tabel KF (kolom: ID, Kebutuhan, Deskripsi, Tujuan) dan KNF (kolom: ID, Kebutuhan, Deskripsi, Target Metrik, Tujuan) sama-sama memuat kolom Tujuan yang menautkan tiap kebutuhan ke salah satu dari empat tujuan (T-1..T-4), mengikuti pengelompokan uji penerimaan pada Bab VI; untuk KNF kolom ini menunjuk tujuan utama karena KNF bersifat lintas-bidang.
   - Fragmentasi per peran (busus/dateng/datsci/mleng) dirinci pada Lampiran C agar Bab III tetap ramping.
 ```
 

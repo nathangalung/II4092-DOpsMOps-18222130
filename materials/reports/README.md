@@ -39,7 +39,7 @@ reports/
 │   └── 14_Daftar_Singkatan.tex
 ├── chapters/              # main body Bab I-VII
 │   ├── Bab_1.tex          # Pendahuluan
-│   ├── Bab_2.tex          # Studi Pustaka
+│   ├── Bab_2.tex          # Studi Literatur
 │   ├── Bab_3.tex          # Analisis
 │   ├── Bab_4.tex          # Perancangan
 │   ├── Bab_5.tex          # Implementasi
@@ -47,7 +47,8 @@ reports/
 │   └── Bab_7.tex          # Penutup
 ├── appendices/            # lampiran
 │   ├── Lampiran_A.tex
-│   └── Lampiran_B.tex
+│   ├── Lampiran_B.tex
+│   └── Lampiran_C.tex
 ├── tables/                # \input-able .tex tables
 ├── figures/               # images (.png/.jpg), rendered outputs only
 ├── diagrams/              # diagram-as-code sources (.eraser), see diagrams/README.md

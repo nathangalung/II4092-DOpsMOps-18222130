@@ -1,18 +1,6 @@
-% ============================================================
-% BAB III — ANALISIS MASALAH
-% Template (ITB STI TA + Proposal.tex):
-%   - III.1 Analisis Kondisi Saat Ini  : tiga sumber tekanan (configure-from-0, biaya berlangganan, efek domino fragmentasi)
-%   - III.2 Analisis Kebutuhan         : KF + KNF (satu lawan satu sub-sistem)
-%   - III.3 Analisis Pemilihan Solusi  : alternatif + penentuan solusi
-% Catatan:
-%   - Urutan sub-sub-section di III.1 mengikuti urutan pemicu pada Bab I Latar Belakang.
-%   - KF berorientasi kemampuan (apa yang dilakukan platform).
-%   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
-%   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
-%   - Fragmentasi per peran (busus, dateng, datsci, mleng) dirinci pada Lampiran C.
-%   - Aturan paragraf: minimum 4 kalimat per paragraf naratif, minimum 2 paragraf per \subsection;
-%     item enumerate dikecualikan. Setiap kalimat tambahan membawa fakta baru.
-% ============================================================
+% Bab III Analisis Masalah
+% Template: TEMPLATE_BAB.md
+% Gaya: WRITING_GUIDE.md
 \cleardoublepage
 \chapter{ANALISIS MASALAH}
 \label{chap:analisis-masalah}
@@ -41,9 +29,7 @@ Kedua jalur tersebut menghadirkan pertukaran mendasar antara waktu pengembangan 
 \subsection{Efek Domino Fragmentasi Lintas Peran}
 \label{subsec:efek-domino-fragmentasi}
 
-Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan empat peran utama, yaitu \textit{business user}, \textit{data engineer}, \textit{data scientist}, dan \textit{machine learning engineer}. \textcite{kreuzberger2023mlops} memperlihatkan bahwa peran tersebut sering bekerja pada \textit{tool} yang berbeda, sehingga muncul fragmentasi yang menghambat kolaborasi lintas tim. \textcite{paleyes2022challenges} menambahkan bahwa fragmentasi ini melahirkan integrasi yang lemah pada sambungan data dan model, dan pada akhirnya menurunkan kecepatan rilis serta kualitas keluaran. Beban konfigurasi dan biaya berlangganan yang telah dibahas turut memperdalam fragmentasi tersebut, karena tim yang sudah terbebani integrasi atau anggaran berjalan tidak punya kapasitas untuk memperbaiki sambungan lintas peran.
-
-Gambar~\ref{fig:fragment-general} merangkum pandangan umum fragmentasi yang ditemui pada keempat peran tersebut. Rincian fragmentasi per peran disajikan pada Lampiran~\ref{appx:fragmentasi-peran}, sementara pembahasan pada subbab ini difokuskan pada pandangan umum karena beban inti yang menjadi titik tolak penelitian bukan pada satu peran tertentu, melainkan pada sambungan antar peran yang terputus pada lapisan ingestasi, fitur, pelatihan, dan penyajian. Efek domino muncul ketika satu kontrak data antar lapis pecah dan menyebar ke lapis di atasnya: kerusakan skema pada lapis ingestasi merambat ke lapis pemrosesan, kemudian ke fitur yang dipakai pelatihan, sehingga model di lapis penyajian menerima distribusi yang berbeda dengan pelatihan. Rantai keterhubungan tersebut menjelaskan mengapa fragmentasi pada satu titik dapat memengaruhi keseluruhan jalur produksi model.
+Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan empat peran utama, yaitu \textit{business user}, \textit{data engineer}, \textit{data scientist}, dan \textit{machine learning engineer}. \textcite{kreuzberger2023mlops} memperlihatkan bahwa peran tersebut sering bekerja pada \textit{tool} yang berbeda sehingga muncul fragmentasi yang menghambat kolaborasi lintas tim. \textcite{paleyes2022challenges} menambahkan bahwa fragmentasi tersebut melahirkan integrasi yang lemah pada sambungan data dan model serta menurunkan kecepatan rilis dan kualitas keluaran. Gambar~\ref{fig:fragment-general} merangkum pandangan umum fragmentasi pada keempat peran tersebut, sementara rincian per peran disajikan pada Lampiran~\ref{appx:fragmentasi-peran}, karena beban inti yang menjadi titik tolak penelitian terletak bukan pada satu peran tertentu melainkan pada sambungan antar peran yang terputus di lapisan ingestasi, fitur, pelatihan, dan penyajian. Efek domino muncul ketika satu kontrak data antar lapis pecah lalu menyebar ke lapis di atasnya, yaitu kerusakan skema pada lapis ingestasi merambat ke pemrosesan, lalu ke fitur yang dipakai pelatihan, sehingga model pada lapis penyajian menerima distribusi yang berbeda dengan saat pelatihan.
 
 \begin{figure}[H]
     \centering
@@ -82,7 +68,7 @@ Tabel~\ref{tab:kebutuhan_nonfungsional} menyajikan dua belas kebutuhan nonfungsi
 
 \input{tables/kebutuhan_nonfungsional.tex}
 
-Setiap KNF disertai target metrik yang dapat diuji secara langsung pada Bab~\ref{chap:evaluasi}, sehingga klaim kualitas tidak berhenti pada deskripsi tetapi memiliki ambang batas yang konkret. Pemilihan ambang batas pada KNF latensi dan \textit{throughput} diturunkan dari karakteristik penyajian fitur \textit{online} yang menuntut latensi P95 pada kisaran milisekon, sejalan dengan rancangan \textit{feature store} terkelola yang diuraikan \textcite{li2023managed}, agar layanan inferensi tetap responsif terhadap data yang bergerak cepat. Pemilihan ambang batas pada KNF observabilitas mengikuti praktik yang dirangkum oleh \textcite{cncf2024observability} bahwa metrik, log, dan \textit{trace} harus dapat dirujuk silang pada satu antarmuka agar diagnosis dapat ditegakkan tanpa berpindah \textit{tool}. Berbeda dari kebutuhan fungsional yang dapat dipetakan satu lawan satu ke tujuan, kebutuhan nonfungsional bersifat lintas-bidang sehingga satu atribut kualitas dapat menopang lebih dari satu tujuan sekaligus. Meskipun demikian, setiap KNF tetap memiliki tujuan utama tempat target metriknya paling langsung diuji, yaitu KNF-11 dan KNF-12 pada tujuan arsitektur terintegrasi, KNF-05 sampai KNF-07 pada tujuan tata kelola data, serta KNF-01 sampai KNF-04 dan KNF-08 sampai KNF-10 pada tujuan layanan fitur, mengikuti pengelompokan skenario uji penerimaan pada Bab~\ref{chap:evaluasi}. Daftar nonfungsional ini bersifat terbuka untuk diperluas pada penelitian lanjutan, terutama pada aspek keamanan rantai pasok perangkat lunak dan kepatuhan terhadap regulasi sektoral, namun cakupan dua belas item ini telah memadai untuk menilai keberhasilan rancangan terhadap empat rumusan masalah pada Bab~\ref{chap:pendahuluan}.
+Setiap KNF disertai target metrik yang dapat diuji secara langsung pada Bab~\ref{chap:evaluasi}, sehingga klaim kualitas tidak berhenti pada deskripsi tetapi memiliki ambang batas yang konkret. Pemilihan ambang batas pada KNF latensi dan \textit{throughput} diturunkan dari karakteristik penyajian fitur \textit{online} yang menuntut latensi P95 pada kisaran milisekon, sejalan dengan rancangan \textit{feature store} terkelola yang diuraikan \textcite{li2023managed}, agar layanan inferensi tetap responsif terhadap data yang bergerak cepat. Pemilihan ambang batas pada KNF observabilitas mengikuti praktik yang dirangkum oleh \textcite{cncf2024observability} bahwa metrik, log, dan \textit{trace} harus dapat dirujuk silang pada satu antarmuka agar diagnosis dapat ditegakkan tanpa berpindah \textit{tool}. Berbeda dari kebutuhan fungsional yang dapat dipetakan satu lawan satu ke tujuan, kebutuhan nonfungsional bersifat lintas-bidang sehingga satu atribut kualitas dapat menopang lebih dari satu tujuan sekaligus. Meskipun demikian, setiap KNF tetap memiliki tujuan utama tempat target metriknya paling langsung diuji, dan kolom Tujuan pada Tabel~\ref{tab:kebutuhan_nonfungsional} menautkan setiap kebutuhan nonfungsional ke tujuan utama tersebut mengikuti pengelompokan skenario uji penerimaan pada Bab~\ref{chap:evaluasi}. Daftar nonfungsional ini bersifat terbuka untuk diperluas pada penelitian lanjutan, terutama pada aspek keamanan rantai pasok perangkat lunak dan kepatuhan terhadap regulasi sektoral, namun cakupan dua belas item ini telah memadai untuk menilai keberhasilan rancangan terhadap empat rumusan masalah pada Bab~\ref{chap:pendahuluan}.
 
 \section{Analisis Pemilihan Solusi}
 \label{sec:pemilihan-solusi}

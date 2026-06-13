@@ -18,7 +18,7 @@ Subbab IV.1 (Gambaran Umum Platform) dan V.1 (Lingkungan Implementasi) berfungsi
 Aturan turunan:
 1. Jumlah RM = jumlah T = jumlah subbab Bab IV (di luar IV.1) = jumlah subbab Bab V (di luar V.1) = jumlah poin Kesimpulan.
 2. Verba pada Tujuan tidak boleh berisi “mengevaluasi”, “menguji”, “mengukur”, atau “mendemonstrasikan”. Evaluasi adalah aktivitas metodologi, bukan tujuan.
-3. Judul Bab IV menyebut nama artefak, bukan kata generik “Perancangan”. Judul yang digunakan: “Perancangan Arsitektur Platform DataOps dan MLOps Terintegrasi”.
+3. Judul Bab IV menyebut nama artefak, bukan kata generik “Perancangan”. Judul yang digunakan: “Perancangan Arsitektur Platform DataOps dan MLOps”.
 4. Setiap subbab Bab V membuka dengan referensi balik ke subbab Bab IV yang dipenuhi.
 5. Setiap poin Kesimpulan menjawab tepat satu Tujuan.
 

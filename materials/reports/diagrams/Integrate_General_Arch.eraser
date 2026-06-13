@@ -188,3 +188,26 @@ Loki > Grafana
 Tempo > Grafana
 ClickHouse > Superset: dasbor BI
 Trino > Superset: kueri ad-hoc
+
+// ===== Keamanan dan kebijakan lintas-layer =====
+Istio > oauth2-proxy: ext_authz
+oauth2-proxy > Dex: OIDC
+cert-manager > APISIX: sertifikat TLS
+Kyverno > Kubernetes: kebijakan admisi
+Falco -- Kubernetes: keamanan runtime
+Trivy Operator -- Kubernetes: pemindaian kerentanan
+
+// ===== Operasional dan keandalan =====
+Chaos Mesh > Kubernetes: injeksi gangguan
+Velero > MinIO: simpan cadangan
+Prometheus > Autoscaler: sinyal metrik
+Autoscaler > Kubernetes: skala replica
+Kueue > Kubeflow Trainer: admisi kuota job
+
+// ===== Penyimpan metadata dan pemantauan =====
+Kafbat UI -- Kafka: pemantauan topik
+Kubeflow Pipelines -- MySQL: metadata MLMD
+MLflow -- PostgreSQL: backend metadata
+DataHub -- OpenSearch: indeks pencarian
+Pyroscope > Grafana: profil
+Prometheus > OpenCost: metrik biaya
