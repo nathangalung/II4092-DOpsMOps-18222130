@@ -50,31 +50,31 @@ Setelah pemetaan kondisi saat ini, kebutuhan platform dirumuskan dalam dua kateg
 \subsection{Identifikasi Masalah Pengguna}
 \label{subsec:identifikasi-masalah}
 
-Identifikasi masalah pengguna diturunkan dari empat rumusan masalah pada Bab~\ref{chap:pendahuluan} dengan menelusuri kebutuhan tiap peran pada rantai produksi model. Penelusuran memetakan setiap peran ke titik sentuhnya pada lapisan ingestasi, fitur, pelatihan, dan penyajian, lalu mencatat kebutuhan yang mengemuka ketika sambungan antar titik tersebut terputus. Penyusunan sengaja dibatasi pada kebutuhan yang berakar pada sambungan antar lapis, bukan pada preferensi \textit{tool} satu peran tertentu, agar daftar tetap ringkas dan setara untuk keempat peran. Keempat kebutuhan berikut menjadi titik berangkat penyusunan daftar formal kebutuhan fungsional dan nonfungsional, dan masing-masing dapat dirunut kembali ke peran yang melahirkannya.
+Identifikasi masalah pengguna diturunkan dari empat rumusan masalah pada Bab~\ref{chap:pendahuluan} dengan menelusuri titik sentuh tiap peran pada rantai produksi model. Penelusuran memetakan setiap rumusan masalah ke kontrak antar lapis yang terputus pada lapisan ingestasi, fitur, pelatihan, dan penyajian, lalu mencatat peran yang paling merasakan akibat putusnya kontrak tersebut. Penyusunan sengaja menempatkan kebutuhan pada sambungan antar lapis sebagai dasar, bukan pada preferensi \textit{tool} satu peran tertentu, agar daftar tetap ringkas dan setara untuk keempat peran. Keempat kebutuhan berikut menjadi titik berangkat penyusunan daftar formal kebutuhan fungsional dan nonfungsional, dan masing-masing dapat dirunut kembali ke rumusan masalah yang melahirkannya serta ke peran yang paling merasakannya.
 
 \vspace{0.5em}
 \begin{enumerate}
     \item \textbf{Bidang kendali terpadu lintas peran}
 
-    Pengguna pada lintas peran membutuhkan satu bidang kendali untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga sambungan antar lapis tidak lagi dirakit secara manual dan integrasi \textit{tool} dapat dipulihkan dari sumber kebenaran tunggal.
+    Bidang kendali terpadu lintas peran dibutuhkan untuk mengatur ingestasi, pelatihan, penyajian, dan pemantauan, sehingga sambungan antar lapis tidak lagi dirakit secara manual dan integrasi \textit{tool} dapat dipulihkan dari sumber kebenaran tunggal.
 
     \vspace{0.5em}
 
     \item \textbf{Tata kelola data yang seragam lintas siklus}
 
-    Pengguna pada peran \textit{data engineer} membutuhkan tata kelola yang seragam di antara lapisan data, fitur, dan model, mencakup \textit{lineage}, katalog, dan validasi kualitas.
+    Tata kelola yang seragam di antara lapisan data, fitur, dan model dibutuhkan agar \textit{lineage}, katalog, dan validasi kualitas tetap menyatu ketika data berpindah antar lapis, terutama bagi \textit{data engineer} yang menjaga kontrak data sepanjang siklus.
 
     \vspace{0.5em}
 
     \item \textbf{Deteksi \textit{drift} otomatis dan jaminan validitas temporal}
 
-    Pengguna pada peran \textit{data scientist} dan \textit{machine learning engineer} membutuhkan deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{kaufman2012leakage}.
+    Deteksi \textit{drift} yang terotomasi sekaligus jaminan \textit{point-in-time correctness} dibutuhkan pada sambungan antara lapis data dan lapis model agar evaluasi model tidak mengandung kebocoran temporal sebagaimana ditegaskan oleh \textcite{vela2022temporal} dan \textcite{kaufman2012leakage}. Pihak yang paling bergantung pada kontrak ini adalah \textit{data scientist} dan \textit{machine learning engineer} yang menilai kelayakan model sebelum produksi.
 
     \vspace{0.5em}
 
     \item \textbf{Dukungan fitur multimoda berlatensi rendah}
 
-    Pengguna pada peran \textit{data scientist} membutuhkan dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference}, dengan landasan teknik penyajian vektor yang telah diulas pada Subbab~\ref{subsec:vektor-hnsw}.
+    Dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference} dibutuhkan pada lapis penyajian fitur, dengan landasan teknik penyajian vektor yang telah diulas pada Subbab~\ref{subsec:vektor-hnsw}. Kebutuhan ini berakar pada kerja \textit{data scientist} yang merekayasa fitur lintas modalitas.
 \end{enumerate}
 
 Empat kebutuhan pengguna tersebut menyiratkan satu pola yang sama, yaitu kebutuhan untuk memutus sambungan ad hoc antar lapis dengan kontrak yang seragam dan dapat dipanggil dari satu antarmuka. Pengguna pada peran \textit{business user} menjadi penerima manfaat terakhir karena hanya melihat keluaran model pada lapis penyajian, sehingga kualitas kontrak pada lapis bawah menjadi penentu apakah keputusan bisnis dapat diambil dengan tepat waktu. Identifikasi tersebut menjadi titik berangkat untuk menyusun daftar formal kebutuhan fungsional pada Subbab~\ref{subsec:kf} dan kebutuhan nonfungsional pada Subbab~\ref{subsec:knf}. Daftar formal yang diturunkan dari pola tersebut menjadi dasar penyusunan kebutuhan fungsional dan nonfungsional pada dua subbab berikutnya, sehingga setiap kebutuhan dapat dirunut kembali ke sumber masalah yang melahirkannya dan diuji pemenuhannya pada Bab~\ref{chap:evaluasi}.
@@ -100,7 +100,7 @@ Setiap KNF disertai target metrik yang dapat diuji secara langsung pada Bab~\ref
 \section{Analisis Pemilihan Solusi}
 \label{sec:pemilihan-solusi}
 
-Bagian ini menyusun alternatif solusi yang dapat memenuhi kebutuhan fungsional dan nonfungsional, kemudian memilih solusi terbaik dengan menggunakan skor pemenuhan kebutuhan. Skor 0 berarti tidak terpenuhi, skor 1 berarti terpenuhi sebagian, dan skor 2 berarti terpenuhi penuh. Penilaian skor dilakukan terhadap empat alternatif dengan menggunakan dua belas KNF dan empat belas KF sebagai kriteria, sehingga total skor maksimum sebuah alternatif adalah lima puluh dua. Alternatif yang memperoleh skor tertinggi akan dirancang lebih lanjut pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}, dengan justifikasi tertulis pada setiap kebutuhan yang tidak memperoleh skor penuh.
+Bagian ini menyusun alternatif solusi yang dapat memenuhi kebutuhan fungsional dan nonfungsional, kemudian memilih solusi terbaik dengan menggunakan skor pemenuhan kebutuhan. Skor 0 berarti tidak terpenuhi, skor 1 berarti terpenuhi sebagian, dan skor 2 berarti terpenuhi penuh. Penilaian skor dilakukan terhadap empat alternatif dengan menggunakan dua belas KNF dan empat belas KF sebagai kriteria, sehingga total skor maksimum sebuah alternatif adalah lima puluh dua. Setiap skor ditetapkan dengan memetakan kapabilitas terdokumentasi tiap alternatif, sebagaimana ditinjau pada Bab~\ref{chap:studi-literatur}, terhadap definisi kebutuhan pada Subbab~\ref{sec:analisis-kebutuhan}, sehingga penilaian bertumpu pada bukti kapabilitas dan bukan pada preferensi penulis. Alternatif yang memperoleh skor tertinggi akan dirancang lebih lanjut pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}, dengan justifikasi tertulis pada kelompok kebutuhan yang membedakan peringkat antar alternatif.
 
 \subsection{Alternatif Solusi}
 \label{subsec:alternatif-solusi}
@@ -132,6 +132,8 @@ Empat alternatif solusi dipertimbangkan untuk membangun platform DataOps dan MLO
     Pendekatan ini menggunakan beberapa layanan terkelola, terutama pada lapisan dasar seperti penyimpanan dan jaringan, dipadukan dengan komponen \textit{open source} pada lapisan DataOps dan MLOps. Kelebihannya berupa keseimbangan antara kecepatan adopsi dan fleksibilitas. Kekurangannya berupa kompleksitas integrasi antara dua jenis komponen dan kebutuhan kontrak antar lapisan yang harus dirancang dengan saksama.
 \end{enumerate}
 
+Keempat alternatif tersebut sengaja dipilih agar membentang sepanjang pertukaran waktu lawan anggaran yang dibahas pada Subbab~\ref{subsec:biaya-berlangganan}. Alternatif A dan D menukar waktu pengembangan dengan biaya berlangganan yang berjalan terus, Alternatif C menukar biaya berlangganan dengan waktu pengembangan yang sangat panjang, sedangkan Alternatif B berupaya menekan keduanya melalui rancangan referensi yang dapat dipasang ulang. Posisi relatif keempatnya diukur secara kuantitatif pada Subbab~\ref{subsec:penentuan-solusi} memakai skor pemenuhan kebutuhan fungsional dan nonfungsional. Penilaian kuantitatif itu menjadi dasar keputusan akhir sehingga pemilihan solusi tidak bertumpu pada preferensi melainkan pada bukti pemenuhan kebutuhan.
+
 \subsection{Analisis Penentuan Solusi}
 \label{subsec:penentuan-solusi}
 
@@ -143,4 +145,4 @@ Tabel~\ref{tab:evaluasi_kf} menyajikan evaluasi pemenuhan kebutuhan fungsional, 
 
 \input{tables/evaluasi_total.tex}
 
-Alternatif B unggul terutama pada kebutuhan yang menyangkut jaminan validitas temporal, dukungan \textit{vector embeddings}, pemantauan \textit{drift} otomatis, ekstensibilitas, dan portabilitas. Alternatif A unggul pada kemudahan penggunaan dan kemudahan pemeliharaan, tetapi tertinggal pada validitas temporal, dukungan \textit{vector embeddings} pada \textit{feature store}, dan portabilitas. Alternatif C unggul pada kontrol penuh tetapi kalah pada hampir semua kebutuhan operasional. Alternatif D mendekati Alternatif A tetapi tertinggal pada portabilitas dan ekstensibilitas. Berdasarkan skor pemenuhan kebutuhan dan analisis komparatif yang sejalan dengan \textcite{burgueno2025toward}, \textcite{najafabadi2024analysis}, dan \textcite{lakka2025kubernetes}, Alternatif B dipilih sebagai solusi yang akan dirancang pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}.
+Alternatif B unggul terutama pada kebutuhan yang menyangkut jaminan validitas temporal, dukungan \textit{vector embeddings}, pemantauan \textit{drift} otomatis, ekstensibilitas, dan portabilitas. Alternatif A unggul pada kemudahan penggunaan dan kemudahan pemeliharaan, tetapi tertinggal pada validitas temporal, dukungan \textit{vector embeddings} pada \textit{feature store}, dan portabilitas. Alternatif C unggul pada kontrol penuh tetapi kalah pada hampir semua kebutuhan operasional. Alternatif D mendekati Alternatif A tetapi tertinggal pada portabilitas dan ekstensibilitas. Skor nol pada Alternatif A untuk ekstensibilitas dan portabilitas mencerminkan keterikatan pada format kepemilikan tertutup yang menyulitkan penggantian komponen dan migrasi antar penyedia, sedangkan skor nol pada Alternatif C untuk kemudahan penggunaan dan kemudahan pemeliharaan mencerminkan beban membangun dan merawat setiap lapisan tanpa komponen siap pakai. Berdasarkan skor pemenuhan kebutuhan dan analisis komparatif yang sejalan dengan \textcite{burgueno2025toward}, \textcite{najafabadi2024analysis}, dan \textcite{lakka2025kubernetes}, Alternatif B dipilih sebagai solusi yang akan dirancang pada Bab~\ref{chap:perancangan} dan diimplementasikan pada Bab~\ref{chap:implementasi}.

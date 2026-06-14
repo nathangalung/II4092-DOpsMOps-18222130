@@ -1,0 +1,80 @@
+// Layer_Infra_Control — Lapisan Infrastruktur dan Bidang Kendali
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Infra_Control.png
+// Acuan: Subbab IV.2.1 (subsec:lapisan-infra); rincian Lapis 1 dari Gambar IV.1.
+// Fokus: orkestrasi Kubernetes, mesh dan keamanan, operasional, serta bidang
+// kendali GitOps sebagai satu-satunya jalur perubahan.
+
+direction right
+
+// ===== Aktor =====
+Pengguna [icon: users, color: gray] {
+  Business User [icon: user]
+  Data Engineer [icon: user]
+  Data Scientist [icon: user]
+  ML Engineer [icon: user]
+}
+
+// ===== Bidang Kendali — GitOps =====
+GitOps [icon: git-branch, color: blue] {
+  Gitea [icon: git-merge, label: "Gitea (Git internal)"]
+  Tekton [icon: settings, label: "Tekton (CI)"]
+  Argo CD [icon: refresh-cw, label: "Argo CD (GitOps CD)"]
+}
+
+// ===== Lapis Infrastruktur =====
+Lapisan Infrastruktur [icon: kubernetes, color: blue] {
+  Kubernetes [icon: kubernetes, label: "Kubernetes (k3s)"]
+  Istio [icon: network, label: "Istio (mesh + mTLS)"]
+  APISIX [icon: globe, label: "APISIX (API gateway)"]
+  Keamanan [icon: shield] {
+    Dex [icon: key, label: "Dex (OIDC SSO)"]
+    oauth2-proxy [icon: lock, label: "oauth2-proxy"]
+    SpiceDB [icon: shield, label: "SpiceDB (otorisasi)"]
+    OpenBao [icon: lock, label: "OpenBao (rahasia)"]
+    ESO [icon: refresh-cw, label: "External Secrets Operator"]
+    Kyverno [icon: check-circle, label: "Kyverno (policy)"]
+    Falco [icon: eye, label: "Falco (runtime security)"]
+    Trivy Operator [icon: search, label: "Trivy Operator (pemindaian)"]
+  }
+  Operasional [icon: settings] {
+    cert-manager [icon: award, label: "cert-manager (TLS)"]
+    Velero [icon: archive, label: "Velero (cadangan)"]
+    Chaos Mesh [icon: zap, label: "Chaos Mesh (uji ketahanan)"]
+    Autoscaler [icon: trending-up, label: "HPA + VPA + KEDA"]
+    Kueue [icon: list, label: "Kueue (antrean job)"]
+  }
+}
+
+// ===== Beban kerja yang dikelola (batas) =====
+Lapisan Beban Kerja [icon: layers, color: gray, label: "Lapisan Beban Kerja (data, model, tata kelola)"]
+
+// ===== Alur akses pengguna dan identitas =====
+Business User > APISIX
+Data Engineer > APISIX
+Data Scientist > APISIX
+ML Engineer > APISIX
+APISIX > Dex: OIDC SSO tunggal
+Dex > SpiceDB: otorisasi relasi
+Istio > oauth2-proxy: ext_authz
+oauth2-proxy > Dex: OIDC
+cert-manager > APISIX: sertifikat TLS
+
+// ===== Alur GitOps =====
+Data Engineer > Gitea: commit konfigurasi
+Gitea > Tekton: webhook CI
+Tekton > Gitea: image + manifest baru
+Gitea > Argo CD: pull manifest
+Argo CD > Kubernetes: sinkronisasi deklaratif
+Argo CD > Lapisan Beban Kerja: terapkan manifest
+OpenBao > ESO: distribusi rahasia
+ESO > Lapisan Beban Kerja: rahasia tersinkron
+
+// ===== Kebijakan, keamanan, dan keandalan lintas-layer =====
+Kyverno > Kubernetes: kebijakan admisi
+Falco -- Kubernetes: keamanan runtime
+Trivy Operator -- Kubernetes: pemindaian kerentanan
+Chaos Mesh > Kubernetes: injeksi gangguan
+Velero > Lapisan Beban Kerja: cadangan terjadwal
+Autoscaler > Lapisan Beban Kerja: skala replica
+Kueue > Lapisan Beban Kerja: admisi kuota job

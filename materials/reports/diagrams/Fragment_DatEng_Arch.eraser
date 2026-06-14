@@ -1,0 +1,33 @@
+// Fragment_DatEng_Arch — Fragmentasi pada Peran Data Engineer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Fragment_DatEng_Arch.png
+// Acuan: Gambar C.2 (fig:fragment-dateng), Lampiran C Subbab C.2.
+// Kondisi SEBELUM platform: ingestasi, transformasi, penyimpanan, katalog,
+// dan kualitas dirakit manual dengan tool terpisah; node TIDAK menamai
+// komponen platform. Domain-agnostik: sumber data tidak menyebut domain.
+
+direction right
+
+// ===== Aktor =====
+Data Engineer [icon: user, color: gray]
+
+Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+
+// ===== Wilayah Data Engineer =====
+Wilayah Data Engineer [icon: download, color: orange] {
+  Ingestasi Manual [icon: terminal, label: "Ingestasi Manual (skrip shell, CSV/FTP, email)"]
+  Transformasi Ad Hoc [icon: code, label: "Transformasi Ad Hoc (SQL manual, skrip batch terjadwal cron)"]
+  Kualitas Manual [icon: alert-triangle, label: "Kualitas Data Manual (pemeriksaan acak, tinjauan spreadsheet)"]
+  Penyimpanan Tak Terkelola [icon: database, label: "Penyimpanan Tidak Terorganisasi (basis data terpisah, shared drive, bucket)"]
+  Katalog Manual [icon: book, label: "Katalog Manual (spreadsheet metadata, halaman wiki)"]
+}
+
+// ===== Alur data terputus =====
+Sumber Data Eksternal > Ingestasi Manual: ekstraksi manual
+Data Engineer > Ingestasi Manual: mengelola ekstraksi dan status
+Ingestasi Manual > Kualitas Manual: pemeriksaan sporadis
+Kualitas Manual > Transformasi Ad Hoc: setelah validasi
+Transformasi Ad Hoc > Penyimpanan Tak Terkelola: tulis hasil
+Data Engineer > Katalog Manual: mencatat metadata dan lineage manual
+Katalog Manual -- Penyimpanan Tak Terkelola: sinkronisasi manual
+Data Engineer > Penyimpanan Tak Terkelola: mengatur data dan akses

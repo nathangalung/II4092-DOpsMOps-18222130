@@ -1,0 +1,30 @@
+// Fragment_BusUs_Arch — Fragmentasi pada Peran Business User
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Fragment_BusUs_Arch.png
+// Acuan: Gambar C.1 (fig:fragment-busus), Lampiran C Subbab C.1.
+// Kondisi SEBELUM platform: tumpukan pelaporan ad hoc yang terpisah dari
+// sistem data dan model, sehingga node TIDAK menamai komponen platform.
+// Domain-agnostik: sistem sumber tidak menyebut domain tertentu.
+
+direction right
+
+// ===== Aktor =====
+Business User [icon: user, color: gray]
+
+// ===== Sistem hulu yang terpisah =====
+Sistem Data dan Model [icon: server, color: gray, label: "Sistem Data dan Model (terpisah, tanpa antarmuka tunggal)"]
+
+// ===== Tumpukan pelaporan ad hoc =====
+Wilayah Business User [icon: bar-chart, color: blue] {
+  Salinan Data Terpisah [icon: download, label: "Salinan Data Manual (ekspor CSV/Excel dari basis data terpisah)"]
+  Dasbor Ad Hoc [icon: pie-chart, label: "Dasbor Ad Hoc (spreadsheet, BI desktop per analis)"]
+  Laporan Berkala [icon: file-text, label: "Laporan Berkala (ekspor PDF, kiriman email)"]
+}
+
+// ===== Alur pelaporan terputus =====
+Sistem Data dan Model > Salinan Data Terpisah: ekspor manual berkala
+Salinan Data Terpisah > Dasbor Ad Hoc: muat ulang manual
+Dasbor Ad Hoc > Laporan Berkala: salin angka manual
+Business User > Dasbor Ad Hoc: membaca ringkasan tertunda
+Business User > Laporan Berkala: menerima laporan berkala
+Business User > Sistem Data dan Model: meminta angka lewat tiket manual

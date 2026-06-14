@@ -21,57 +21,48 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
 
 Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek. Pertama, bidang kendali yang sebelumnya tersebar pada bermacam \textit{tool} digabungkan ke dalam \textit{control plane} Kubernetes yang sama. Kedua, sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh Argo CD \autocite{argocd2024}. Ketiga, antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan di Grafana dengan Prometheus \autocite{prometheus2024}, Loki \autocite{loki2024}, dan Grafana Tempo \autocite{tempo2024} sebagai sumber tiga pilar observabilitas. Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}, karena tiap lapis berbagi kontrak yang sama dan dapat dirujuk silang melalui DataHub.
 
+Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{tool} yang diakses, dan fungsi yang dijalankan, sehingga satu titik masuk tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke DataHub serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Pemetaan ini menegaskan bahwa integrasi pada Gambar~\ref{fig:integrate-general} bukan sekadar penyatuan teknis pada lapis kendali, melainkan juga penyatuan pengalaman kerja lintas peran pada lapis antarmuka.
+
+\input{tables/peran_akses.tex}
+
 \section{Perancangan Arsitektur Terintegrasi}
 \label{sec:arsitektur-terintegrasi}
 
 Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps terintegrasi pada Kubernetes. Arsitektur disusun dalam tujuh lapis yang saling terhubung melalui kontrak antarmuka eksplisit. Tujuh lapis yang dimaksud adalah lapisan infrastruktur, lapisan ingestasi data, lapisan pemrosesan, lapisan penyimpanan fitur, lapisan siklus hidup model, lapisan penyajian model, dan lapisan tata kelola serta observabilitas. Susunan tujuh lapis ini selaras dengan praktik yang dirangkum oleh \textcite{kreuzberger2023mlops} pada pemetaan rangkaian \textit{tool} MLOps, dan dipertajam dengan tambahan lapisan tata kelola yang menyatukan katalog, \textit{lineage}, dan kontrak data sebagai elemen pertama yang dihubungkan ke lapisan lain.
 
-\subsection{Pandangan per Peran Pengguna}
-\label{subsec:pandangan-per-peran}
-
-Empat peran utama mempunyai akses yang berbeda pada platform yang sama. Gambar~\ref{fig:integrate-busus} menyajikan pandangan untuk peran \textit{business user}, Gambar~\ref{fig:integrate-dateng} untuk peran \textit{data engineer}, Gambar~\ref{fig:integrate-datsci} untuk peran \textit{data scientist}, dan Gambar~\ref{fig:integrate-mleng} untuk peran \textit{machine learning engineer}. Setiap peran berinteraksi dengan satu antarmuka yang sama, sehingga konteks dapat berpindah dari pelaporan ke katalog, dari katalog ke eksperimen, dan dari eksperimen ke penyebaran model tanpa berganti aplikasi. Pemilihan satu antarmuka pusat ini melindungi pengguna dari kebutuhan menghafal banyak \textit{tool} sekaligus menjaga keterhubungan metadata yang dibagikan antar peran.
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_BusUs_Arch.png}
-    \caption{Pandangan Platform Terintegrasi untuk \textit{Business User}}
-    \label{fig:integrate-busus}
-\end{figure}
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatEng_Arch.png}
-    \caption{Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
-    \label{fig:integrate-dateng}
-\end{figure}
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatSci_Arch.png}
-    \caption{Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
-    \label{fig:integrate-datsci}
-\end{figure}
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_MLEng_Arch.png}
-    \caption{Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
-    \label{fig:integrate-mleng}
-\end{figure}
-
-\textit{Business user} mengakses platform melalui Apache Superset \autocite{superset2025} untuk dasbor data dan Grafana untuk dasbor operasional, dengan token OIDC yang sama dari dex \autocite{dex2025} pada kedua antarmuka. \textit{Data engineer} bekerja dengan DataHub untuk katalog, Argo CD untuk \textit{rollout} konfigurasi, dan Argo Workflows untuk eksekusi \textit{pipeline} di atas \textit{cluster} yang sama. \textit{Data scientist} bekerja dengan Kubeflow Notebooks, MLflow, dan Feast pada \textit{namespace} yang sama dengan tata kelola identitas yang seragam, sehingga eksperimen dan registri model selalu terdokumentasi pada lokasi yang sama. \textit{Machine learning engineer} mengelola pelatihan ulang dan penyajian melalui Kubeflow Pipelines dan KServe, sambil memanfaatkan Argo Rollouts untuk strategi promosi versi yang berbasis metrik.
-
 \subsection{Lapisan Infrastruktur dan Bidang Kendali}
 \label{subsec:lapisan-infra}
 
-Lapisan infrastruktur menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas \textit{manifest}. Argo CD menjadi satu-satunya jalur perubahan, menarik konfigurasi dari Git dan menerapkan ke \textit{cluster} melalui prinsip GitOps \autocite{limoncelli2022gitops}.
+Lapisan infrastruktur menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas \textit{manifest}. Argo CD menjadi satu-satunya jalur perubahan, menarik konfigurasi dari Git dan menerapkan ke \textit{cluster} melalui prinsip GitOps \autocite{limoncelli2022gitops}. Gambar~\ref{fig:layer-infra} merinci komponen lapisan ini beserta jalur GitOps yang menyatukannya.
+
+\begin{figure}[!htb]
+    \centering
+    \IfFileExists{figures/Layer_Infra_Control.png}{%
+        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Infra_Control.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Infra\_Control.eraser} \textit{dirender ke} \texttt{figures/Layer\_Infra\_Control.png}.}}%
+    }
+    \caption{Rincian Lapisan Infrastruktur dan Bidang Kendali}
+    \label{fig:layer-infra}
+\end{figure}
 
 Kebijakan keamanan dijalankan dalam dua lapis: Kyverno \autocite{kyverno2024} pada lapis admisi Kubernetes, dan Falco \autocite{falco2025} pada lapis \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai citra dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal. Penskalaan otomatis dijalankan oleh tiga komponen yang saling melengkapi yaitu HPA Kubernetes pada level Pod, VPA \textit{recommender} untuk rekomendasi \textit{resource request}, dan KEDA \autocite{keda2025} untuk penskalaan berbasis peristiwa dari Kafka atau Prometheus. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS, menutup lapisan infrastruktur dengan kontrak identitas mesin yang dapat diperbarui secara otomatis.
 
 \subsection{Lapisan Ingestasi dan Pemrosesan Data}
 \label{subsec:lapisan-data}
 
-Lapisan ingestasi menggunakan Apache Kafka \autocite{apachekafka2024} sebagai bus pesan utama dengan operator Strimzi pada \textit{cluster} Kubernetes. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal, dan \textit{Karapace} digunakan sebagai registri skema. Lapisan pemrosesan dibagi menjadi dua jalur, yaitu jalur \textit{batch} dan jalur \textit{stream}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola.
+Lapisan ingestasi menggunakan Apache Kafka \autocite{apachekafka2024} sebagai bus pesan utama dengan operator Strimzi pada \textit{cluster} Kubernetes. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal, dan \textit{Karapace} digunakan sebagai registri skema. Lapisan pemrosesan dibagi menjadi dua jalur, yaitu jalur \textit{batch} dan jalur \textit{stream}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola. Gambar~\ref{fig:layer-data} merinci kedua jalur pemrosesan beserta lapisan penyimpanan dan layanan fitur yang menerimanya.
+
+\begin{figure}[!htb]
+    \centering
+    \IfFileExists{figures/Layer_Data.png}{%
+        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Data.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Data.eraser} \textit{dirender ke} \texttt{figures/Layer\_Data.png}.}}%
+    }
+    \caption{Rincian Lapisan Ingestasi, Pemrosesan, dan Penyimpanan Fitur}
+    \label{fig:layer-data}
+\end{figure}
 
 Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan format Apache Iceberg sebagai \textit{table format}, sedangkan Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai lapisan \textit{version control} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk dasbor maupun materialisasi fitur.
 
@@ -80,14 +71,36 @@ Orkestrasi jalur \textit{batch} dirancang menggunakan Apache Airflow \autocite{a
 \subsection{Lapisan Siklus Hidup Model dan Penyajian}
 \label{subsec:lapisan-model}
 
-Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu pelatihan ulang. Basis data relasional untuk metadata MLflow dan Kubeflow Pipelines disediakan oleh PostgreSQL yang dikelola operator CNPG, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten.
+Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu pelatihan ulang. Basis data relasional untuk metadata MLflow dan Kubeflow Pipelines disediakan oleh PostgreSQL yang dikelola operator CNPG, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten. Gambar~\ref{fig:layer-model} merinci alur dari eksperimen dan pelatihan menuju penyajian model beserta pemicu pelatihan ulang otomatis.
+
+\begin{figure}[!htb]
+    \centering
+    \IfFileExists{figures/Layer_Model.png}{%
+        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Model.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Model.eraser} \textit{dirender ke} \texttt{figures/Layer\_Model.png}.}}%
+    }
+    \caption{Rincian Lapisan Siklus Hidup Model dan Penyajian}
+    \label{fig:layer-model}
+\end{figure}
 
 Kubeflow Trainer \autocite{kubeflowtrainer2025} menjalankan pelatihan terdistribusi melalui \texttt{TrainJob} yang dipanggil dari \textit{pipeline} Kubeflow Pipelines, sehingga pelatihan \textit{multi-replica} tidak memerlukan \textit{custom controller}. Penyajian model multimoda didukung KServe dengan \textit{runtime} bawaan untuk \textit{scikit-learn}, XGBoost, PyTorch, dan ONNX, ditambah \textit{runtime} kustom untuk model yang memerlukan dependensi spesifik. Knative \autocite{knative2025} berperan sebagai bidang \textit{serverless} bagi KServe, sehingga penskalaan dari nol dapat dilakukan tanpa menahan sumber daya saat trafik rendah. Kueue \autocite{kueue2024} mengelola antrean pelatihan agar sumber daya GPU atau CPU dapat dibagi adil antara \textit{tenant}, sambil tetap menghormati prioritas \texttt{PriorityClass} yang ditetapkan pada level platform.
 
 \subsection{Lapisan Tata Kelola dan Observabilitas}
 \label{subsec:lapisan-tata-kelola}
 
-Lapisan tata kelola menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada lapisan \textit{batch} dan \textit{stream}. Lapisan observabilitas menggunakan Prometheus untuk metrik, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan dasbor khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model.
+Lapisan tata kelola menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada lapisan \textit{batch} dan \textit{stream}. Lapisan observabilitas menggunakan Prometheus untuk metrik, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan dasbor khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Gambar~\ref{fig:layer-govern} merinci hubungan antara tata kelola data dan tiga pilar observabilitas pada satu antarmuka.
+
+\begin{figure}[!htb]
+    \centering
+    \IfFileExists{figures/Layer_Govern_Obs.png}{%
+        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Govern_Obs.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Govern\_Obs.eraser} \textit{dirender ke} \texttt{figures/Layer\_Govern\_Obs.png}.}}%
+    }
+    \caption{Rincian Lapisan Tata Kelola dan Observabilitas}
+    \label{fig:layer-govern}
+\end{figure}
 
 Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost menutup pemantauan biaya per beban kerja. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan dasbor di atas ClickHouse, Trino, dan MySQL. Pushgateway dipakai untuk mengumpulkan metrik \textit{job} berdurasi pendek, antara lain CronJob validasi data dan CronWorkflow pengukur \textit{drift}, agar metrik mereka tidak hilang setelah \textit{job} selesai. Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke dasbor Grafana.
 

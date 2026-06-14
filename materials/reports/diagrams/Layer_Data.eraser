@@ -1,0 +1,81 @@
+// Layer_Data — Lapisan Ingestasi, Pemrosesan, dan Penyimpanan Fitur
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Data.png
+// Acuan: Subbab IV.2.2 (subsec:lapisan-data); rincian Lapis 2-4 dari Gambar IV.1.
+// Fokus: jalur data dari sumber eksternal menuju penyimpanan dan layanan fitur,
+// dengan dua jalur pemrosesan batch dan stream.
+
+direction right
+
+Sumber Data Eksternal [icon: cloud, color: gray]
+
+// ===== Lapis Ingestasi =====
+Lapisan Ingestasi Data [icon: download, color: orange] {
+  Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
+  Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
+  Karapace [icon: file-text, label: "Karapace (schema registry)"]
+  Kafbat UI [icon: monitor, label: "Kafbat UI"]
+}
+
+// ===== Lapis Pemrosesan =====
+Lapisan Pemrosesan [icon: cpu, color: yellow] {
+  Flink [icon: zap, label: "Apache Flink (stream)"]
+  Spark [icon: sun, label: "Apache Spark (batch)"]
+  dbt [icon: code, label: "dbt (transformasi SQL)"]
+  Airflow [icon: clock, label: "Apache Airflow (orkestrasi data)"]
+  Trino [icon: search, label: "Trino (federasi kueri)"]
+}
+
+// ===== Lapis Penyimpanan dan Fitur =====
+Lapisan Penyimpanan Fitur [icon: database, color: green] {
+  Lakehouse [icon: layers] {
+    MinIO [icon: hard-drive, label: "MinIO (objek + KES)"]
+    lakeFS [icon: git-branch, label: "lakeFS (versi data)"]
+    Iceberg [icon: layers, label: "Apache Iceberg (format tabel)"]
+    Lakekeeper [icon: book, label: "Lakekeeper (katalog REST)"]
+  }
+  Basis Data [icon: database] {
+    ClickHouse [icon: bar-chart, label: "ClickHouse (OLAP)"]
+    PostgreSQL [icon: postgresql, label: "PostgreSQL (CNPG)"]
+    MySQL [icon: mysql, label: "MySQL"]
+    OpenSearch [icon: search, label: "OpenSearch (log + teks)"]
+  }
+  Layanan Fitur [icon: package] {
+    Feast [icon: package, label: "Feast (feature store)"]
+    Valkey [icon: zap, label: "Valkey (online store)"]
+    Qdrant [icon: target, label: "Qdrant (indeks vektor)"]
+  }
+}
+
+// ===== Konsumen fitur (batas) =====
+Lapisan Siklus Hidup Model [icon: refresh-cw, color: purple, label: "Lapisan Siklus Hidup Model (konsumen fitur)"]
+
+// ===== Alur ingestasi =====
+Sumber Data Eksternal > Kafka Connect: REST + CDC
+Kafka Connect > Kafka
+Kafka <> Karapace: validasi skema
+Kafbat UI -- Kafka: pemantauan topik
+
+// ===== Alur pemrosesan =====
+Kafka > Flink: jalur stream
+Flink > ClickHouse: agregasi real-time
+Kafka > Spark: jalur batch
+Airflow > Spark: penjadwalan
+Airflow > dbt: transformasi terjadwal
+Spark > Iceberg: tulis tabel
+dbt > ClickHouse: model gold
+Trino > Iceberg: kueri federatif
+
+// ===== Alur penyimpanan =====
+Iceberg -- MinIO: penyimpanan objek
+lakeFS -- MinIO: versi data
+Lakekeeper -- Iceberg: katalog tabel
+
+// ===== Alur fitur =====
+ClickHouse > Feast: sumber offline
+Feast > Valkey: materialisasi online
+Flink > Valkey: fitur stream
+Flink > Qdrant: embedding stream
+Feast > Lapisan Siklus Hidup Model: fitur pelatihan
+Valkey > Lapisan Siklus Hidup Model: fitur online
+Qdrant > Lapisan Siklus Hidup Model: fitur vektor
