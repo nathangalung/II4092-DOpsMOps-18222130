@@ -1,17 +1,6 @@
-% ============================================================
-% BAB IV — PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS
-% Template (ITB STI TA + Proposal.tex):
-%   - IV.1 Gambaran Umum Sistem        : sintesis arsitektur tujuh lapis + diagram
-%   - IV.2 Perancangan Sub-sistem A    : menjawab T-1 (arsitektur terintegrasi)
-%   - IV.3 Perancangan Sub-sistem B    : menjawab T-2 (tata kelola data)
-%   - IV.4 Perancangan Sub-sistem C    : menjawab T-3 (deteksi drift + PIT)
-%   - IV.5 Perancangan Sub-sistem D    : menjawab T-4 (feature store dual-store)
-%   - IV.6 Alur Kerja End-to-End       : rangkaian sub-sistem ke siklus produksi
-% Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
-% Catatan domain-agnostic: arsitektur murni platform; verifikasi use case ditunda ke Bab V.
-% Aturan paragraf: minimum 4 kalimat per paragraf naratif, minimum 2 paragraf per \subsection;
-%   item enumerate dikecualikan. Setiap kalimat tambahan membawa fakta baru.
-% ============================================================
+% Bab IV Perancangan Arsitektur Platform DataOps dan MLOps
+% Template: TEMPLATE_BAB.md
+% Gaya: WRITING_GUIDE.md
 \cleardoublepage
 \chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:perancangan}
@@ -23,7 +12,7 @@ Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps
 
 Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal dan menyatukan komponen DataOps dan MLOps di atasnya. Gambar~\ref{fig:integrate-general} memperlihatkan arsitektur terintegrasi yang menggantikan kondisi fragmentasi pada Gambar~\ref{fig:fragment-general} dari Bab~\ref{chap:analisis-masalah}. Komponen yang sebelumnya berdiri sendiri pada perangkat lunak yang berbeda kini terhubung melalui satu bidang kendali, satu sumber kebenaran berbasis Git, dan satu antarmuka observabilitas. Penyatuan bidang kendali memungkinkan tim platform menerapkan perubahan dengan satu mekanisme \textit{deploy} yang sama untuk seluruh komponen, sehingga rantai integrasi yang sebelumnya bercabang dapat dipersingkat.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.95\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_General_Arch.png}
     \caption{Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
@@ -42,28 +31,28 @@ Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps t
 
 Empat peran utama mempunyai akses yang berbeda pada platform yang sama. Gambar~\ref{fig:integrate-busus} menyajikan pandangan untuk peran \textit{business user}, Gambar~\ref{fig:integrate-dateng} untuk peran \textit{data engineer}, Gambar~\ref{fig:integrate-datsci} untuk peran \textit{data scientist}, dan Gambar~\ref{fig:integrate-mleng} untuk peran \textit{machine learning engineer}. Setiap peran berinteraksi dengan satu antarmuka yang sama, sehingga konteks dapat berpindah dari pelaporan ke katalog, dari katalog ke eksperimen, dan dari eksperimen ke penyebaran model tanpa berganti aplikasi. Pemilihan satu antarmuka pusat ini melindungi pengguna dari kebutuhan menghafal banyak \textit{tool} sekaligus menjaga keterhubungan metadata yang dibagikan antar peran.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_BusUs_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Business User}}
     \label{fig:integrate-busus}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatEng_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Data Engineer}}
     \label{fig:integrate-dateng}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_DatSci_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Data Scientist}}
     \label{fig:integrate-datsci}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.85\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_MLEng_Arch.png}
     \caption{Pandangan Platform Terintegrasi untuk \textit{Machine Learning Engineer}}
@@ -86,10 +75,12 @@ Lapisan ingestasi menggunakan Apache Kafka \autocite{apachekafka2024} sebagai bu
 
 Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan format Apache Iceberg sebagai \textit{table format}, sedangkan Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai lapisan \textit{version control} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk dasbor maupun materialisasi fitur.
 
+Orkestrasi jalur \textit{batch} dirancang menggunakan Apache Airflow \autocite{airflow2024} sebagai \textit{scheduler} DAG yang merangkai langkah validasi, transformasi, dan materialisasi fitur menjadi satu \textit{pipeline} data terjadwal. Definisi DAG ditarik dari Git melalui mekanisme \textit{git-sync} sehingga perubahan \textit{pipeline} mengikuti alur GitOps yang sama dengan komponen platform lain. Setiap langkah transformasi dijalankan sebagai \textit{pod} terisolasi melalui \texttt{KubernetesPodOperator} agar batas sumber daya dapat ditetapkan per langkah dan kegagalan satu langkah tidak merembet ke langkah lain. Pembagian peran ini menempatkan Airflow sebagai \textit{orchestrator} bidang data dan Kubeflow Pipelines sebagai \textit{orchestrator} pelatihan model, sehingga tanggung jawab DataOps dan MLOps tidak bercampur dalam satu \textit{controller}.
+
 \subsection{Lapisan Siklus Hidup Model dan Penyajian}
 \label{subsec:lapisan-model}
 
-Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan, validasi data, dan pemicu pelatihan ulang.
+Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu pelatihan ulang. Basis data relasional untuk metadata MLflow dan Kubeflow Pipelines disediakan oleh PostgreSQL yang dikelola operator CNPG, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten.
 
 Kubeflow Trainer \autocite{kubeflowtrainer2025} menjalankan pelatihan terdistribusi melalui \texttt{TrainJob} yang dipanggil dari \textit{pipeline} Kubeflow Pipelines, sehingga pelatihan \textit{multi-replica} tidak memerlukan \textit{custom controller}. Penyajian model multimoda didukung KServe dengan \textit{runtime} bawaan untuk \textit{scikit-learn}, XGBoost, PyTorch, dan ONNX, ditambah \textit{runtime} kustom untuk model yang memerlukan dependensi spesifik. Knative \autocite{knative2025} berperan sebagai bidang \textit{serverless} bagi KServe, sehingga penskalaan dari nol dapat dilakukan tanpa menahan sumber daya saat trafik rendah. Kueue \autocite{kueue2024} mengelola antrean pelatihan agar sumber daya GPU atau CPU dapat dibagi adil antara \textit{tenant}, sambil tetap menghormati prioritas \texttt{PriorityClass} yang ditetapkan pada level platform.
 
@@ -103,7 +94,7 @@ Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan
 \section{Perancangan Sub-sistem Tata Kelola Data}
 \label{sec:tata-kelola}
 
-Bagian ini menjawab T-2 dengan merancang sub-sistem tata kelola data yang konsisten lintas siklus data, fitur, dan model. Tata kelola yang dimaksud mencakup katalog metadata, \textit{lineage}, pengujian kontrak data, dan kontrol akses berbasis identitas. Pemilihan keempat aspek tersebut mengikuti penekanan pada KF-10 dan KNF terkait keamanan serta observabilitas pada Bab~\ref{chap:analisis-masalah}, sekaligus menjawab efek domino fragmentasi pada lapisan tata kelola yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}. Sub-sistem ini menjadi prasyarat bagi tiga sub-sistem lainnya karena katalog metadata berfungsi sebagai indeks bersama yang menghubungkan ingestasi, pelatihan, penyajian, dan pemantauan dalam satu grafik tata kelola.
+Bagian ini menjawab T-2 dengan merancang sub-sistem tata kelola data yang konsisten lintas siklus data, fitur, dan model. Tata kelola yang dimaksud mencakup katalog metadata, \textit{lineage}, pengujian kontrak data, dan kontrol akses berbasis identitas. Pemilihan keempat aspek tersebut mengikuti penekanan pada KF-08, KF-09, dan KF-10 serta KNF terkait keamanan dan observabilitas pada Bab~\ref{chap:analisis-masalah}, sekaligus menjawab efek domino fragmentasi pada lapisan tata kelola yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}. Sub-sistem ini menjadi prasyarat bagi tiga sub-sistem lainnya karena katalog metadata berfungsi sebagai indeks bersama yang menghubungkan ingestasi, pelatihan, penyajian, dan pemantauan dalam satu grafik tata kelola.
 
 \subsection{Katalog Metadata dan \textit{Lineage}}
 \label{subsec:katalog-lineage}
@@ -136,21 +127,21 @@ Bagian ini menjawab T-3 dengan merancang sub-sistem deteksi \textit{drift} pada 
 
 Dua indikator utama dipilih sebagai detektor. \textit{Population Stability Index} (PSI) dipakai untuk fitur kategorikal dan kontinu dengan \textit{binning}, sedangkan uji Kolmogorov-Smirnov dipakai untuk distribusi nilai kontinu \autocite{reis2016kdd}. Pengukuran dilakukan pada jendela waktu yang bergerak dan dibandingkan dengan jendela referensi. Tingkat \textit{drift} dikategorikan menjadi \textit{stable}, \textit{moderate}, dan \textit{severe} dengan ambang yang dapat dikonfigurasi per fitur. \textcite{bayram2022concept}, \textcite{lu2019learning}, dan \textcite{hinder2023model} menjadi rujukan untuk penyusunan kebijakan keluarga detektor dan respons platform.
 
-Pengukuran \textit{drift} dijalankan oleh CronJob yang menarik fitur \textit{baseline} dari ClickHouse dan fitur jendela aktif dari Feast, lalu menghitung indikator pada \textit{namespace} \texttt{model-lifecycle} agar terisolasi dari beban kerja produksi lain. Hasil pengukuran dipublikasikan ke tabel \texttt{gold.drift\_multi\_scale} pada ClickHouse sehingga riwayat dapat dianalisis secara historis untuk audit dan pelaporan. Pushgateway menerima metrik tiap eksekusi sehingga Prometheus dapat merangkainya menjadi runtutan jangka panjang yang ditampilkan pada dasbor Grafana. Evidently menambah lapisan visual \textit{report} HTML yang disimpan pada MinIO dan ditautkan dari DataHub agar dapat dirujuk oleh \textit{data scientist} ketika menelusuri penurunan kinerja model.
+Pengukuran \textit{drift} dijalankan oleh CronJob yang menarik fitur \textit{baseline} dan fitur jendela aktif dari ClickHouse, lalu menghitung indikator pada \textit{namespace} \texttt{model-lifecycle} agar terisolasi dari beban kerja produksi lain. Hasil pengukuran dipublikasikan ke tabel \texttt{gold.drift\_multi\_scale} pada ClickHouse sehingga riwayat dapat dianalisis secara historis untuk audit dan pelaporan. Pushgateway menerima metrik tiap eksekusi sehingga Prometheus dapat merangkainya menjadi runtutan jangka panjang yang ditampilkan pada dasbor Grafana. Evidently menambah lapisan visual \textit{report} HTML yang disimpan pada MinIO dan ditautkan dari DataHub agar dapat dirujuk oleh \textit{data scientist} ketika menelusuri penurunan kinerja model.
 
 \subsection{Alur Pelatihan Ulang Otomatis}
 \label{subsec:retrain}
 
-Alur pelatihan ulang dijalankan oleh Argo CronWorkflow yang berperan sebagai \textit{control loop}. \textit{Workflow} ini menjalankan \textit{job} pengukuran \textit{drift}, kemudian memutuskan apakah pemicu pelatihan diperlukan. Jika diperlukan, \textit{workflow} memicu \textit{pipeline} pelatihan pada Kubeflow Pipelines. \textit{Pipeline} pelatihan menarik fitur dari Feast dengan operasi \texttt{get\_historical\_features} yang menjamin \textit{point-in-time correctness}, kemudian menulis model yang dihasilkan ke MLflow. Evidently \autocite{evidently2025} dijalankan sebagai pelapor pelengkap yang menghasilkan ringkasan distribusi fitur dan kinerja model dalam bentuk \textit{report} yang dapat diaudit. Validasi kualitas model dijalankan sebelum penyebaran.
+Alur pelatihan ulang dijalankan oleh Argo CronWorkflow yang berperan sebagai \textit{control loop}. \textit{Workflow} ini menjalankan \textit{job} pengukuran \textit{drift}, kemudian memutuskan apakah pemicu pelatihan diperlukan. Jika diperlukan, \textit{workflow} memicu \textit{pipeline} pelatihan pada Kubeflow Pipelines. \textit{Pipeline} pelatihan menarik fitur dari Feast dengan operasi \texttt{get\_historical\_features} yang menjamin \textit{point-in-time correctness}, kemudian menulis model yang dihasilkan ke MLflow. Model kandidat didaftarkan ke registri MLflow sebagai versi baru, sedangkan kelayakannya untuk menggantikan versi produksi ditentukan pada tahap promosi \textit{canary} yang menilai metrik penyajian versi baru secara langsung.
 
-Apabila lulus validasi, Argo Rollouts \autocite{argorollouts2025} mengelola promosi versi baru pada KServe dengan strategi \textit{canary} berbasis analisis metrik Prometheus, sehingga pengembalian otomatis dapat dilakukan ketika \textit{signal} kinerja menurun. \textcite{cespedes2024efficient} memberi contoh penerapan deteksi \textit{drift} pada lingkungan \textit{serverless}, dan pendekatan yang serupa diadaptasi ke lingkungan Kubernetes pada platform ini. Argo Rollouts membandingkan metrik versi \textit{stable} dan versi \textit{canary} dengan kueri Prometheus terjadwal pada interval lima menit, menghentikan promosi otomatis pada selisih metrik yang melampaui ambang konfigurasi. Riwayat promosi dan pengembalian tercatat pada \textit{namespace} Argo sehingga audit promosi dapat dijalankan langsung dari Argo CD UI tanpa berpindah \textit{tool}.
+Promosi versi pada lapisan penyajian dikendalikan oleh Argo Rollouts \autocite{argorollouts2025} dengan strategi \textit{canary} yang menyalurkan sebagian trafik ke versi baru sebelum promosi penuh, sehingga pengembalian otomatis dapat dilakukan ketika metrik kinerja menurun. \textcite{cespedes2024efficient} memberi contoh penerapan deteksi \textit{drift} pada lingkungan \textit{serverless}, dan pendekatan yang serupa diadaptasi ke lingkungan Kubernetes pada platform ini. Setiap langkah \textit{canary} dijeda agar metrik terkumpul, lalu \textit{AnalysisTemplate} mengevaluasi tingkat keberhasilan dan latensi p99 versi \textit{canary} terhadap ambang SLO melalui kueri Prometheus dan menghentikan promosi ketika ambang dilanggar. Riwayat promosi dan pengembalian tercatat pada \textit{namespace} Argo sehingga audit promosi dapat dijalankan langsung dari Argo CD UI tanpa berpindah \textit{tool}.
 
 \subsection{Mekanisme Penanganan Kasus Khusus}
 \label{subsec:kasus-khusus}
 
-Sub-sistem ini melayani tiga kasus khusus. Pertama, ketika \textit{drift} terdeteksi pada fitur tetapi label belum tersedia, \textit{workflow} hanya melakukan pelatihan ulang setelah label berjalan cukup lama. Kedua, ketika \textit{drift} terjadi karena perubahan distribusi sementara, ambang dihitung dengan jendela bergulir agar tidak memicu pelatihan ulang yang tidak perlu. Ketiga, ketika model baru gagal lulus validasi, KServe mempertahankan versi lama dan \textit{workflow} mencatat kegagalan ke MLflow.
+Sub-sistem ini melayani tiga kasus khusus. Pertama, ketika \textit{drift} terdeteksi pada fitur tetapi label belum tersedia, \textit{workflow} hanya melakukan pelatihan ulang setelah label berjalan cukup lama. Kedua, ketika \textit{drift} terjadi karena perubahan distribusi sementara, ambang dihitung dengan jendela bergulir agar tidak memicu pelatihan ulang yang tidak perlu. Ketiga, ketika versi baru gagal pada analisis kanari, promosi dihentikan otomatis sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kegagalan ke MLflow.
 
-Penanganan tiga kasus tersebut dirancang sebagai cabang pada \texttt{DAG} CronWorkflow sehingga keputusan dapat ditelusuri pada riwayat eksekusi Argo. Setiap cabang menulis catatan ke MLflow \texttt{tags} agar konteks keputusan tersimpan bersama dengan eksperimen yang dipicu. Kegagalan validasi memicu peringatan ke Alertmanager dengan rute khusus untuk peran \textit{machine learning engineer}, sehingga investigasi dapat dimulai tanpa menunggu pelaporan manual. Riwayat tiga kasus tersebut juga dipakai untuk memperbarui ambang \textit{drift} pada konfigurasi melalui mekanisme \textit{tuning} berkala yang dijalankan pada Argo Workflows.
+Penanganan tiga kasus tersebut dirancang sebagai cabang pada \texttt{DAG} CronWorkflow sehingga keputusan dapat ditelusuri pada riwayat eksekusi Argo. Setiap cabang menulis catatan ke MLflow \texttt{tags} agar konteks keputusan tersimpan bersama dengan eksperimen yang dipicu. Kegagalan pada analisis kanari memicu peringatan ke Alertmanager dengan rute khusus untuk peran \textit{machine learning engineer}, sehingga investigasi dapat dimulai tanpa menunggu pelaporan manual. Riwayat tiga kasus tersebut juga dipakai untuk memperbarui ambang \textit{drift} pada konfigurasi melalui mekanisme \textit{tuning} berkala yang dijalankan pada Argo Workflows.
 
 \section{Perancangan Sub-sistem Layanan Fitur \textit{Dual-Store}}
 \label{sec:feature-store-dual}
@@ -169,7 +160,7 @@ Bagian ini menjawab T-4 dengan merancang sub-sistem layanan fitur yang menyatuka
 
 \textit{Embedding} dihasilkan oleh model \texttt{sentence-transformers/}\allowbreak\texttt{all-mpnet-base-v2} \autocite{reimers2019sentence} berdimensi 768 untuk teks, dan disimpan sebagai fitur dengan dimensi yang konsisten antara fase pelatihan dan fase \textit{inference}. Pencarian tetangga terdekat dijalankan oleh Qdrant \autocite{qdrant2025} dengan indeks HNSW \autocite{malkov2020efficient} berparameter \texttt{m=16} dan \texttt{ef\_construct=200} yang memberi keseimbangan baik antara waktu kueri dan kualitas. Qdrant menyediakan kueri \textit{gRPC} berlatensi rendah serta penyaringan \textit{payload} pada saat pencarian, sehingga \textit{embedding} dapat digabung dengan fitur tabular dari Valkey untuk membentuk \textit{request} \textit{inference} yang lengkap. \textcite{bruch2023hybrid} dan \textcite{campese2024coherence} memberi rujukan untuk fungsi peleburan hasil pencarian pada konteks \textit{hybrid retrieval}.
 
-Parameter HNSW dikonfigurasi melalui \textit{collection} Qdrant yang dideklarasikan oleh \textit{init Job} sehingga penambahan koleksi baru dapat dilakukan dengan menambah berkas YAML, tanpa intervensi langsung pada Qdrant. \textit{Snapshot} koleksi vektor dijalankan secara berkala ke MinIO sebagai bagian dari pencadangan Velero untuk objek terkait. Pemilihan dimensi 768 berdasarkan model \textit{all-mpnet-base-v2} memberi keseimbangan antara kualitas semantik dan biaya penyimpanan, dan dapat disesuaikan dengan model alternatif tanpa mengubah kontrak Feast. Latensi p95 ditargetkan di bawah dua puluh milidetik untuk pencarian top-10 pada koleksi berukuran sampai sepuluh juta vektor, mengikuti panduan kinerja yang dirangkum oleh \textcite{malkov2020efficient}.
+Parameter HNSW dikonfigurasi melalui \textit{collection} Qdrant yang dideklarasikan oleh \textit{init Job} sehingga penambahan koleksi baru dapat dilakukan dengan menambah berkas YAML, tanpa intervensi langsung pada Qdrant. \textit{Snapshot} koleksi vektor dijalankan secara berkala ke MinIO sebagai bagian dari pencadangan Velero untuk objek terkait. Pemilihan dimensi 768 berdasarkan model \textit{all-mpnet-base-v2} memberi keseimbangan antara kualitas semantik dan biaya penyimpanan, dan dapat disesuaikan dengan model alternatif tanpa mengubah kontrak Feast. Latensi p99 ditargetkan di bawah dua puluh milidetik untuk pencarian top-10 pada koleksi berukuran sampai sepuluh juta vektor, selaras dengan karakteristik kinerja HNSW yang ditunjukkan oleh \textcite{malkov2020efficient}.
 
 \subsection{Jaminan \textit{Point-in-Time Correctness}}
 \label{subsec:jaminan-pit}
@@ -183,11 +174,11 @@ Mekanisme jaminan ini diuji melalui dua jalur. Pertama, \textit{notebook} reprod
 
 Materialisasi fitur dilakukan dengan dua jalur. Jalur \textit{batch} menjalankan transformasi pada ClickHouse atau Spark, kemudian Feast memuat hasilnya ke \textit{online store} secara periodik melalui operasi \texttt{materialize}. Jalur \textit{stream} menggunakan Flink untuk menghitung fitur \textit{real-time} yang ditulis langsung ke Valkey untuk fitur tabular dan ke Qdrant untuk \textit{embedding} vektor, serta dipublikasikan ke ClickHouse pada saat yang sama, sehingga \textit{offline} dan \textit{online} tetap konsisten. \textcite{jain2025integrating} menyoroti pentingnya integrasi DataOps dengan MLOps untuk menjaga konsistensi seperti ini pada skala produksi.
 
-Jadwal materialisasi \textit{batch} dipasang pada Argo CronWorkflow dengan interval per jam untuk fitur agregasi dan per hari untuk fitur \textit{rolling window} berdurasi panjang. Eksekusi \texttt{materialize} mengeluarkan metrik durasi dan jumlah baris ke Pushgateway sehingga ketertinggalan dapat terdeteksi melalui \textit{alerting} Prometheus. Jalur \textit{stream} menggunakan \textit{exactly-once} semantik Flink dengan \textit{checkpoint} ke MinIO setiap interval pendek, sehingga kegagalan \textit{TaskManager} tidak menyebabkan duplikasi pada \textit{online store}. Konsistensi antara \textit{offline} dan \textit{online} divalidasi oleh CronJob \texttt{feature-store-consistency-check} yang membandingkan jumlah baris dan agregasi pada keduanya, dan memicu peringatan ketika selisih melebihi ambang konfigurasi.
+Jadwal materialisasi \textit{batch} dipasang pada DAG Airflow melalui \textit{task} \texttt{feast\_materialize} dengan interval per jam yang mendorong fitur dari \textit{offline store} ke \textit{online store}. Eksekusi materialisasi mengeluarkan metrik durasi dan jumlah baris ke Pushgateway sehingga ketertinggalan dapat terdeteksi melalui \textit{alerting} Prometheus. Jalur \textit{stream} menggunakan \textit{exactly-once} semantik Flink dengan \textit{checkpoint} ke MinIO setiap interval pendek, sehingga kegagalan \textit{TaskManager} tidak menyebabkan duplikasi pada \textit{online store}. Karena nilai pada \textit{online store} merupakan hasil materialisasi dari \textit{offline store} yang sama, konsistensi antara keduanya terjaga secara konstruktif, sedangkan kualitas data lintas lapisan diverifikasi oleh \textit{checkpoint} Great Expectations terjadwal.
 
 \section{Alur Kerja \textit{End-to-End}}
 \label{sec:alur-e2e}
 
 Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan. Pertama, data baru masuk melalui Kafka, divalidasi oleh Great Expectations, kemudian disimpan pada \textit{warehouse} ClickHouse dan \textit{data lake} MinIO dengan katalog Lakekeeper. Kedua, fitur dihitung pada Flink atau Spark, lalu diregistrasi pada Feast dan dimaterialisasi ke ClickHouse sebagai \textit{offline store}, Valkey sebagai \textit{online store} tabular, dan Qdrant sebagai indeks vektor terpisah. Ketiga, Argo CronWorkflow mengukur \textit{drift} dan, jika ambang dilewati, memicu \textit{pipeline} pelatihan Kubeflow Pipelines. Pelatihan menggunakan \texttt{get\_historical\_features} untuk menjamin konsistensi temporal.
 
-Keempat, hasil pelatihan ditulis ke MLflow, validasi model dijalankan, lalu Argo Rollouts mempromosikan versi KServe baru dengan strategi \textit{canary} berbasis analisis metrik. Kelima, perubahan pada konfigurasi disinkronkan dari Git oleh Argo CD, sedangkan pengamatan kondisi sistem dipantau oleh Prometheus, Loki, dan Grafana Tempo melalui Grafana. Siklus ini berputar setiap kali data baru masuk atau \textit{drift} terdeteksi, sehingga platform terus menerus menjaga akurasi model di lingkungan produksi. \textcite{rodrigues2025architecture} memberi rujukan tambahan untuk arsitektur pembelajaran \textit{near real-time} pada lingkungan yang serupa, dan pendekatan yang dirancang di sini menyesuaikan rujukan tersebut dengan kontrak Feast dan Argo Rollouts agar siklus tetap dapat dijalankan secara deklaratif pada satu \textit{cluster} Kubernetes.
+Keempat, hasil pelatihan ditulis ke MLflow, model kandidat didaftarkan sebagai versi baru, lalu promosi pada lapisan penyajian dikawal oleh Argo Rollouts dengan strategi \textit{canary} berbasis analisis metrik. Kelima, perubahan pada konfigurasi disinkronkan dari Git oleh Argo CD, sedangkan pengamatan kondisi sistem dipantau oleh Prometheus, Loki, dan Grafana Tempo melalui Grafana. Siklus ini berputar setiap kali data baru masuk atau \textit{drift} terdeteksi, sehingga platform terus menerus menjaga akurasi model di lingkungan produksi. \textcite{rodrigues2025architecture} memberi rujukan tambahan untuk arsitektur pembelajaran \textit{near real-time} pada lingkungan yang serupa, dan pendekatan yang dirancang di sini menyesuaikan rujukan tersebut dengan kontrak Feast dan Argo Rollouts agar siklus tetap dapat dijalankan secara deklaratif pada satu \textit{cluster} Kubernetes.

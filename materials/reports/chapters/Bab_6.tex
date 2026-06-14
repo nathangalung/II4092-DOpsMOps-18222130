@@ -8,6 +8,27 @@
 % Use case crypto diperkenalkan di sini sebagai instans verifikasi.
 % Angka beban kuantitatif menyusul sesuai batasan B-5.
 % ============================================================
+% TODO (pass evaluasi — realign dengan re-map Tujuan pada Bab 3):
+%   Bab 3 telah memetakan ulang KNF-03,04,08,09,10 dari T-4 ke T-1
+%   (atribut kualitas platform-wide milik tujuan arsitektur terintegrasi)
+%   dan me-rescope KNF-05 dari kebocoran temporal menjadi kontrak kualitas
+%   data umum (jaminan temporal tetap unik pada KF-03). Anchor Bab 3 sudah
+%   didekopel sehingga tidak ada kontradiksi aktif, tetapi konten Bab 6 di
+%   bawah MASIH memakai pengelompokan lama dan harus disesuaikan ketika
+%   angka evaluasi difinalkan:
+%     1. tables/uji_penerimaan.tex: pindah SK-N-03,04,08,09,10 dari blok
+%        Tujuan T-4 ke blok T-1; perluas prosedur SK-N-05 menjadi kontrak
+%        kualitas data (skema/rentang nilai/kelengkapan), bukan hanya probe
+%        timestamp temporal.
+%     2. subsec:metode-t1 (~l.53): tambahkan narasi SK-N-03/04/08/09/10.
+%     3. subsec:metode-t4 (~l.74): hapus SK-N-03/04/08/09/10, sisakan
+%        SK-N-01/02; perbaiki justifikasi "T-4 beban pengujian terbanyak"
+%        (kini T-1 yang memikul beban NFR terbanyak).
+%     4. l.58 (T-2), l.79 (overlap KF-03), l.97 (contoh KNF-05): sesuaikan
+%        framing KNF-05 ke kontrak kualitas data umum.
+%     5. tables/evaluasi_target.tex baris KNF-05: target "Zero kebocoran
+%        data temporal" -> kontrak kualitas data (Great Expectations) lolos.
+% ============================================================
 \cleardoublepage
 \chapter{EVALUASI}
 \label{chap:evaluasi}
