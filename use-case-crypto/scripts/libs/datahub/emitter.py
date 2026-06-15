@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run python
+#!/usr/bin/env -S uv run
 """DataHub Metadata Emitter"""
 
 import logging

@@ -13,9 +13,9 @@
 # readOnlyRootFilesystem=true (Kyverno + PSA-restricted-audit), and the
 # upstream image's venv lives on the rootfs.
 #
-# Fix: build a tiny "deps-only" image once at component-apply time. It does
-# `uv pip install --target=/feast-deps "feast<1,>=0.34.0" dask[dataframe]<2024.7.0
-# flask-openid<2.0.0 numpy<2`, leaving a 395MB site-packages tree at
+# Fix: build a tiny "deps-only" image once at component-apply time. It runs
+# `uv sync --no-dev` over a standalone pyproject.toml (feast[clickhouse],
+# dask[dataframe], flask-openid, numpy<2), leaving a ~395MB site-packages tree at
 # /feast-deps. The CronJob picks it up via an initContainer that cp -a's
 # /feast-deps onto a shared emptyDir, then the main `datahub-ingestion`
 # container imports those packages via PYTHONPATH=/shared.

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run python
+#!/usr/bin/env -S uv run
 """Feature Categories - Common and Asset-Specific Features"""
 
 from dataclasses import dataclass

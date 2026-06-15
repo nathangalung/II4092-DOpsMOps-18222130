@@ -18,12 +18,17 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable
 
-# Use-case overlay deps (requirements-extra.txt overlaid by Makefile pre-build
-# from use-case-*/services/processing/batch/). Install into the existing
-# venv without mutating pyproject.toml / uv.lock.
+# Use-case overlay deps (requirements-extra.txt overlaid by the Makefile from
+# use-case-*/services/processing/batch/ before build). Fold into the manifest
+# with `uv add`, then `uv sync --no-editable` for a non-editable wheel that
+# needs no rebuild air-gapped at runtime. Platform deps stay pinned by the
+# locked sync above; the overlay dep resolves fresh by design and is never
+# committed to the platform manifests, so the `uv add` mutation lands only in
+# the throwaway build context and the platform image stays domain-agnostic.
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f requirements-extra.txt ]; then \
-      uv pip install --python /app/.venv -r requirements-extra.txt; \
+      uv add --no-sync -r requirements-extra.txt && \
+      uv sync --no-editable; \
     fi
 
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim

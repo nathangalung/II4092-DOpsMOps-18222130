@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run python
+#!/usr/bin/env -S uv run
 """Feature Store Service - Redis/ClickHouse Integration"""
 
 import logging
