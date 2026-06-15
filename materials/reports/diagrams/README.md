@@ -31,14 +31,6 @@ Konvensi lengkap: `WRITING_GUIDE.md` bagian 1.7 dan `TEMPLATE_BAB.md`.
 - `Fragment_General_Arch.eraser` — pandangan umum fragmentasi (Gambar III.1),
   status quo pra-platform: empat peran + tumpukan ad hoc generik, tanpa
   menamai komponen platform.
-- `Fragment_BusUs_Arch.eraser` — fragmentasi peran *business user* (Gambar C.1),
-  tumpukan pelaporan ad hoc yang terputus dari sistem data dan model.
-- `Fragment_DatEng_Arch.eraser` — fragmentasi peran *data engineer* (Gambar C.2),
-  ingestasi, transformasi, penyimpanan, dan katalog yang dirakit manual.
-- `Fragment_DatSci_Arch.eraser` — fragmentasi peran *data scientist* (Gambar C.3),
-  eksperimen dan rekayasa fitur pada lingkungan lokal yang terisolasi.
-- `Fragment_MLEng_Arch.eraser` — fragmentasi peran *ML engineer* (Gambar C.4),
-  penyajian dan pemantauan model manual tanpa registri dan rollback konsisten.
 - `Integrate_General_Arch.eraser` — arsitektur umum platform (Gambar IV.1),
   tujuh lapisan Bab IV + empat peran pengguna + rantai GitOps.
 - `Layer_Infra_Control.eraser` — rincian Lapisan Infrastruktur dan Bidang

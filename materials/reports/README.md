@@ -47,8 +47,7 @@ reports/
 │   └── Bab_7.tex          # Penutup
 ├── appendices/            # lampiran
 │   ├── Lampiran_A.tex
-│   ├── Lampiran_B.tex
-│   └── Lampiran_C.tex
+│   └── Lampiran_B.tex
 ├── tables/                # \input-able .tex tables
 ├── figures/               # images (.png/.jpg), rendered outputs only
 ├── diagrams/              # diagram-as-code sources (.eraser), see diagrams/README.md

@@ -128,7 +128,7 @@ Struktur yang dipakai pada laporan ini (revisi 2026-05; subbab Beban Operasional
 - III.1 Analisis Kondisi Saat Ini (tiga sumber tekanan yang diurutkan sesuai pemicu pada Bab I Latar Belakang).
   - III.1.1 Beban Konfigurasi Platform dari Nol (configure-from-0).
   - III.1.2 Biaya Berlangganan Layanan Terkelola (cloud subscription + trade-off waktu lawan anggaran).
-  - III.1.3 Efek Domino Fragmentasi Lintas Peran (pandangan umum fragmentasi DataOps + MLOps; rincian per peran dipindahkan ke Lampiran C agar bab tetap ramping).
+  - III.1.3 Efek Domino Fragmentasi Lintas Peran (pandangan umum fragmentasi DataOps + MLOps; cukup pandangan umum pada Gambar III.1, tanpa rincian per peran, agar bab tetap ramping dan fragmentasi tetap menjadi tekanan ketiga yang lebih ringan).
 - III.2 Analisis Kebutuhan (identifikasi masalah pengguna, kebutuhan fungsional KF-1..KF-n, kebutuhan nonfungsional KNF-1..KNF-n).
 - III.3 Analisis Pemilihan Solusi (alternatif solusi, analisis penentuan solusi).
 
@@ -142,7 +142,7 @@ Aturan WRITING_GUIDE.md §3.2 yang berlaku:
 - Judul bab tidak boleh “Perancangan” saja; sebut nama artefak.
 - IV.1 selalu “Gambaran Umum” dengan diagram sistem secara keseluruhan.
 - IV.2..N memetakan satu lawan satu dengan Tujuan 1..N.
-- Pemetaan peran pengguna ke antarmuka (tabel `peran_akses`) ditempatkan di IV.1 Gambaran Umum sebagai orientasi “siapa yang memakai platform”, bukan sebagai subbab tersendiri di bawah IV.2. Keputusan ini menurunkan bingkai per-peran dari rancangan ke orientasi: IV.2 berisi murni rancangan tujuh lapis (T-1), tanpa subbab “Pandangan per Peran”. Identitas/SSO bersama dijelaskan sekali di IV.3.3 (identitas-akses), tidak diulang di IV.1. Tidak ada gambar penuh-halaman per peran di Bab IV; rincian fragmentasi per peran tetap di Lampiran C, dan bingkai per-peran pada Bab III ditulis kebutuhan-dahulu (peran sebagai tempat kebutuhan paling terasa), bukan peran-dahulu.
+- Pemetaan peran pengguna ke antarmuka (tabel `peran_akses`) ditempatkan di IV.1 Gambaran Umum sebagai orientasi “siapa yang memakai platform”, bukan sebagai subbab tersendiri di bawah IV.2. Keputusan ini menurunkan bingkai per-peran dari rancangan ke orientasi: IV.2 berisi murni rancangan tujuh lapis (T-1), tanpa subbab “Pandangan per Peran”. Identitas/SSO bersama dijelaskan sekali di IV.3.3 (identitas-akses), tidak diulang di IV.1. Tidak ada gambar penuh-halaman per peran di Bab IV. Lampiran fragmentasi per peran (dahulu Lampiran C) telah dihapus karena tesis konsisten bersifat *layer-centric*: masalah dirumuskan sebagai kontrak antar lapis, KF/KNF dipetakan ke lapis, rancangan Bab IV memuat tujuh lapis, dan diagram *after* terorganisasi per lapis, sehingga diagram *before* per peran menjadi satu-satunya artefak yang terorganisasi per peran dan menimbulkan ketaksesuaian taksonomi *before*/*after* yang rawan dipersoalkan penguji. Pandangan umum fragmentasi (Gambar III.1) sudah memuat keempat peran dalam satu tampilan sehingga rincian per peran tidak diperlukan. Bingkai per-peran pada Bab III ditulis kebutuhan-dahulu (peran sebagai tempat kebutuhan paling terasa), bukan peran-dahulu.
 
 ## 6. Bab V Implementasi – Panduan Template Asli
 

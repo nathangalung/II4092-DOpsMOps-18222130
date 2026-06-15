@@ -115,7 +115,7 @@ Layers currently covered:
 - `vector_index_comparison.tex` — §2.4.3
 - `orchestration_comparison.tex` — §2.5.2
 - `tracking_comparison.tex` — §2.5.1
-- `serving_comparison.tex` — §2.5.3
+- `serving_comparison.tex` — §2.5.4
 - `message_broker_comparison.tex` — §2.3.2 (Message broker: Kafka vs Redpanda vs Pulsar vs NATS JetStream)
 - `schema_registry_comparison.tex` — §2.3.2
 - `data_processing_comparison.tex` — §2.3
@@ -204,7 +204,7 @@ Run through this list when the draft is close to done.
 
 ### 3.7 Per-Bab template comments (central store)
 
-Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I, II, and III headers already follow this convention; trim the remaining Bab IV to VII long headers when each chapter gets its revision pass.
+Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I through V already follow this convention with the minimal three-line header; Bab VI and VII keep their longer template-block headers until their own revision pass, which is deferred until the platform is fully running and the evaluation data needed to write those chapters is available.
 
 **Bab I — Pendahuluan**
 
@@ -246,7 +246,7 @@ Penjelasan tool: setiap tool pada platform/components diberi definisi dan citasi
 - III.1 Analisis Kondisi Saat Ini             : tiga sumber tekanan, diurutkan sesuai pemicu pada Bab I
   - III.1.1 Beban Konfigurasi Platform dari Nol     : configure-from-0
   - III.1.2 Biaya Berlangganan Layanan Terkelola    : cloud subscription + trade-off waktu lawan anggaran
-  - III.1.3 Efek Domino Fragmentasi Lintas Peran    : pandangan umum fragmentasi DataOps + MLOps (per peran ke Lampiran C)
+  - III.1.3 Efek Domino Fragmentasi Lintas Peran    : pandangan umum fragmentasi DataOps + MLOps (Gambar III.1 saja, tanpa rincian per peran)
 - III.2 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
 - III.3 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
 Catatan:
@@ -257,18 +257,18 @@ Catatan:
   - Tabel KF (kolom: ID, Kebutuhan, Deskripsi, Tujuan) dan KNF (kolom: ID, Kebutuhan, Deskripsi, Target Metrik, Tujuan) sama-sama memuat kolom Tujuan yang menautkan tiap kebutuhan ke salah satu dari empat tujuan (T-1..T-4), mengikuti pengelompokan uji penerimaan pada Bab VI; untuk KNF kolom ini menunjuk tujuan utama karena KNF bersifat lintas-bidang.
   - Urutan baris (sort subject) yang wajib dijaga: KF diurut menurut lapisan arsitektur (KF-01..04 lapisan fitur, KF-05..10 siklus hidup model dan tata kelola, KF-11..14 lapisan operasional); KNF diurut menurut taksonomi atribut kualitas (kinerja, skalabilitas, keandalan, konsistensi, observability, keamanan, ekstensibilitas, lalu atribut operasional jangka panjang). Urutan ID sengaja tidak mengikuti Tujuan karena keterunutan ke T sudah ditampung kolom Tujuan secara terpisah.
   - ID KF-NN/KNF-NN terkunci satu lawan satu pada SK-F-NN/SK-N-NN di Bab VI dan dirujuk lintas bab; nomor tidak boleh diubah, perubahan urutan dilakukan lewat narasi pengelompokan bukan penomoran ulang.
-  - Fragmentasi per peran (busus/dateng/datsci/mleng) dirinci pada Lampiran C agar Bab III tetap ramping.
+  - Fragmentasi cukup ditampilkan sebagai pandangan umum pada Gambar III.1; rincian per peran tidak ditulis karena tesis bersifat layer-centric (lihat TEMPLATE_BAB.md §5). Lampiran C dan keempat diagram fragmentasi per peran sudah dihapus.
 ```
 
 **Bab IV — Perancangan Arsitektur Platform DataOps dan MLOps**
 
 ```
-- IV.1 Gambaran Umum Sistem        : sintesis arsitektur tujuh lapis + diagram
-- IV.2 Perancangan Sub-sistem A    : menjawab T-1 (arsitektur terintegrasi)
-- IV.3 Perancangan Sub-sistem B    : menjawab T-2 (tata kelola data)
-- IV.4 Perancangan Sub-sistem C    : menjawab T-3 (deteksi drift + PIT)
-- IV.5 Perancangan Sub-sistem D    : menjawab T-4 (feature store dual-store)
-- IV.6 Alur Kerja End-to-End       : rangkaian sub-sistem ke siklus produksi
+- IV.1 Gambaran Umum Platform                       : sintesis arsitektur tujuh lapis + diagram
+- IV.2 Perancangan Arsitektur Terintegrasi          : menjawab T-1 (arsitektur terintegrasi)
+- IV.3 Perancangan Sub-sistem Tata Kelola Data      : menjawab T-2 (tata kelola data)
+- IV.4 Perancangan Sub-sistem Deteksi Drift dan Continuous Training : menjawab T-3 (deteksi drift + PIT)
+- IV.5 Perancangan Sub-sistem Layanan Fitur Dual-Store : menjawab T-4 (feature store dual-store)
+- IV.6 Alur Kerja End-to-End                        : rangkaian sub-sistem ke siklus produksi
 Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
 Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke Bab V.
 ```
@@ -276,12 +276,12 @@ Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke
 **Bab V — Implementasi Arsitektur Platform DataOps dan MLOps**
 
 ```
-- V.1 Gambaran Umum Implementasi    : tumpukan teknologi + topologi cluster
-- V.2 Implementasi Sub-sistem A     : memetakan IV.2 ke manifest + konfigurasi
-- V.3 Implementasi Sub-sistem B     : memetakan IV.3 (governance + lineage)
-- V.4 Implementasi Sub-sistem C     : memetakan IV.4 (drift + PIT)
-- V.5 Implementasi Sub-sistem D     : memetakan IV.5 (feature store)
-- V.6 Verifikasi Implementasi       : use-case kripto sebagai instans pengujian
+- V.1 Lingkungan Implementasi                       : tumpukan teknologi + topologi cluster
+- V.2 Implementasi Arsitektur Terintegrasi          : memetakan IV.2 ke manifest + konfigurasi
+- V.3 Implementasi Sub-sistem Tata Kelola Data      : memetakan IV.3 (governance + lineage)
+- V.4 Implementasi Sub-sistem Deteksi Drift dan Continuous Training : memetakan IV.4 (drift + PIT)
+- V.5 Implementasi Sub-sistem Layanan Fitur Dual-Store : memetakan IV.5 (feature store)
+- V.6 Verifikasi Implementasi                       : use-case kripto sebagai instans pengujian
 Rantai keterhubungan: IV.N ↔ V.N ↔ Kesimpulan ke-N
 Catatan use-case: kripto hanya untuk verifikasi jalur, tidak mengubah sifat domain-agnostic.
 ```
