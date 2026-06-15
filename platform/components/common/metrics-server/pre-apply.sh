@@ -18,7 +18,7 @@ set -euo pipefail
 VERSION="${METRICS_SERVER_VERSION:-v0.8.1}"
 URL="https://github.com/kubernetes-sigs/metrics-server/releases/download/${VERSION}/components.yaml"
 # Repo-local cache (env-agnostic; survives /tmp wipes). REPO_ROOT exported by
-# scripts/apply-component.sh; fall back to walking up so the hook is also
+# platform/scripts/apply-component.sh; fall back to walking up so the hook is also
 # runnable standalone (4 levels: metrics-server → common → components → platform → repo).
 : "${REPO_ROOT:=$(cd "$(dirname "$0")/../../../.." && pwd)}"
 CACHE_DIR="${CACHE_DIR:-$REPO_ROOT/.cache}/downloads"

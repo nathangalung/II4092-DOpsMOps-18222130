@@ -8,7 +8,7 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPONENTS="$ROOT/platform/components"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-10}"
 DELAY="${DELAY:-10}"
@@ -29,7 +29,7 @@ declare -a NS_FILES=(
 for f in "${NS_FILES[@]}"; do
   if [[ -f "$f" ]]; then
     echo "==> apply $f"
-    bash "$ROOT/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- kubectl apply -f "$f"
+    bash "$ROOT/platform/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- kubectl apply -f "$f"
   else
     echo "WARN: $f missing — skipping" >&2
   fi

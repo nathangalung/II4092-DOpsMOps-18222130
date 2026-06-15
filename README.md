@@ -8,26 +8,26 @@ single root `Makefile` with composable phases.
 ```
 .
 ├── Makefile               # Root entry — composable phases, atoms, ops, use-case dispatch
-├── scripts/               # Shell + python helpers invoked from the Makefile
-│   ├── apply-component.sh        # Generic kubectl apply -k <component-dir>
-│   ├── apply-namespaces.sh       # Create all platform namespaces
-│   ├── create-buckets.sh         # Seed MinIO buckets
-│   ├── list-components.sh        # Print every installable component
-│   ├── nuke.sh                   # Tear down everything (DESTRUCTIVE)
-│   ├── nuke-vps.sh               # Reset VPS to fresh state (DESTRUCTIVE)
-│   ├── preflight.sh              # Verify kubectl/helm/kustomize toolchain
-│   ├── render-scalability.sh     # Render HPA/VPA/KEDA from templates
-│   ├── retry.sh                  # Retry harness used by apply-component
-│   ├── scale-zero-all.sh         # Scale all Deploy + STS to zero
-│   ├── scale.sh                  # Scale a single Deployment / StatefulSet
-│   ├── seed-gitea.sh             # Bootstrap Gitea repo + main branch
-│   ├── seed-openbao-from-env.sh  # Bootstrap OpenBao KV from .env
-│   ├── set-replicas-zero.py      # Baseline replicas=0 in components (uv-runnable)
-│   ├── setup-databases.sh        # Initial schemas / users
-│   ├── setup-toolchain.sh        # Install kubectl/helm/kustomize on the host
-│   ├── wait-component.sh         # Wait for pods labelled app=<name> Ready
-│   └── wipe-data.sh              # Delete PVCs in storage namespaces (DESTRUCTIVE)
 ├── platform/              # Use-case-agnostic platform manifests (single-node k3s)
+│   ├── scripts/           # Shell + Python helpers invoked from the Makefile
+│   │   ├── apply-component.sh        # Generic kubectl apply -k <component-dir>
+│   │   ├── apply-namespaces.sh       # Create all platform namespaces
+│   │   ├── create-buckets.sh         # Seed MinIO buckets
+│   │   ├── list-components.sh        # Print every installable component
+│   │   ├── nuke.sh                   # Tear down everything (DESTRUCTIVE)
+│   │   ├── nuke-vps.sh               # Reset VPS to fresh state (DESTRUCTIVE)
+│   │   ├── preflight.sh              # Verify kubectl/helm/kustomize toolchain
+│   │   ├── render-scalability.sh     # Render HPA/VPA/KEDA from templates
+│   │   ├── retry.sh                  # Retry harness used by apply-component
+│   │   ├── scale-zero-all.sh         # Scale all Deploy + STS to zero
+│   │   ├── scale.sh                  # Scale a single Deployment / StatefulSet
+│   │   ├── seed-gitea.sh             # Push platform + use-case trees to in-cluster Gitea
+│   │   ├── seed-openbao-from-env.sh  # Bootstrap OpenBao KV from platform/.env
+│   │   ├── set-replicas-zero.py      # Baseline replicas=0 in components (uv-runnable)
+│   │   ├── setup-databases.sh        # Initial schemas / users
+│   │   ├── setup-toolchain.sh        # Install kubectl/helm/kustomize on the host
+│   │   ├── wait-component.sh         # Wait for pods labelled app=<name> Ready
+│   │   └── wipe-data.sh              # Delete PVCs in storage namespaces (DESTRUCTIVE)
 │   ├── components/        # Per-namespace kustomize trees (~70 components)
 │   │   ├── common/                 # cert-manager, istio, knative, keda, kueue
 │   │   ├── security/               # openbao, ESO, kyverno, falco, trivy, opa
@@ -109,7 +109,7 @@ make install-ns-<namespace>       # apply every component in a namespace
 make list-components              # see all available names
 ```
 
-`install-%` dispatches to `scripts/apply-component.sh`, which finds the component
+`install-%` dispatches to `platform/scripts/apply-component.sh`, which finds the component
 under `platform/components/<ns>/<name>` and runs `kubectl apply -k` (kustomize).
 
 ## Scalability primitives
@@ -165,6 +165,6 @@ resolve relative to the use-case directory (e.g. `use-case-crypto/`).
 ## Conventions
 
 - ArgoCD `selfHeal=false` — components do not auto-revert. Manual sync only.
-- Namespaces created upfront via `scripts/apply-namespaces.sh`.
+- Namespaces created upfront via `platform/scripts/apply-namespaces.sh`.
 - All scripts are POSIX `bash`, idempotent, and never use `until` polling loops.
 - Component manifests labelled `app.kubernetes.io/managed-by: platform-makefile`.

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -470,6 +471,20 @@ func (c *HTTPSourceCollector) backfillHistorical() {
 		return
 	}
 
+	// Idempotency: if the sink already holds rows for this source, the
+	// historical load is done — skip the (potentially large) backfill
+	// fetch and let the regular realtime fetch carry the source forward.
+	// Mirrors the OHLCV history path's "data already up to date, skipping
+	// backfill" gate; backfill is a one-time bootstrap, not a per-run
+	// re-fetch (#514). Fail-open: if the check cannot run, backfill runs.
+	if c.sourceHasData() {
+		c.logger.Info(
+			"Supplementary data already present in sink, skipping backfill (realtime only)",
+			zap.String("source", c.cfg.Name),
+			zap.String("table", c.cfg.ClickHouseTable))
+		return
+	}
+
 	_, err := time.Parse(time.RFC3339, c.cfg.BackfillStartDate)
 	if err != nil {
 		c.logger.Error("Invalid backfill start date",
@@ -504,6 +519,53 @@ func (c *HTTPSourceCollector) backfillHistorical() {
 				zap.Int("records", len(records)))
 		}
 	}
+}
+
+// sourceHasData reports whether the configured ClickHouse sink already
+// holds at least one row for this supplementary source. Returns false on
+// any error or when ClickHouse is unconfigured, so backfill still runs
+// when the check cannot be performed (fail-open toward loading data).
+func (c *HTTPSourceCollector) sourceHasData() bool {
+	if c.cfg.ClickHouseURL == "" || c.cfg.ClickHouseTable == "" {
+		return false
+	}
+	q := fmt.Sprintf(
+		"SELECT count() FROM %s WHERE source = '%s' FORMAT TabSeparated",
+		c.cfg.ClickHouseTable, c.cfg.Name,
+	)
+	reqURL := fmt.Sprintf("%s/?query=%s", c.cfg.ClickHouseURL, url.QueryEscape(q))
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return false
+	}
+	// ClickHouse HTTP basic auth — the same credentials the rest of the
+	// pipeline uses (pipeline-secrets CLICKHOUSE_USER/PASSWORD). When unset
+	// the request is unauthenticated (no-password ClickHouse deployments).
+	if chUser := os.Getenv("CLICKHOUSE_USER"); chUser != "" {
+		req.SetBasicAuth(chUser, os.Getenv("CLICKHOUSE_PASSWORD"))
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		c.logger.Debug("ClickHouse existence check failed (will backfill)",
+			zap.String("source", c.cfg.Name), zap.Error(err))
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Debug("ClickHouse existence check non-200 (will backfill)",
+			zap.String("source", c.cfg.Name),
+			zap.Int("status", resp.StatusCode))
+		return false
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(string(body)), 10, 64)
+	if err != nil {
+		return false
+	}
+	return n > 0
 }
 
 // FetchHTTPJSON is a generic HTTP JSON fetcher. It performs a GET

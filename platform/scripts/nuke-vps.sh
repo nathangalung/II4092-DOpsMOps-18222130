@@ -20,7 +20,7 @@
 #   - System packages required for Claude Code
 #
 # Usage:
-#   FORCE=1 bash scripts/nuke-vps.sh    # skip confirmation
+#   FORCE=1 bash platform/scripts/nuke-vps.sh    # skip confirmation
 # =============================================================================
 set -euo pipefail
 

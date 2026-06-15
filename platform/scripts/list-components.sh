@@ -4,7 +4,7 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPONENTS="$ROOT/platform/components"
 
 declare -a NAMESPACES=(

@@ -17,8 +17,8 @@
 # (host disk), delete any lease whose IP is NOT in the live set. Idempotent.
 #
 # Usage:
-#   sudo scripts/reclaim-cni-ipam.sh           # reconcile + delete leaks
-#   sudo scripts/reclaim-cni-ipam.sh --dry-run # report only, no changes
+#   sudo platform/scripts/reclaim-cni-ipam.sh           # reconcile + delete leaks
+#   sudo platform/scripts/reclaim-cni-ipam.sh --dry-run # report only, no changes
 # =============================================================================
 set -euo pipefail
 

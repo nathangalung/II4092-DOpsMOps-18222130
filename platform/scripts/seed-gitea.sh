@@ -41,7 +41,7 @@ ORG="${GITEA_ORG:-platform}"
 ADMIN_SECRET="${GITEA_ADMIN_SECRET:-gitea-admin}"
 BOOTSTRAP_JOB="${GITEA_BOOTSTRAP_JOB:-gitea-bootstrap}"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PLATFORM_DIR="${REPO_ROOT}/platform"
 
 # Each entry: "<repo-name>:<src-dir-rel-to-repo-root>:<top-level-name>".

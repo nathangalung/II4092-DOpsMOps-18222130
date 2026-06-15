@@ -113,7 +113,7 @@ predictor pods lacking `storage-initializer` so the ReplicaSet recreates them
 against the now-live webhook). Run the model-serving apply (which invokes it):
 
 ```bash
-make apply-component COMPONENT=model-serving      # or: bash scripts/apply-component.sh model-serving
+make apply-component COMPONENT=model-serving      # or: bash platform/scripts/apply-component.sh model-serving
 ```
 
 **Pre-check the model bundle survived the data wipes** (else heal yields a

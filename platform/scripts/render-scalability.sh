@@ -16,7 +16,7 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TPL_DIR="$ROOT/platform/scalability"
 
 KIND_TYPE="${1:-}"

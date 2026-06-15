@@ -312,8 +312,9 @@ data:
 
     # Per ADR-013 the platform repo MUST NOT know about specific use-cases.
     # Use-case overlay repos (`platform/<use-case>`) are provisioned by
-    # scripts/seed-gitea.sh — an operator-host script outside platform/ that
-    # is allowed to enumerate use-cases. seed-gitea.sh creates each repo
+    # platform/scripts/seed-gitea.sh — an operator-host-scope script (runs from
+    # the operator host, not in-cluster) that is allowed to enumerate
+    # use-cases. seed-gitea.sh creates each repo
     # idempotently right before it force-pushes the working tree.
 
     echo "==> bootstrap done"

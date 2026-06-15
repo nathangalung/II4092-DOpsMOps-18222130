@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --no-project --quiet python
+#!/usr/bin/env -S uv run --no-project --quiet
 # /// script
 # requires-python = ">=3.10"
 # dependencies = []
@@ -9,8 +9,8 @@ Replaces top-level `replicas: <N>` and `replicaCount: <N>` with `: 0`.
 Preserves minReplicas/maxReplicas (HPA bounds) and .tmpl placeholders.
 
 Usage:
-    uv run python scripts/set-replicas-zero.py            # default platform/components
-    uv run python scripts/set-replicas-zero.py <dir>      # custom target
+    uv run platform/scripts/set-replicas-zero.py            # default platform/components
+    uv run platform/scripts/set-replicas-zero.py <dir>      # custom target
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TARGET = REPO_ROOT / "platform" / "components"
 
 PATTERN = re.compile(

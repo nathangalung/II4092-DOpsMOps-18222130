@@ -31,7 +31,7 @@ if [[ "$ACTION" != "apply" && "$ACTION" != "delete" ]]; then
   exit 1
 fi
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPONENTS="$ROOT/platform/components"
 # Repo-local cache. Env-agnostic across users/hosts (no /tmp collisions, no
 # /tmp-cleaner wipe mid-retry). .cache/ is gitignored at repo root.
@@ -389,7 +389,7 @@ echo "    cmd: ${CMD[*]}"
 APPLY_OUT="$RENDER_DIR/component-${NS}-${NAME}-apply.out"
 # `set -e` is on; tee through process substitution so an apply failure aborts
 # the script, but we still capture stdout+stderr for the mid-deletion check.
-bash "$ROOT/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}" 2>&1 \
+bash "$ROOT/platform/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}" 2>&1 \
   | tee "$APPLY_OUT"
 
 # Partial-nuke defense. SSA exits 0 when a target resource still has a
@@ -489,7 +489,7 @@ if grep -q "currently being deleted" "$APPLY_OUT" 2>/dev/null; then
     fi
   fi
   echo "    [partial-nuke defense] re-applying"
-  bash "$ROOT/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}"
+  bash "$ROOT/platform/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}"
 fi
 
 # Post-apply hook runs AFTER the main apply succeeds. Used by components whose

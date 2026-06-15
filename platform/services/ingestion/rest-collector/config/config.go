@@ -131,6 +131,13 @@ type SupplementarySourceConfig struct {
 	BackfillEnabled      bool          `mapstructure:"backfill_enabled"`
 	BackfillStartDate    string        `mapstructure:"backfill_start_date"`
 	ResponseFieldMapping string        `mapstructure:"response_field_mapping"`
+	// ClickHouseURL/Table make the backfill idempotent: before the
+	// (potentially large) backfill fetch, the collector checks whether the
+	// sink already holds this source's rows and skips backfill if so,
+	// leaving only the regular realtime fetch. Empty URL/Table disables the
+	// check so backfill always runs (prior behaviour preserved).
+	ClickHouseURL   string `mapstructure:"clickhouse_url"`
+	ClickHouseTable string `mapstructure:"clickhouse_table"`
 }
 
 type HistoryConfig struct {
@@ -293,6 +300,11 @@ func buildSupplementarySourcesFromEnv() []SupplementarySourceConfig {
 			backfillStartDate = os.Getenv("HISTORY_START_DATE")
 		}
 		responseFieldMapping := os.Getenv("RESPONSE_FIELD_MAPPING")
+		// Idempotent-backfill sink check: same ClickHouse instance as the
+		// OHLCV history path (BACKFILL_CLICKHOUSE_URL), with a
+		// supplementary-specific table. Empty values disable the check.
+		clickHouseURL := os.Getenv("BACKFILL_CLICKHOUSE_URL")
+		clickHouseTable := os.Getenv("BACKFILL_CLICKHOUSE_SUPPLEMENTARY_TABLE")
 		sources = append(sources, SupplementarySourceConfig{
 			Enabled:              enabled,
 			Name:                 name,
@@ -302,6 +314,8 @@ func buildSupplementarySourcesFromEnv() []SupplementarySourceConfig {
 			BackfillEnabled:      backfillEnabled,
 			BackfillStartDate:    backfillStartDate,
 			ResponseFieldMapping: responseFieldMapping,
+			ClickHouseURL:        clickHouseURL,
+			ClickHouseTable:      clickHouseTable,
 		})
 	}
 

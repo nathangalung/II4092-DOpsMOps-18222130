@@ -128,7 +128,11 @@ spec:
               resources:
                 requests:
                   cpu: "50m"
-                  memory: "64Mi"
+                  memory: "128Mi"
                 limits:
                   cpu: "200m"
-                  memory: "128Mi"
+                  # 128Mi→256Mi: the DeFiLlama /protocols JSON (every protocol's
+                  # TVL, multi-MB and growing as new protocols list) risked GC
+                  # thrash during parse at 128Mi (#514 secondary suspect). Only
+                  # consumed during the brief --once run; idle footprint is 0.
+                  memory: "256Mi"

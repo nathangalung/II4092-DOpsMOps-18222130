@@ -6,7 +6,7 @@
 # Run once on a fresh VPS/VM.
 #
 # Supported: Ubuntu 24.04+ / Debian 13+
-# Usage:     chmod +x scripts/setup-toolchain.sh && ./scripts/setup-toolchain.sh
+# Usage:     chmod +x platform/scripts/setup-toolchain.sh && ./platform/scripts/setup-toolchain.sh
 #
 # Languages: Go, Rust, Python, Java, TypeScript (Bun), C++ (xmake)
 # Cluster:   k3s + kubectl + helm + kustomize + jq + yq

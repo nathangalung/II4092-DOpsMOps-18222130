@@ -5,7 +5,7 @@
 # Usage:
 #   wait-component.sh <component-name> [timeout-seconds]
 #
-# On timeout, runs scripts/prune-stuck-sandboxes.sh against the component's
+# On timeout, runs platform/scripts/prune-stuck-sandboxes.sh against the component's
 # namespace to clear containerd CRI sandbox-name reservation cascades
 # (#160 / #166 / #169 / #209), then retries the wait once. The prune is
 # scoped to the single namespace already known to be stuck, so blast-radius
@@ -48,7 +48,7 @@ fi
 # reservation slot, and containerd refuses to start the sandbox while any of
 # them remain held. Force-deleting the live pod makes the controller recreate
 # it with a NEW UID (= new sandbox name = no reservation collision). See
-# scripts/prune-stuck-sandboxes.sh for the full pattern + safeguards.
+# platform/scripts/prune-stuck-sandboxes.sh for the full pattern + safeguards.
 #
 # Single retry only. If the second wait also fails, something else is wrong
 # (image pull failure, scheduler unschedulable, init-container crash, etc.)

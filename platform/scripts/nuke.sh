@@ -27,7 +27,7 @@
 # =============================================================================
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Platform namespaces. PVCs release via local-path-provisioner (ADR-031);
 # hostPath dirs under /var/lib/rancher/k3s/storage/ are deleted by k3s on
@@ -60,7 +60,7 @@ fi
 
 echo ""
 echo "==> Step 1: scale-zero-all (graceful)"
-NUKE_ALL=1 bash "$ROOT/scripts/scale-zero-all.sh" || true
+NUKE_ALL=1 bash "$ROOT/platform/scripts/scale-zero-all.sh" || true
 
 # -----------------------------------------------------------------------------
 # Step 1.5: pre-nuke CR finalizer scrub.

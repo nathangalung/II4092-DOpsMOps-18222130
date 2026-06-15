@@ -120,7 +120,7 @@ APPLY_DELAY ?= 10
 
 PLATFORM_DIR := platform
 USECASE_DIR := use-case-crypto
-SCRIPTS := scripts
+SCRIPTS := platform/scripts
 COMPONENTS := $(PLATFORM_DIR)/components
 SCALABILITY := $(PLATFORM_DIR)/scalability
 
@@ -145,7 +145,7 @@ PLATFORM_SERVICES := \
   inference-engine:serving/inference-engine \
   drift-reporter:drift-reporter
 
-# Pass-through to scripts/render-scalability.sh, scripts/scale.sh, scripts/apply-component.sh
+# Pass-through to platform/scripts/render-scalability.sh, platform/scripts/scale.sh, platform/scripts/apply-component.sh
 export KIND CPU_TARGET MEM_TARGET MODE CPU_MIN CPU_MAX MEM_MIN MEM_MAX MIN MAX TRIGGER TRIGGER_META NS NUKE_ALL FORCE
 export MAX_ATTEMPTS=$(APPLY_MAX_ATTEMPTS)
 export DELAY=$(APPLY_DELAY)
@@ -307,7 +307,7 @@ prune-stuck-sandboxes: ## Reactively clear containerd CRI sandbox-name reservati
 # =============================================================================
 # PER-NAMESPACE INSTALL (every component under a namespace dir)
 # =============================================================================
-# All paths route through scripts/retry.sh — uniform CRD-before-CR resilience.
+# All paths route through platform/scripts/retry.sh — uniform CRD-before-CR resilience.
 .PHONY: install-ns-common install-ns-security install-ns-storage install-ns-data-ingestion install-ns-data-processing install-ns-data-governance install-ns-model-lifecycle install-ns-model-serving install-ns-observability install-ns-gitops
 
 install-ns-common: ## Apply all common components (cert-manager, istio, knative, keda, kueue...)
@@ -544,7 +544,7 @@ seed-gitea: ## Push platform/ tree into the in-cluster gitea (force-push, idempo
 .PHONY: platform-generate-kustomization
 platform-generate-kustomization: ## Generate platform/services/base/kustomization.yaml from platform/config/services.yaml
 	@echo "$(YELLOW)Generating platform/services/base/kustomization.yaml from services config...$(NC)"
-	@uv run scripts/generate_kustomization.py
+	@uv run platform/scripts/generate_kustomization.py
 	@echo "$(GREEN)Done. Verify with: kubectl kustomize platform/services/overlays | head$(NC)"
 
 # =============================================================================

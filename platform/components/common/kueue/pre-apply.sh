@@ -38,7 +38,7 @@ set -euo pipefail
 KUEUE_VERSION="${KUEUE_VERSION:-v0.17.1}"
 URL="https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
 # Repo-local cache (env-agnostic; survives /tmp wipes). REPO_ROOT exported by
-# scripts/apply-component.sh; fall back to walking up from this script's dir
+# platform/scripts/apply-component.sh; fall back to walking up from this script's dir
 # so the hook is also runnable standalone.
 : "${REPO_ROOT:=$(cd "$(dirname "$0")/../../../.." && pwd)}"
 CACHE_DIR="${CACHE_DIR:-$REPO_ROOT/.cache}/downloads"
@@ -71,11 +71,11 @@ kubectl -n kube-system rollout status deployment/coredns --timeout=120s >/dev/nu
 # observed 2026-05-11: phase-full hit this error after the visibility
 # APIService apply, abrupting the run. The error is transient — a fresh apply
 # 10s later succeeds because the prior writes drained. Wrap with retry.sh
-# (10 attempts × 10s) for parity with scripts/apply-component.sh main SSA.
+# (10 attempts × 10s) for parity with platform/scripts/apply-component.sh main SSA.
 # tail -20 dropped: retry.sh's per-attempt log already truncates noise and
 # we want full apply stderr visible for diagnosis.
 echo "    applying upstream Kueue bundle (CRDs + controller + webhooks)"
-bash "$REPO_ROOT/scripts/retry.sh" 10 10 -- \
+bash "$REPO_ROOT/platform/scripts/retry.sh" 10 10 -- \
   kubectl apply --server-side --force-conflicts -f "$TMP"
 
 # IMMEDIATELY patch resources + strategy so the rollout triggered by upstream

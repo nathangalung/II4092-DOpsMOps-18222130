@@ -856,3 +856,37 @@ Replace Airbyte with **Meltano v3.9.3** (MIT license, SPDX `MIT`).
 - Thesis license compliance: all tools now carry OSI-approved licenses.
 
 ---
+
+## ADR-028 — Root `scripts/` relocates to `platform/scripts/`; root Makefile stays single; `experiments/` and `materials/` keep no top-level Makefile
+
+**Status:** ACCEPTED
+**Date:** 2026-06-15
+
+### Context
+
+The repository root historically held a `scripts/` directory (22 shell + Python helpers) and a single ~1.6k-line `Makefile`. A structure review asked whether root-level helpers and build logic should relocate next to the subtree they serve (`platform/`, `use-case-crypto/`), and whether `experiments/` and `materials/` warrant their own runners.
+
+Three established facts constrain the answer:
+
+1. Every one of the 22 root scripts is platform-scoped — invoked by platform `Makefile` recipes or platform component pre-apply hooks; none are use-case-specific (`use-case-crypto/` already carries its own `scripts/`).
+2. Task #292 *deliberately* merged the use-case-crypto Makefile into the root Makefile, making root the single cross-domain orchestration entry point (the `full*` / `phase-full` bridges chain platform + use-case applies and must live above both domains).
+3. ~11 of the moved scripts and several use-case Makefile recipes are CWD-relative (they read paths relative to `make`'s working directory rather than self-locating).
+
+### Decision
+
+1. **Relocate `scripts/` → `platform/scripts/`.** All 22 helpers are platform-scoped, so they belong inside `platform/`. Self-locating scripts had their repo-root anchor depth incremented one level (`/..` → `/../..`; Python `parents[1]` → `parents[2]`); functional references (internal `apply-component.sh` / `apply-namespaces.sh` / `nuke.sh` → `retry.sh`/`scale-zero-all.sh` calls), the Makefile `SCRIPTS` variable, the generated `platform/services/base/kustomization.yaml` header, and all documentation references were updated. The root `scripts/` directory is deleted.
+
+2. **Keep the root `Makefile` single — do NOT split it into per-domain Makefiles.** A recursive split (`$(MAKE) -C platform`, `$(MAKE) -C use-case-crypto`) would reverse #292's deliberate consolidation, break the CWD-relative scripts/recipes when the submake changes directory, and still require the cross-domain `full*` bridges to live in a root delegator anyway — real breakage risk for marginal co-location. The root Makefile is the natural, verified-working home for a cross-domain orchestrator. (If co-location is ever revisited, the only safe mechanism is textual GNU `include`, never `$(MAKE) -C` — but that re-splits exactly what #292 merged.)
+
+3. **No `experiments/Makefile`.** `experiments/` is, by its own README, a deliberately un-orchestrated verification layer: every artifact is "run manually, read-only against a live cluster," explicitly NOT part of `make phase-full` or Argo CD reconciliation. Scripts already self-execute via shebangs (`#!/usr/bin/env -S uv run`, `#!/usr/bin/env bash`); a Makefile would impose orchestration the design rejects.
+
+4. **No top-level `materials/Makefile`.** The two buildable subtrees — `materials/proposals/` and `materials/reports/` — already carry their own LaTeX Makefiles; `materials/notes/` and `materials/references/` are static documents with no shared build.
+
+### Consequences
+
+- `platform/` is now self-contained: manifests, scalability templates, and operational scripts under one root. The repository root holds only the cross-domain `Makefile` plus the three top-level domains (`platform/`, `use-case-crypto/`, `experiments/`) and `materials/`.
+- Platform/use-case orchestration keeps a single entry point (`make phase-full`, `make full`, `make usecase-crypto-*`), preserving the `docs/MIGRATION.md` runbook and #292.
+- Decisions (2)–(4) are "no-change with rationale": the structure request (move the Makefile / give experiments + materials their own runners *if needed*) is satisfied by documented judgment rather than churn — consistent with the "touch only what is needed / no forced structure" principle.
+- Verification: `make -n` for all 20 baseline targets is byte-identical modulo the `scripts/ → platform/scripts/` rename; `bash -n` clean on all scripts; the generator's `--dry-run` reproduces the committed kustomization body (so its `parents[2]` repo-root resolves correctly); and the seed-gitea repo-root anchor (the GitOps push source) was runtime-verified to resolve to the true repository root.
+
+---

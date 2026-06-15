@@ -61,6 +61,11 @@ data:
   HISTORY_BACKFILL_ON_START: "true"
   BACKFILL_CLICKHOUSE_URL: "http://clickhouse-platform.storage.svc.cluster.local:8123"
   BACKFILL_CLICKHOUSE_TABLE: "bronze.crypto_ohlcv"
+  # Supplementary idempotent-backfill sink check: bronze.crypto_sentiment
+  # holds the crypto.supplementary rows keyed by `source`. When the sink
+  # already has this source's rows, the collector skips the backfill fetch
+  # and does only the realtime fetch (backfill = one-time bootstrap, #514).
+  BACKFILL_CLICKHOUSE_SUPPLEMENTARY_TABLE: "bronze.crypto_sentiment"
 
   # --- Supplementary backfill ---
   SUPPLEMENTARY_BACKFILL_ENABLED: "true"
