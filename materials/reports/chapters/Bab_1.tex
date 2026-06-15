@@ -4,7 +4,7 @@
 %   - I.1 Latar Belakang       : kondisi, urgensi, solusi yang ada, kekurangannya
 %   - I.2 Rumusan Masalah       : RM-1..RM-4 (domain-agnostic, kripto bukan latar)
 %   - I.3 Tujuan                : T-1..T-4, satu lawan satu dengan RM-N
-%   - I.4 Batasan Masalah        : B-1..B-5 (B-2 node tunggal k3s, B-5 beban penuh menyusul)
+%   - I.4 Batasan Masalah        : B-1..B-5 (B-2 node tunggal k3s, B-5 lingkup evaluasi node tunggal)
 %   - I.5 Metodologi            : tahapan DSRM disesuaikan untuk platform
 %   - I.6 Sistematika Penulisan : gambaran isi Bab I..VII
 % Rantai keterhubungan: RM-N <-> T-N <-> Bab IV <-> Bab V <-> Bab VI <-> K-N
@@ -138,9 +138,9 @@ Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Batasan dis
 
     \vspace{0.5em}
 
-    \item \textbf{Evaluasi kuantitatif menyusul setelah implementasi inti}
+    \item \textbf{Lingkup evaluasi pada lingkungan verifikasi node tunggal}
 
-    Evaluasi \textit{end-to-end} seperti pengukuran latensi penuh, \textit{throughput}, dan stabilitas penyebaran lanjutan dilakukan setelah seluruh tahapan implementasi inti berjalan. Evaluasi tidak mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik.
+    Evaluasi difokuskan pada penerimaan fungsional dan struktural di lingkungan node tunggal, sedangkan karakterisasi beban kuantitatif penuh seperti latensi p99, \textit{throughput} puncak, dan skalabilitas horizontal pada kluster multi-node ditempatkan sebagai arah pengembangan lanjutan. Evaluasi tidak mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik.
 \end{enumerate}
 
 Kelima batasan di atas menjadi konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}. Setiap usulan penambahan lingkup selama pengerjaan dievaluasi terhadap kelima batas tersebut agar pengembangan tetap terfokus. Asumsi terkait \textit{open source} dan patokan versi memberi peluang pengembang lain untuk memverifikasi arsitektur tanpa kontak dengan penyedia layanan berbayar. Batasan ini tidak menutup kemungkinan pengembangan lanjutan pada lingkungan multi-\textit{node} dan multi-domain di masa depan.

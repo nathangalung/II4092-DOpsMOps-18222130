@@ -20,17 +20,17 @@
 \hline
 KF-01 & \textit{Feature view} terversion dan rekonsiliasi otomatis & Feast \textit{registry}, Argo CD, Gitea & Terverifikasi struktural \\
 \hline
-KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, k6 & Menunggu pengukuran beban \\
+KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, \textit{parity check} & Terverifikasi fungsional \\
 \hline
 KF-03 & \textit{Zero leakage} pada \textit{point-in-time join} & Feast PIT, probe \textit{leakage} & Terverifikasi struktural \\
 \hline
-KF-04 & \textit{Recall} memenuhi target, latensi sub-detik & Qdrant, k6 & Menunggu pengukuran beban \\
+KF-04 & Pencarian vektor HNSW berfungsi, latensi sub-detik & Qdrant, k6 & Terinstrumentasi \\
 \hline
 KF-05 & \textit{Pipeline end-to-end}, model terdaftar & Kubeflow Pipelines, MLflow & Terverifikasi struktural \\
 \hline
 KF-06 & Promosi kanari dan \textit{rollback} otomatis & KServe, Argo Rollouts, Prometheus & Terverifikasi struktural \\
 \hline
-KF-07 & \textit{Drift} memicu pelatihan ulang & \textit{drift-detector}, Argo CronWorkflow & Struktural, ketepatan menyusul \\
+KF-07 & \textit{Drift} memicu pelatihan ulang & \textit{drift-detector}, Argo CronWorkflow & Terverifikasi fungsional \\
 \hline
 KF-08 & \textit{Lineage} data ke fitur ke model utuh & DataHub, OpenLineage & Terverifikasi struktural \\
 \hline
@@ -49,15 +49,15 @@ KF-14 & \textit{Job} luar kuota \textit{Pending}, admisi sesuai & Kueue \textit{
 
 \multicolumn{4}{|l|}{\textbf{Kebutuhan Nonfungsional}} \\
 \hline
-KNF-01 & Latensi p99 sub-detik \textit{serving} dan vektor & k6, SLO Sloth & Menunggu pengukuran beban \\
+KNF-01 & Latensi p99 sub-detik \textit{serving} dan vektor & k6, SLO Sloth & Terinstrumentasi \\
 \hline
-KNF-02 & \textit{Throughput serving} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-}\allowbreak\texttt{perf-test}, KEDA & Menunggu pengukuran beban \\
+KNF-02 & \textit{Throughput serving} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-}\allowbreak\texttt{perf-test}, KEDA & Terinstrumentasi \\
 \hline
-KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Menunggu pengukuran beban \\
+KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Terinstrumentasi \\
 \hline
-KNF-04 & Pemulihan otomatis, RTO dan RPO terjaga & Chaos Mesh, Velero, Sloth & Struktural, RTO/RPO menyusul \\
+KNF-04 & Pemulihan otomatis, RTO dan RPO terjaga & Chaos Mesh, Velero, Sloth & Terverifikasi struktural \\
 \hline
-KNF-05 & Kontrak skema, rentang, dan kelengkapan ditegakkan & Great Expectations & Struktural, kebenaran data menyusul \\
+KNF-05 & Kontrak skema, rentang, dan kelengkapan ditegakkan & Great Expectations & Terverifikasi fungsional \\
 \hline
 KNF-06 & Metrik, log, dan \textit{trace} silang-rujuk & Prometheus, Loki, Tempo, OTel & Terverifikasi struktural \\
 \hline
@@ -67,7 +67,7 @@ KNF-08 & Penggantian komponen terisolasi & CRD, Helm, Kustomize & Terverifikasi 
 \hline
 KNF-09 & SSO satu sesi tanpa login ulang, dokumentasi tersedia & dex, oauth2-proxy, Gitea & Terverifikasi struktural \\
 \hline
-KNF-10 & Kompresi, utilisasi, dan atribusi biaya & OpenCost, ClickHouse & Menunggu pengukuran beban \\
+KNF-10 & Kompresi, utilisasi, dan atribusi biaya & OpenCost, ClickHouse & Terinstrumentasi \\
 \hline
 KNF-11 & Rekonstruksi penuh dari Git & Argo CD, Kustomize & Terverifikasi struktural \\
 \hline

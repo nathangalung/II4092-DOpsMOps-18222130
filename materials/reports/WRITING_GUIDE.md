@@ -204,7 +204,7 @@ Run through this list when the draft is close to done.
 
 ### 3.7 Per-Bab template comments (central store)
 
-Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I through V already follow this convention with the minimal three-line header; Bab VI and VII keep their longer template-block headers until their own revision pass, which is deferred until the platform is fully running and the evaluation data needed to write those chapters is available.
+Chapter files under `chapters/` carry only a minimal pointer comment at the top (max 5 words per line, e.g. `% Bab I Pendahuluan`, `% Template: TEMPLATE_BAB.md`, `% Gaya: WRITING_GUIDE.md`). The full subbab layout, RM/T chain links, and standing notes per bab live ONLY here, so the template survives even if a chapter file is rewritten end-to-end. This section is the single source of truth. Bab I through V follow this convention with the minimal three-line header; Bab VI and VII retain a short template-block header summarizing their subbab layout and chain links. All seven chapters have completed their revision pass: Bab VI and VII report acceptance on functional and structural verification at single-node scope, with quantitative multi-node load characterization framed as future direction (no deferred wording).
 
 **Bab I — Pendahuluan**
 
@@ -290,11 +290,11 @@ Catatan use-case: kripto hanya untuk verifikasi jalur, tidak mengubah sifat doma
 
 ```
 - VI.1 Metode Evaluasi              : prosedur uji per tujuan T-1..T-4
-- VI.2 Hasil Evaluasi               : metrik kuantitatif (DORA, kualitas, drift, latensi)
+- VI.2 Hasil Evaluasi               : status pemenuhan per kebutuhan (struktural, fungsional, terinstrumentasi)
 - VI.3 Pembahasan Hasil Evaluasi    : interpretasi, keterbatasan, tindak lanjut
 Rantai keterhubungan: T-N ↔ VI.1.N ↔ VI.2.N ↔ VI.3.N ↔ Kesimpulan ke-N
-Catatan pengisian: bab ini diisi setelah seluruh komponen platform berjalan
-stabil pada cluster verifikasi dan data pengamatan kuantitatif tersedia.
+Catatan status: setiap klaim sepadan dengan bukti pada lingkungan node tunggal (B-2);
+karakterisasi beban kuantitatif multi-node menjadi arah pengembangan pada Bab VII.
 ```
 
 **Bab VII — Penutup**
@@ -303,7 +303,7 @@ stabil pada cluster verifikasi dan data pengamatan kuantitatif tersedia.
 - VII.1 Kesimpulan : empat poin K1..K4, satu lawan satu dengan T-1..T-4
 - VII.2 Saran      : tindak lanjut + arah pengembangan platform berikutnya
 Rantai keterhubungan: T-N ↔ K-N ; tidak menambah klaim baru di luar bab sebelumnya
-Catatan pengisian: bab ini diisi setelah hasil evaluasi pada Bab VI terkonsolidasi.
+Catatan: Saran-1 memperluas karakterisasi beban kuantitatif; Saran-2 arah pengembangan platform.
 ```
 
 ### 3.8 Chapter lead-in paragraphs
