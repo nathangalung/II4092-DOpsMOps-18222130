@@ -13,10 +13,10 @@ Platform Tugas Akhir ini bersifat domain-agnostic. *Use case* kripto hanya berpe
 | 3  | *Drift* data dan *concept drift* terjadi tanpa terdeteksi, sementara penyajian fitur lintas mode *batch* dan *streaming* rentan terhadap kebocoran temporal (*temporal leakage*). | Mengimplementasikan mekanisme deteksi *drift* terotomasi dengan *retraining* berbasis kebijakan dan menjamin *point-in-time correctness* pada penyajian fitur. | IV.4 *Sub-sistem* Deteksi *Drift* dan *Continuous Training* | V.4 Implementasi Deteksi *Drift* dan *Continuous Training* | K3 |
 | 4  | Fitur multimoda (vektor berdimensi tinggi, fitur agregat, fitur waktu nyata) sulit dilayani konsisten dengan SLA berbeda dari satu sumber kebenaran. | Mengembangkan layanan fitur *dual-store* (*offline* + *online*) yang melayani fitur tabular maupun vektor melalui satu kontrak API. | IV.5 *Sub-sistem* Layanan Fitur *Dual-Store* | V.5 Implementasi Layanan Fitur *Dual-Store* | K4 |
 
-Subbab IV.1 (Gambaran Umum Platform) dan V.1 (Lingkungan Implementasi) berfungsi sebagai pengikat; subbab ini tidak masuk ke dalam rantai 1-1 di atas, tetapi wajib ada (lihat panduan Bab IV pada `WRITING_GUIDE.md` §3.2).
+Subbab pengikat berada di kepala dan ekor tiap bab dan tidak masuk ke dalam rantai 1-1 di atas, tetapi wajib ada. Di kepala: IV.1 (Gambaran Umum Platform) dan V.1 (Lingkungan Implementasi) yang membuka konteks sebelum subbab rantai. Di ekor: IV.6 (Alur Kerja *End-to-End*) yang menyatukan keempat sub-sistem menjadi satu siklus *after* sebagai pasangan dari diagram *before* pada Bab III, dan V.6 (Verifikasi Implementasi) yang menjembatani ke evaluasi kuantitatif pada Bab VI. Panduan rinci pada `WRITING_GUIDE.md` §3.2.
 
 Aturan turunan:
-1. Jumlah RM = jumlah T = jumlah subbab Bab IV (di luar IV.1) = jumlah subbab Bab V (di luar V.1) = jumlah poin Kesimpulan.
+1. Jumlah RM = jumlah T = jumlah subbab rantai Bab IV (di luar pengikat IV.1 dan IV.6) = jumlah subbab rantai Bab V (di luar pengikat V.1 dan V.6) = jumlah poin Kesimpulan. Saat ini keempat angka tersebut bernilai 4.
 2. Verba pada Tujuan tidak boleh berisi “mengevaluasi”, “menguji”, “mengukur”, atau “mendemonstrasikan”. Evaluasi adalah aktivitas metodologi, bukan tujuan.
 3. Judul Bab IV menyebut nama artefak, bukan kata generik “Perancangan”. Judul yang digunakan: “Perancangan Arsitektur Platform DataOps dan MLOps”.
 4. Setiap subbab Bab V membuka dengan referensi balik ke subbab Bab IV yang dipenuhi.

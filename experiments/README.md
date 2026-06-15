@@ -19,8 +19,9 @@ Who runs what:
   feature parity (`parity/`, KF-11), DataHub lineage walk (`lineage/`, KF-08),
   point-in-time + leakage probes (KF-03, KNF-05), throughput + consumer-lag
   (KNF-02).
-- **Business / platform owner** — cost + utilisation + SLO + security evidence
-  (KNF-07, KNF-09, KNF-10), reproducibility on a fresh node (KNF-11).
+- **Business / platform owner** — cost + utilisation + SLO + security +
+  single-sign-on access (KNF-07, KNF-09, KNF-10), reproducibility on a fresh
+  node (KNF-11).
 
 > Prerequisites: platform up (`make phase-full`), use-case deployed
 > (`make usecase-crypto-build && make usecase-crypto-up`), all pods `Running`
@@ -93,7 +94,7 @@ sibling, so a prefix change there must be mirrored here by hand.
 | KNF-06 | SK-N-06 | OpenTelemetry trace walk on Tempo (single trace ID end-to-end) |
 | KNF-07 | SK-N-07 | `trivy` cluster scan + `testssl.sh` on public endpoints (TLS 1.3, AES-256) |
 | KNF-08 | SK-N-08 | Swap serving runtime or online store via CRD/overlay (e.g. Seldon as alternative), isolated change |
-| KNF-09 | SK-N-09 | User survey (≥5 responden, skor >4/5) |
+| KNF-09 | SK-N-09 | Akses seluruh konsol lewat satu sesi identitas dex + oauth2-proxy (SSO, tanpa login ulang), dokumentasi tersedia |
 | KNF-10 | SK-N-10 | OpenCost + ClickHouse compression ratio + CPU utilisation (>70%, >5:1) |
 | KNF-11 | SK-N-11 | Re-apply GitOps manifests on a fresh K3s node |
 | KNF-12 | SK-N-12 | `make test` coverage (>80%) + `make phase-full` clean-cluster timing |

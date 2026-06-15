@@ -1,23 +1,37 @@
 % ============================================================
-% BAB VII — PENUTUP
+% BAB VII - PENUTUP
 % Template (ITB STI TA + Proposal.tex):
 %   - VII.1 Kesimpulan : empat poin K1..K4, satu lawan satu dengan T-1..T-4
 %   - VII.2 Saran      : tindak lanjut + arah pengembangan platform berikutnya
-% Rantai keterhubungan: T-N ↔ K-N ; tidak menambah klaim baru di luar bab sebelumnya
-% Catatan pengisian: bab ini diisi setelah hasil evaluasi pada Bab VI terkonsolidasi.
+% Rantai keterhubungan: T-N <-> K-N ; tidak menambah klaim baru di luar bab sebelumnya
 % ============================================================
 \cleardoublepage
 \chapter{PENUTUP}
 \label{chap:penutup}
 
-Bab ini akan diisi setelah hasil evaluasi pada Bab~\ref{chap:evaluasi} terkonsolidasi. Kerangka kesimpulan dijaga mengikuti aturan rantai kunci: setiap poin kesimpulan menjawab tepat satu tujuan T-1 sampai T-4 dengan urutan yang sama, tanpa menambahkan klaim baru di luar yang dibahas pada bab-bab sebelumnya.
+Bab ini merangkum capaian penelitian dan menutup rantai keterhubungan yang dijaga sejak rumusan masalah. Setiap butir kesimpulan menjawab tepat satu tujuan T-1 sampai T-4 dengan urutan yang sama, sehingga setiap klaim dapat ditelusuri kembali ke tujuan, kebutuhan, dan skenario uji yang bersesuaian. Kesimpulan disusun pada tingkat capaian yang telah terverifikasi secara struktural pada lingkungan node tunggal, sedangkan kuantifikasi beban penuh dinyatakan sebagai tindak lanjut sesuai batasan B-5 pada Subbab~\ref{sec:batasan}. Saran kemudian mengarahkan langkah lanjutan untuk menutup capaian yang masih menunggu pengukuran dan untuk mengembangkan platform pada tahap berikutnya.
 
 \section{Kesimpulan}
 \label{sec:kesimpulan}
 
-Kesimpulan akan dirangkum dalam empat poin yang bersesuaian dengan empat tujuan platform. Poin K1 akan merangkum bukti bahwa arsitektur DataOps dan MLOps terintegrasi pada Kubernetes dapat dipasang dari satu sumber Git dengan praktik GitOps. Poin K2 akan merangkum bukti bahwa katalog metadata, \textit{lineage}, dan kontrol kualitas data berjalan otomatis sepanjang \textit{pipeline} data, fitur, dan model. Poin K3 akan merangkum bukti bahwa deteksi \textit{drift} terotomasi memicu pelatihan ulang sesuai kebijakan dan bahwa penyajian fitur memenuhi \textit{point-in-time correctness}. Poin K4 akan merangkum bukti bahwa layanan fitur \textit{dual-store} menyajikan fitur tabular, fitur agregat, dan fitur vektor dengan kontrak yang konsisten antara fase pelatihan dan fase \textit{inference}.
+Penelitian ini menghasilkan satu instansiasi arsitektur DataOps dan MLOps terintegrasi pada Kubernetes yang dievaluasi melalui \textit{use case} pasar aset kripto sebagai instans verifikasi. Berdasarkan hasil evaluasi pada Bab~\ref{chap:evaluasi}, empat tujuan platform dapat disimpulkan sebagai berikut.
+
+\begin{enumerate}
+  \item \textbf{Arsitektur terintegrasi dan GitOps (T-1)} \\
+  Seluruh komponen platform terbukti dapat dipasang dan direkonsiliasi dari satu sumber Git oleh Argo CD, dengan perubahan definisi konvergen tanpa \textit{drift} dan rekonstruksi penuh pada \textit{node} k3s baru tanpa intervensi manual selain \textit{bootstrap} awal. Capaian ini menjawab RM-1 dengan menggantikan fragmentasi tumpukan teknologi oleh satu bidang kendali deklaratif yang dapat diaudit.
+  \item \textbf{Tata kelola data otomatis (T-2)} \\
+  Katalog metadata, \textit{lineage}, dan kontrol kualitas terbukti berjalan sebagai layanan bersama sepanjang \textit{pipeline} data, fitur, dan model, dengan peristiwa \textit{lineage} OpenLineage dan kontrak Great Expectations tertanam pada jalur produksi. Capaian ini menjawab RM-2 dengan menjadikan tata kelola bagian melekat dari \textit{pipeline}, bukan pekerjaan pasca-fakta.
+  \item \textbf{Deteksi \textit{drift} dan \textit{point-in-time correctness} (T-3)} \\
+  \textit{Control loop} pelatihan ulang terbukti terpicu otomatis ketika \textit{drift} disuntikkan dan penyusunan fitur historis terbukti menolak kebocoran temporal pada jalur pelatihan. Capaian ini menjawab RM-3, sedangkan ketepatan deteksi pada pergeseran distribusi alami berdurasi panjang dinyatakan sebagai tindak lanjut.
+  \item \textbf{Layanan fitur \textit{dual-store} (T-4)} \\
+  Jalur penyajian fitur \textit{online}, \textit{offline}, dan vektor terbukti terbentuk dengan kontrak fitur yang konsisten antara fase pelatihan dan fase \textit{inference}. Capaian ini menjawab RM-4 pada tingkat struktural, sedangkan angka latensi p99 dan \textit{throughput} pada beban tinggi dinyatakan sebagai tindak lanjut sesuai batasan B-5.
+\end{enumerate}
+
+Keempat kesimpulan tersebut menegaskan bahwa kontribusi utama penelitian berupa instansiasi arsitektur terintegrasi telah tercapai dan tertelusur secara penuh dari rumusan masalah hingga skenario uji. Pemenuhan yang dilaporkan bersifat struktural pada lingkungan node tunggal, sehingga klaim kuantitatif beban penuh sengaja ditahan agar tidak melampaui bukti yang tersedia. Dengan demikian, platform terbukti dapat direkonstruksi, dikelola secara deklaratif, dan menjalankan siklus hidup data serta model secara terotomasi, sedangkan penilaian kinerja menyeluruh menjadi pekerjaan lanjutan yang terdefinisi jelas.
 
 \section{Saran}
 \label{sec:saran}
 
-Saran akan diarahkan pada tindak lanjut untuk tujuan yang belum tertutup penuh oleh evaluasi awal serta pada arah pengembangan platform berikutnya. Beberapa arah yang telah teridentifikasi mencakup perluasan dukungan multi-\textit{tenancy} pada lapis tata kelola, otomasi kebijakan kuota pada \textit{Kueue} untuk beban pelatihan yang lebih besar, integrasi metrik biaya \textit{OpenCost} dengan kebijakan \textit{retraining}, dan adopsi profil keamanan yang lebih ketat melalui \textit{Kyverno} setelah profil dasar matang.
+Saran pertama diarahkan pada penutupan capaian yang masih menunggu pengukuran beban. Pengujian beban penuh perlu dijalankan pada lingkungan multi-node untuk memverifikasi skalabilitas horizontal, latensi p99, dan \textit{throughput} puncak yang pada penelitian ini baru terverifikasi secara struktural. Pengamatan \textit{drift} juga perlu diperpanjang pada data nyata berdurasi panjang agar ketepatan deteksi terhadap pergeseran distribusi alami dapat dinilai, bukan hanya terhadap \textit{drift} sintetis. Selain itu, penilaian kebenaran nilai fitur sebaiknya dilakukan setelah jalur ingestasi sampai lapis \textit{gold} terisi penuh sehingga seluruh kontrak fitur dapat diuji pada kondisi data lengkap.
+
+Saran kedua diarahkan pada arah pengembangan platform berikutnya di luar lingkup penelitian ini. Beberapa arah yang teridentifikasi mencakup perluasan dukungan multi-\textit{tenancy} pada lapis tata kelola, otomasi kebijakan kuota pada Kueue untuk beban pelatihan yang lebih besar, integrasi metrik biaya OpenCost dengan kebijakan \textit{retraining}, serta adopsi profil keamanan Kyverno yang lebih ketat setelah profil dasar matang. Arah tersebut melanjutkan sifat \textit{domain-agnostic} platform sehingga \textit{use case} lain dapat diadopsi tanpa mengubah lapis kendali. Dengan demikian, platform dapat berkembang dari instansiasi yang terverifikasi struktural menjadi fondasi yang teruji pada beban produksi nyata.

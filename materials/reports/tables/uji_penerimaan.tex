@@ -28,6 +28,16 @@ SK-F-13 & KF-13 & Menjalankan satu \textit{notebook} UV yang memanggil SDK Feast
 \hline
 SK-F-14 & KF-14 & Mengirim sejumlah \textit{job} pelatihan melebihi kuota \textit{ClusterQueue} Kueue, lalu mengamati status admisi. & \textit{Job} di luar anggaran kuota berstatus \textit{Pending}. Admisi mengikuti \textit{nominalQuota} dan \textit{borrowingLimit}. \\
 \hline
+SK-N-03 & KNF-03 & Menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} sambil mengamati HPA, KEDA \textit{ScaledObject}, dan jumlah \textit{pod}. & Jumlah \textit{replica} naik mengikuti beban dan \textit{throughput} bertambah mendekati linear. \\
+\hline
+SK-N-04 & KNF-04 & Menyuntikkan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & Beban kerja pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
+\hline
+SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{runtime} penyajian) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
+\hline
+SK-N-09 & KNF-09 & Mengakses seluruh konsol platform melalui satu sesi identitas dex serta memeriksa ketersediaan dokumentasi operasional pada repositori Gitea. & Seluruh konsol dapat dicapai melalui satu jalur autentikasi tunggal tanpa login ulang dan dokumentasi prosedur inti tersedia. \\
+\hline
+SK-N-10 & KNF-10 & Mengukur rasio kompresi ClickHouse, utilisasi sumber daya, dan atribusi biaya \textit{workload} pada OpenCost. & Rasio kompresi dan utilisasi memenuhi target serta biaya per \textit{workload} dapat diatribusikan. \\
+\hline
 SK-N-11 & KNF-11 & Menerapkan ulang seluruh manifes GitOps pada \textit{node} k3s baru dari satu sumber Git. & Seluruh komponen terekonstruksi tanpa intervensi manual selain \textit{bootstrap} Argo CD. \\
 \hline
 SK-N-12 & KNF-12 & Menjalankan \texttt{make test} untuk cakupan uji dan \texttt{make phase-full} pada \textit{cluster} bersih sambil mengukur waktu konvergensi. & Cakupan uji melewati ambang yang ditetapkan dan \texttt{phase-full} konvergen tanpa langkah manual. \\
@@ -41,7 +51,7 @@ SK-F-09 & KF-09 & Menjalankan dua \textit{run} pelatihan pada MLflow, lalu memut
 \hline
 SK-F-10 & KF-10 & Memindahkan model melalui status \textit{none}, \textit{staging}, \textit{production}, dan \textit{archived} pada registri MLflow. & Transisi mengikuti aturan yang ditetapkan dan \textit{audit trail} terekam lengkap. \\
 \hline
-SK-N-05 & KNF-05 & Menjalankan \textit{checkpoint} Great Expectations dan menyuntikkan probe \textit{timestamp} masa depan untuk menguji kebocoran temporal. & Pelanggaran kontrak kualitas terdeteksi dan tidak ada kebocoran data temporal yang lolos. \\
+SK-N-05 & KNF-05 & Menjalankan \textit{checkpoint} Great Expectations pada \textit{batch} data, lalu menyuntikkan pelanggaran skema, rentang nilai, dan kelengkapan untuk menguji penegakan kontrak. & Setiap pelanggaran kontrak kualitas terdeteksi dan \textit{batch} cacat ditolak sebelum masuk lapis hilir. \\
 \hline
 SK-N-06 & KNF-06 & Menelusuri satu \textit{trace} OpenTelemetry pada Grafana Tempo dari ingestasi hingga prediksi. & Satu \textit{trace} menautkan lintasan kritis dan metrik, log, serta \textit{trace} dapat dirujuk silang. \\
 \hline
@@ -68,16 +78,6 @@ SK-F-11 & KF-11 & Membandingkan fitur hasil \textit{batch} (dbt) dan hasil \text
 SK-N-01 & KNF-01 & Menjalankan \texttt{load/feast-online-latency.js} dan beban pencarian vektor dengan k6 sambil memantau SLO Sloth. & Latensi p99 berada pada orde sub-detik pada \textit{feature serving} dan \textit{vector search}. \\
 \hline
 SK-N-02 & KNF-02 & Menjalankan \texttt{load/feast-throughput.js} untuk \textit{serving} dan \texttt{kafka-producer-perf-test} untuk \textit{stream}, sambil memantau \textit{lag}. & \textit{Throughput} mencapai target dan \textit{lag} konsumer tetap terkendali pada beban puncak. \\
-\hline
-SK-N-03 & KNF-03 & Menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} sambil mengamati HPA, KEDA \textit{ScaledObject}, dan jumlah \textit{pod}. & Jumlah \textit{replica} naik mengikuti beban dan \textit{throughput} bertambah mendekati linear. \\
-\hline
-SK-N-04 & KNF-04 & Menyuntikkan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & Beban kerja pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
-\hline
-SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{runtime} penyajian) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
-\hline
-SK-N-09 & KNF-09 & Mengakses seluruh konsol platform melalui satu sesi identitas dex serta memeriksa ketersediaan dokumentasi operasional pada repositori Gitea. & Seluruh konsol dapat dicapai melalui satu jalur autentikasi tunggal tanpa login ulang dan dokumentasi prosedur inti tersedia. \\
-\hline
-SK-N-10 & KNF-10 & Mengukur rasio kompresi ClickHouse, utilisasi sumber daya, dan atribusi biaya \textit{workload} pada OpenCost. & Rasio kompresi dan utilisasi memenuhi target serta biaya per \textit{workload} dapat diatribusikan. \\
 \hline
 
 \end{longtable}
