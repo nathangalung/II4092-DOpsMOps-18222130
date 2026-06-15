@@ -89,7 +89,7 @@ spec:
                   - name: FEATURES_TABLE
                     value: "gold.fct_training_data"
                   - name: START_DATE
-                    value: "2026-03-01"
+                    value: "2026-01-01"
                   # END_DATE follows thesis-viva demo window. Bumped
                   # 2026-04-20 to keep the HPO baseline trial writing a
                   # fresh best-trial into MLflow; drift-triggered retrain

@@ -44,6 +44,8 @@ $(DOC).pdf: $(DEPS)
 	xelatex -output-directory=$(BUILD_DIR) $(DOC).tex
 	@echo "Running XeLaTeX (3rd pass)..."
 	xelatex -output-directory=$(BUILD_DIR) $(DOC).tex
+	@echo "Running XeLaTeX (4th pass, cross-reference settle)..."
+	xelatex -output-directory=$(BUILD_DIR) $(DOC).tex
 	@cp $(BUILD_DIR)/$(DOC).pdf .
 	@echo "Build complete! Output: $(DOC).pdf"
 

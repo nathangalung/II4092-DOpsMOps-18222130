@@ -97,7 +97,7 @@ sibling, so a prefix change there must be mirrored here by hand.
 | KNF-09 | SK-N-09 | Akses seluruh konsol lewat satu sesi identitas dex + oauth2-proxy (SSO, tanpa login ulang), dokumentasi tersedia |
 | KNF-10 | SK-N-10 | OpenCost + ClickHouse compression ratio + CPU utilisation (>70%, >5:1) |
 | KNF-11 | SK-N-11 | Re-apply GitOps manifests on a fresh K3s node |
-| KNF-12 | SK-N-12 | `make test` coverage (>80%) + `make phase-full` clean-cluster timing |
+| KNF-12 | SK-N-12 | `make usecase-crypto-test` coverage (>80%) + `make phase-full` clean-cluster timing |
 
 ## Layout
 

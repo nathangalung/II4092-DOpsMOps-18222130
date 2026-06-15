@@ -24,25 +24,39 @@ Skenario dijalankan secara manual pada tahap evaluasi dan tidak menjadi bagian d
 \subsection{Instans Verifikasi dan Lingkungan Uji}
 \label{subsec:instans-verifikasi}
 
-Instans verifikasi adalah \textit{use case} pasar aset kripto yang mengalirkan data Coinbase secara \textit{real-time} dengan granularitas per detik sejak 1 Januari 2026. Pemilihan domain ini didasari karakteristiknya yang menuntut \textit{throughput} ingestasi tinggi, latensi penyajian rendah, dan distribusi data nonstasioner, sehingga keempat \textit{sub-sistem} platform tertekan pada kondisi yang menantang. Seluruh kode dan konfigurasi spesifik domain berada pada direktori \texttt{use-case-crypto/} yang terpisah dari \texttt{platform/}, mencakup layanan \texttt{websocket-collector} sebagai produsen \textit{event}, \texttt{stream-processor} berbasis Flink, lapis \textit{batch} berbasis dbt, definisi Feast, serta jembatan \textit{inference} dan dasbor. Pemisahan ini menegaskan bahwa platform tetap \textit{domain-agnostic} dan \textit{use case} hanya berperan sebagai muatan uji yang dapat diganti tanpa menyentuh lapis kendali.
+Instans verifikasi adalah \textit{use case} pasar aset kripto dengan data Coinbase yang dialirkan melalui dua jalur ingestasi yang saling melengkapi. Jalur \textit{real-time} memakai layanan \texttt{websocket-collector} yang berlangganan kanal \textit{ticker} dan \textit{matches} Coinbase pada resolusi per detik hingga per transaksi, lalu \texttt{stream-processor} berbasis Flink mengagregasinya menjadi fitur berjendela waktu pada tabel \texttt{bronze.crypto\_ohlcv\_features}. Jalur historis memakai layanan \texttt{rest-collector} yang menarik \textit{candle} OHLCV Coinbase pada granularitas satu menit sebagai garis dasar sekaligus pemulihan celah sejak 1 Januari 2026, lalu mendaratkannya pada tabel \texttt{bronze.crypto\_ohlcv}; \textit{endpoint} \textit{candle} REST Coinbase tidak menyediakan granularitas di bawah satu menit sehingga resolusi per detik hanya berlaku pada jalur \textit{real-time}. Pemilihan domain ini didasari karakteristiknya yang menuntut \textit{throughput} ingestasi tinggi, latensi penyajian rendah, dan distribusi data nonstasioner, sehingga keempat \textit{sub-sistem} platform tertekan pada kondisi yang menantang. Seluruh kode dan konfigurasi spesifik domain berada pada direktori \texttt{use-case-crypto/} yang terpisah dari \texttt{platform/}, mencakup layanan \texttt{websocket-collector} dan \texttt{rest-collector} sebagai produsen \textit{event}, \texttt{stream-processor} berbasis Flink, lapis \textit{batch} berbasis dbt, definisi Feast, serta jembatan \textit{inference} dan dasbor. Pemisahan ini menegaskan bahwa platform tetap \textit{domain-agnostic} dan \textit{use case} hanya berperan sebagai muatan uji yang dapat diganti tanpa menyentuh lapis kendali.
 
-Konfigurasi spesifik domain diterapkan melalui \textit{overlay} Kustomize yang menambahkan prefiks \texttt{crypto-} pada sumber daya basis platform, sehingga \textit{InferenceService} basis bernama \texttt{predictor} menjadi \texttt{crypto-predictor} ketika di-\textit{deploy}. Pola \textit{base} dan \textit{overlay} ini membuat parameter sumber data dan registri citra cukup disetel pada lapis \textit{overlay} tanpa mengubah definisi dasar, sebagaimana ditunjukkan pada Listing~\ref{lst:overlay-usecase}. Dengan demikian, penggantian \textit{use case} cukup dilakukan dengan menyiapkan \textit{overlay} baru dan tidak menuntut perubahan pada manifes platform. Pendekatan ini sekaligus menjadi bukti konkret atas pemenuhan KF-12 tentang konfigurasi deklaratif dan KNF-11 tentang portabilitas.
+Konfigurasi spesifik domain diterapkan melalui \textit{overlay} Kustomize yang menambahkan prefiks \texttt{crypto-} pada sumber daya basis platform, sehingga \textit{InferenceService} basis bernama \texttt{predictor} menjadi \texttt{crypto-predictor} ketika di-\textit{deploy}. \textit{Overlay} tersebut hanya menetapkan prefiks nama, pemetaan registri citra, jumlah \textit{replica} awal, serta batas \textit{autoscaling} untuk lingkungan node tunggal, sedangkan parameter sumber data berada pada ConfigMap basis sehingga definisi dasar tidak perlu disentuh, sebagaimana ditunjukkan pada Listing~\ref{lst:overlay-usecase}. Sesuai invarian node tunggal, setiap \textit{workload} berjalan dengan satu \textit{replica} saat \textit{idle} dan diskalakan oleh HPA serta KEDA hanya ketika beban nyata muncul, dengan \texttt{maxReplicas} dibatasi tiga agar muat pada satu node. Dengan demikian, penggantian \textit{use case} cukup dilakukan dengan menyiapkan \textit{overlay} baru tanpa mengubah manifes platform, sekaligus menjadi bukti konkret atas pemenuhan KF-12 tentang konfigurasi deklaratif dan KNF-11 tentang portabilitas.
 
-\begin{lstlisting}[caption={Ilustrasi \textit{overlay} Kustomize \textit{use case} yang menambahkan prefiks \texttt{crypto-} pada sumber daya basis platform},label={lst:overlay-usecase},basicstyle=\ttfamily\footnotesize,keywordstyle=\ttfamily,breaklines=true,captionpos=t]
+\begin{lstlisting}[caption={Kutipan \textit{overlay} Kustomize \textit{use case}: prefiks \texttt{crypto-}, pemetaan registri citra, \textit{replica} \textit{idle} satu, dan batas HPA node tunggal},label={lst:overlay-usecase},basicstyle=\ttfamily\footnotesize,keywordstyle=\ttfamily,breaklines=true,captionpos=t]
 # use-case-crypto/manifests/overlays/local/kustomization.yaml
 namePrefix: crypto-
-namespace: use-case-crypto
 resources:
   - ../../base
-configMapGenerator:
-  - name: collector-config
-    literals:
-      - SOURCE=coinbase
-      - GRANULARITY=1s
-      - START=2026-01-01T00:00:00Z
+  - ../../cross-namespace
 images:
-  - name: predictor
-    newName: localhost:5000/predictor
+  - name: rest-collector
+    newName: localhost:5000/crypto-rest-collector
+    newTag: latest
+  - name: websocket-collector
+    newName: localhost:5000/crypto-websocket-collector
+    newTag: latest
+  # ... validator, analyzer, flink-job, trainer, gateway, dbt-project, dll.
+replicas:
+  - name: rest-collector
+    count: 1
+  - name: websocket-collector
+    count: 1
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
 \end{lstlisting}
 
 \subsection{Evaluasi Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
@@ -78,7 +92,7 @@ Kinerja layanan fitur diuji oleh kelompok skenario nonfungsional yang khusus men
 \subsection{Matriks Cakupan dan Uji Penerimaan}
 \label{subsec:cakupan}
 
-Pemetaan antara skenario dan kebutuhan bersifat banyak-ke-banyak, sebab satu skenario kerap menegaskan lebih dari satu kebutuhan dan satu kebutuhan dapat diperkuat oleh beberapa skenario. Sebagai contoh, SK-F-04 yang menguji latensi pencarian vektor sekaligus menegaskan KNF-01, sedangkan SK-N-01 yang mengukur latensi p99 penyajian turut memperkuat KF-04 pada sisi kualitas layanan vektor. Tabel~\ref{tab:uji_penerimaan} merangkum prosedur uji dan kriteria penerimaan untuk setiap skenario yang dikelompokkan di bawah tujuan T-1 sampai T-4. Susunan tersebut memastikan seluruh empat belas kebutuhan fungsional dan dua belas kebutuhan nonfungsional memiliki sekurang-kurangnya satu skenario uji yang konkret.
+Pemetaan antara skenario dan kebutuhan bersifat banyak-ke-banyak, sebab satu skenario kerap menegaskan lebih dari satu kebutuhan dan satu kebutuhan dapat diperkuat oleh beberapa skenario. Sebagai contoh, SK-F-04 yang menguji latensi pencarian vektor sekaligus menegaskan KNF-01, sedangkan SK-N-01 yang mengukur latensi p99 penyajian turut memperkuat KF-04 pada sisi kualitas layanan vektor. Tabel~\ref{tab:uji_penerimaan} merangkum prosedur uji dan kriteria penerimaan untuk setiap skenario yang dikelompokkan di bawah tujuan T-1 sampai T-4. Susunan tersebut memastikan seluruh empat belas kebutuhan fungsional dan dua belas kebutuhan nonfungsional memiliki sekurang-kurangnya satu skenario uji yang konkret. Katalog perintah yang dapat dijalankan ulang untuk setiap skenario, termasuk preambel pemuatan konfigurasi \texttt{config.crypto.env} dan pembuatan \textit{namespace} \texttt{platform-test}, dirangkum pada Lampiran~\ref{appx:verifikasi} sehingga setiap baris Tabel~\ref{tab:uji_penerimaan} dapat ditelusuri ke perintah konkret yang menghasilkan buktinya.
 
 \input{tables/uji_penerimaan.tex}
 

@@ -1,14 +1,170 @@
+% ============================================================
+% LAMPIRAN B - KATALOG PERINTAH VERIFIKASI USE CASE
+% Katalog perintah yang dapat dijalankan ulang (read-only terhadap
+% kluster langsung) untuk membuktikan tiap skenario SK-F/SK-N pada
+% Bab VI. Dikelompokkan mengikuti tujuan platform T-1..T-4 agar rantai
+% T-N <-> SK <-> KF/KNF tetap satu lawan satu. Bersumber dari direktori
+% experiments/ (sejajar platform/ dan use-case-crypto/); rincian argumen
+% tiap skenario ada pada README.md di setiap subdirektori.
+% ============================================================
 \cleardoublepage
-\chapter{HASIL VERIFIKASI USE CASE}
+\chapter{KATALOG PERINTAH VERIFIKASI USE CASE}
 \label{appx:verifikasi}
 
-Lampiran ini akan diisi dengan tangkapan layar dan keluaran perintah yang membuktikan jalur ujung ke ujung pada \textit{use case} pasar aset kripto setelah evaluasi pada Bab~\ref{chap:evaluasi} terkonsolidasi. Bukti yang direncanakan meliputi:
+Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk membuktikan jalur ujung ke ujung pada \textit{use case} pasar aset kripto. Setiap perintah dijalankan secara manual dan bersifat \textit{read-only} terhadap kluster yang sedang berjalan, sehingga tidak menjadi bagian dari \texttt{make phase-full} maupun rekonsiliasi Argo CD dan tidak mengubah sistem yang diuji, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}; rincian argumen tiap skenario tersedia pada berkas \texttt{README.md} di masing-masing subdirektori. Prasyarat eksekusi adalah platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum menjalankan skenario apa pun, konfigurasi domain dimuat dan \textit{namespace} pembangkit beban dibuat melalui preambel berikut.
 
-\begin{enumerate}
-    \item Status sinkronisasi Argo CD untuk seluruh \textit{Application} platform dan \textit{use case} pada kondisi \textit{Synced/Healthy}.
-    \item Hasil eksekusi \textit{pipeline} pelatihan dari Kubeflow Pipelines beserta \textit{run id} pada MLflow.
-    \item Hasil eksekusi \textit{CronWorkflow retrain-on-drift} ketika ambang batas dilewati.
-    \item Hasil panggilan \texttt{get\_online\_features} terhadap Feast untuk fitur tabular dan fitur vektor.
-    \item Hasil panggilan prediksi terhadap \textit{InferenceService} KServe pada \textit{model-serving} dengan respons HTTP yang valid.
-    \item Cuplikan dasbor Grafana yang menunjukkan kelengkapan jejak \textit{OpenTelemetry} dari ingestasi hingga prediksi.
-\end{enumerate}
+\begin{lstlisting}[caption={Preambel: pemuatan konfigurasi domain dan \textit{namespace} pembangkit beban},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# Muat blok DOMAIN dari satu titik konfigurasi (entitas, tabel medali,
+# endpoint Feast/Qdrant/ClickHouse/DataHub, knob beban). Ganti use case =
+# ganti berkas ini, bukan kode skenario.
+set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
+
+# Namespace terpisah untuk pembangkit beban (k6, chaos) — bukan namespace produksi.
+kubectl apply -f experiments/namespace.yaml
+\end{lstlisting}
+
+\section{Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
+\label{sec:appx-t1}
+
+Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi siklus hidup model setara MLOps Level 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-1},label={lst:cat-t1},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-01 (KF-01) — GitOps reconciliation: ubah definisi feature view, dorong ke
+# Gitea, amati Argo CD menyinkronkan, lalu daftarkan feature view aktif.
+$EDITOR use-case-crypto/scripts/libs/feature_store/definitions.py
+git -C use-case-crypto commit -am "feat: feature view" && git -C use-case-crypto push gitea
+argocd app sync crypto-use-case-local && uv run feast feature-views list
+
+# SK-F-12 (KF-12) — konfigurasi deklaratif: ubah jumlah replica di overlay, dorong,
+# sinkronkan, lalu pastikan tidak ada drift.
+argocd app diff crypto-use-case-local
+kubectl -n use-case-crypto get deploy
+
+# SK-F-06 (KF-06) — promosi model kanari + rollback model bermasalah (Argo Rollouts).
+kubectl -n use-case-crypto get rollouts
+kubectl argo rollouts -n use-case-crypto get rollout <rollout> --watch   # promote | abort
+
+# SK-F-13 (KF-13) — antarmuka terpadu: satu sesi UV memanggil SDK Feast, MLflow,
+# dan klien KServe pada satu notebook (rincian: experiments/feast/README.md).
+uv run feast feature-views list                          # Feast SDK
+kubectl get inferenceservice -A | grep predictor         # KServe (crypto-predictor)
+# MLflow tracking client dipanggil dari notebook yang sama (konsol via ingress).
+
+# SK-F-14 (KF-14) — manajemen sumber daya Kueue: jenuhkan ClusterQueue; job di luar
+# anggaran berstatus Pending.
+kubectl get clusterqueue,localqueue,workloads -A
+
+# SK-N-03 (KNF-03) — skalabilitas horizontal HPA + KEDA pada beban naik.
+k6 run experiments/load/hpa-keda-rampup.js
+kubectl -n use-case-crypto get hpa,scaledobject,pods -w
+
+# SK-N-04 (KNF-04) — keandalan: injeksi fault pod + jaringan (RTO<5m, RPO<1m).
+envsubst < experiments/chaos/pod-chaos.yaml | kubectl apply -f -
+kubectl apply -f experiments/chaos/network-chaos.yaml
+
+# SK-N-08 (KNF-08) — ekstensibilitas: ganti runtime serving / online store lewat
+# CRD + overlay Kustomize (mis. Seldon sebagai alternatif), perubahan terisolasi.
+kubectl apply -k use-case-crypto/manifests/overlays/local
+
+# SK-N-09 (KNF-09) — kemudahan penggunaan: akses seluruh konsol lewat satu sesi
+# identitas dex + oauth2-proxy (SSO, tanpa login ulang).
+kubectl get pods -A | grep -E 'dex|oauth2-proxy'
+
+# SK-N-10 (KNF-10) — efisiensi sumber daya: rasio kompresi + atribusi biaya OpenCost.
+kubectl get pods -A | grep -i opencost
+
+# SK-N-11 (KNF-11) — reproduksibilitas: terapkan ulang seluruh manifes pada node
+# k3s baru dari satu sumber Git.
+make phase-full
+
+# SK-N-12 (KNF-12) — cakupan uji (>80%) + waktu konvergensi kluster bersih.
+make usecase-crypto-test
+time make phase-full
+\end{lstlisting}
+
+\section{Tujuan T-2: Tata Kelola Data}
+\label{sec:appx-t2}
+
+Kelompok T-2 membuktikan katalog metadata, \textit{lineage}, kontrak kualitas, observabilitas, dan keamanan berjalan otomatis sepanjang \textit{pipeline}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t2}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-2},label={lst:cat-t2},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-08 (KF-08) — lineage end-to-end di DataHub (topik sumber -> prediksi).
+experiments/lineage/lineage-walk.sh discover
+experiments/lineage/lineage-walk.sh walk '<urn>'         # urn dari hasil discover
+
+# SK-F-09 (KF-09) — pelacakan eksperimen: dua run pelatihan + replay dari snapshot
+# (delta metrik <=1%); diamati pada MLflow.
+kubectl get pods -A | grep -i mlflow                     # konsol MLflow via ingress
+
+# SK-F-10 (KF-10) — registri + audit trail: transisi status model
+# none -> staging -> production -> archived (MLflow Model Registry).
+kubectl get pods -A | grep -i mlflow
+
+# SK-N-05 (KNF-05) — kontrak kualitas: checkpoint Great Expectations + injeksi
+# pelanggaran skema/rentang/kelengkapan.
+kubectl -n use-case-crypto get cronjob | grep -iE 'quality|expect|ge-'
+kubectl -n use-case-crypto create job ge-check --from=cronjob/<ge-checkpoint>
+
+# SK-N-06 (KNF-06) — observabilitas: telusuri satu trace OpenTelemetry di Tempo,
+# ingestasi -> prediksi pada satu trace ID (kueri lewat Grafana).
+kubectl get pods -A | grep -E 'tempo|grafana'
+
+# SK-N-07 (KNF-07) — keamanan: pindai cluster dengan Trivy + periksa TLS 1.3/AES-256.
+kubectl get vulnerabilityreports -A
+testssl.sh <public-endpoint>
+\end{lstlisting}
+
+\section{Tujuan T-3: Deteksi \textit{Drift} dan Pelatihan Ulang}
+\label{sec:appx-t3}
+
+Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu pelatihan ulang dan penyusunan fitur pelatihan menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-3},label={lst:cat-t3},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-03 (KF-03) — point-in-time correctness: audit get_historical_features pada
+# gold.fct_training_data dengan probe event_timestamp masa depan; setiap baris
+# bermuatan informasi setelah timestamp acuan ditolak (zero leakage).
+# Prosedur SDK Feast: experiments/feast/README.md. Cek substrat dulu:
+experiments/etl/data-landed-check.sh
+
+# SK-F-05 (KF-05) — otomasi pelatihan di Kubeflow Pipelines (baca Feast -> tulis MLflow).
+uv run --with 'kfp[kubernetes]==2.16.0' use-case-crypto/pipelines/retraining_pipeline.py
+
+# SK-F-07 (KF-07) — pemantauan + retrain otomatis: geser distribusi data nyata
+# beberapa sigma, amati detektor drift + CronWorkflow retrain-on-drift.
+uv run experiments/drift/inject_drift.py --sigma 2.0
+kubectl -n use-case-crypto get cronworkflow,workflow
+\end{lstlisting}
+
+\section{Tujuan T-4: Layanan Fitur \textit{Dual-Store}}
+\label{sec:appx-t4}
+
+Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan fitur tabular, agregat, dan vektor dengan kontrak konsisten antara pelatihan dan penyajian, beserta latensi dan \textit{throughput} jalur penyajian. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-4},label={lst:cat-t4},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-02 (KF-02) — penyajian ganda: online non-null (Feast) vs offline (ClickHouse).
+kubectl -n model-lifecycle port-forward svc/feast 6566:6566 &
+FEAST_URL=http://localhost:6566 uv run experiments/feast/online-serving-check.py
+experiments/etl/data-landed-check.sh
+
+# SK-F-04 (KF-04) — pencarian vektor (Qdrant top-k recall + latensi).
+k6 run experiments/load/vector-search-latency.js
+
+# SK-F-11 (KF-11) — paritas batch (dbt volume_sma_20) vs stream (Flink secondary_avg)
+# pada rata-rata volume 20-event yang sama; cek kesehatan substrat dulu.
+experiments/etl/data-landed-check.sh
+experiments/parity/parity-check.sh
+
+# SK-N-01 (KNF-01) — latensi feature serving + vector search (p99 sub-detik).
+k6 run experiments/load/feast-online-latency.js
+
+# SK-N-02 (KNF-02) — throughput serving + stream; pantau consumer lag.
+k6 run experiments/load/feast-throughput.js
+# Setengah stream: kredensial SASL Kafka diambil langsung dari kluster (tidak
+# dikomit). Topik crypto.validated; pantau metrik kafka_consumergroup_lag.
+kafka-producer-perf-test --topic crypto.validated --num-records 1000000 \
+  --record-size 256 --throughput -1 \
+  --producer-props bootstrap.servers="$KAFKA_BOOTSTRAP" \
+  --producer.config <sasl.properties>
+\end{lstlisting}
+
+Setiap perintah pada katalog ini berpasangan satu lawan satu dengan baris Tabel~\ref{tab:uji_penerimaan} dan Tabel~\ref{tab:evaluasi_target} pada Bab~\ref{chap:evaluasi}, sehingga klaim pemenuhan kebutuhan dapat ditelusuri langsung ke perintah yang menghasilkan buktinya. Untuk \textit{use case} lain, hanya berkas \texttt{config.crypto.env} yang disalin dan disesuaikan blok DOMAIN-nya; kode skenario tetap \textit{domain-agnostic} dan tidak perlu disentuh.

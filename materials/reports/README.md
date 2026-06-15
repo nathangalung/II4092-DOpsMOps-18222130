@@ -5,8 +5,8 @@ LaTeX source for ITB STI final-year thesis (Tugas Akhir / TA).
 ## Build
 
 ```bash
-make          # full build (xelatex + biber + xelatex x2)
-make quick    # fast single-pass rebuild
+make          # full build (xelatex + biber + xelatex x3)
+make quick    # fast 2-pass rebuild
 make clean    # drop aux artifacts
 make view     # open report.pdf
 ```

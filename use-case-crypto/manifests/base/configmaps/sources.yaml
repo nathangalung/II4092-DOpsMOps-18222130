@@ -56,7 +56,7 @@ data:
   # If no data, backfills from HISTORY_START_DATE to now.
   # HISTORY_END_DATE is ignored — always backfills to current time.
   # These are still consumed via env-var overrides (viper BindEnv).
-  HISTORY_START_DATE: "2026-03-01T00:00:00Z"
+  HISTORY_START_DATE: "2026-01-01T00:00:00Z"
   HISTORY_END_DATE: ""
   HISTORY_BACKFILL_ON_START: "true"
   BACKFILL_CLICKHOUSE_URL: "http://clickhouse-platform.storage.svc.cluster.local:8123"
@@ -69,5 +69,5 @@ data:
 
   # --- Supplementary backfill ---
   SUPPLEMENTARY_BACKFILL_ENABLED: "true"
-  SUPPLEMENTARY_BACKFILL_START_DATE: "2026-03-01T00:00:00Z"
+  SUPPLEMENTARY_BACKFILL_START_DATE: "2026-01-01T00:00:00Z"
   COINGECKO_BACKFILL_COINS: "bitcoin,ethereum"
