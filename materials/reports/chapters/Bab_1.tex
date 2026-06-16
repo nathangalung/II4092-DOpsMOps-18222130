@@ -62,7 +62,7 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 
     \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran}
 
-    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi harus konsisten antara nilai pelatihan dan nilai penyajian melalui satu kontrak API. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online}, tiap aplikasi mengambil fitur dengan caranya sendiri sehingga nilai pelatihan dan nilai penyajian mudah menyimpang, kondisi yang dikenal sebagai \textit{train-serving skew} dan ditetapkan \textcite{breck2017ml} sebagai salah satu uji kelayakan sistem \textit{machine learning} produksi.
+    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi harus konsisten antara nilai pelatihan dan nilai penyajian. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online}, tiap aplikasi mengambil fitur dengan caranya sendiri sehingga nilai pelatihan dan nilai penyajian mudah menyimpang, kondisi yang dikenal sebagai \textit{train-serving skew} dan ditetapkan \textcite{breck2017ml} sebagai salah satu uji kelayakan sistem \textit{machine learning} produksi.
 \end{enumerate}
 
 Keempat rumusan masalah di atas dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Penomoran RM-1 hingga RM-4 dipertahankan pada seluruh bab agar jawaban tiap permasalahan dapat ditelusuri dari rumusan hingga implementasinya. Keempat rumusan tidak saling tumpang tindih karena masing-masing menyasar satu simpul kegagalan yang berbeda, yaitu perakitan lintas lapis, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan penyajian fitur multimoda, sekaligus bersama-sama menutup rentang dari siklus data hingga penyajian model. Karena dirumuskan dengan kriteria keberhasilan yang jelas dan berpijak pada kegagalan terdokumentasi pada uraian tiap butir di atas, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan.
@@ -94,7 +94,7 @@ Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan 
 
     \item \textbf{Layanan fitur \textit{dual-store} \textit{offline} dan \textit{online}}
 
-    Mengembangkan layanan fitur \textit{dual-store} yang melayani fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian. Tujuan ini menjawab RM-4.
+    Mengembangkan layanan fitur \textit{dual-store} yang melayani fitur tabular dan fitur agregat melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian, serta melayani \textit{embedding} vektor berdimensi tinggi pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten pada kedua fase tersebut. Tujuan ini menjawab RM-4.
 \end{enumerate}
 
 Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-masing menautkan satu tujuan.
