@@ -14,7 +14,9 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
 
 \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth,height=0.9\textheight,keepaspectratio]{figures/Integrate_General_Arch.png}
+    \rotatebox{90}{%
+        \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Integrate_General_Arch.png}%
+    }
     \caption{Pandangan Umum Platform DataOps dan MLOps Terintegrasi}
     \label{fig:integrate-general}
 \end{figure}
@@ -56,10 +58,12 @@ Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps t
 
 Lapisan infrastruktur menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas \textit{manifest}. Argo CD menjadi satu-satunya jalur perubahan, menarik konfigurasi dari Git dan menerapkan ke \textit{cluster} melalui prinsip GitOps \autocite{limoncelli2022gitops}. Gambar~\ref{fig:layer-infra} merinci komponen lapisan ini beserta jalur GitOps yang menyatukannya.
 
-\begin{figure}[!htb]
+\begin{figure}[!htbp]
     \centering
     \IfFileExists{figures/Layer_Infra_Control.png}{%
-        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Infra_Control.png}%
+        \rotatebox{90}{%
+            \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Layer_Infra_Control.png}%
+        }%
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Infra\_Control.eraser} \textit{dirender ke} \texttt{figures/Layer\_Infra\_Control.png}.}}%
     }
@@ -74,10 +78,12 @@ Kebijakan keamanan dijalankan dalam dua lapis: Kyverno \autocite{kyverno2024} pa
 
 Lapisan ingestasi menggunakan Apache Kafka \autocite{apachekafka2024} sebagai bus pesan utama dengan operator Strimzi pada \textit{cluster} Kubernetes. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal, dan \textit{Karapace} digunakan sebagai registri skema. Lapisan pemrosesan dibagi menjadi dua jalur, yaitu jalur \textit{batch} dan jalur \textit{stream}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola. Gambar~\ref{fig:layer-data} merinci kedua jalur pemrosesan beserta lapisan penyimpanan dan layanan fitur yang menerimanya.
 
-\begin{figure}[!htb]
+\begin{figure}[!htbp]
     \centering
     \IfFileExists{figures/Layer_Data.png}{%
-        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Data.png}%
+        \rotatebox{90}{%
+            \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Layer_Data.png}%
+        }%
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Data.eraser} \textit{dirender ke} \texttt{figures/Layer\_Data.png}.}}%
     }
@@ -94,10 +100,12 @@ Orkestrasi jalur \textit{batch} dirancang menggunakan Apache Airflow \autocite{a
 
 Lapisan siklus hidup model menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Lapisan penyajian menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu pelatihan ulang. Basis data relasional untuk metadata MLflow dan Kubeflow Pipelines disediakan oleh PostgreSQL yang dikelola operator CNPG, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten. Gambar~\ref{fig:layer-model} merinci alur dari eksperimen dan pelatihan menuju penyajian model beserta pemicu pelatihan ulang otomatis.
 
-\begin{figure}[!htb]
+\begin{figure}[!htbp]
     \centering
     \IfFileExists{figures/Layer_Model.png}{%
-        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Model.png}%
+        \rotatebox{90}{%
+            \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Layer_Model.png}%
+        }%
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Model.eraser} \textit{dirender ke} \texttt{figures/Layer\_Model.png}.}}%
     }
@@ -112,10 +120,12 @@ Kubeflow Trainer \autocite{kubeflowtrainer2025} menjalankan pelatihan terdistrib
 
 Lapisan tata kelola menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada lapisan \textit{batch} dan \textit{stream}. Lapisan observabilitas menggunakan Prometheus untuk metrik, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan dasbor khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Gambar~\ref{fig:layer-govern} merinci hubungan antara tata kelola data dan tiga pilar observabilitas pada satu antarmuka.
 
-\begin{figure}[!htb]
+\begin{figure}[!htbp]
     \centering
     \IfFileExists{figures/Layer_Govern_Obs.png}{%
-        \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Layer_Govern_Obs.png}%
+        \rotatebox{90}{%
+            \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Layer_Govern_Obs.png}%
+        }%
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Govern\_Obs.eraser} \textit{dirender ke} \texttt{figures/Layer\_Govern\_Obs.png}.}}%
     }
@@ -191,22 +201,22 @@ Sub-sistem ini melayani tiga kasus khusus berikut.
 
     \item \textbf{Kegagalan versi baru pada analisis kanari}
 
-    Ketika versi baru gagal pada analisis kanari, promosi dihentikan otomatis sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kegagalan ke MLflow.
+    Ketika versi baru gagal pada analisis kanari, promosi dihentikan otomatis sehingga versi stabil pada lapisan penyajian tetap dipertahankan.
 \end{enumerate}
 
-Penanganan tiga kasus tersebut dirancang sebagai cabang pada \texttt{DAG} CronWorkflow sehingga keputusan dapat ditelusuri pada riwayat eksekusi Argo. Setiap cabang menulis catatan ke MLflow \texttt{tags} agar konteks keputusan tersimpan bersama dengan eksperimen yang dipicu. Kegagalan pada analisis kanari memicu peringatan ke Alertmanager dengan rute khusus untuk peran \textit{machine learning engineer}, sehingga investigasi dapat dimulai tanpa menunggu pelaporan manual. Riwayat tiga kasus tersebut juga dipakai untuk memperbarui ambang \textit{drift} pada konfigurasi melalui mekanisme \textit{tuning} berkala yang dijalankan pada Argo Workflows.
+Ketiga kasus tersebut dirancang untuk ditangani tanpa percabangan tambahan pada \textit{workflow}. CronWorkflow pelatihan ulang disusun atas dua langkah berurutan, yaitu pengukuran \textit{drift} dan langkah keputusan yang memicu pelatihan ulang, sedangkan penghentian promosi saat analisis kanari gagal menjadi tanggung jawab Argo Rollouts pada lapisan penyajian. Ambang PSI dan KS beserta jendela \textit{lookback} ditetapkan sebagai parameter pada CronWorkflow sehingga setiap perubahan kebijakan tetap melewati \textit{commit} Git dan dapat diaudit.
 
 \section{Perancangan Sub-sistem Layanan Fitur \textit{Dual-Store}}
 \label{sec:feature-store-dual}
 
-Bagian ini menjawab T-4 dengan merancang sub-sistem layanan fitur yang menyatukan fitur tabular, fitur deret waktu, dan \textit{embedding} berdimensi tinggi dalam satu kontrak data dari satu sumber kebenaran. Feast digunakan sebagai \textit{framework} layanan fitur yang menyatukan kontrak antara \textit{offline} dan \textit{online}. Pemisahan beban kerja dilakukan secara fisik antara \textit{store} kunci-nilai untuk fitur tabular dan \textit{store} vektor untuk \textit{embedding}, tetapi tetap menyatu pada level kontrak Feast. Penyatuan kontrak ini menghilangkan perlunya klien menyentuh dua API yang berbeda untuk mengambil fitur multimoda pada saat \textit{inference}.
+Bagian ini menjawab T-4 dengan merancang sub-sistem layanan fitur yang menyatukan fitur tabular dan fitur deret waktu dalam satu kontrak data dari satu sumber kebenaran, sedangkan \textit{embedding} berdimensi tinggi dikelola pada indeks vektor terpisah. Feast digunakan sebagai \textit{framework} layanan fitur yang menyatukan kontrak antara \textit{offline} dan \textit{online} untuk fitur tabular. Pemisahan beban kerja dilakukan secara fisik antara \textit{store} kunci-nilai untuk fitur tabular dan indeks vektor untuk \textit{embedding}. Fitur tabular diambil melalui API Feast, sedangkan \textit{embedding} diambil melalui klien \textit{native} Qdrant pada saat \textit{inference}.
 
 \subsection{Penyimpanan \textit{Offline} dan \textit{Online}}
 \label{subsec:offline-online}
 
 \textit{Offline store} menggunakan ClickHouse untuk fitur tabular dan deret waktu yang dipakai pada fase pelatihan, dengan tabel kolom yang dipetakan langsung ke definisi \texttt{FeatureView} Feast. \textit{Online store} menggunakan Valkey \autocite{valkey2025} untuk fitur yang dipakai pada fase \textit{inference} dengan target latensi p99 di bawah sepuluh milidetik. Dasar pemilihan kedua komponen mengikuti perbandingan pada Bab~\ref{chap:studi-literatur}, sedangkan pada perancangan ini keduanya diikat pada satu kontrak Feast sehingga skema \textit{offline} dan \textit{online} berasal dari definisi yang sama. Pemisahan peran ini memungkinkan penyetelan sumber daya pelatihan dan penyajian secara mandiri tanpa menduplikasi definisi fitur.
 
-\textit{Vector search} HNSW tidak ditempelkan pada \textit{online store} tabular, melainkan disediakan oleh Qdrant \autocite{qdrant2025} sebagai indeks vektor terpisah, sehingga beban kerja kunci-nilai dan beban kerja pencarian vektor terpisah secara operasional namun tetap berbagi kontrak fitur yang sama melalui Feast. Pemisahan \textit{store} memudahkan tuning \textit{resource} secara mandiri karena beban Valkey berorientasi kunci-nilai dengan akses \textit{point lookup} sedangkan beban Qdrant berorientasi pencarian tetangga terdekat yang membutuhkan memori untuk indeks HNSW. Kedua \textit{store} dideklarasikan pada repositori Feast sebagai \texttt{online\_store} dan \texttt{vector\_store} dengan kelas \textit{provider} terpisah, sehingga klien yang menulis dan membaca fitur menggunakan API tunggal Feast. Pembaruan skema fitur diterapkan ke ClickHouse melalui \texttt{ALTER TABLE} terkelola oleh dbt dan secara serempak ke Feast melalui \texttt{feast apply} sehingga skema \textit{offline} dan \textit{online} selalu sinkron.
+\textit{Vector search} HNSW tidak ditempelkan pada \textit{online store} tabular, melainkan disediakan oleh Qdrant \autocite{qdrant2025} sebagai indeks vektor terpisah, sehingga beban kerja kunci-nilai dan beban kerja pencarian vektor terpisah secara operasional. Pemisahan \textit{store} memudahkan tuning \textit{resource} secara mandiri karena beban Valkey berorientasi kunci-nilai dengan akses \textit{point lookup} sedangkan beban Qdrant berorientasi pencarian tetangga terdekat yang membutuhkan memori untuk indeks HNSW. Valkey dideklarasikan sebagai \texttt{online\_store} pada repositori Feast, sedangkan Qdrant berdiri sebagai indeks vektor terpisah yang diakses melalui klien \textit{native} di luar Feast, bukan sebagai \textit{store} kedua di dalam Feast. Pembaruan skema fitur diterapkan ke ClickHouse melalui \texttt{ALTER TABLE} terkelola oleh dbt dan secara serempak ke Feast melalui \texttt{feast apply} sehingga skema \textit{offline} dan \textit{online} selalu sinkron.
 
 \subsection{Dukungan \textit{Vector Embeddings} dan HNSW}
 \label{subsec:vektor-embedding}
@@ -225,9 +235,9 @@ Mekanisme jaminan ini diuji melalui dua jalur. Pertama, \textit{notebook} reprod
 \subsection{Aliran Materialisasi Fitur}
 \label{subsec:materialisasi-fitur}
 
-Materialisasi fitur dilakukan dengan dua jalur. Jalur \textit{batch} menjalankan transformasi pada ClickHouse atau Spark, kemudian Feast memuat hasilnya ke \textit{online store} secara periodik melalui operasi \texttt{materialize}. Jalur \textit{stream} menggunakan Flink untuk menghitung fitur \textit{real-time} yang ditulis langsung ke Valkey untuk fitur tabular dan ke Qdrant untuk \textit{embedding} vektor, serta dipublikasikan ke ClickHouse pada saat yang sama, sehingga \textit{offline} dan \textit{online} tetap konsisten. \textcite{jain2025integrating} menyoroti pentingnya integrasi DataOps dengan MLOps untuk menjaga konsistensi seperti ini pada skala produksi.
+Materialisasi fitur dilakukan dengan dua jalur. Jalur \textit{batch} menjalankan transformasi pada ClickHouse atau Spark, kemudian Feast memuat hasilnya ke \textit{online store} secara periodik melalui operasi \texttt{materialize}. Jalur \textit{stream} menggunakan Flink untuk menghitung fitur \textit{real-time} yang ditulis langsung ke Valkey untuk fitur tabular, serta dipublikasikan ke ClickHouse pada saat yang sama, sehingga \textit{offline} dan \textit{online} tetap konsisten.
 
-Jadwal materialisasi \textit{batch} dipasang pada DAG Airflow melalui \textit{task} \texttt{feast\_materialize} dengan interval per jam yang mendorong fitur dari \textit{offline store} ke \textit{online store}. Eksekusi materialisasi mengeluarkan metrik durasi dan jumlah baris ke Pushgateway sehingga ketertinggalan dapat terdeteksi melalui \textit{alerting} Prometheus. Jalur \textit{stream} menggunakan \textit{exactly-once} semantik Flink dengan \textit{checkpoint} ke MinIO setiap interval pendek, sehingga kegagalan \textit{TaskManager} tidak menyebabkan duplikasi pada \textit{online store}. Karena nilai pada \textit{online store} merupakan hasil materialisasi dari \textit{offline store} yang sama, konsistensi antara keduanya terjaga secara konstruktif, sedangkan kualitas data lintas lapisan diverifikasi oleh \textit{checkpoint} Great Expectations terjadwal.
+Jadwal materialisasi \textit{batch} dipasang pada DAG Airflow melalui \textit{task} \texttt{feast\_materialize} dengan interval per jam yang mendorong fitur dari \textit{offline store} ke \textit{online store}. Eksekusi materialisasi mengeluarkan metrik durasi dan jumlah baris ke Pushgateway sehingga ketertinggalan dapat terdeteksi melalui \textit{alerting} Prometheus. Jalur \textit{stream} menggunakan \textit{exactly-once} semantik Flink dengan \textit{checkpoint} ke MinIO setiap interval pendek, sehingga kegagalan \textit{TaskManager} tidak menyebabkan duplikasi pada \textit{online store}. Pada jalur \textit{batch}, nilai pada \textit{online store} merupakan hasil materialisasi dari \textit{offline store} yang sama sehingga konsistensi antara keduanya terjaga secara konstruktif, sedangkan kualitas data lintas lapisan diverifikasi oleh \textit{checkpoint} Great Expectations terjadwal.
 
 \section{Alur Kerja \textit{End-to-End}}
 \label{sec:alur-e2e}
@@ -244,7 +254,7 @@ Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan dengan
 
     \item \textbf{Komputasi dan materialisasi fitur}
 
-    Fitur dihitung pada Flink atau Spark dan ditulis ke ClickHouse sebagai \textit{offline store}, lalu diregistrasi pada Feast dan dimaterialisasi ke Valkey sebagai \textit{online store} tabular serta Qdrant sebagai indeks vektor terpisah.
+    Fitur dihitung pada Flink atau Spark dan ditulis ke ClickHouse sebagai \textit{offline store}, lalu diregistrasi pada Feast dan dimaterialisasi ke Valkey sebagai \textit{online store} tabular, sedangkan indeks vektor Qdrant diisi melalui jalur tersendiri di luar materialisasi Feast.
 
     \vspace{0.5em}
 
