@@ -1,4 +1,4 @@
-# Medallion data-landed check — SK-F-11 (KF-11; supports KNF-05)
+# Medallion data-landed check — batch landing substrate (SK-F-11 parity, SK-F-03/05 gold; supports KNF-05)
 
 `data-landed-check.sh` is the data engineer's read-only "is the ETL flowing?"
 probe: for each medallion layer it reports row count, and on the landing table
@@ -20,9 +20,9 @@ inside the CHI pod (`kubectl exec`); it never mutates pipeline state.
 set -a; . experiments/config.crypto.env; set +a
 # optional admin creds if the in-pod default user is password-protected:
 export CLICKHOUSE_USER=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
-  -o jsonpath='{.data.username}' | base64 -d)
+  -o jsonpath='{.data.CLICKHOUSE_USER}' | base64 -d)
 export CLICKHOUSE_PASSWORD=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
-  -o jsonpath='{.data.password}' | base64 -d)
+  -o jsonpath='{.data.CLICKHOUSE_PASSWORD}' | base64 -d)
 ./experiments/etl/data-landed-check.sh
 ```
 
@@ -37,5 +37,5 @@ export CLICKHOUSE_PASSWORD=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret click
 | `EVENT_TIME_COLUMN` | freshness column on the landing table | `timestamp` |
 | `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` | clickhouse-client auth | (none → in-pod default user) |
 
-Exit `0` = every layer has rows (KF-11 batch+stream landing verified); `1` = a
+Exit `0` = every layer has rows (medallion batch landing verified); `1` = a
 layer is empty (broken hop upstream); `2` = setup error / `_kafka` guard tripped.

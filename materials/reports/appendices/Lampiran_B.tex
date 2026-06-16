@@ -123,7 +123,13 @@ Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu pelatihan ulan
 # SK-F-03 (KF-03) — point-in-time correctness: audit get_historical_features pada
 # gold.fct_training_data dengan probe event_timestamp masa depan; setiap baris
 # bermuatan informasi setelah timestamp acuan ditolak (zero leakage).
-# Prosedur SDK Feast: experiments/feast/README.md. Cek substrat dulu:
+# Prosedur SDK Feast: experiments/feast/README.md. Cek substrat dulu; bila user
+# default in-pod bersandi, ambil kredensial admin dari Secret (nilai tidak
+# dicetak, hanya diekspor ke env subshell — kunci: CLICKHOUSE_USER/PASSWORD).
+export CLICKHOUSE_USER=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
+  -o jsonpath='{.data.CLICKHOUSE_USER}' | base64 -d)
+export CLICKHOUSE_PASSWORD=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
+  -o jsonpath='{.data.CLICKHOUSE_PASSWORD}' | base64 -d)
 experiments/etl/data-landed-check.sh
 
 # SK-F-05 (KF-05) — otomasi pelatihan di Kubeflow Pipelines (baca Feast -> tulis MLflow).
@@ -141,16 +147,18 @@ kubectl -n use-case-crypto get cronworkflow,workflow
 Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan fitur tabular, agregat, dan vektor dengan kontrak konsisten antara pelatihan dan penyajian, beserta latensi dan \textit{throughput} jalur penyajian. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-4},label={lst:cat-t4},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
-# SK-F-02 (KF-02) — penyajian ganda: online non-null (Feast) vs offline (ClickHouse).
+# SK-F-02 (KF-02) — penyajian ganda: online non-null (Feast) + substrat offline (ClickHouse).
 kubectl -n model-lifecycle port-forward svc/feast 6566:6566 &
 FEAST_URL=http://localhost:6566 uv run experiments/feast/online-serving-check.py
+# substrat offline (ekspor CLICKHOUSE_USER/PASSWORD spt. Listing T-3 bila bersandi):
 experiments/etl/data-landed-check.sh
 
 # SK-F-04 (KF-04) — pencarian vektor (Qdrant top-k recall + latensi).
 k6 run experiments/load/vector-search-latency.js
 
 # SK-F-11 (KF-11) — paritas batch (dbt volume_sma_20) vs stream (Flink secondary_avg)
-# pada rata-rata volume 20-event yang sama; cek kesehatan substrat dulu.
+# pada rata-rata volume 20-event yang sama; cek kesehatan substrat dulu
+# (kredensial ClickHouse: ekspor spt. Listing T-3 bila user default bersandi).
 experiments/etl/data-landed-check.sh
 experiments/parity/parity-check.sh
 

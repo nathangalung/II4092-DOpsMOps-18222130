@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
 # experiments/etl/data-landed-check.sh
-# SK-F-11 / SK-N-05 — "did the data actually land?" medallion parity probe
-# (validates KF-11 batch+stream landing; supports KNF-05 data-quality).
+# SK-F-11 / SK-N-05 — "did the data actually land?" medallion landing probe
+# (checks medallion *batch* landing — substrate for the SK-F-11 parity check
+# and the SK-F-03/SK-F-05 gold readers; supports KNF-05 data-quality). It does
+# NOT read the Flink stream table, so it does not by itself prove batch+stream
+# parity (KF-11) — parity-check.sh does that.
 # =============================================================================
 # The data engineer's read-only answer to "is the ETL flowing?". For each
 # medallion layer it reports row count and (on the landing table) event-time
@@ -26,9 +29,9 @@
 #   set -a; . experiments/config.crypto.env; set +a
 #   # optional: admin creds if the in-pod default user is password-protected
 #   export CLICKHOUSE_USER=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
-#     -o jsonpath='{.data.username}' | base64 -d)
+#     -o jsonpath='{.data.CLICKHOUSE_USER}' | base64 -d)
 #   export CLICKHOUSE_PASSWORD=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
-#     -o jsonpath='{.data.password}' | base64 -d)
+#     -o jsonpath='{.data.CLICKHOUSE_PASSWORD}' | base64 -d)
 #   ./experiments/etl/data-landed-check.sh
 #
 # Exit 0 = every layer has rows; 1 = a layer is empty (broken hop); 2 = setup error.
@@ -108,4 +111,4 @@ if [[ "$empty" -gt 0 ]]; then
   echo "FAIL: $empty layer(s) empty or unreadable — the ETL has a broken hop upstream of them."
   exit 1
 fi
-echo "PASS: every medallion layer has rows. KF-11 batch+stream landing verified."
+echo "PASS: every medallion batch layer has rows. Medallion batch landing verified."
