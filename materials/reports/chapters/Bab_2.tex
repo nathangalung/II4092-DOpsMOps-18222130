@@ -5,7 +5,7 @@
 %   - Alur: kasus -> teori dasar -> metode -> penelitian terdahulu
 %   - Kedalaman berhenti pada sub-subbab (tidak ada \subsubsection)
 %   - Tabel perbandingan: skor 0-2, kolom Lisensi (Yayasan), legenda sekali di awal
-%   - Subbab terakhir: Penelitian Terkait dan Posisi Penelitian
+%   - Subbab terakhir: Penelitian Terkait (kesenjangan saja; posisi solusi pindah ke Bab 3)
 % ============================================================
 \cleardoublepage
 \chapter{STUDI LITERATUR}
@@ -357,11 +357,9 @@ Untuk pemantauan ancaman pada lapis \textit{runtime}, Falco \autocite{falco2025}
 
 \input{tables/runtime_security_comparison.tex}
 
-\section{Penelitian Terkait dan Posisi Penelitian}
+\section{Penelitian Terkait}
 \label{sec:terkait}
 
-Beberapa penelitian terdahulu memiliki lingkup yang berdekatan dengan platform ini. \textcite{burgueno2025toward} mengusulkan arsitektur MLOps \textit{open source}, namun belum memasukkan layanan fitur dengan dukungan vektor sebagai komponen utama. \textcite{najafabadi2024analysis} memetakan beragam arsitektur MLOps tetapi tidak menggabungkan DataOps secara menyeluruh. \textcite{rodrigues2025architecture} menyentuh \textit{near real-time stream learning}, namun tidak meletakkan tata kelola data sebagai bidang kendali yang ditegakkan. \textcite{ahmad2024mlops} membahas strategi keamanan MLOps yang pada platform ini diwujudkan melalui kebijakan jaringan dan manajemen rahasia.
+Beberapa penelitian terdahulu memiliki lingkup yang berdekatan dengan platform ini. \textcite{burgueno2025toward} mengusulkan arsitektur MLOps \textit{open source}, namun belum memasukkan layanan fitur dengan dukungan vektor sebagai komponen utama. \textcite{najafabadi2024analysis} memetakan beragam arsitektur MLOps tetapi tidak menggabungkan DataOps secara menyeluruh. \textcite{rodrigues2025architecture} menyentuh \textit{near real-time stream learning}, namun tidak meletakkan tata kelola data sebagai bidang kendali yang ditegakkan. \textcite{ahmad2024mlops} membahas strategi keamanan MLOps, tetapi belum menautkannya pada bidang kendali tata kelola yang menegakkan kebijakan akses sepanjang siklus data dan model.
 
-Platform yang dikembangkan pada Tugas Akhir ini menggabungkan tiga karakter yang belum dilingkupi sekaligus pada penelitian sebelumnya: integrasi DataOps dan MLOps pada satu bidang kendali Kubernetes, layanan fitur \textit{dual-store} dengan dukungan vektor HNSW, dan deteksi \textit{drift} terotomasi yang memicu pelatihan ulang melalui kontrol GitOps. \textcite{hsu2024endtoend} dan \textcite{liang2024automating} memberikan basis komparatif yang dipakai pada Bab~\ref{chap:analisis-masalah} ketika menilai alternatif. Penelitian ini menambahkan kontribusi berupa kontrak \textit{lineage} terbuka melalui OpenLineage dan kontrak kualitas data melalui Great Expectations yang menempel pada \textit{pipeline} produksi. Tabel~\ref{tab:architecture_comparison} menyajikan posisi platform ini terhadap penelitian terkait.
-
-\input{tables/architecture_comparison.tex}
+Kesenjangan yang berulang pada penelitian-penelitian tersebut adalah belum adanya satu rancangan yang sekaligus menyatukan DataOps dan MLOps pada satu bidang kendali, menegakkan tata kelola data sebagai kontrak yang dijalankan otomatis, dan menyediakan layanan fitur multimoda dari satu sumber kebenaran. Kesenjangan inilah yang menjadi titik berangkat analisis kebutuhan dan pemilihan solusi pada Bab~\ref{chap:analisis-masalah}.

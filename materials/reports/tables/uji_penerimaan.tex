@@ -24,7 +24,7 @@ SK-F-06 & KF-06 & Mempromosikan model melalui Argo Rollouts dengan strategi kana
 \hline
 SK-F-12 & KF-12 & Mengubah jumlah \textit{replica} pada manifes YAML di Gitea, lalu mengamati rekonsiliasi Argo CD. & Status \textit{cluster} konvergen ke definisi Git dan tidak menyisakan \textit{drift}. \\
 \hline
-SK-F-13 & KF-13 & Menjalankan satu \textit{notebook} UV yang memanggil SDK Feast, MLflow, dan klien KServe v2 secara berurutan. & Ketiga SDK dipanggil dari satu sesi tanpa konfigurasi tambahan per layanan. \\
+SK-F-13 & KF-13 & Menjalankan notebook satu \textit{environment} uv yang memuat SDK Feast, MLflow, dan klien \textit{inference} KServe v2, lalu memanggil ketiganya sebagai operasi baca independen. & Ketiga klien termuat dan berjalan dari satu \textit{environment} uv tanpa konfigurasi tambahan per layanan. \\
 \hline
 SK-F-14 & KF-14 & Mengirim sejumlah \textit{job} pelatihan melebihi kuota \textit{ClusterQueue} Kueue, lalu mengamati status admisi. & \textit{Job} di luar anggaran kuota berstatus \textit{Pending}. Admisi mengikuti \textit{nominalQuota} dan \textit{borrowingLimit}. \\
 \hline
@@ -71,7 +71,7 @@ SK-F-07 & KF-07 & Menerapkan injeksi \textit{drift} terkendali pada satu fitur d
 \hline
 SK-F-02 & KF-02 & Memeriksa penyajian fitur \textit{online} pada Valkey mengembalikan nilai non-\textit{null} melalui \texttt{online-serving-check.py}, dengan kesetaraan terhadap penyimpanan \textit{offline} ClickHouse dijamin proses \textit{materialize} Feast. & Penyajian \textit{online} mengembalikan nilai non-\textit{null} dan kesetaraan nilai \textit{online} dan \textit{offline} terpenuhi secara struktural melalui \textit{materialize}. \\
 \hline
-SK-F-04 & KF-04 & Menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} dengan k6. & \textit{Recall} memenuhi target dan latensi pencarian berada pada orde sub-detik. \\
+SK-F-04 & KF-04 & Menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} dengan k6. & Latensi pencarian vektor berada pada orde sub-detik; pengujian \textit{recall} dilakukan saat koleksi vektor terisi. \\
 \hline
 SK-F-11 & KF-11 & Membandingkan fitur hasil \textit{batch} (dbt) dan hasil \textit{stream} (Flink) untuk indikator yang sama. & Nilai fitur \textit{batch} dan \textit{stream} setara dalam toleransi yang ditetapkan. \\
 \hline

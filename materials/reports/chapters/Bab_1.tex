@@ -38,34 +38,20 @@ Ketiga tekanan tersebut menggerakkan pengembangan sebuah platform yang menyatuka
 \section{Rumusan Masalah}
 \label{sec:rumusan-masalah}
 
-Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaikan oleh platform yang dikembangkan. Keempat butir dirumuskan agar setiap permasalahan memiliki batas teknis yang jelas, pemilik dalam arsitektur platform, dan rute jawaban berupa \textit{sub-sistem} atau kontrak antar komponen pada bab-bab berikutnya. Setiap butir dinyatakan sebagai properti sistem yang belum terpenuhi, bukan sebagai ketiadaan satu perkakas tertentu, agar jawabannya berlaku lintas pilihan komponen dan menjaga sifat \textit{domain-agnostic} platform. Keempat butir di bawah ini selanjutnya dirujuk dengan singkatan RM-1 hingga RM-4 pada bab-bab berikutnya.
+Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaikan oleh platform yang dikembangkan. Keempat butir dirumuskan sebagai pertanyaan agar setiap permasalahan memiliki batas teknis yang jelas dan rute jawaban berupa \textit{sub-sistem} atau kontrak antar komponen pada bab-bab berikutnya. Setiap pertanyaan menyasar properti sistem yang belum terpenuhi, bukan ketiadaan satu perkakas tertentu, agar jawabannya berlaku lintas pilihan komponen dan menjaga sifat \textit{domain-agnostic} platform. Keempat butir di bawah ini selanjutnya dirujuk dengan singkatan RM-1 hingga RM-4 pada bab-bab berikutnya.
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item \textbf{Fragmentasi tumpukan teknologi DataOps dan MLOps}
+    \item Bagaimana menyatukan tumpukan teknologi DataOps dan MLOps yang terfragmentasi pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model ke dalam satu bidang kendali pada Kubernetes?
 
-    \textit{Tool} pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model dirakit terpisah sehingga integrasi mengulang dan kontrak antar lapis tidak seragam. \textcite{burgueno2025toward} menegaskan bahwa rancangan MLOps berbasis \textit{open source} masih membutuhkan kerangka penyatu agar komponen-komponennya bekerja sebagai satu sistem, bukan sebagai kumpulan perkakas lepas.
+    \item Bagaimana mewujudkan tata kelola data yang konsisten lintas siklus data, fitur, dan model sehingga katalog metadata, \textit{lineage}, dan kontrol kualitas tidak berjalan pasca-fakta?
 
-    \vspace{0.5em}
+    \item Bagaimana mengotomasi deteksi \textit{drift} dan menjamin \textit{point-in-time correctness} agar tidak terjadi kebocoran temporal antara mode \textit{batch} dan \textit{streaming}?
 
-    \item \textbf{Tata kelola data tidak konsisten lintas siklus data, fitur, dan model}
-
-    Katalog metadata, \textit{lineage}, dan kontrol kualitas kerap dijalankan pasca-fakta, terpisah dari \textit{pipeline} produksi dan pencatatan eksperimen. \textcite{polyzotis2018data} menempatkan validasi data sebagai bagian \textit{pipeline} produksi, bukan pekerjaan terpisah setelah masalah muncul.
-
-    \vspace{0.5em}
-
-    \item \textbf{Deteksi \textit{drift} tidak terotomasi dan risiko kebocoran temporal antara mode \textit{batch} dan \textit{streaming}}
-
-    Mekanisme deteksi \textit{drift} aktif dan jaminan \textit{point-in-time correctness} pada penyajian fitur belum menjadi bagian standar \textit{pipeline} produksi. \textcite{kapoor2023leakage} mendokumentasikan kebocoran data sebagai sumber krisis reproduksibilitas yang teridentifikasi pada 294 publikasi lintas 17 bidang ilmu, termasuk kebocoran temporal akibat pemisahan data yang mengabaikan urutan waktu.
-
-    \vspace{0.5em}
-
-    \item \textbf{Penyajian fitur multimoda dari satu sumber kebenaran}
-
-    Fitur tabular, fitur agregat, dan fitur \textit{embedding} vektor berdimensi tinggi harus konsisten antara nilai pelatihan dan nilai penyajian. Tanpa layanan fitur yang menyatukan jalur \textit{offline} dan \textit{online}, tiap aplikasi mengambil fitur dengan caranya sendiri sehingga nilai pelatihan dan nilai penyajian mudah menyimpang, kondisi yang dikenal sebagai \textit{train-serving skew} dan ditetapkan \textcite{breck2017ml} sebagai salah satu uji kelayakan sistem \textit{machine learning} produksi.
+    \item Bagaimana menyajikan fitur multimoda, yang mencakup fitur tabular, agregat, dan \textit{embedding} vektor berdimensi tinggi, dari satu sumber kebenaran dengan nilai yang konsisten antara fase pelatihan dan penyajian?
 \end{enumerate}
 
-Keempat rumusan masalah di atas dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Penomoran RM-1 hingga RM-4 dipertahankan pada seluruh bab agar jawaban tiap permasalahan dapat ditelusuri dari rumusan hingga implementasinya. Keempat rumusan tidak saling tumpang tindih karena masing-masing menyasar satu simpul kegagalan yang berbeda, yaitu perakitan lintas lapis, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan penyajian fitur multimoda, sekaligus bersama-sama menutup rentang dari siklus data hingga penyajian model. Karena dirumuskan dengan kriteria keberhasilan yang jelas dan berpijak pada kegagalan terdokumentasi pada uraian tiap butir di atas, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan.
+Keempat rumusan masalah di atas dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Penomoran RM-1 hingga RM-4 dipertahankan pada seluruh bab agar jawaban tiap permasalahan dapat ditelusuri dari rumusan hingga implementasinya. Keempat rumusan tidak saling tumpang tindih karena masing-masing menyasar satu simpul kegagalan yang berbeda, yaitu perakitan lintas lapis, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan penyajian fitur multimoda, sekaligus bersama-sama menutup rentang dari siklus data hingga penyajian model. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan.
 
 \section{Tujuan}
 \label{sec:tujuan}
@@ -74,54 +60,26 @@ Penelitian ini merumuskan empat tujuan yang masing-masing menjawab satu rumusan 
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item \textbf{Arsitektur platform DataOps dan MLOps terintegrasi}
+    \item Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps, menjawab RM-1.
 
-    Merancang dan mewujudkan arsitektur platform DataOps dan MLOps terintegrasi di atas Kubernetes yang menyatukan ingestasi, pemrosesan, penyimpanan fitur, pelatihan, penyajian model, observabilitas, dan tata kelola pada satu bidang kendali deklaratif dengan praktik GitOps. Tujuan ini menjawab RM-1.
+    \item Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model, menjawab RM-2.
 
-    \vspace{0.5em}
+    \item Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}, menjawab RM-3.
 
-    \item \textbf{\textit{Sub-sistem} tata kelola data}
-
-    Membangun \textit{sub-sistem} tata kelola data yang menyediakan katalog metadata, perekaman \textit{lineage}, dan kontrol kualitas data sebagai layanan bersama yang otomatis dijalankan di seluruh \textit{pipeline} data, fitur, dan model. Tujuan ini menjawab RM-2.
-
-    \vspace{0.5em}
-
-    \item \textbf{\textit{Sub-sistem} deteksi \textit{drift} terotomasi}
-
-    Mengimplementasikan \textit{sub-sistem} deteksi \textit{drift} terotomasi dengan kebijakan \textit{retraining} berbasis ambang batas serta menjamin \textit{point-in-time correctness} pada penyajian fitur lintas mode \textit{batch} dan \textit{streaming}. Tujuan ini menjawab RM-3.
-
-    \vspace{0.5em}
-
-    \item \textbf{Layanan fitur \textit{dual-store} \textit{offline} dan \textit{online}}
-
-    Mengembangkan layanan fitur \textit{dual-store} yang melayani fitur tabular dan fitur agregat melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan fase penyajian, serta melayani \textit{embedding} vektor berdimensi tinggi pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten pada kedua fase tersebut. Tujuan ini menjawab RM-4.
+    \item Mengembangkan layanan fitur \textit{dual-store} yang melayani fitur tabular dan agregat melalui satu kontrak API dengan jaminan konsistensi nilai antara fase pelatihan dan penyajian, serta melayani \textit{embedding} vektor berdimensi tinggi pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten pada kedua fase tersebut, menjawab RM-4.
 \end{enumerate}
 
 Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-masing menautkan satu tujuan.
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item \textbf{Pemasangan dari satu repositori Git}
+    \item Seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual setelah \textit{bootstrap} awal klaster (T-1).
 
-    Seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual setelah \textit{bootstrap} awal klaster (T-1).
+    \item Seluruh \textit{pipeline} data, fitur, dan model terdaftar pada katalog metadata dengan \textit{lineage} yang dapat ditelusuri (T-2).
 
-    \vspace{0.5em}
+    \item Mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi (T-3).
 
-    \item \textbf{Tata kelola metadata dengan \textit{lineage} tertelusur}
-
-    Seluruh \textit{pipeline} data, fitur, dan model terdaftar pada katalog metadata dengan \textit{lineage} yang dapat ditelusuri (T-2).
-
-    \vspace{0.5em}
-
-    \item \textbf{Deteksi \textit{drift} dengan pelatihan ulang otomatis}
-
-    Mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi (T-3).
-
-    \vspace{0.5em}
-
-    \item \textbf{Penyajian fitur \textit{dual-store} dengan kontrak tunggal}
-
-    Fitur tabular, agregat, dan \textit{embedding} tersaji melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online} (T-4).
+    \item Fitur tabular, agregat, dan \textit{embedding} tersaji melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online} (T-4).
 \end{enumerate}
 
 \section{Batasan Masalah}
@@ -221,13 +179,13 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab II Studi Literatur}
 
-    Meninjau konsep DataOps dan MLOps, Kubernetes, manajemen data, layanan fitur, siklus hidup model, tata kelola data, deteksi \textit{drift}, observabilitas, praktik GitOps, dan keamanan platform sebagai landasan teoretis, lalu memetakan posisi penelitian ini terhadap penelitian terkait.
+    Meninjau konsep DataOps dan MLOps, Kubernetes, manajemen data, layanan fitur, siklus hidup model, tata kelola data, deteksi \textit{drift}, observabilitas, praktik GitOps, dan keamanan platform sebagai landasan teoretis, lalu mengidentifikasi kesenjangan pada penelitian terkait.
 
     \vspace{0.5em}
 
     \item \textbf{Bab III Analisis Masalah}
 
-    Memetakan kondisi sistem dan menyusun kebutuhan fungsional KF-01 hingga KF-14 serta kebutuhan nonfungsional KNF-01 hingga KNF-12 sebagai turunan empat tujuan. Empat alternatif arsitektur dibandingkan melalui matriks evaluasi multi-kriteria.
+    Memetakan kondisi sistem dan menyusun kebutuhan fungsional KF-01 hingga KF-14 serta kebutuhan nonfungsional KNF-01 hingga KNF-12 sebagai turunan empat tujuan. Empat alternatif arsitektur dibandingkan melalui matriks evaluasi multi-kriteria, lalu posisi platform terhadap penelitian terkait dipetakan berdasarkan kebutuhan yang sama.
 
     \vspace{0.5em}
 

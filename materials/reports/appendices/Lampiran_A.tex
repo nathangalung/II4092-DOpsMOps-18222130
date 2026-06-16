@@ -28,10 +28,17 @@ kubectl apply -f experiments/namespace.yaml
 Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi siklus hidup model setara MLOps Level 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-1},label={lst:cat-t1},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
-# SK-F-01 (KF-01): rekonsiliasi GitOps feature view via Argo CD.
-$EDITOR use-case-crypto/scripts/libs/feature_store/definitions.py
+# SK-F-01 (KF-01): rekonsiliasi GitOps feature view via Argo CD. Definisi feature
+# view Feast ada pada ConfigMap feast-feature-repo (overlay local menambah prefix
+# crypto-, menjadi crypto-feast-feature-repo); use-case-crypto repo terlacak Gitea.
+$EDITOR use-case-crypto/manifests/base/configmaps/feast.yaml
 git -C use-case-crypto commit -am "feat: feature view" && git -C use-case-crypto push gitea
-argocd app sync crypto-use-case-local && uv run feast feature-views list
+argocd app sync crypto-use-case-local && argocd app diff crypto-use-case-local
+# Definisi tersusun menjadi repo Feast lalu diregistrasi task materialize (Airflow)
+# via 'feast apply' tanpa langkah manual; 'feast feature-views list' dari pod
+# ber-repo Feast menampilkannya. Konfirmasi reconcile read-only di kluster:
+kubectl -n use-case-crypto get configmap crypto-feast-feature-repo \
+  -o jsonpath='{.data.definitions\.py}' | grep 'FeatureView('
 
 # SK-F-12 (KF-12): konfigurasi deklaratif, konvergen tanpa drift.
 argocd app diff crypto-use-case-local
@@ -41,10 +48,14 @@ kubectl -n use-case-crypto get deploy
 kubectl -n use-case-crypto get rollouts
 kubectl argo rollouts -n use-case-crypto get rollout <rollout> --watch   # promote | abort
 
-# SK-F-13 (KF-13): satu sesi UV memanggil SDK Feast, MLflow, KServe.
-uv run feast feature-views list                          # Feast SDK
-kubectl get inferenceservice -A | grep predictor         # KServe (crypto-predictor)
-# MLflow tracking client dipanggil dari notebook yang sama (konsol via ingress).
+# SK-F-13 (KF-13): notebook satu environment uv memuat SDK Feast, MLflow, dan
+# klien KServe v2, lalu menjalankan ketiganya sebagai operasi baca independen.
+# Dijalankan dari Kubeflow Notebook in-cluster tempat repo Feast dan DNS layanan
+# tersedia. Verifikasi struktural: environment terpasang, notebook tereksekusi.
+cd use-case-crypto/notebooks
+uv sync
+uv run jupyter nbconvert --to notebook --execute unified_sdk_walkthrough.ipynb
+kubectl get inferenceservice -A | grep predictor   # endpoint v2 aktif (crypto-predictor)
 
 # SK-F-14 (KF-14): jenuhkan ClusterQueue Kueue, job luar kuota Pending.
 kubectl get clusterqueue,localqueue,workloads -A

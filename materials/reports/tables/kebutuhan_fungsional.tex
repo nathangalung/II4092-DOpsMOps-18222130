@@ -40,7 +40,7 @@ KF-11 & Pemrosesan \textit{Batch} dan \textit{Stream} & Sistem mendukung \textit
 \hline
 KF-12 & Konfigurasi Deklaratif & Sistem memungkinkan konfigurasi komponen seperti fitur, \textit{pipeline}, dan \textit{deployment} dalam format deklaratif (manifes Kubernetes, \textit{overlay} Kustomize, dan definisi Feast berbasis Python) yang dikontrol versinya di Gitea dan disinkronkan oleh Argo CD sebagai \textit{single source of truth}. & T-1 \\
 \hline
-KF-13 & API dan SDK Terpadu & Sistem menyediakan kumpulan SDK Python yang seragam (Feast, MLflow, Kubeflow Pipelines, dbt, dan klien KServe v2 \textit{inference}) sebagai antarmuka standar untuk berinteraksi dengan seluruh komponen, sehingga kompleksitas integrasi menurun dan pola pemakaian menjadi konsisten. & T-1 \\
+KF-13 & API dan SDK Terpadu & Sistem menyediakan SDK Python yang seragam (Feast, MLflow, dan klien KServe v2 \textit{inference}) dalam satu \textit{environment} uv sebagai antarmuka klien standar untuk membaca fitur \textit{online}, menelusuri \textit{run} dan registri model, serta memanggil \textit{endpoint inference}, sehingga kompleksitas integrasi menurun dan pola pemakaian menjadi konsisten. & T-1 \\
 \hline
 KF-14 & Manajemen Sumber Daya & Sistem menyediakan kemampuan pengelolaan sumber daya komputasi yang efisien melalui Kueue untuk \textit{job queueing}, prioritas, dan kuota berbasis ClusterQueue, dipadukan dengan HPA, VPA, dan KEDA untuk \textit{dynamic provisioning} pada lingkungan \textit{multi-tenant} agar tidak ada satu \textit{workload} yang menghabiskan sumber daya klaster. & T-1 \\
 \hline

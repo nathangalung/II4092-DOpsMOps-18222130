@@ -42,7 +42,7 @@ KF-11 & Paritas fitur \textit{batch} dan \textit{stream} & dbt, Flink & Terverif
 \hline
 KF-12 & Konvergensi deklaratif tanpa \textit{drift} & Kustomize, Argo CD, Gitea & Terverifikasi struktural. Hasil \texttt{argocd diff} bersih dan konvergen tanpa \textit{drift}. \\
 \hline
-KF-13 & Satu sesi memanggil ketiga SDK & SDK Feast, MLflow, KServe & Terverifikasi struktural. Satu sesi memanggil SDK Feast, MLflow, dan KServe. \\
+KF-13 & SDK Feast, MLflow, dan klien KServe v2 termuat dalam satu \textit{environment} uv & Notebook \texttt{uv run}, pyproject & Terverifikasi struktural. Notebook \texttt{unified\_sdk\_walkthrough} memuat ketiga klien dalam satu \textit{environment} uv lalu menjalankannya sebagai operasi baca independen. \\
 \hline
 KF-14 & \textit{Job} luar kuota \textit{Pending}, admisi sesuai & Kueue \textit{ClusterQueue}, HPA, VPA, KEDA & Terverifikasi struktural. \textit{Job} di luar kuota berstatus \textit{Pending} sesuai admisi Kueue. \\
 \hline
