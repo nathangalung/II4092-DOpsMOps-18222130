@@ -1,11 +1,6 @@
-% ============================================================
-% BAB IV - PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS
-% Template (TEMPLATE_BAB.md §5 + WRITING_GUIDE.md §3.2):
-%   - IV.1 Gambaran Umum Platform       : pengikat kepala (diagram + peran-akses)
-%   - IV.2..IV.5 rantai rancangan         : satu lawan satu dengan T-1..T-4
-%   - IV.6 Alur Kerja End-to-End         : pengikat ekor (siklus after vs before Bab III)
-% Judul menyebut nama artefak, bukan "Perancangan" generik
-% ============================================================
+% Bab IV Perancangan Arsitektur Platform
+% Template: TEMPLATE_BAB.md
+% Gaya: WRITING_GUIDE.md
 \cleardoublepage
 \chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:perancangan}
@@ -24,7 +19,28 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
     \label{fig:integrate-general}
 \end{figure}
 
-Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek. Pertama, bidang kendali yang sebelumnya tersebar pada bermacam \textit{tool} digabungkan ke dalam \textit{control plane} Kubernetes yang sama. Kedua, sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh Argo CD \autocite{argocd2024}. Ketiga, antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan di Grafana dengan Prometheus \autocite{prometheus2024}, Loki \autocite{loki2024}, dan Grafana Tempo \autocite{tempo2024} sebagai sumber tiga pilar observabilitas. Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}, karena tiap lapis berbagi kontrak yang sama dan dapat dirujuk silang melalui DataHub.
+Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Penyatuan bidang kendali pada Kubernetes}
+
+    Bidang kendali yang sebelumnya tersebar pada bermacam \textit{tool} digabungkan ke dalam \textit{control plane} Kubernetes yang sama.
+
+    \vspace{0.5em}
+
+    \item \textbf{Sumber kebenaran konfigurasi tunggal di Git}
+
+    Sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh Argo CD \autocite{argocd2024}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Penyatuan antarmuka observabilitas}
+
+    Antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan di Grafana dengan Prometheus \autocite{prometheus2024}, Loki \autocite{loki2024}, dan Grafana Tempo \autocite{tempo2024} sebagai sumber tiga pilar observabilitas.
+\end{enumerate}
+
+Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}, karena tiap lapis berbagi kontrak yang sama dan dapat dirujuk silang melalui DataHub.
 
 Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{tool} yang diakses, dan fungsi yang dijalankan, sehingga satu titik masuk tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke DataHub serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Penyatuan pada lapis antarmuka inilah yang melengkapi penyatuan pada lapis kendali, sehingga keempat peran bekerja di atas satu platform tanpa kehilangan antarmuka yang sesuai dengan tugasnya.
 
@@ -157,7 +173,26 @@ Promosi versi pada lapisan penyajian dikendalikan oleh Argo Rollouts \autocite{a
 \subsection{Mekanisme Penanganan Kasus Khusus}
 \label{subsec:kasus-khusus}
 
-Sub-sistem ini melayani tiga kasus khusus. Pertama, ketika \textit{drift} terdeteksi pada fitur tetapi label belum tersedia, \textit{workflow} hanya melakukan pelatihan ulang setelah label berjalan cukup lama. Kedua, ketika \textit{drift} terjadi karena perubahan distribusi sementara, ambang dihitung dengan jendela bergulir agar tidak memicu pelatihan ulang yang tidak perlu. Ketiga, ketika versi baru gagal pada analisis kanari, promosi dihentikan otomatis sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kegagalan ke MLflow.
+Sub-sistem ini melayani tiga kasus khusus berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{\textit{Drift} terdeteksi sebelum label tersedia}
+
+    Ketika \textit{drift} terdeteksi pada fitur tetapi label belum tersedia, \textit{workflow} hanya melakukan pelatihan ulang setelah label berjalan cukup lama.
+
+    \vspace{0.5em}
+
+    \item \textbf{\textit{Drift} akibat perubahan distribusi sementara}
+
+    Ketika \textit{drift} terjadi karena perubahan distribusi sementara, ambang dihitung dengan jendela bergulir agar tidak memicu pelatihan ulang yang tidak perlu.
+
+    \vspace{0.5em}
+
+    \item \textbf{Kegagalan versi baru pada analisis kanari}
+
+    Ketika versi baru gagal pada analisis kanari, promosi dihentikan otomatis sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kegagalan ke MLflow.
+\end{enumerate}
 
 Penanganan tiga kasus tersebut dirancang sebagai cabang pada \texttt{DAG} CronWorkflow sehingga keputusan dapat ditelusuri pada riwayat eksekusi Argo. Setiap cabang menulis catatan ke MLflow \texttt{tags} agar konteks keputusan tersimpan bersama dengan eksperimen yang dipicu. Kegagalan pada analisis kanari memicu peringatan ke Alertmanager dengan rute khusus untuk peran \textit{machine learning engineer}, sehingga investigasi dapat dimulai tanpa menunggu pelaporan manual. Riwayat tiga kasus tersebut juga dipakai untuk memperbarui ambang \textit{drift} pada konfigurasi melalui mekanisme \textit{tuning} berkala yang dijalankan pada Argo Workflows.
 
@@ -197,6 +232,37 @@ Jadwal materialisasi \textit{batch} dipasang pada DAG Airflow melalui \textit{ta
 \section{Alur Kerja \textit{End-to-End}}
 \label{sec:alur-e2e}
 
-Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan. Pertama, data baru masuk melalui Kafka, divalidasi oleh Great Expectations, kemudian disimpan pada \textit{warehouse} ClickHouse dan \textit{data lake} MinIO dengan katalog Lakekeeper. Kedua, fitur dihitung pada Flink atau Spark, lalu diregistrasi pada Feast dan dimaterialisasi ke ClickHouse sebagai \textit{offline store}, Valkey sebagai \textit{online store} tabular, dan Qdrant sebagai indeks vektor terpisah. Ketiga, Argo CronWorkflow mengukur \textit{drift} dan, jika ambang dilewati, memicu \textit{pipeline} pelatihan Kubeflow Pipelines. Pelatihan menggunakan \texttt{get\_historical\_features} untuk menjamin konsistensi temporal.
+Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan dengan urutan tahap sebagai berikut.
 
-Keempat, hasil pelatihan ditulis ke MLflow, model kandidat didaftarkan sebagai versi baru, lalu promosi pada lapisan penyajian dikawal oleh Argo Rollouts dengan strategi \textit{canary} berbasis analisis metrik. Kelima, perubahan pada konfigurasi disinkronkan dari Git oleh Argo CD, sedangkan pengamatan kondisi sistem dipantau oleh Prometheus, Loki, dan Grafana Tempo melalui Grafana. Siklus ini berputar setiap kali data baru masuk atau \textit{drift} terdeteksi, sehingga platform terus menerus menjaga akurasi model di lingkungan produksi. \textcite{rodrigues2025architecture} memberi rujukan tambahan untuk arsitektur pembelajaran \textit{near real-time} pada lingkungan yang serupa, dan pendekatan yang dirancang di sini menyesuaikan rujukan tersebut dengan kontrak Feast dan Argo Rollouts agar siklus tetap dapat dijalankan secara deklaratif pada satu \textit{cluster} Kubernetes.
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Ingestasi dan validasi data}
+
+    Data baru masuk melalui Kafka, divalidasi oleh Great Expectations, kemudian disimpan pada \textit{warehouse} ClickHouse dan \textit{data lake} MinIO dengan katalog Lakekeeper.
+
+    \vspace{0.5em}
+
+    \item \textbf{Komputasi dan materialisasi fitur}
+
+    Fitur dihitung pada Flink atau Spark, lalu diregistrasi pada Feast dan dimaterialisasi ke ClickHouse sebagai \textit{offline store}, Valkey sebagai \textit{online store} tabular, dan Qdrant sebagai indeks vektor terpisah.
+
+    \vspace{0.5em}
+
+    \item \textbf{Pengukuran \textit{drift} dan pelatihan ulang}
+
+    Argo CronWorkflow mengukur \textit{drift} dan, jika ambang dilewati, memicu \textit{pipeline} pelatihan Kubeflow Pipelines yang menggunakan \texttt{get\_historical\_features} untuk menjamin konsistensi temporal.
+
+    \vspace{0.5em}
+
+    \item \textbf{Registrasi dan promosi model}
+
+    Hasil pelatihan ditulis ke MLflow, model kandidat didaftarkan sebagai versi baru, lalu promosi pada lapisan penyajian dikawal oleh Argo Rollouts dengan strategi \textit{canary} berbasis analisis metrik.
+
+    \vspace{0.5em}
+
+    \item \textbf{Sinkronisasi konfigurasi dan observabilitas}
+
+    Perubahan pada konfigurasi disinkronkan dari Git oleh Argo CD, sedangkan pengamatan kondisi sistem dipantau oleh Prometheus, Loki, dan Grafana Tempo melalui Grafana.
+\end{enumerate}
+
+Siklus ini berputar setiap kali data baru masuk atau \textit{drift} terdeteksi, sehingga platform terus menerus menjaga akurasi model di lingkungan produksi. \textcite{rodrigues2025architecture} memberi rujukan tambahan untuk arsitektur pembelajaran \textit{near real-time} pada lingkungan yang serupa, dan pendekatan yang dirancang di sini menyesuaikan rujukan tersebut dengan kontrak Feast dan Argo Rollouts agar siklus tetap dapat dijalankan secara deklaratif pada satu \textit{cluster} Kubernetes.

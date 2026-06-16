@@ -1,11 +1,6 @@
-% ============================================================
-% BAB III - ANALISIS MASALAH
-% Template (TEMPLATE_BAB.md §4):
-%   - III.1 Analisis Kondisi Saat Ini : tiga tekanan (konfigurasi, biaya, fragmentasi)
-%   - III.2 Analisis Kebutuhan         : masalah pengguna, KF-1..KF-n, KNF-1..KNF-n
-%   - III.3 Analisis Pemilihan Solusi  : alternatif solusi + penentuan solusi
-% Urutan tekanan sejalan dengan pemicu pada Bab I Latar Belakang
-% ============================================================
+% Bab III Analisis Masalah
+% Template: TEMPLATE_BAB.md
+% Gaya: WRITING_GUIDE.md
 \cleardoublepage
 \chapter{ANALISIS MASALAH}
 \label{chap:analisis-masalah}
@@ -79,10 +74,10 @@ Identifikasi masalah pengguna diturunkan dari empat rumusan masalah pada Bab~\re
 
     \item \textbf{Dukungan fitur multimoda berlatensi rendah}
 
-    Dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference} dibutuhkan pada lapis penyajian fitur, dengan landasan teknik penyajian vektor yang telah diulas pada Subbab~\ref{subsec:vektor-hnsw}. Kebutuhan ini berakar pada kerja \textit{data scientist} yang merekayasa fitur lintas modalitas.
+    Dukungan fitur multimoda yang terdiri dari fitur tabular, urutan waktu, dan \textit{embedding} berdimensi tinggi dengan latensi rendah pada saat \textit{inference} dibutuhkan pada lapis penyajian fitur. Kebutuhan ini berakar pada kerja \textit{data scientist} yang merekayasa fitur lintas modalitas.
 \end{enumerate}
 
-Empat kebutuhan pengguna tersebut menyiratkan satu pola yang sama, yaitu kebutuhan untuk memutus sambungan ad hoc antar lapis dengan kontrak yang seragam dan dapat dipanggil dari satu antarmuka. Pengguna pada peran \textit{business user} menjadi penerima manfaat terakhir karena hanya melihat keluaran model pada lapis penyajian, sehingga kualitas kontrak pada lapis bawah menjadi penentu apakah keputusan bisnis dapat diambil dengan tepat waktu. Identifikasi tersebut menjadi titik berangkat untuk menyusun daftar formal kebutuhan fungsional pada Subbab~\ref{subsec:kf} dan kebutuhan nonfungsional pada Subbab~\ref{subsec:knf}. Daftar formal yang diturunkan dari pola tersebut menjadi dasar penyusunan kebutuhan fungsional dan nonfungsional pada dua subbab berikutnya, sehingga setiap kebutuhan dapat dirunut kembali ke sumber masalah yang melahirkannya dan diuji pemenuhannya pada Bab~\ref{chap:evaluasi}.
+Empat kebutuhan pengguna tersebut menyiratkan satu pola yang sama, yaitu kebutuhan untuk memutus sambungan ad hoc antar lapis dengan kontrak yang seragam dan dapat dipanggil dari satu antarmuka. Pengguna pada peran \textit{business user} menjadi penerima manfaat terakhir karena hanya melihat keluaran model pada lapis penyajian, sehingga kualitas kontrak pada lapis bawah menjadi penentu apakah keputusan bisnis dapat diambil dengan tepat waktu. Identifikasi tersebut menjadi titik berangkat untuk menyusun daftar formal kebutuhan fungsional pada Subbab~\ref{subsec:kf} dan kebutuhan nonfungsional pada Subbab~\ref{subsec:knf}. Daftar formal tersebut selanjutnya dipetakan ke komponen arsitektur pada Bab~\ref{chap:perancangan} dan diuji pemenuhannya pada Bab~\ref{chap:evaluasi}, sehingga setiap kebutuhan tetap terhubung dari sumber masalah hingga bukti pemenuhannya.
 
 \subsection{Kebutuhan Fungsional}
 \label{subsec:kf}

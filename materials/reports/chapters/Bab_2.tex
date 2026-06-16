@@ -60,7 +60,28 @@ Beberapa kerangka kematangan diusulkan untuk menggambarkan jenjang kapabilitas t
   \includegraphics[width=0.9\textwidth]{figures/MLOps_2.jpg}
 \end{figure}
 
-Platform yang dikembangkan menargetkan kematangan setara \textit{level 2} pada kerangka Google Cloud, dengan rincian sebagai berikut. Pertama, \textit{pipeline} pelatihan didefinisikan sebagai \textit{pipeline} Kubeflow Pipelines yang dipicu secara terjadwal maupun ketika ambang \textit{drift} terlampaui. Kedua, penyebaran model dijalankan otomatis melalui KServe \texttt{InferenceService} yang versinya dipromosikan langsung oleh \textit{pipeline} pelatihan. Ketiga, pemantauan model dilakukan secara berkelanjutan oleh \textit{job} deteksi \textit{drift} terjadwal yang melaporkan metrik \textit{drift} ke Prometheus serta menyimpan skor historis pada tabel analitik untuk audit. Ketiga jalur otomasi tersebut menjadi acuan implementasi pada Bab~\ref{chap:implementasi} dan dasar evaluasi pada Bab~\ref{chap:evaluasi}.
+Platform yang dikembangkan menargetkan kematangan setara \textit{level 2} pada kerangka Google Cloud melalui tiga jalur otomasi berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{\textit{Pipeline} pelatihan otomatis}
+
+    \textit{Pipeline} pelatihan didefinisikan sebagai \textit{pipeline} Kubeflow Pipelines yang dipicu secara terjadwal maupun ketika ambang \textit{drift} terlampaui.
+
+    \vspace{0.5em}
+
+    \item \textbf{Penyebaran model otomatis}
+
+    Penyebaran model dijalankan otomatis melalui KServe \texttt{InferenceService} yang versinya dipromosikan langsung oleh \textit{pipeline} pelatihan.
+
+    \vspace{0.5em}
+
+    \item \textbf{Pemantauan model berkelanjutan}
+
+    Pemantauan model dilakukan secara berkelanjutan oleh \textit{job} deteksi \textit{drift} terjadwal yang melaporkan metrik \textit{drift} ke Prometheus serta menyimpan skor historis pada tabel analitik untuk audit.
+\end{enumerate}
+
+Ketiga jalur otomasi tersebut menjadi acuan implementasi pada Bab~\ref{chap:implementasi} dan dasar evaluasi pada Bab~\ref{chap:evaluasi}.
 
 \input{tables/mlops_maturity_comparison.tex}
 
@@ -69,7 +90,26 @@ Platform yang dikembangkan menargetkan kematangan setara \textit{level 2} pada k
 
 \textcite{jain2025integrating} menyatakan bahwa integrasi DataOps dan MLOps menjadi prasyarat skalabilitas dan ketahanan \textit{pipeline} \textit{machine learning} modern. Sementara itu, \textcite{burgueno2025toward} mengusulkan arsitektur MLOps \textit{open source} berbasis komponen, namun cakupannya berfokus pada jalur model dan belum membahas penyajian fitur \textit{dual-store} maupun kebijakan deteksi \textit{drift} sebagai satu kesatuan dengan jalur data. \textcite{rodrigues2025architecture} membahas arsitektur untuk \textit{stream learning} mendekati waktu nyata, dengan penekanan pada deteksi \textit{drift} dan pembaruan model. Penelitian ini berada pada irisan ketiganya: arsitektur \textit{open source} yang menyatukan DataOps dan MLOps, dengan layanan fitur \textit{dual-store} dan deteksi \textit{drift} terotomasi sebagai komponen inti.
 
-Integrasi tersebut diwujudkan melalui tiga jembatan teknis yang dijelaskan pada bab berikutnya. Jembatan pertama adalah \textit{feature contract} pada Feast yang menyatukan \textit{offline store} dan \textit{online store} dengan satu definisi \texttt{FeatureView}, sehingga jalur DataOps yang menulis fitur dan jalur MLOps yang membaca fitur memakai kontrak yang sama. Jembatan kedua adalah \textit{lineage} terbuka melalui OpenLineage yang menyalurkan jejak transformasi \textit{pipeline} data dari Airflow, termasuk langkah dbt di dalamnya, ke satu jalur penerimaan DataHub sehingga asal-usul \textit{dataset} pelatihan dapat dirunut dari katalog yang sama. Jembatan ketiga adalah bidang kendali deklaratif Argo CD yang merekonsiliasi manifes komponen DataOps dan MLOps dari satu repositori Gitea, sehingga kebijakan dan versi komponen tetap konsisten lintas dua disiplin.
+Integrasi tersebut diwujudkan melalui tiga jembatan teknis yang dijelaskan pada bab berikutnya.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{\textit{Feature contract} pada Feast}
+
+    Feast menyatukan \textit{offline store} dan \textit{online store} dengan satu definisi \texttt{FeatureView}, sehingga jalur DataOps yang menulis fitur dan jalur MLOps yang membaca fitur memakai kontrak yang sama.
+
+    \vspace{0.5em}
+
+    \item \textbf{\textit{Lineage} terbuka melalui OpenLineage}
+
+    OpenLineage menyalurkan jejak transformasi \textit{pipeline} data dari Airflow, termasuk langkah dbt di dalamnya, ke satu jalur penerimaan DataHub sehingga asal-usul \textit{dataset} pelatihan dapat dirunut dari katalog yang sama.
+
+    \vspace{0.5em}
+
+    \item \textbf{Bidang kendali deklaratif Argo CD}
+
+    Argo CD merekonsiliasi manifes komponen DataOps dan MLOps dari satu repositori Gitea, sehingga kebijakan dan versi komponen tetap konsisten lintas dua disiplin.
+\end{enumerate}
 
 \section{Kubernetes dan Orkestrasi \textit{Cloud-Native}}
 \label{sec:kubernetes}
@@ -119,7 +159,7 @@ Registrasi skema dipisahkan ke Karapace \autocite{karapace2025} sebagai \textit{
 
 \input{tables/schema_registry_comparison.tex}
 
-Pada platform ini, Kafka dioperasikan melalui \textit{operator} Strimzi yang menyediakan CRD \texttt{Kafka}, \texttt{KafkaUser}, \texttt{KafkaTopic}, dan \texttt{KafkaConnect}, sehingga seluruh konfigurasi kluster, otentikasi pengguna, daftar \textit{topic}, dan \textit{connector} berada dalam bidang kendali yang sama dengan komponen lain. Mode otentikasi yang dipakai adalah SCRAM-SHA-512 melalui Strimzi \texttt{KafkaUser} dengan kredensial yang disebar oleh External Secrets Operator dari OpenBao. Topologi \textit{topic} bawaan menggunakan enam \textit{partition} dengan faktor replikasi satu pada lingkungan satu \textit{node}, dan faktor replikasi dapat dinaikkan menjadi tiga pada lingkungan multi-\textit{node}. Pemantauan \textit{lag} antrean dilakukan oleh KEDA \texttt{ScaledObject} yang membaca metrik Kafka Exporter melalui Prometheus.
+Pada platform ini, Kafka dioperasikan melalui \textit{operator} Strimzi yang menyediakan CRD \texttt{Kafka}, \texttt{KafkaUser}, \texttt{KafkaTopic}, dan \texttt{KafkaConnect}, sehingga seluruh konfigurasi klaster, otentikasi pengguna, daftar \textit{topic}, dan \textit{connector} berada dalam bidang kendali yang sama dengan komponen lain. Mode otentikasi yang dipakai adalah SCRAM-SHA-512 melalui Strimzi \texttt{KafkaUser} dengan kredensial yang disebar oleh External Secrets Operator dari OpenBao. Topologi \textit{topic} bawaan menggunakan enam \textit{partition} dengan faktor replikasi satu pada lingkungan satu \textit{node}, dan faktor replikasi dapat dinaikkan menjadi tiga pada lingkungan multi-\textit{node}. Pemantauan \textit{lag} antrean dilakukan oleh KEDA \texttt{ScaledObject} yang membaca metrik Kafka Exporter melalui Prometheus.
 
 Jalur ingestasi berbasis konektor dilengkapi oleh Kafka Connect, kerangka integrasi pada ekosistem Kafka yang menjalankan konektor sumber dan tujuan sebagai beban kerja terkelola \autocite{apachekafka2024}. Debezium \autocite{debezium2025} dipakai sebagai konektor \textit{change data capture} (CDC) yang membaca \textit{write-ahead log} PostgreSQL dan menerbitkan perubahan baris sebagai peristiwa Kafka, sehingga tabel relasional dapat diikutkan ke jalur \textit{streaming} tanpa kueri berkala. Antarmuka penelusuran klaster disediakan oleh Kafbat UI \autocite{kafbatui2025} untuk memeriksa \textit{topic}, \textit{consumer group}, dan skema pada operasi harian. Ketiganya memakai mekanisme autentikasi SCRAM yang sama dengan klien Kafka lain sehingga kebijakan akses \textit{topic} tetap satu pintu.
 

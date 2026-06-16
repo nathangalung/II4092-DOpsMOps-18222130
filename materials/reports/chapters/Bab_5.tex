@@ -1,11 +1,6 @@
-% ============================================================
-% BAB V - IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS
-% Template (TEMPLATE_BAB.md §6 + WRITING_GUIDE.md §3.3):
-%   - V.1 Lingkungan Implementasi        : pengikat kepala (cluster, rahasia, GitOps)
-%   - V.2..V.5 rantai implementasi         : satu lawan satu dengan IV.2..IV.5
-%   - V.6 Verifikasi Implementasi         : pengikat ekor (jembatan ke evaluasi Bab VI)
-% Setiap subbab membuka dengan rujukan balik ke subbab Bab IV yang dipenuhi
-% ============================================================
+% Bab V Implementasi Arsitektur Platform
+% Template: TEMPLATE_BAB.md
+% Gaya: WRITING_GUIDE.md
 \cleardoublepage
 \chapter{IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:implementasi}
@@ -104,14 +99,14 @@ dbt menjalankan model SQL untuk lapisan \textit{silver} dan \textit{gold} pada C
 \subsection{Kontrol Akses}
 \label{subsec:impl-akses}
 
-Kontrol akses pada lapis jaringan menggunakan \textit{NetworkPolicy} dengan kebijakan \textit{default-deny} per \textit{namespace} dan pengecualian yang dideklarasikan secara eksplisit. Kontrol akses pada lapis aplikasi menggunakan dex \autocite{dex2025} sebagai \textit{identity provider} OIDC dan oauth2-proxy \autocite{oauth2proxy2025} sebagai \textit{reverse proxy} yang menegakkan otentikasi pada antarmuka aplikasi. Kyverno \autocite{kyverno2024} menerapkan kebijakan pada lapis admisi, antara lain wajibnya \textit{resource limits}, larangan \textit{privileged container} di luar pengecualian eksplisit, dan kepatuhan label \textit{Pod Security Standards}. Falco \autocite{falco2025} memantau peristiwa \textit{runtime} pada level \textit{kernel} untuk mendeteksi pelanggaran kebijakan keamanan setelah \textit{pod} berjalan.
+Kontrol akses pada lapis jaringan menggunakan \textit{NetworkPolicy} dengan kebijakan \textit{default-deny} per \textit{namespace} dan pengecualian yang dideklarasikan secara eksplisit. Pada lapis aplikasi, kontrol akses memakai jalur otentikasi tunggal dex dan oauth2-proxy yang telah dirinci pada Subbab~\ref{subsec:rahasia-identitas}, sehingga akses ke konsol tata kelola tunduk pada sesi identitas yang sama dengan layanan platform lain. Pada lapis admisi, Kyverno \autocite{kyverno2024} menegakkan kebijakan keamanan beban kerja sesuai rancangan pada Subbab~\ref{subsec:identitas-akses}. Falco \autocite{falco2025} memantau peristiwa \textit{runtime} pada level \textit{kernel} untuk mendeteksi pelanggaran kebijakan keamanan setelah \textit{pod} berjalan.
 
 SpiceDB \autocite{spicedb2025} berfungsi sebagai layanan otorisasi yang dipakai DataHub dan Kubeflow Pipelines untuk hubungan akses pada level objek, dengan basis data PostgreSQL melalui CNPG. \textit{Policy} Kyverno disusun pada \textit{namespace} \texttt{security} dengan \textit{policy generator} yang menyebar peraturan ke \textit{namespace} aplikasi tanpa duplikasi sumber daya. Kyverno mode \texttt{failurePolicy=Ignore} dipakai pada \texttt{ValidatingPolicy} agar admisi tidak terblokir saat \textit{webhook} gagal pada kondisi \textit{cluster} yang sibuk. Falco mengirim peringatan ke Loki melalui \textit{falcosidekick} dengan \textit{topic} khusus sehingga regu keamanan dapat menelusuri peristiwa terkait kebijakan dari satu antarmuka Grafana.
 
 \section{Implementasi Sub-sistem Deteksi \textit{Drift} dan \textit{Continuous Training}}
 \label{sec:impl-drift}
 
-Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:drift-ct}. Penekanan implementasi diberikan pada otomatisasi penuh \textit{control loop} dari pengukuran sampai promosi versi, dan pada penegakan ambang yang dapat dikonfigurasi per model. Pemicu pelatihan ulang dirancang agar dapat dijalankan secara berkala atau dipicu oleh peristiwa \textit{drift} yang melebihi ambang.
+Bagian ini mengimplementasikan rancangan pada Bagian~\ref{sec:drift-ct}. Penekanan implementasi diberikan pada otomatisasi penuh \textit{control loop} dari pengukuran sampai promosi versi, dan pada penegakan ambang yang dapat dikonfigurasi per model. Pemicu pelatihan ulang dirancang agar dapat dijalankan secara berkala atau dipicu oleh peristiwa \textit{drift} yang melebihi ambang. Keseluruhan implementasi pada bagian ini menjawab KF-07 untuk deteksi \textit{drift} otomatis berikut pemicuan pelatihan ulang, sehingga model pada lapisan penyajian tidak dibiarkan menua tanpa evaluasi berkala saat distribusi data bergeser.
 
 \subsection{Detektor \textit{Drift}}
 \label{subsec:impl-detektor}
@@ -130,7 +125,26 @@ Pada tahap promosi, Argo Rollouts \autocite{argorollouts2025} menyalurkan trafik
 \subsection{Penanganan Kasus Khusus}
 \label{subsec:impl-kasus-khusus}
 
-Tiga kasus khusus ditangani pada implementasi. Pertama, jendela tunggu label diatur per model agar pelatihan ulang tidak dipicu sebelum label tersedia cukup. Kedua, ambang \textit{drift} dihitung dengan jendela bergulir untuk meredam fluktuasi singkat. Ketiga, ketika analisis kanari gagal, promosi dihentikan sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kejadian ke MLflow sebagai \textit{run} yang gagal dipromosikan.
+Implementasi menangani tiga kasus khusus berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Jendela tunggu label per model}
+
+    Jendela tunggu label diatur per model agar pelatihan ulang tidak dipicu sebelum label tersedia cukup.
+
+    \vspace{0.5em}
+
+    \item \textbf{Jendela bergulir untuk meredam fluktuasi}
+
+    Ambang \textit{drift} dihitung dengan jendela bergulir untuk meredam fluktuasi singkat.
+
+    \vspace{0.5em}
+
+    \item \textbf{Penghentian promosi saat analisis kanari gagal}
+
+    Ketika analisis kanari gagal, promosi dihentikan sehingga versi stabil pada lapisan penyajian tetap dipertahankan, dan \textit{workflow} mencatat kejadian ke MLflow sebagai \textit{run} yang gagal dipromosikan.
+\end{enumerate}
 
 Pengelolaan ketiga kasus tersebut dilakukan pada cabang DAG Argo CronWorkflow dengan \texttt{when} dan \texttt{exitHandler} yang memetakan keputusan ke catatan terstruktur. Setiap cabang menulis \texttt{tag} ke MLflow yang menyatakan alasan keputusan dan rujukan ke eksekusi pengukur \textit{drift} yang memicunya. Kegagalan pada analisis kanari memicu peringatan ke Alertmanager dengan rute khusus untuk peran \textit{machine learning engineer}, sehingga investigasi dapat dimulai tanpa menunggu pelaporan manual. Ambang dan jendela penyesuaian dikelola melalui ConfigMap \texttt{retrain-policy} yang dijaga oleh Argo CD agar perubahan kebijakan tetap dapat di-\textit{audit}.
 
@@ -168,7 +182,40 @@ Verifikasi jalur eksekusi dilakukan dengan satu \textit{use case} domain nyata s
 \subsection{Lingkup Verifikasi}
 \label{subsec:lingkup-verifikasi}
 
-Verifikasi mencakup lima jalur. Pertama, jalur ingestasi diuji dengan \textit{stream} dari sumber eksternal yang masuk ke Kafka melalui layanan \texttt{websocket-collector} pada \textit{use case}. Kedua, jalur pemrosesan diuji dengan \texttt{stream-processor} berbasis Flink yang menulis fitur agregasi ke ClickHouse dan Valkey, serta \textit{embedding} ke Qdrant. Ketiga, jalur pelatihan diuji dengan \textit{pipeline} Kubeflow yang membaca fitur dari Feast dan menulis model ke MLflow. Keempat, jalur penyajian diuji dengan \textit{InferenceService} KServe yang memuat model dari MLflow, dengan promosi versi pada lapisan penyajian yang dikelola oleh Argo Rollouts. Kelima, jalur pelatihan ulang diuji dengan menjalankan \textit{drift-detector} dan memicu \textit{retrain-on-drift} \textit{workflow}. Uji ketahanan pendek menggunakan Chaos Mesh \autocite{chaosmesh2025} untuk menyuntikkan \textit{fault} pada \textit{pod} terpilih, dan pencadangan dijalankan terjadwal oleh Velero \autocite{velero2025} ke MinIO sebagai langkah disiplin pemulihan.
+Verifikasi mencakup lima jalur berikut.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item \textbf{Jalur ingestasi}
+
+    Jalur ingestasi diuji dengan \textit{stream} dari sumber eksternal yang masuk ke Kafka melalui layanan \texttt{websocket-collector} pada \textit{use case}.
+
+    \vspace{0.5em}
+
+    \item \textbf{Jalur pemrosesan}
+
+    Jalur pemrosesan diuji dengan \texttt{stream-processor} berbasis Flink yang menulis fitur agregasi ke ClickHouse dan Valkey, serta \textit{embedding} ke Qdrant.
+
+    \vspace{0.5em}
+
+    \item \textbf{Jalur pelatihan}
+
+    Jalur pelatihan diuji dengan \textit{pipeline} Kubeflow yang membaca fitur dari Feast dan menulis model ke MLflow.
+
+    \vspace{0.5em}
+
+    \item \textbf{Jalur penyajian}
+
+    Jalur penyajian diuji dengan \textit{InferenceService} KServe yang memuat model dari MLflow, dengan promosi versi pada lapisan penyajian yang dikelola oleh Argo Rollouts.
+
+    \vspace{0.5em}
+
+    \item \textbf{Jalur pelatihan ulang}
+
+    Jalur pelatihan ulang diuji dengan menjalankan \textit{drift-detector} dan memicu \textit{retrain-on-drift} \textit{workflow}.
+\end{enumerate}
+
+Uji ketahanan pendek menggunakan Chaos Mesh \autocite{chaosmesh2025} untuk menyuntikkan \textit{fault} pada \textit{pod} terpilih, dan pencadangan dijalankan terjadwal oleh Velero \autocite{velero2025} ke MinIO sebagai langkah disiplin pemulihan.
 
 Lima jalur tersebut dipilih agar setiap sub-sistem mendapat verifikasi minimal satu skenario nyata, sehingga ketidaktepatan rancangan dapat ditemukan sebelum penilaian akhir pada Bab~\ref{chap:evaluasi}. Skenario \textit{use case} menetapkan beban yang lebih tinggi pada jalur ingestasi dan pemrosesan dibandingkan jalur pelatihan, karena \textit{use case} ber-\textit{throughput} tinggi memproduksi banyak peristiwa per detik dari beberapa entitas secara paralel. Pengamatan dilakukan dengan dasbor Grafana yang menampilkan metrik latensi, \textit{throughput}, panjang antrean Kafka, dan tingkat keberhasilan \textit{materialization}. Hasil pengamatan dibandingkan dengan target metrik pada KNF Bab~\ref{chap:analisis-masalah} untuk menentukan apakah setiap jalur memenuhi target yang telah ditetapkan.
 
