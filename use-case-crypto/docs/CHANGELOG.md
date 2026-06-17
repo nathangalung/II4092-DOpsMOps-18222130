@@ -5,6 +5,19 @@ recorded in `platform/components/VERSION.MD`. Generic platform versioning
 lives in the platform doc; this file captures the use-case-specific
 manifest landings, source-code changes, and post-audit cleanup.
 
+## Moved to evaluation harness (2026-06-16) — use-case scope
+
+- `use-case-crypto/manifests/base/chaos/resilience-experiments.yaml`
+  (the P2 entry below) — resilience fault injection moved out of the
+  deployed use-case to the evaluation harness `experiments/chaos/`, where
+  the scenarios run as one-shot Chaos Mesh CRs applied manually against the
+  live cluster (never reconciled by Argo CD). De-registered from
+  `manifests/cross-namespace/kustomization.yaml`; the now-unused
+  `chaos-mesh` destination was dropped from `argocd/application.yaml`.
+  Keeps eval content out of the use-case — the harness is the verification
+  layer, the use-case the system under test. Pending Argo sync will prune
+  the live `Schedule`/`Workflow` CRs from `chaos-mesh`.
+
 ## Removed at audit (2026-04-21, ADR-025) — use-case scope
 
 - `use-case-crypto/manifests/base/patches/flink-job.yaml` — scale-to-0

@@ -5,8 +5,7 @@
 # `use-case-crypto` namespace (Strimzi KafkaTopics/KafkaUsers in
 # `data-ingestion`, Istio AuthorizationPolicies in `istio-system`,
 # Velero Schedule in `velero`, Argo CronWorkflow in `model-lifecycle`,
-# Chaos Mesh experiments in `chaos-mesh`, cluster-scoped RBAC whose
-# subjects reference SAs in other namespaces).
+# cluster-scoped RBAC whose subjects reference SAs in other namespaces).
 #
 # WHY a separate kustomization?
 #   base/kustomization.yaml sets `namespace: use-case-crypto` so every
@@ -81,12 +80,6 @@ resources:
   # `namespace: use-case-crypto` would corrupt those subject refs via
   # kustomize's FixSubjectsKindNamespace builtin transformer.
   - ../base/rbac/kfp-runner.yaml
-
-  # --- Chaos Mesh experiments (chaos-mesh ns) ---
-  # Schedules + game-day Workflow. Operator runs in chaos-mesh and
-  # discovers experiments by namespace; placing these in use-case-crypto
-  # makes them invisible to the operator.
-  - ../base/chaos/resilience-experiments.yaml
 
   # --- OpenBao bootstrap (security ns) ---
   # Crypto-scoped OpenBao seed Job. SA + Role + RoleBinding + Job all

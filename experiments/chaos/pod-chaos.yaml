@@ -1,10 +1,11 @@
 # SK-N-04 — fault tolerance & automatic recovery (validates KNF-04).
-# Kills one Kafka broker and one KServe predictor pod; measure recovery
-# (RTO < 5 min, RPO < 1 min) via Prometheus availability queries.
+# Kills one Kafka broker, one KServe predictor pod, and the use-case
+# feature-cache pod; measure recovery (RTO < 5 min, RPO < 1 min) via
+# Prometheus availability queries.
 #
-# The predictor PodChaos targets the use-case namespace + InferenceService, so
-# render ${USE_CASE_NAMESPACE} / ${PREDICTOR_NAME} from the loaded config before
-# applying (the Kafka PodChaos is platform-generic and needs no substitution):
+# The predictor + feature-cache PodChaos target the use-case namespace, so
+# render ${USE_CASE_NAMESPACE} / ${PREDICTOR_NAME} / ${FEATURE_CACHE_APP} from
+# the loaded config before applying (the Kafka PodChaos is platform-generic):
 #   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
 #   envsubst < experiments/chaos/pod-chaos.yaml | kubectl apply -f -
 # Remove when done:
@@ -38,3 +39,20 @@ spec:
       - ${USE_CASE_NAMESPACE}
     labelSelectors:
       serving.kserve.io/inferenceservice: ${PREDICTOR_NAME}
+---
+# Use-case serving-side cache invalidation: kill the online feature-cache pod
+# and verify warm-cache rebuild keeps prediction serving within RTO.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: eval-feature-cache-kill
+  namespace: platform-test
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - ${USE_CASE_NAMESPACE}
+    labelSelectors:
+      app: ${FEATURE_CACHE_APP}
+  gracePeriod: 0

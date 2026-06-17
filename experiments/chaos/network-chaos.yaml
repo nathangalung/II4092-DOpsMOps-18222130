@@ -1,9 +1,15 @@
 # SK-N-04 — network fault injection (validates KNF-04).
-# Injects latency + partition between callers and Feast online serving to
-# verify graceful degradation and timeout/retry behaviour.
+# Injects latency + packet loss on three serving paths — Feast online serving,
+# the use-case gateway edge, and the ml-bridge → MLflow client — to verify
+# graceful degradation and timeout/retry behaviour.
 #
-# Apply during evaluation:
-#   kubectl apply -f experiments/chaos/network-chaos.yaml
+# The gateway + mlflow chaos target the use-case namespace, so render
+# ${USE_CASE_NAMESPACE} / ${GATEWAY_APP} / ${ML_BRIDGE_APP} from the loaded
+# config before applying (the Feast chaos is platform-generic):
+#   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
+#   envsubst < experiments/chaos/network-chaos.yaml | kubectl apply -f -
+# Remove when done:
+#   envsubst < experiments/chaos/network-chaos.yaml | kubectl delete -f -
 ---
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
@@ -23,3 +29,57 @@ spec:
     correlation: '50'
     jitter: '20ms'
   duration: '5m'
+---
+# Use-case gateway edge flakiness: 10% egress packet loss to verify the
+# pipeline keeps serving predictions under a degraded edge.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: eval-gateway-network-loss
+  namespace: platform-test
+spec:
+  action: loss
+  mode: one
+  selector:
+    namespaces:
+      - ${USE_CASE_NAMESPACE}
+    labelSelectors:
+      app: ${GATEWAY_APP}
+  loss:
+    loss: '10'
+    correlation: '25'
+  duration: '5m'
+  # No target -> direction must be `to` (egress only); the netem webhook
+  # rejects `both`/`from` when targets is empty.
+  direction: to
+---
+# ml-bridge -> MLflow API latency: 250ms delay on the model-registry path to
+# prove the client timeout/backoff holds and the SLO does not burn.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: eval-mlflow-latency
+  namespace: platform-test
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - model-lifecycle
+    labelSelectors:
+      app.kubernetes.io/name: mlflow
+  delay:
+    latency: '250ms'
+    jitter: '50ms'
+    correlation: '50'
+  duration: '4m'
+  direction: both
+  # Target only traffic FROM ml-bridge; other MLflow clients (KFP, Katib)
+  # stay unaffected.
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - ${USE_CASE_NAMESPACE}
+      labelSelectors:
+        app: ${ML_BRIDGE_APP}

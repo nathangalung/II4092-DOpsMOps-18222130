@@ -18,7 +18,7 @@ kind: Kustomization
 # =============================================================================
 # `namespace:` MOVED to base/kustomization.yaml so cross-namespace resources
 # (`../../cross-namespace/`) keep their explicit `metadata.namespace` values
-# (data-ingestion, istio-system, velero, model-lifecycle, chaos-mesh).
+# (data-ingestion, istio-system, velero, model-lifecycle).
 namePrefix: crypto-
 
 resources:

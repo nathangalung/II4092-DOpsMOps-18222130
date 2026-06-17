@@ -51,10 +51,6 @@ spec:
     - { namespace: model-lifecycle, server: https://kubernetes.default.svc }
     # AuthorizationPolicy resources target istio-system.
     - { namespace: istio-system,    server: https://kubernetes.default.svc }
-    # Chaos-mesh Schedule/Workflow CRs are co-located with the chaos-mesh
-    # controller that reconciles them; the crypto use-case owns crypto-*
-    # chaos experiments (manifests/base/chaos-mesh/*.yaml).
-    - { namespace: chaos-mesh,      server: https://kubernetes.default.svc }
     # clickhouse-kafka-sasl ExternalSecret lands in `storage` (where the
     # platform ClickHouse CHI reads it for the Kafka-engine SASL creds, #464).
     - { namespace: storage,         server: https://kubernetes.default.svc }

@@ -1,0 +1,30 @@
+# SK-N-03 — horizontal autoscaling (validates KNF-03).
+# Drives the gateway KEDA cpu trigger (scaling/scaledobjects.yaml,
+# gateway-http-rps, cpu utilisation 60%, maxReplicaCount 20) from inside the
+# pod with a CPU stressor, proving it scales out under load and returns to the
+# 1-replica idle baseline afterwards (single-node mandate). Complements the
+# external-load path in load/hpa-keda-rampup.js.
+#
+# Render ${USE_CASE_NAMESPACE} / ${GATEWAY_APP} from the loaded config:
+#   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
+#   envsubst < experiments/chaos/stress-chaos.yaml | kubectl apply -f -
+# Remove when done:
+#   envsubst < experiments/chaos/stress-chaos.yaml | kubectl delete -f -
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: eval-gateway-cpu-stress
+  namespace: platform-test
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - ${USE_CASE_NAMESPACE}
+    labelSelectors:
+      app: ${GATEWAY_APP}
+  stressors:
+    cpu:
+      workers: 2
+      load: 90
+  duration: '5m'

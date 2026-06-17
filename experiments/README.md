@@ -88,8 +88,8 @@ sibling, so a prefix change there must be mirrored here by hand.
 |-----|----------|----------------------|
 | KNF-01 | SK-N-01 | `k6 run load/feast-online-latency.js` (p50<5 / p95<8 / p99<10 ms) |
 | KNF-02 | SK-N-02 | `k6 run load/feast-throughput.js` (>10k QPS/node); stream half via `kafka-producer-perf-test` → `crypto.validated` (1M msg/s), watch `kafka_consumergroup_lag` |
-| KNF-03 | SK-N-03 | `k6 run load/hpa-keda-rampup.js` + watch `kubectl get hpa,scaledobject,pods` |
-| KNF-04 | SK-N-04 | load config, then `envsubst < chaos/pod-chaos.yaml \| kubectl apply -f -` + `kubectl apply -f chaos/network-chaos.yaml` (RTO<5m, RPO<1m) |
+| KNF-03 | SK-N-03 | `k6 run load/hpa-keda-rampup.js` (external load) or `envsubst < chaos/stress-chaos.yaml \| kubectl apply -f -` (in-pod gateway CPU stress); watch `kubectl get hpa,scaledobject,pods` |
+| KNF-04 | SK-N-04 | load config, then `envsubst < chaos/pod-chaos.yaml \| kubectl apply -f -` + `envsubst < chaos/network-chaos.yaml \| kubectl apply -f -`; full drill via `envsubst < chaos/game-day.yaml \| kubectl apply -f -` (RTO<5m, RPO<1m) |
 | KNF-05 | SK-N-05 | Great Expectations checkpoint + synthetic future-timestamp leakage probe |
 | KNF-06 | SK-N-06 | OpenTelemetry trace walk on Tempo (single trace ID end-to-end) |
 | KNF-07 | SK-N-07 | `trivy` cluster scan + `testssl.sh` on public endpoints (TLS 1.3, AES-256) |
@@ -107,7 +107,7 @@ experiments/
 ├── config.crypto.env     # single domain swap point (sourced before any run)
 ├── namespace.yaml        # platform-test namespace (load generators)
 ├── load/                 # k6 load scripts (client-side latency / throughput)
-├── chaos/                # chaos-mesh fault-injection manifests (resilience)
+├── chaos/                # chaos-mesh fault injection — resilience (KNF-04) + autoscale (KNF-03)
 ├── drift/                # synthetic drift injector (UV / PEP 723)
 ├── feast/                # online feature-serving non-null check (UV / PEP 723)
 ├── etl/                  # medallion data-landed / freshness probe (clickhouse-client)

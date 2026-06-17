@@ -1,0 +1,63 @@
+# SK-N-04 — game-day resilience drill (validates KNF-04 end-to-end).
+# Sequences the three fault scenarios serially in one manual run:
+# gateway packet loss -> feature-cache kill -> ml-bridge MLflow latency.
+# Apply this file once during evaluation to reproduce the failover story;
+# the per-fault one-shots in pod-chaos.yaml / network-chaos.yaml run each
+# leg in isolation.
+#
+# Render the domain vars from the loaded config before applying:
+#   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
+#   envsubst < experiments/chaos/game-day.yaml | kubectl apply -f -
+# Remove when done:
+#   envsubst < experiments/chaos/game-day.yaml | kubectl delete -f -
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: eval-game-day
+  namespace: platform-test
+spec:
+  entry: resilience
+  templates:
+    - name: resilience
+      templateType: Serial
+      children: [gateway-loss, cache-kill, mlflow-latency]
+    - name: gateway-loss
+      templateType: NetworkChaos
+      deadline: '6m'
+      networkChaos:
+        action: loss
+        mode: one
+        selector:
+          namespaces: [${USE_CASE_NAMESPACE}]
+          labelSelectors: { app: ${GATEWAY_APP} }
+        loss: { loss: '15', correlation: '25' }
+        # Inside Workflow templates duration is forbidden (vworkflow.kb.io);
+        # the parent deadline (6m) bounds it. Empty targets -> direction `to`.
+        direction: to
+    - name: cache-kill
+      templateType: PodChaos
+      deadline: '3m'
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces: [${USE_CASE_NAMESPACE}]
+          labelSelectors: { app: ${FEATURE_CACHE_APP} }
+    - name: mlflow-latency
+      templateType: NetworkChaos
+      deadline: '5m'
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces: [model-lifecycle]
+          labelSelectors: { app.kubernetes.io/name: mlflow }
+        delay: { latency: '300ms', jitter: '50ms', correlation: '50' }
+        # duration omitted in Workflow templates — parent deadline (5m) bounds.
+        direction: both
+        target:
+          mode: all
+          selector:
+            namespaces: [${USE_CASE_NAMESPACE}]
+            labelSelectors: { app: ${ML_BRIDGE_APP} }

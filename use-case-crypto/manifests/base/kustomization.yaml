@@ -256,7 +256,6 @@ resources:
   #   * velero-schedule.yaml            (velero)
   #   * workflows/retrain-on-drift.yaml (model-lifecycle)
   #   * rbac/kfp-runner.yaml            (cluster-scoped + subjects ref model-lifecycle)
-  #   * chaos/resilience-experiments.yaml (chaos-mesh)
   # The overlay loads BOTH `../../base` and `../../cross-namespace`.
   # ---------------------------------------------------------------------------
 

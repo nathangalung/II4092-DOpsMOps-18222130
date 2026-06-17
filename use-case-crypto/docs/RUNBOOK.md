@@ -278,37 +278,14 @@ kubectl argo rollouts -n use-case-crypto abort   ml-bridge
 
 Rollback: revert the image bump (`kubectl argo rollouts undo`).
 
-## 12.8 — Chaos Mesh crypto resilience experiments
+## 12.8 — Chaos Mesh resilience experiments
 
-New manifest:
-
-- `use-case-crypto/manifests/base/chaos/resilience-experiments.yaml` —
-  three `Schedule` CRs (gateway network-loss Tue 11:00, feature-cache
-  pod-kill Wed 12:00, ml-bridge→MLflow latency Thu 13:00 with target
-  selector) + one `Workflow` `crypto-game-day` that sequences all three
-  for manual thesis-viva demonstration.
-
-Observability hook: every experiment is labelled
-`experiment.thesis=KNF-11-<name>` so the "Crypto Resilience" Grafana
-dashboard plots SLO burn (see §12.3) before / during / after each
-experiment window.
-
-Verification:
-
-```bash
-kubectl -n chaos-mesh get schedule -l use-case=crypto
-kubectl -n chaos-mesh get workflow crypto-game-day
-# Trigger game-day manually:
-kubectl -n chaos-mesh annotate workflow crypto-game-day \
-  chaos-mesh.org/trigger-now=$(date -Iseconds) --overwrite
-# Watch SLO burn on Grafana: dashboard "Crypto Resilience" → panel
-# "prediction-freshness burn rate"  (should rise during experiment,
-# recover within deadline).
-```
-
-Rollback: `kubectl delete schedule,workflow -n chaos-mesh -l use-case=crypto`.
-The experiments are scheduled low-cadence so idle rollback has no effect
-until the next cron window.
+Resilience fault injection lives in the evaluation harness, not the
+use-case: `experiments/chaos/` holds one-shot Chaos Mesh CRs (pod-kill,
+network fault, CPU stress, game-day Workflow) run manually against the live
+cluster and never reconciled by Argo CD. See `experiments/chaos/README.md`
+for the scenarios and the KNF-04 (RTO < 5 min, RPO < 1 min) / KNF-03
+(autoscale) measurement steps.
 
 ## 12.9 — OpenLineage emission in crypto DAGs (ADR-018)
 
