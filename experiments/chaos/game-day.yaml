@@ -1,8 +1,10 @@
-# SK-N-04 — game-day resilience drill (validates KNF-04 end-to-end).
-# Sequences the three fault scenarios serially in one manual run:
-# gateway packet loss -> feature-cache kill -> ml-bridge MLflow latency.
-# Apply this file once during evaluation to reproduce the failover story;
-# the per-fault one-shots in pod-chaos.yaml / network-chaos.yaml run each
+# SK-N-04 — game-day resilience drills (validates KNF-04 end-to-end).
+# Two serial Workflows run manually during evaluation:
+#   eval-game-day          use-case serving tier: gateway packet loss ->
+#                          feature-cache kill -> ml-bridge MLflow latency.
+#   eval-platform-game-day platform substrate tier: CNPG primary kill ->
+#                          Kafka broker link loss.
+# The per-fault one-shots in pod-chaos.yaml / network-chaos.yaml run each
 # leg in isolation.
 #
 # Render the domain vars from the loaded config before applying:
@@ -61,3 +63,40 @@ spec:
           selector:
             namespaces: [${USE_CASE_NAMESPACE}]
             labelSelectors: { app: ${ML_BRIDGE_APP} }
+---
+# Platform substrate drill: the shared infrastructure the whole platform sits
+# on. Kill the CNPG Postgres primary, then degrade a Kafka broker link. Both
+# legs platform-generic (no envsubst vars). Complements eval-game-day's
+# use-case serving tier with the infrastructure tier.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: eval-platform-game-day
+  namespace: platform-test
+spec:
+  entry: substrate
+  templates:
+    - name: substrate
+      templateType: Serial
+      children: [cnpg-kill, kafka-loss]
+    - name: cnpg-kill
+      templateType: PodChaos
+      deadline: '5m'
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces: [storage]
+          labelSelectors: { cnpg.io/cluster: postgresql }
+    - name: kafka-loss
+      templateType: NetworkChaos
+      deadline: '5m'
+      networkChaos:
+        action: loss
+        mode: one
+        selector:
+          namespaces: [data-ingestion]
+          labelSelectors: { strimzi.io/cluster: platform-kafka, strimzi.io/broker-role: "true" }
+        loss: { loss: '10', correlation: '25' }
+        # duration omitted in Workflow templates — parent deadline (5m) bounds.
+        direction: to

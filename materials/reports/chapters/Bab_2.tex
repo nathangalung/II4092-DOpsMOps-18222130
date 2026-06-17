@@ -1,12 +1,8 @@
-% ============================================================
-% BAB II - STUDI LITERATUR
-% Template (TEMPLATE_BAB.md §3 + WRITING_GUIDE.md §3.8-3.9):
-%   - Cakupan ditulis 1-2 paragraf pembuka tanpa nomor (bukan subbab sendiri)
-%   - Alur: kasus -> teori dasar -> metode -> penelitian terdahulu
-%   - Kedalaman berhenti pada sub-subbab (tidak ada \subsubsection)
-%   - Tabel perbandingan: skor 0-2, kolom Lisensi (Yayasan), legenda sekali di awal
-%   - Subbab terakhir: Penelitian Terkait (kesenjangan saja; posisi solusi pindah ke Bab 3)
-% ============================================================
+% Bab II Studi Literatur
+% Alur kasus, teori, metode, terkait
+% Kedalaman sampai sub-subbab
+% Tabel perbandingan skor 0-2
+% Subbab akhir Penelitian Terkait
 \cleardoublepage
 \chapter{STUDI LITERATUR}
 \label{chap:studi-literatur}
@@ -166,7 +162,7 @@ Jalur ingestasi berbasis konektor dilengkapi oleh Kafka Connect, kerangka integr
 \subsection{Apache Flink}
 \label{subsec:flink}
 
-Apache Flink memproses aliran data dengan dukungan \textit{event-time} dan \textit{stateful operations}. \textcite{carbone2015apache} menjelaskan dasar \textit{pipeline} \textit{streaming} pada Flink, dan dokumentasi resmi \autocite{apacheflink2024} menjabarkan fitur \textit{exactly-once processing} dengan \textit{checkpointing}. Flink dipakai untuk transformasi fitur waktu nyata dan agregasi \textit{rolling window} yang dibutuhkan oleh model \textit{streaming}. Penempatan komputasi pada \textit{event-time} alih-alih \textit{processing-time} membuat hasil transformasi tetap konsisten ketika data terlambat tiba.
+Apache Flink memproses aliran data dengan dukungan \textit{event-time} dan \textit{stateful operations}. \textcite{carbone2015apache} menjelaskan dasar \textit{pipeline} \textit{streaming} pada Flink, dan dokumentasi resmi \autocite{apacheflink2024} menjabarkan fitur \textit{exactly-once processing} dengan \textit{checkpointing}. Flink dipakai untuk transformasi fitur waktu nyata dan agregasi \textit{rolling window} yang dibutuhkan oleh model \textit{streaming}. Penggunaan \textit{event-time} alih-alih \textit{processing-time} membuat hasil transformasi tetap konsisten ketika data terlambat tiba.
 
 Pada platform ini, Flink dijalankan melalui \texttt{FlinkDeployment} CRD yang disediakan oleh \textit{operator} Apache Flink. \textit{Checkpoint} dan \textit{savepoint} ditulis ke MinIO sebagai penyimpanan objek S3-kompatibel, sehingga pemulihan \textit{job} dapat dilakukan tanpa kehilangan keadaan. Aliran utama \textit{job} membaca \textit{topic} dari Kafka melalui konektor Flink Kafka, melakukan transformasi pada \textit{event-time} dengan \textit{watermark} per partisi, lalu menerbitkan hasil ke \textit{topic} \textit{sink}. Lapis analitik mengonsumsi \textit{topic} tersebut melalui tabel \textit{Kafka engine} ClickHouse. Latensi pemrosesan dipantau melalui metrik Flink yang diekspos pada Prometheus dan diturunkan menjadi SLO melalui Sloth.
 
@@ -177,7 +173,7 @@ Apache Spark menyediakan kemampuan pemrosesan \textit{batch} dan \textit{micro-b
 
 \input{tables/data_processing_comparison.tex}
 
-Pada platform ini, Spark disediakan sebagai kapabilitas \textit{batch} sesuai permintaan: \textit{job} diserahkan langsung ke penjadwal Kubernetes tanpa klaster \textit{master-worker} yang menganggur, dengan Airflow sebagai pemicu \textit{job} terjadwal. Pembagian peran menempatkan dbt sebagai pengolah utama lapisan \textit{warehouse}, sementara Spark menangani pemrosesan yang melampaui kapasitas satu mesin SQL. dbt menjalankan transformasi SQL pada \textit{warehouse} ClickHouse dengan model \textit{ref()} yang menjaga \textit{lineage} antar tabel medali dari \textit{staging} hingga tabel fitur. Eksekusi dbt berlangsung di dalam \textit{task} Airflow sehingga jejak \textit{lineage} ikut terpancar ke DataHub melalui jalur OpenLineage pada Subbab~\ref{sec:tata-kelola-teori}.
+Pada platform ini, Spark disediakan sebagai kapabilitas \textit{batch} sesuai permintaan: \textit{job} diserahkan langsung ke penjadwal Kubernetes tanpa klaster \textit{master-worker} yang menganggur, dengan Airflow sebagai pemicu \textit{job} terjadwal. Pembagian peran menempatkan dbt sebagai pengolah utama lapisan \textit{warehouse}, sementara Spark menangani pemrosesan yang melampaui kapasitas satu mesin SQL. dbt menjalankan transformasi SQL pada \textit{warehouse} ClickHouse dengan model \textit{ref()} yang menjaga \textit{lineage} antar tabel medali dari \textit{staging} hingga tabel fitur. Eksekusi dbt berlangsung di dalam \textit{task} Airflow sehingga jejak \textit{lineage} ikut dikirim ke DataHub melalui jalur OpenLineage pada Subbab~\ref{sec:tata-kelola-teori}.
 
 \subsection{Format Tabel \textit{Lakehouse}}
 \label{subsec:lakehouse-format}
@@ -309,7 +305,7 @@ Pada platform ini, PSI dan uji Kolmogorov-Smirnov dipakai sebagai detektor utama
 
 \textcite{cncf2024observability} dan \textcite{ibm2024observability} mendefinisikan observabilitas sebagai gabungan tiga pilar: metrik, log, dan \textit{trace}. Untuk platform ini, Prometheus \autocite{prometheus2024} dipakai untuk metrik, Loki \autocite{loki2024} untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry \autocite{opentelemetry2025} sebagai \textit{collector} bersama dan Grafana \autocite{grafana2024} sebagai antarmuka visualisasi. Sloth \autocite{sloth2025} membantu menurunkan definisi \textit{service-level objective} ke dalam aturan Prometheus, sedangkan Evidently \autocite{evidently2025} memberi laporan kualitas data dan model yang melengkapi pilar observabilitas. Pyroscope \autocite{pyroscope2025} menyediakan \textit{continuous profiling} untuk profil CPU dan memori, Pushgateway \autocite{pushgateway2025} menjadi titik kumpul metrik untuk \textit{job} berdurasi pendek di luar siklus \textit{scrape}, dan OpenCost \autocite{opencost2025} memantau biaya per beban kerja pada klaster.
 
-Apache Superset \autocite{superset2025} berperan sebagai antarmuka BI yang menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu lapis dasbor. Tabel~\ref{tab:dashboarding_comparison} merangkum perbandingan beberapa pilihan \textit{BI} \textit{open-source}. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan tumpukan observabilitas. Korelasi antara metrik, log, dan \textit{trace} dimungkinkan melalui label \texttt{trace\_id} yang dilampirkan pada baris log Loki dan rentang Tempo, sehingga pelacakan kegagalan dapat berpindah antar pilar tanpa kehilangan konteks.
+Apache Superset \autocite{superset2025} berperan sebagai antarmuka BI yang menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu lapis dasbor. Tabel~\ref{tab:dashboarding_comparison} merangkum perbandingan beberapa pilihan \textit{BI} \textit{open-source}. Pemantauan tambahan untuk kualitas data dan model dirangkai sebagai \textit{dashboard} pada Grafana sehingga pengamatan terhadap kondisi sistem dapat dilakukan dari satu antarmuka. Tabel~\ref{tab:monitoring_comparison} merangkum perbandingan beberapa pilihan \textit{observability stack}. Korelasi antara metrik, log, dan \textit{trace} dimungkinkan melalui label \texttt{trace\_id} yang dilampirkan pada baris log Loki dan rentang Tempo, sehingga pelacakan kegagalan dapat berpindah antar pilar tanpa kehilangan konteks.
 
 \input{tables/dashboarding_comparison.tex}
 

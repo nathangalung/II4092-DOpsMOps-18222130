@@ -386,6 +386,15 @@ KNF-06 specifies OpenTelemetry. Pre-ADR state: services emitted OTLP directly to
 - **Velero 1.18** with restic/Kopia file system backup. Target: MinIO `velero-backups` bucket. Schedule: hourly PVC snapshots, daily full namespace backup.
 - **Chaos Mesh 2.8** for KNF-04 validation (`NetworkChaos`, `PodChaos`, `IOChaos`, `StressChaos`).
 
+### Amendment (2026-06-17) — experiments moved to the evaluation harness
+
+The chaos-mesh component now installs the **operator only** (`platform/components/security/chaos-mesh/` → `helm-release.yaml`). The resilience scenarios that used to ship as Argo-reconciled `Schedule`/`Workflow` CRs (`experiments.yaml`) were removed from the deployable and re-homed as one-shot CRs in the evaluation harness `experiments/chaos/`, applied manually against a live cluster and never part of `make phase-full`. The harness is the verification layer; the platform is the system under test.
+
+Of the five original scenarios, three were ported and two dropped:
+
+- **Ported:** CNPG primary kill → `pod-chaos.yaml` (`eval-cnpg-pod-kill`); Kafka broker loss → `network-chaos.yaml` (`eval-kafka-network-loss`); game-day → `game-day.yaml` (`eval-platform-game-day`, a 2-leg substrate drill cnpg-kill → kafka-loss). Platform-substrate CRs use literal selectors (domain-stable infra); use-case CRs carry `${...}` placeholders rendered with `envsubst`.
+- **Dropped:** `otel-time-skew` (TimeChaos maps to no KNF — KNF-06 is a Tempo trace walk end-to-end, not clock skew) and `minio-disk-pressure` (StressChaos memory mislabeled as disk pressure; marginal signal on a single node).
+
 ---
 
 ## ADR-015 — PodDisruptionBudget baseline for multi-replica workloads

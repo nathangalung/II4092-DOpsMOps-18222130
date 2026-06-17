@@ -10,10 +10,14 @@ placeholders rendered from the config with `envsubst`.
 
 | File | Kind(s) | Validates | Targets |
 |------|---------|-----------|---------|
-| `pod-chaos.yaml` | PodChaos ×3 | KNF-04 (SK-N-04) | kafka broker, KServe predictor, feature-cache pod-kill recovery |
-| `network-chaos.yaml` | NetworkChaos ×3 | KNF-04 (SK-N-04) | Feast delay, gateway egress loss, ml-bridge→MLflow latency |
+| `pod-chaos.yaml` | PodChaos ×4 | KNF-04 (SK-N-04) | kafka broker, KServe predictor, feature-cache, CNPG primary pod-kill recovery |
+| `network-chaos.yaml` | NetworkChaos ×4 | KNF-04 (SK-N-04) | Feast delay, gateway egress loss, ml-bridge→MLflow latency, kafka broker loss |
 | `stress-chaos.yaml` | StressChaos ×1 | KNF-03 (SK-N-03) | gateway CPU stress → KEDA cpu trigger scale-out |
-| `game-day.yaml` | Workflow ×1 | KNF-04 (SK-N-04) | serial drill: gateway loss → cache kill → mlflow latency |
+| `game-day.yaml` | Workflow ×2 | KNF-04 (SK-N-04) | use-case drill: gateway→cache→mlflow; substrate drill: cnpg→kafka |
+
+The use-case-targeted CRs carry `${...}` placeholders; the platform-substrate
+CRs (kafka broker, CNPG primary) use literal selectors — domain-stable infra,
+no `envsubst` vars.
 
 ## Run
 

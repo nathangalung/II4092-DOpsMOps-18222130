@@ -2,26 +2,27 @@
 # =============================================================================
 # chaos-mesh pre-apply: bootstrap ArgoCD Application + block on CRD Established.
 # =============================================================================
-# Race condition (without this hook):
-#   `make install-chaos-mesh` → kustomize emits four manifests in one render:
-#     1. helm-release.yaml — Namespace `chaos-mesh`.
-#     2. helm-release.yaml — ArgoCD Application that installs the chart
-#        (chart provides `chaos-mesh.org/v1alpha1` CRDs:
-#         PodChaos, NetworkChaos, IOChaos, StressChaos, TimeChaos,
-#         Schedule, Workflow, etc.).
-#     3. helm-release.yaml — Kyverno PolicyException for privileged DaemonSet.
-#     4. experiments.yaml — `Schedule` and `Workflow` CRs that consume the
-#        chart-installed CRDs.
-#   ArgoCD reconciles the Application asynchronously. A single-shot apply
-#   lands the experiment CRs too early and crashes with:
-#     `no matches for kind "Schedule" in version "chaos-mesh.org/v1alpha1"`
+# This component installs the chaos-mesh operator only (helm-release.yaml).
+# The resilience experiments that used to ship here moved to the evaluation
+# harness experiments/chaos/ — one-shot CRs run manually, never reconciled by
+# Argo CD or part of `make phase-full`.
 #
-# Fix: pre-apply only the helm-release.yaml manifests (Namespace + Application
-# + PolicyException — all idempotent), force ArgoCD refresh, block until CRD
-# `schedules.chaos-mesh.org` is Established, flush kubectl discovery cache so
-# the next apply sees the new CRDs, then exit.
-# Main apply re-applies helm-release.yaml (idempotent under SSA) plus the
-# now-resolvable Schedule + Workflow CRs.
+# `make install-chaos-mesh` → kustomize emits helm-release.yaml:
+#     1. Namespace `chaos-mesh`.
+#     2. ArgoCD Application that installs the chart (provides the
+#        `chaos-mesh.org/v1alpha1` CRDs: PodChaos, NetworkChaos, IOChaos,
+#        StressChaos, TimeChaos, Schedule, Workflow, etc.).
+#     3. Kyverno PolicyException for the privileged DaemonSet.
+#   ArgoCD reconciles the Application asynchronously, so the chart's CRDs and
+#   controller land after the apply returns.
+#
+# This hook makes the operator fully ready before phase-full moves on: pre-apply
+# the helm-release.yaml manifests (idempotent), force an ArgoCD refresh, block
+# until CRD `schedules.chaos-mesh.org` is Established, flush the kubectl
+# discovery cache, wait for the controller Deployment + admission webhook
+# endpoints, then soften the webhooks (failurePolicy=Ignore). The readiness
+# gate plus softened webhooks let the manually-applied experiments/chaos/ CRs
+# pass admission later without a 502 on a saturated single node.
 # =============================================================================
 set -euo pipefail
 

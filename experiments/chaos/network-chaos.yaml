@@ -1,11 +1,11 @@
 # SK-N-04 — network fault injection (validates KNF-04).
-# Injects latency + packet loss on three serving paths — Feast online serving,
-# the use-case gateway edge, and the ml-bridge → MLflow client — to verify
-# graceful degradation and timeout/retry behaviour.
+# Injects latency + packet loss on four paths — Feast online serving, the
+# use-case gateway edge, the ml-bridge → MLflow client, and a Kafka broker
+# link — to verify graceful degradation and timeout/retry behaviour.
 #
 # The gateway + mlflow chaos target the use-case namespace, so render
 # ${USE_CASE_NAMESPACE} / ${GATEWAY_APP} / ${ML_BRIDGE_APP} from the loaded
-# config before applying (the Feast chaos is platform-generic):
+# config before applying (the Feast + Kafka chaos are platform-generic):
 #   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
 #   envsubst < experiments/chaos/network-chaos.yaml | kubectl apply -f -
 # Remove when done:
@@ -83,3 +83,28 @@ spec:
         - ${USE_CASE_NAMESPACE}
       labelSelectors:
         app: ${ML_BRIDGE_APP}
+---
+# Platform substrate fault: 5% egress packet loss on a Kafka broker to verify
+# producers/consumers tolerate a degraded broker link (idempotent-producer
+# retries, consumer rebalancing) without data loss. Platform-generic selector.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: eval-kafka-network-loss
+  namespace: platform-test
+spec:
+  action: loss
+  mode: one
+  selector:
+    namespaces:
+      - data-ingestion
+    labelSelectors:
+      strimzi.io/cluster: platform-kafka
+      strimzi.io/broker-role: "true"
+  loss:
+    loss: '5'
+    correlation: '25'
+  duration: '2m'
+  # No target -> direction must be `to` (egress only); the netem webhook
+  # rejects `both`/`from` when targets is empty.
+  direction: to

@@ -12,13 +12,13 @@ Bab ini meletakkan dasar bagi keseluruhan laporan Tugas Akhir. Pembahasan dibuka
 
 Praktik \textit{machine learning} pada lingkungan produksi tidak lagi diukur dari ketepatan model semata, melainkan dari kemampuan organisasi memindahkan model dari laptop \textit{data scientist} ke layanan yang berjalan stabil, terpantau, dan dapat diperbarui ketika data berubah. \textcite{sculley2015hidden} menunjukkan bahwa kode model hanya berperan sebagai bagian kecil dari sistem \textit{machine learning} di lapangan. Sisanya berupa pengelolaan data, konfigurasi, pemantauan, layanan, dan perekaman \textit{lineage}. \textcite{paleyes2022challenges} memperkuat temuan tersebut dengan memetakan tantangan utama yang muncul ketika model dipasang di produksi, dari persoalan kualitas data hingga pemeliharaan model setelah penyebaran.
 
-Praktik DevOps yang diadaptasi oleh komunitas \textit{machine learning} kemudian dikenal sebagai MLOps. \textcite{kreuzberger2023mlops} mendefinisikan MLOps sebagai disiplin yang menyatukan rekayasa perangkat lunak, operasional, dan ilmu data untuk mengotomasi siklus hidup model dari eksperimen ke produksi. Pada saat yang sama, DataOps tumbuh sebagai pendekatan serupa untuk \textit{pipeline} data dengan penekanan pada kolaborasi antar peran, kualitas data, dan iterasi cepat. \textcite{rella2022mlops} mencatat bahwa kedua praktik tersebut berbagi prinsip otomasi yang sama, tetapi di lapangan keduanya kerap dijalankan sebagai dua tumpukan teknologi yang terpisah. \textcite{jain2025integrating} menelaah kerangka integrasi rekayasa data dan MLOps berikut tantangannya, lalu menempatkan integrasi tersebut sebagai syarat \textit{pipeline machine learning} yang skalabel dan tangguh. Dalam praktik, upaya mewujudkan integrasi tersebut dihadapkan pada dua tekanan utama yang, ketika tidak teratasi, memicu efek domino sebagai tekanan ketiga.
+Praktik DevOps yang diadaptasi oleh komunitas \textit{machine learning} kemudian dikenal sebagai MLOps. \textcite{kreuzberger2023mlops} mendefinisikan MLOps sebagai disiplin yang menyatukan rekayasa perangkat lunak, operasional, dan ilmu data untuk mengotomasi siklus hidup model dari eksperimen ke produksi. Pada saat yang sama, DataOps tumbuh sebagai pendekatan serupa untuk \textit{pipeline} data dengan penekanan pada kolaborasi antar peran, kualitas data, dan iterasi cepat. \textcite{rella2022mlops} mencatat bahwa kedua praktik tersebut berbagi prinsip otomasi yang sama, tetapi di lapangan keduanya kerap dijalankan sebagai dua \textit{tech stack} yang terpisah. \textcite{jain2025integrating} menelaah kerangka integrasi rekayasa data dan MLOps berikut tantangannya, lalu menempatkan integrasi tersebut sebagai syarat \textit{pipeline machine learning} yang skalabel dan tangguh. Dalam praktik, upaya mewujudkan integrasi tersebut dihadapkan pada dua tekanan utama yang, ketika tidak teratasi, memicu tekanan ketiga berupa efek domino.
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item \textbf{Beban membangun platform dari nol di atas tumpukan komponen yang terfragmentasi}
+    \item \textbf{Beban membangun platform dari nol di atas kumpulan komponen yang terfragmentasi}
 
-    Kajian sistematis arsitektur MLOps oleh \textcite{najafabadi2024analysis} terhadap 43 studi primer menghasilkan kategorisasi 35 komponen arsitektur sekaligus pemetaan antara tiap komponen dengan beragam \textit{tool} pendukungnya, gambaran betapa luasnya ruang pilihan yang harus dipertimbangkan sebelum satu platform utuh terbentuk. Organisasi yang merangkai sendiri \textit{tool} sebanyak itu menanggung kurva belajar yang panjang, kontrak data lintas komponen yang berubah-ubah, dan kebutuhan menyelaraskan versi pustaka secara berkala. \textcite{burgueno2025toward} mengamati bahwa komponen \textit{open source} pada arsitektur MLOps cenderung berfungsi sebagai entitas yang berdiri sendiri alih-alih satu kerangka kerja yang kohesif, sehingga beban integrasinya jatuh ke tim pemakai sejak awal. Beban tersebut bertambah ketika tim harus pula menyatukan jalur data dengan jalur model dalam satu lingkaran operasi, sementara arsitektur referensi yang menyatukan keduanya pada satu bidang kendali Kubernetes masih terbatas.
+    Kajian sistematis arsitektur MLOps oleh \textcite{najafabadi2024analysis} terhadap 43 studi primer menghasilkan kategorisasi 35 komponen arsitektur sekaligus pemetaan antara tiap komponen dengan beragam \textit{tool} pendukungnya, gambaran betapa luasnya ruang pilihan yang harus dipertimbangkan sebelum satu platform utuh terbentuk. Organisasi yang merangkai sendiri \textit{tool} sebanyak itu menanggung kurva belajar yang panjang, kontrak data lintas komponen yang berubah-ubah, dan kebutuhan menyelaraskan versi pustaka secara berkala. \textcite{burgueno2025toward} mengamati bahwa komponen \textit{open source} pada arsitektur MLOps cenderung berfungsi sebagai entitas yang berdiri sendiri alih-alih satu kerangka kerja yang kohesif, sehingga beban integrasinya ditanggung tim pemakai sejak awal. Beban tersebut bertambah ketika tim harus pula menyatukan jalur data dengan jalur model dalam satu lingkaran operasi, sementara arsitektur referensi yang menyatukan keduanya pada satu bidang kendali Kubernetes masih terbatas.
 
     \vspace{0.5em}
 
@@ -42,7 +42,7 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item Bagaimana menyatukan tumpukan teknologi DataOps dan MLOps yang terfragmentasi pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model ke dalam satu bidang kendali pada Kubernetes?
+    \item Bagaimana menyatukan \textit{tech stack} DataOps dan MLOps yang terfragmentasi pada lapis ingestasi, pemrosesan, penyimpanan, pelatihan, dan penyajian model ke dalam satu bidang kendali pada Kubernetes?
 
     \item Bagaimana mewujudkan tata kelola data yang konsisten lintas siklus data, fitur, dan model sehingga katalog metadata, \textit{lineage}, dan kontrol kualitas tidak berjalan pasca-fakta?
 
@@ -51,7 +51,7 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
     \item Bagaimana menyajikan fitur multimoda, yang mencakup fitur tabular, agregat, dan \textit{embedding} vektor berdimensi tinggi, dari satu sumber kebenaran dengan nilai yang konsisten antara fase pelatihan dan penyajian?
 \end{enumerate}
 
-Keempat rumusan masalah di atas dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Penomoran RM-1 hingga RM-4 dipertahankan pada seluruh bab agar jawaban tiap permasalahan dapat ditelusuri dari rumusan hingga implementasinya. Keempat rumusan tidak saling tumpang tindih karena masing-masing menyasar satu simpul kegagalan yang berbeda, yaitu perakitan lintas lapis, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan penyajian fitur multimoda, sekaligus bersama-sama menutup rentang dari siklus data hingga penyajian model. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan.
+Keempat rumusan masalah di atas dijawab secara berurutan oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Keempat rumusan tidak saling tumpang tindih karena masing-masing menyasar satu titik kegagalan yang berbeda, yaitu perakitan lintas lapis, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan penyajian fitur multimoda, sekaligus bersama-sama menutup rentang dari siklus data hingga penyajian model. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan.
 
 \section{Tujuan}
 \label{sec:tujuan}
@@ -85,13 +85,13 @@ Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-m
 \section{Batasan Masalah}
 \label{sec:batasan}
 
-Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Batasan disusun agar lingkup kerja, lingkup pengujian, dan lingkup evaluasi terdefinisi secara eksplisit sehingga hasil dapat diukur dan penilaian dapat diarahkan pada bagian yang relevan. Setiap batasan mengacu pada karakter platform yang \textit{domain-agnostic}, lingkungan pengujian satu \textit{node}, dan patokan versi April 2026. Kelima batasan di bawah ini selanjutnya dirujuk dengan singkatan B-1 hingga B-5 pada bab-bab berikutnya.
+Pengembangan platform pada Tugas Akhir ini dibatasi sebagai berikut. Batasan disusun agar lingkup kerja, pengujian, dan evaluasi terdefinisi secara eksplisit sehingga hasil dapat diukur dan penilaian dapat diarahkan pada bagian yang relevan. Setiap batasan mengacu pada karakter platform yang \textit{domain-agnostic}, lingkungan pengujian satu \textit{node}, dan patokan versi April 2026. Kelima batasan di bawah ini selanjutnya dirujuk dengan singkatan B-1 hingga B-5 pada bab-bab berikutnya.
 
 \vspace{0.5em}
 \begin{enumerate}
     \item \textbf{Fokus pada lapis kendali platform}
 
-    Fokus berada pada lapis kendali platform, bukan pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai instans verifikasi rancangan sehingga pembahasan platform dijaga \textit{domain-agnostic}.
+    Fokus berada pada lapis kendali platform, bukan pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai kasus verifikasi rancangan sehingga pembahasan platform dijaga \textit{domain-agnostic}.
 
     \vspace{0.5em}
 
@@ -123,7 +123,7 @@ Kelima batasan di atas menjadi konteks pembacaan seluruh laporan, terutama pada 
 \section{Metodologi}
 \label{sec:metodologi}
 
-Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang dirumuskan oleh \textcite{peffers2007dsrm} untuk penelitian sistem informasi yang menghasilkan artefak. Luaran utama Tugas Akhir ini berupa platform yang berjalan, yaitu artefak jenis instansiasi (\textit{instantiation}) dalam taksonomi \textit{design science}, sehingga kerangka penelitian berorientasi artefak menjadi pijakan yang sesuai \autocite{hevner2004design}. DSRM dipilih dibandingkan metodologi rekayasa perangkat lunak murni karena DSRM menempatkan iterasi antara perancangan, demonstrasi, dan evaluasi sebagai bagian inti proses penelitian, bukan sekadar tahapan pengembangan. Kerangka proses \textit{data science} seperti CRISP-DM dan TDSP tidak menjadi pilihan karena keduanya menata pembangunan satu model pada satu domain data, sedangkan luaran Tugas Akhir ini adalah platform lintas domain dan model hanya menjadi salah satu beban kerja yang dilayani. Tahapan yang dijalankan meliputi enam fase berikut dengan luaran teknis yang dapat diukur.
+Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang dirumuskan oleh \textcite{peffers2007dsrm} untuk penelitian sistem informasi yang menghasilkan artefak. Luaran utama Tugas Akhir ini berupa platform yang berjalan, yaitu artefak jenis instansiasi (\textit{instantiation}) dalam taksonomi \textit{design science}, sehingga kerangka penelitian berorientasi artefak menjadi pilihan yang tepat \autocite{hevner2004design}. DSRM dipilih dibandingkan metodologi rekayasa perangkat lunak murni karena DSRM menempatkan iterasi antara perancangan, demonstrasi, dan evaluasi sebagai bagian inti proses penelitian, bukan sekadar tahapan pengembangan. Kerangka proses \textit{data science} seperti CRISP-DM dan TDSP tidak menjadi pilihan karena keduanya menata pembangunan satu model pada satu domain data, sedangkan luaran Tugas Akhir ini adalah platform lintas domain dan model hanya menjadi salah satu beban kerja yang dilayani. Tahapan yang dijalankan meliputi enam fase berikut dengan luaran teknis yang dapat diukur.
 
 \vspace{0.5em}
 \begin{enumerate}
@@ -147,7 +147,7 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
     \item \textbf{Demonstrasi}
 
-    Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari satu \textit{use case} domain nyata sebagai instans verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
+    Platform dipasang pada lingkungan \textit{k3s} dan diberi muatan dari satu \textit{use case} domain nyata sebagai kasus verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
 
     \vspace{0.5em}
 
@@ -191,7 +191,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps}
 
-    Menjabarkan arsitektur tujuh lapis dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan dalam pandangan umum beserta rincian per kelompok lapisan.
+    Menjabarkan arsitektur tujuh lapis dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan dalam gambaran umum beserta rincian per kelompok lapisan.
 
     \vspace{0.5em}
 
