@@ -1,57 +1,57 @@
-% Tabel sideways satu halaman penuh
-\begin{table}[p]
-\centering
-\rotatebox{90}{%
-\begin{minipage}{\textheight}
-\centering
+% Tabel portrait, boleh lintas halaman, caption di atas header
+{
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.15}
-\captionof{table}{Perbandingan \textit{Framework} Tingkat Kematangan MLOps}
-\label{tab:mlops_maturity_comparison}
-\par\vspace{4pt}
-\begin{tabularx}{\linewidth}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.5cm}|*{6}{>{\centering\arraybackslash}X|}}
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.5cm}|>{\centering\arraybackslash}m{1.6cm}|*{6}{>{\centering\arraybackslash}m{1.45cm}|}}
+\caption{Perbandingan \textit{Framework} Tingkat Kematangan MLOps}
+\label{tab:mlops_maturity_comparison} \\
 \hline
-\textbf{FW} & \textbf{Level} & \textbf{DevOps Practices} & \textbf{ML Pipeline Automation} & \textbf{CI/CD Integration} & \textbf{CT (Continuous Training)} & \textbf{Monitoring \& Feedback Loop} & \textbf{Governance \& Lineage} \\
+\textbf{Framework} & \textbf{Level} & \textbf{DevOps Prac\-tices} & \textbf{ML Pipeline Auto\-mation} & \textbf{CI/CD Inte\-gration} & \textbf{CT (Conti\-nuous Training)} & \textbf{Moni\-toring \& Feedback Loop} & \textbf{Gover\-nance \& Lineage} \\
 \hline
-\multirow{3}{=}{\centering\textbf{GCP}} & \textbf{L0} & \cellcolor{red!20}Tidak ada (silo tim) & \cellcolor{red!20}Manual (script, notebook) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada (\textit{model untracked}) & \cellcolor{red!20}Tidak ada (\textit{no lineage}) \\
-\cline{2-8}
-& \textbf{L1} & \cellcolor{yellow!20}Parsial (\textit{operational symmetry}) & \cellcolor{green!20}\textbf{Ya} (\textit{end-to-end}) & \cellcolor{yellow!20}Parsial (\textit{pipeline} saja) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{drift detection}) & \cellcolor{green!20}\textbf{Ya} (\textit{metadata store}, \textit{feature store}) \\
-\cline{2-8}
-& \textbf{L2} & \cellcolor{green!20}\textbf{Ya} (\textit{fully integrated}) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}) & \cellcolor{green!20}\textbf{Ya} (CI/CD/CT penuh) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{integrated}) & \cellcolor{green!20}\textbf{Ya} (\textit{automated} melalui sistem CI/CD) \\
+\endfirsthead
 \hline
-\multirow{5}{=}{\centering\textbf{Azure}} & \textbf{L0} & \cellcolor{red!20}Tidak ada (\textit{disparate teams}) & \cellcolor{red!20}Manual (\textit{ad hoc}) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada (\textit{black box}) & \cellcolor{red!20}Tidak ada (\textit{no tracking}) \\
-\cline{2-8}
-& \textbf{L1} & \cellcolor{yellow!20}\textbf{Ya} (aplikasi saja) & \cellcolor{red!20}Manual (\textit{model handoff}) & \cellcolor{yellow!20}Aplikasi saja (bukan untuk ML) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Minimal (\textit{limited feedback}) & \cellcolor{red!20}Minimal (sulit ditelusuri) \\
-\cline{2-8}
-& \textbf{L2} & \cellcolor{yellow!20}\textbf{Ya} (DevOps aplikasi) & \cellcolor{green!20}\textbf{Ya} (pelatihan saja) & \cellcolor{red!20}Tidak ada (\textit{release} manual) & \cellcolor{green!20}\textbf{Ya} (pelatihan otomatis) & \cellcolor{yellow!20}Parsial (pelacakan terpusat) & \cellcolor{green!20}\textbf{Ya} (\textit{version control}, manajemen model) \\
-\cline{2-8}
-& \textbf{L3} & \cellcolor{green!20}\textbf{Ya} (terintegrasi) & \cellcolor{green!20}\textbf{Ya} (latih dan \textit{deploy}) & \cellcolor{green!20}\textbf{Ya} (CD model) & \cellcolor{green!20}\textbf{Ya} (pelatihan otomatis) & \cellcolor{yellow!20}Parsial (\textit{A/B testing}) & \cellcolor{green!20}\textbf{Ya} (pengujian terintegrasi) \\
-\cline{2-8}
-& \textbf{L4} & \cellcolor{green!20}\textbf{Ya} (\textit{fully integrated}) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}) & \cellcolor{green!20}\textbf{Ya} (CI/CD/CT penuh) & \cellcolor{green!20}\textbf{Ya} (\textit{auto retrain}) & \cellcolor{green!20}\textbf{Ya} (\textit{verbose metrics}, \textit{closed loop}) & \cellcolor{green!20}\textbf{Ya} (komprehensif) \\
+\textbf{Framework} & \textbf{Level} & \textbf{DevOps Prac\-tices} & \textbf{ML Pipeline Auto\-mation} & \textbf{CI/CD Inte\-gration} & \textbf{CT (Conti\-nuous Training)} & \textbf{Moni\-toring \& Feedback Loop} & \textbf{Gover\-nance \& Lineage} \\
 \hline
-\multirow{4}{=}{\centering\textbf{AWS}} & \textbf{Initial} & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Manual (\textit{notebooks}, lokal) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada (\textit{no standardization}) \\
-\cline{2-8}
-& \textbf{Repeatable} & \cellcolor{yellow!20}Parsial (infrastruktur) & \cellcolor{green!20}\textbf{Ya} (\textit{training pipeline}) & \cellcolor{red!20}Tidak ada (\textit{deploy} manual) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{yellow!20}Minimal (infrastruktur eksperimen) & \cellcolor{green!20}\textbf{Ya} (\textit{model registry}, \textit{version control}) \\
-\cline{2-8}
-& \textbf{Reliable} & \cellcolor{green!20}\textbf{Ya} (terintegrasi) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (CI/CD terintegrasi) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{prod monitoring}, \textit{rollback}) & \cellcolor{green!20}\textbf{Ya} (IaC, pengujian otomatis) \\
-\cline{2-8}
-& \textbf{Scalable} & \cellcolor{green!20}\textbf{Ya} (multi-\textit{account} dan multi-region) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}, multi-region) & \cellcolor{green!20}\textbf{Ya} (otomasi penuh) & \cellcolor{green!20}\textbf{Ya} (\textit{auto retrain} melalui \textit{drift detection}) & \cellcolor{green!20}\textbf{Ya} (\textit{drift detection}, optimasi otomatis) & \cellcolor{green!20}\textbf{Ya} (\textit{centralized feature store}, \textit{full governance}) \\
+\endhead
+\endfoot
 \hline
-\multirow{5}{=}{\centering\textbf{Giga Om}} & \textbf{L0} & \cellcolor{red!20}Tidak ada (\textit{no standards}) & \cellcolor{red!20}Manual (inkonsisten) & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Tidak ada & \cellcolor{red!20}Minimal & \cellcolor{red!20}Minimal (keamanan minimal) \\
-\cline{2-8}
-& \textbf{L1} & \cellcolor{yellow!20}Parsial (\textit{basic practices}) & \cellcolor{yellow!20}Parsial (sebagian otomatis) & \cellcolor{red!20}Tidak ada (sebagian besar manual) & \cellcolor{red!20}Tidak ada & \cellcolor{yellow!20}Minimal (\textit{basic tracking}) & \cellcolor{yellow!20}Parsial (\textit{limited governance}) \\
-\cline{2-8}
-& \textbf{L2} & \cellcolor{green!20}\textbf{Ya} (diimplementasikan) & \cellcolor{green!20}\textbf{Ya} (\textit{pipeline} CI/CD) & \cellcolor{green!20}\textbf{Ya} (diimplementasikan) & \cellcolor{yellow!20}Parsial (sebagian otomatis) & \cellcolor{yellow!20}Parsial (\textit{basic monitoring}) & \cellcolor{green!20}\textbf{Ya} (\textit{formal governance} dimulai) \\
-\cline{2-8}
-& \textbf{L3} & \cellcolor{green!20}\textbf{Ya} (\textit{fully integrated}) & \cellcolor{green!20}\textbf{Ya} (\textit{fully automated}) & \cellcolor{green!20}\textbf{Ya} (komprehensif) & \cellcolor{green!20}\textbf{Ya} (\textit{automated}) & \cellcolor{green!20}\textbf{Ya} (\textit{comprehensive monitoring})  & \cellcolor{green!20}\textbf{Ya} (\textit{automated governance}, \textit{self-service}) \\
-\cline{2-8}
-& \textbf{L4} & \cellcolor{green!20}\textbf{Ya} (\textit{fully adaptive}) & \cellcolor{green!20}\textbf{Ya} (\textit{AI-optimized}) & \cellcolor{green!20}\textbf{Ya} (\textit{self-optimizing}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning}) & \cellcolor{green!20}\textbf{Ya} (\textit{continuous learning} dari produksi) & \cellcolor{green!20}\textbf{Ya} (platform terintegrasi dan adaptif penuh) \\
-\hline
-\end{tabularx}
+\endlastfoot
 
-\vspace{4pt}
-\textbf{Keterangan:} \colorbox{red!20}{Merah} tidak ada atau manual; \colorbox{yellow!20}{Kuning} parsial atau terbatas; \colorbox{green!20}{Hijau} penuh atau otomatis.
-\end{minipage}%
+\multirow{3}{=}{\textbf{GCP}} & \textbf{L0} & 0 & 0 & 0 & 0 & 0 & 0 \\*
+\cline{2-8}
+& \textbf{L1} & 1 & 2 & 1 & 2 & 2 & 2 \\*
+\cline{2-8}
+& \textbf{L2} & 2 & 2 & 2 & 2 & 2 & 2 \\
+\hline
+\multirow{5}{=}{\textbf{Azure}} & \textbf{L0} & 0 & 0 & 0 & 0 & 0 & 0 \\*
+\cline{2-8}
+& \textbf{L1} & 1 & 0 & 1 & 0 & 0 & 0 \\*
+\cline{2-8}
+& \textbf{L2} & 1 & 2 & 0 & 2 & 1 & 2 \\*
+\cline{2-8}
+& \textbf{L3} & 2 & 2 & 2 & 2 & 1 & 2 \\*
+\cline{2-8}
+& \textbf{L4} & 2 & 2 & 2 & 2 & 2 & 2 \\
+\hline
+\multirow{4}{=}{\textbf{AWS}} & \textbf{Initial} & 0 & 0 & 0 & 0 & 0 & 0 \\*
+\cline{2-8}
+& \textbf{Repeat\-able} & 1 & 2 & 0 & 2 & 1 & 2 \\*
+\cline{2-8}
+& \textbf{Reliable} & 2 & 2 & 2 & 2 & 2 & 2 \\*
+\cline{2-8}
+& \textbf{Scalable} & 2 & 2 & 2 & 2 & 2 & 2 \\
+\hline
+\multirow{5}{=}{\textbf{Giga Om}} & \textbf{L0} & 0 & 0 & 0 & 0 & 0 & 0 \\*
+\cline{2-8}
+& \textbf{L1} & 1 & 1 & 0 & 0 & 1 & 1 \\*
+\cline{2-8}
+& \textbf{L2} & 2 & 2 & 2 & 1 & 1 & 2 \\*
+\cline{2-8}
+& \textbf{L3} & 2 & 2 & 2 & 2 & 2 & 2 \\*
+\cline{2-8}
+& \textbf{L4} & 2 & 2 & 2 & 2 & 2 & 2 \\
+\hline
+\end{longtable}
+\skorlegend
 }
-\end{table}
