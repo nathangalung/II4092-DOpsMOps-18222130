@@ -1,210 +1,243 @@
 # Open Source Tool Catalog
 
-This document lists every open source tool used in the platform and explains
-what each one does and which parts of the pipeline depend on it. The platform
-itself is domain agnostic. The crypto use case at the end shows how these same
-tools are wired for one concrete domain.
+This document lists every open source tool used in the platform, what each one
+does here, which parts of the pipeline depend on it, and whether it is actually
+running. The platform is domain agnostic. The crypto use case at the end shows
+how the same tools are wired for one concrete domain.
 
 The tools are grouped by the layer they belong to, following the seven layer
 DataOps and MLOps architecture: infrastructure, ingestion, processing, feature
 storage, model lifecycle, model serving, and governance with observability.
 Security and GitOps run across all layers.
 
-The source of truth for which components are enabled is
-`platform/config/components.yaml`. Every entry below matches a real directory
-under `platform/components/`.
+The source of truth for enabled components is `platform/config/components.yaml`.
+Every entry below matches a real directory under `platform/components/` or a
+chart it installs. The Status column was verified against the live cluster on
+1 July 2026 (see the verification note at the end).
 
 ## How to read this
 
-Each table has three columns:
+Each table has four columns:
 
 - Tool: the open source project.
 - Role in this project: what it actually does here, not a generic description.
-- Depended on by: the services or other tools that need it. "Platform wide"
-  means many components rely on it.
+- Depended on by: the services or tools that need it. "Platform wide" means
+  many components rely on it.
+- Status: live state at verification time. "Running" means pods verified
+  Running. "At zero replicas" means deployed but scaled down at the snapshot.
+  "Capability" means installed and healthy but deliberately not on the
+  production path on this single node.
 
 ## Layer 1: Infrastructure and common
 
-The base that everything else runs on: the cluster, the mesh, autoscaling, job
-admission, identity, and the local image registry.
+The base everything runs on: the cluster, mesh, identity, autoscaling, job
+admission, and the local image registry.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| Kubernetes (k3s) | Single node cluster that hosts every workload. Lightweight distribution suited to one machine. | Platform wide |
-| containerd | Container runtime under k3s that pulls and runs images. | Platform wide |
-| Helm and Kustomize | Render and overlay the component manifests. Argo CD uses them to produce the applied YAML. | Argo CD, every component |
-| cert-manager | Issues and rotates TLS certificates. Backs Istio mTLS and APISIX TLS. | Istio, APISIX |
-| Istio | Service mesh. Provides mutual TLS between services, traffic routing, and the ingress gateway. | Knative, gateway, meshed services |
-| Dex and oauth2-proxy | OIDC identity provider and auth proxy. Single sign on across the web UIs. | Grafana, DataHub, other UIs |
-| KEDA | Event driven autoscaler. Scales workloads on Kafka lag and scales idle UIs down to zero. | Kafka consumers, Superset, DataHub frontend |
-| Kueue | Kubernetes native job queue. Admits batch and training jobs by priority and quota. | Spark batch, training jobs |
-| metrics-server | Serves pod and node resource metrics. Feeds the Horizontal Pod Autoscalers. | HPAs across the platform |
-| Knative Serving | Serverless runtime installed as an available capability. Not on the serving path here, since KServe runs in RawDeployment mode. | None on the serving path |
-| Docker Registry | In cluster image registry at localhost:5000. Holds locally built service images so pulls work without external registries. | Every custom service image |
-| Kubeflow core | Shared Kubeflow components (central dashboard, profiles, RBAC) that the pipelines, tuning, training, and notebooks build on. | Kubeflow Pipelines, Katib, Trainer, Notebooks |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| Kubernetes (k3s) | Single node cluster hosting every workload. Ships the local-path-provisioner that backs all PersistentVolumes. | Platform wide | Running |
+| containerd | Container runtime under k3s. | Platform wide | Running |
+| Helm and Kustomize | Render and overlay the component manifests. Argo CD uses them to produce the applied YAML. | Argo CD, every component | In use |
+| cert-manager | Issues and rotates TLS certificates for Istio and APISIX. | Istio, APISIX | Running |
+| Istio | Service mesh. Mutual TLS between services, traffic routing, ingress gateway. | Meshed services, gateway | Running |
+| Dex | OIDC identity provider. Single sign on for the web UIs; the Grafana OIDC client is wired in source. | Grafana, other UIs | Running |
+| oauth2-proxy | Auth proxy in front of UIs that cannot speak OIDC themselves. | UI access | Running |
+| KEDA | Event driven autoscaler. Kafka lag scalers for the validator and analyzer, an rps scaler for the gateway, cron schedules for the Superset and DataHub frontends. | Kafka consumers, UI scaling | Running |
+| Kueue | Kubernetes native job queue. Admits batch and training jobs by queue labels. | Spark batch, training jobs | Running |
+| metrics-server | Pod and node resource metrics for the Horizontal Pod Autoscalers. | HPAs platform wide | Running |
+| Knative Serving | Serverless runtime installed as a capability. KServe runs in RawDeployment mode, so Knative is not on the serving path here. | None on the serving path | Running, capability |
+| Docker Registry | In cluster registry at localhost:5000 holding the locally built service images. | Every custom service image | Running |
+| Kubeflow core | Shared plumbing for the Kubeflow components: gateway, RBAC roles, and network policies. Not the central dashboard. | Kubeflow Pipelines, Katib, Trainer, Notebooks | Applied |
 
 ## Layer 2: Storage
 
-Databases, object storage, the vector store, and the open lakehouse. This is
-where raw data, features, metadata, artifacts, and the cold archive live.
+Databases, object storage, the vector store, and the open lakehouse. Raw data,
+features, metadata, artifacts, and the cold archive live here.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| ClickHouse | Columnar warehouse. Holds the bronze, silver, and gold medallion tables and serves as the Feast offline store. | analyzer, batch, trainer, drift, dashboard backend, dbt, Trino |
-| Altinity ClickHouse Operator | Manages the ClickHouse StatefulSet and its keeper. | ClickHouse |
-| PostgreSQL (CloudNativePG) | Metadata database and the change data capture source. | MLflow, Airflow, DataHub, Superset, LakeFS |
-| CloudNativePG | Operator that runs PostgreSQL with backups and failover. | PostgreSQL |
-| MySQL | Metadata database for the Kubeflow control plane. | Kubeflow Pipelines, Katib |
-| Valkey | In memory key value store, a Redis fork. The online feature store and cache. | feature cache, Flink job, materialization, Feast online |
-| MinIO | S3 compatible object storage. Backs MLflow artifacts, the data lake, Iceberg files, and the Loki and Tempo stores. | MLflow, LakeFS, Iceberg, Loki, Tempo, inference |
-| Qdrant | Vector database. Stores news and sentiment embeddings for similarity search. | vector service |
-| lakeFS | Git like version control over the MinIO data lake, with branch, commit, and merge on data. | lakehouse workflow |
-| Lakekeeper | Rust Iceberg REST catalog. The table catalog for the open lakehouse. | Spark archive, Trino |
-| Apache Iceberg | Open table format. The cold, engine neutral archive written by Spark and read by Trino. | Spark archive, Trino |
-| SpiceDB | Fine grained authorization based on the Google Zanzibar model. Backs APISIX authorization. | APISIX |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| ClickHouse | Columnar warehouse. Holds the bronze, silver, and gold medallion tables and serves as the Feast offline store. | analyzer, batch, trainer, drift, dashboard backend, dbt, Trino | Running |
+| Altinity ClickHouse Operator | Manages the ClickHouse installation and its keeper. | ClickHouse | Running |
+| PostgreSQL (CloudNativePG) | Metadata database and the change data capture source. | MLflow, Airflow, DataHub, Superset, LakeFS | Running |
+| CloudNativePG | Operator running PostgreSQL, with the barman-cloud plugin for backups. | PostgreSQL | Running |
+| MySQL | Metadata database for the Kubeflow control plane. | Kubeflow Pipelines, Katib | Running |
+| Valkey | In memory key value store, a Redis fork. The online feature store and cache. | Flink job, materialization, Feast online | Running |
+| MinIO | S3 compatible object storage. Backs MLflow artifacts, the data lake, Iceberg files, and the Loki and Tempo stores. | MLflow, LakeFS, Iceberg, Loki, Tempo | Running |
+| Qdrant | Vector database. Stores news and sentiment embeddings for similarity search. | vector embedding job | Running |
+| lakeFS | Git like version control over the MinIO data lake. The lakehouse DAG branches, commits, and merges data changes. | lakehouse workflow | Running |
+| Lakekeeper | Rust Iceberg REST catalog for the open lakehouse. The warehouse bootstrap job is staged in source, pending the next GitOps push. | Spark archive, Trino | Running |
+| Apache Iceberg | Open table format. The cold, engine neutral archive written by Spark and read by Trino. | Spark archive, Trino | Format, staged |
+| SpiceDB | Fine grained authorization based on the Google Zanzibar model. | APISIX | Running |
 
 ## Layer 3: Data ingestion
 
-The streaming backbone plus schema enforcement and the tools to inspect it.
+The streaming backbone plus schema enforcement and inspection.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| Apache Kafka (KRaft) | Event streaming backbone. Every collector and processor publishes or consumes here. | rest collector, websocket collector, validator, batch, Flink job, drift |
-| Strimzi | Kafka operator. Manages the cluster, topics, users, and the kafka-exporter. | Kafka |
-| Kafka Connect and Debezium | Change data capture from PostgreSQL and sink connectors. | CDC pipelines |
-| Karapace | Confluent compatible schema registry. Collectors and validators enforce message schemas. | validator, rest collector, Kafka Connect |
-| Kafbat UI | Web UI to inspect Kafka topics, consumer groups, and lag. | operators, debugging |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| Apache Kafka (KRaft) | Event streaming backbone. Every collector and processor publishes or consumes here. | collectors, validator, Flink, ClickHouse Kafka engine | Running |
+| Strimzi | Kafka operator. Manages the broker, topics, users, and the kafka-exporter. | Kafka | Running |
+| kafka-exporter (Strimzi) | Exposes consumer group lag as Prometheus metrics. | lag monitoring, KEDA | Running |
+| Kafka Connect and Debezium | Change data capture capability. Deployed, but no connectors are registered at the moment and the runtime pod has an image pull failure. The Iceberg sink it once carried was superseded by the Spark archive job. | none currently | Deployed, failing image pull |
+| Karapace | Confluent compatible schema registry. Collectors and the validator enforce message schemas. | validator, collectors | Running |
+| Kafbat UI | Web UI to inspect Kafka topics, consumer groups, and lag. | operators, debugging | Running |
 
 ## Layer 4: Data processing
 
 Batch and stream engines, orchestration, validation, SQL transformation, query
 federation, and business dashboards.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| Apache Flink | Stream processing. The speed layer computing real time features from Kafka into Valkey. | Flink job |
-| Apache Spark | Batch processing. Archives raw trades from ClickHouse into Iceberg on a schedule. | lakehouse archive |
-| Apache Airflow | Workflow orchestration. Runs the scheduled DAGs for features, the quality gate, the lakehouse, materialization, and retraining. | materialization, retraining, scheduled gold |
-| Great Expectations | Data validation framework. Asserts expectations on the training data before it is used. | analyzer, quality gate |
-| dbt | SQL transformation on ClickHouse. Builds the silver and gold marts inside the warehouse. | gold table build |
-| Apache Superset | Business intelligence dashboards over ClickHouse and Trino. | analysts |
-| Trino | Federated SQL engine. Joins ClickHouse gold tables against the Iceberg archive in a single query. | Superset, cross store queries |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| Apache Flink | Stream processing. The speed layer computing real time features from Kafka into Valkey. | online features | Running |
+| Flink Kubernetes Operator | Manages the FlinkDeployment resources (session cluster and the stream processor). | Flink | Running |
+| Apache Spark | Batch engine for the lakehouse archive: raw trades from ClickHouse into Iceberg on a six hour schedule. The ScheduledSparkApplication is staged in source, not yet applied to the cluster. | lakehouse archive | Operator running, job staged |
+| Spark Operator | Runs SparkApplication resources natively on Kubernetes. | Spark jobs | Running |
+| Apache Airflow | Workflow orchestration. Runs the scheduled DAGs: data pipeline, hourly features, quality gate, and the lakehouse build. Executes dbt and Feast materialization as pod tasks. | scheduled gold path, materialization | Running |
+| Great Expectations | Data validation. Runs inside the quality gate DAG and a scheduled checkpoint CronJob against the training data. Latest checkpoint runs failed and need a look. | quality gate | Scheduled, recent runs failed |
+| dbt | SQL transformation on ClickHouse. Builds the silver and gold marts, invoked by the lakehouse DAG under a lakeFS branch and merge. | gold table build | In use via Airflow |
+| Apache Superset | Business intelligence dashboards over ClickHouse and Trino. | analysts | Deployed, stuck initializing at snapshot |
+| Trino | Federated SQL engine. Joins ClickHouse gold tables against the Iceberg archive in one query. | Superset, cross store queries | Running |
 
 ## Layer 5: Model lifecycle
 
-Experiment tracking, the feature store, pipeline orchestration, distributed
-training, tuning, and interactive development.
+Experiment tracking, the feature store, pipelines, training, tuning, and
+interactive development.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| MLflow | Experiment tracking and model registry. The trainer logs runs and registers models here. | trainer, dashboard backend, ml bridge |
-| Feast | Feature store. Serves online features from Valkey and offline features from ClickHouse. | batch, feature cache, materialization, ml bridge |
-| Kubeflow Pipelines | ML pipeline orchestration. Runs the retraining pipeline of train, evaluate, and deploy. | trainer, retraining |
-| Kubeflow Trainer | Distributed training operator. Available as a capability. On a single node it runs one worker. | training jobs |
-| Katib | Hyperparameter tuning and AutoML. Available as a capability. The production path uses FLAML inside the trainer. | tuning experiments |
-| Kubeflow Notebooks | Interactive Jupyter development for exploration. | data science work |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| MLflow | Experiment tracking and model registry. The trainer logs runs and registers the model KServe serves. | trainer, ml bridge, dashboard backend | Running |
+| Feast | Feature store. Online features from Valkey, offline from ClickHouse. Materialization runs as an Airflow task. | ml bridge, materialization | Running |
+| Kubeflow Pipelines | ML pipeline orchestration. Holds the retraining pipeline of train, evaluate, and deploy steps. | retraining | Running |
+| Kubeflow Trainer and JobSet | Distributed training operators. Installed capability; on one node the trainer runs as a single worker Job. | training jobs | Running, capability |
+| Katib | Hyperparameter tuning and AutoML capability. The production path selects models with FLAML inside the trainer instead. | tuning experiments | Running, capability |
+| Kubeflow Notebooks | Jupyter notebook controller and web app for interactive work. | data science work | Running |
 
 ## Layer 6: Model serving
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| KServe | Model serving. Runs the predictor as an InferenceService in RawDeployment mode using the v2 protocol. | ml bridge, dashboard |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| KServe | Model serving in RawDeployment mode with the v2 inference protocol. Two InferenceServices exist and report Ready: a platform health check and the crypto predictor. The predictor deployment was at zero replicas at the snapshot. | ml bridge, dashboard | Running controller, predictor scaled down |
+| Argo Rollouts | Progressive delivery. The ml bridge ships as a Rollout, giving canary style rollouts on the serving path. | ml bridge | Running |
 
 ## Layer 7: Data governance
 
-Metadata catalog, lineage, and the search index behind them.
-
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| DataHub | Metadata catalog and lineage graph. Ingests from ClickHouse, dbt, Airflow, and MLflow. | governance, discovery |
-| OpenSearch | Search index behind DataHub. | DataHub |
-| OpenLineage | Lineage event standard. Airflow and Spark emit lineage events that land in DataHub. | DataHub lineage |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| DataHub | Metadata catalog and lineage graph. Ingest CronJobs pull from ClickHouse, dbt, Feast, Kafka, MinIO, MLflow, and PostgreSQL. Verified populated: about 255 ClickHouse datasets, 21 Airflow entities, 16 dbt models. | governance, discovery | Running (frontend pod was Pending at snapshot) |
+| OpenSearch | Search index behind DataHub. | DataHub | Running |
+| OpenLineage | Lineage event standard. Airflow DAGs emit run events to the DataHub endpoint; the staged Spark job carries the same listener. | DataHub lineage | In use |
 
 ## Observability
 
-Metrics, logs, traces, profiling, cost, drift, and autoscaling signals. Metrics
-and logs and traces share MinIO as their store where possible.
+Metrics, logs, traces, profiles, cost, drift, SLOs, and autoscaling signals.
 
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| Prometheus (kube-prometheus-stack) | Metrics collection and alerting rules. Scrapes services, exporters, and the Pushgateway. Ships node-exporter and kube-state-metrics. | drift, dashboards, alerts |
-| Grafana | Dashboards and visualization over Prometheus, Loki, and Tempo. | operators, monitoring |
-| Loki | Log aggregation, backed by MinIO. | log search |
-| Tempo | Distributed tracing, OpenTelemetry native, backed by MinIO. | trace search |
-| OpenTelemetry Operator and Collector | Telemetry pipeline that collects traces and metrics from the services. | Tempo, service tracing |
-| Pushgateway | Relay for short lived batch job metrics. CronJobs and Airflow DAGs push job success, duration, and exit code here. | trainer, batch, CronJobs |
-| Pyroscope | Continuous profiling of the heavy Python services. | performance analysis |
-| Sloth | Generates Prometheus SLO recording and alerting rules from SLO specifications. | SLO alerts |
-| OpenCost | Kubernetes cost monitoring, allocating spend per namespace and workload. | cost reporting |
-| Evidently | ML monitoring and data drift reporting. | drift analysis |
-| Vertical Pod Autoscaler | Recommends and right sizes pod resource requests. | resource tuning |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| Prometheus (kube-prometheus-stack) | Metrics collection and alert rules. Scrapes ServiceMonitors and PodMonitors cluster wide. Ships node-exporter and kube-state-metrics. | dashboards, alerts, KEDA | Running |
+| Alertmanager | Routes and groups the alerts Prometheus fires. | alerting | Running |
+| Grafana | Dashboards over Prometheus, Loki, and Tempo. Three platform dashboards (DataOps, MLOps, storage) are provisioned from ConfigMaps. | operators | Running |
+| Pushgateway | Relay for short lived batch job metrics. CronJobs and Airflow DAGs push job success, duration, and exit code here. The Prometheus scrape config for it is staged in source, pending the next GitOps push. | batch job monitoring | Running |
+| Loki | Log aggregation backed by MinIO. | log search | Crash looping at snapshot |
+| Grafana Alloy | Collector agent. Ships container logs to Loki and profiles to Pyroscope. | Loki, Pyroscope | Running |
+| Tempo | Distributed tracing backend, OpenTelemetry native, backed by MinIO. | trace search | Running |
+| OpenTelemetry Operator and Collectors | Telemetry pipeline. An agent collector and a gateway collector route traces from services to Tempo. | Tempo, service tracing | Running |
+| Pyroscope | Continuous profiling backend, fed by Alloy. | performance analysis | Running |
+| Sloth | Generates Prometheus SLO recording and alert rules from SLO specs. | SLO alerts | Running |
+| OpenCost | Kubernetes cost allocation per namespace and workload. | cost reporting | Running |
+| Evidently | ML monitoring workspace service. The drift reporter posts drift snapshots to it. | drift analysis | Running |
+| Vertical Pod Autoscaler | Resource right sizing in recommendation mode: the recommender runs, no updater is installed, so it suggests rather than mutates. | resource tuning | Running, recommender only |
 
 ## Security
 
-Secrets, the API gateway, admission policy, runtime detection, scanning, backup,
-and chaos testing. Authorization and encryption keys are also here.
-
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| OpenBao | Secret management, a Vault API compatible fork. The source of truth for secrets. | External Secrets, platform wide |
-| External Secrets Operator | Syncs secrets from OpenBao into Kubernetes Secrets. | every service reading secrets |
-| APISIX | API gateway. TLS termination, routing, and authentication for external access. | gateway, external clients |
-| KES | MinIO Key Encryption Server. Holds the server side encryption keys for MinIO. | MinIO encryption |
-| Kyverno | Policy engine. Admission policies for resource limits, pod security, and image rules. | Platform wide |
-| Falco | Runtime security. Detects suspicious syscalls and container behavior. | threat detection |
-| Trivy Operator | Continuous vulnerability and misconfiguration scanning of images and workloads. | security posture |
-| Velero | Backup and restore of cluster resources and persistent volumes. | disaster recovery |
-| Chaos Mesh | Chaos engineering. Fault injection for resilience testing. | resilience tests |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| OpenBao | Secret management, a Vault API compatible fork. Source of truth for secrets, with an auto unsealer sidecar deployment. | External Secrets, platform wide | Running |
+| External Secrets Operator | Syncs secrets from OpenBao into Kubernetes Secrets. | every service reading secrets | Running |
+| APISIX | API gateway. TLS termination, routing, and authentication for external access. | external clients | Running |
+| KES | MinIO Key Encryption Server. Server side encryption keys for MinIO. | MinIO encryption | Running |
+| Kyverno | Policy engine. Admission policies for resource limits, pod security, and image rules. | Platform wide | Running |
+| Falco and Falcosidekick | Runtime security. Detects suspicious syscalls; sidekick forwards events. | threat detection | Running |
+| Trivy Operator | Vulnerability and misconfiguration scanning. Scaled to zero at the snapshot. | security posture | At zero replicas |
+| Velero | Backup and restore of cluster resources and volumes, with node agents. | disaster recovery | Running |
+| Chaos Mesh | Chaos engineering. Fault injection experiments used by the chaos evaluation scenarios. | resilience tests | Running |
 
 ## GitOps and CI/CD
 
-The delivery loop. Source lives in Gitea, Argo CD reconciles it, Tekton builds,
-Argo Rollouts and Argo Workflows handle progressive delivery and automation.
-
-| Tool | Role in this project | Depended on by |
-| --- | --- | --- |
-| Argo CD | GitOps continuous delivery. The app of apps reconciles every component from Gitea. | Platform wide |
-| Argo Rollouts | Progressive delivery. Canary and blue green for the serving path. | serving deployments |
-| Argo Workflows | Workflow engine. Runs the retrain on drift CronWorkflow. | automated retraining |
-| Gitea | Self hosted Git. The source of truth that Argo CD pulls from. | Argo CD |
-| Tekton | CI pipeline engine. Builds and tests, for example the dbt project pipeline. | build pipelines |
+| Tool | Role in this project | Depended on by | Status |
+| --- | --- | --- | --- |
+| Argo CD | GitOps delivery. The app of apps reconciles every component from Gitea. | Platform wide | Running |
+| Gitea | Self hosted Git. The source of truth Argo CD pulls from; the working tree is pushed here by the seed script. | Argo CD | Running |
+| Tekton | CI pipeline engine with dashboard and triggers. The use case ships a Tekton pipeline that builds the dbt project image. | build pipelines | Running |
+| Argo Workflows | Workflow engine running the retrain on drift CronWorkflow. Its controller was at zero replicas at the snapshot, which stalls new retrain runs until scaled back. | automated retraining | At zero replicas |
+| Argo Rollouts | Listed under model serving; also generally available for progressive delivery. | serving deployments | Running |
 
 ## Use case: crypto
 
 The platform above is domain agnostic. The crypto use case under
 `use-case-crypto/` instantiates it for one domain without changing any platform
-tool. It only adds domain specific code and configuration.
+tool. It adds domain code and configuration only.
 
 Data sources feeding the pipeline:
 
-- Coinbase for OHLCV bars and trades, per second, starting 1 January 2026 up to
-  real time. This is the primary tabular data.
-- Supplementary sentiment and news, so the pipeline is not tabular only. Sources
-  include CoinGecko, the Fear and Greed index, and CryptoPanic. Text is embedded
-  and stored in Qdrant.
+- Coinbase for OHLCV bars and trades, from 1 January 2026 up to real time. This
+  is the primary tabular data (verified in ClickHouse: about 744 thousand
+  minute bars and 1.76 million trades at the last check).
+- Supplementary sentiment and news, so the pipeline is not tabular only:
+  CoinGecko, DefiLlama, the Fear and Greed index, and news text that is
+  embedded and stored in Qdrant (about 63 thousand sentiment rows).
 
-The crypto services are the project's own code, not open source tools. They
-consume the tools above. The main ones:
+The crypto services are project code, not open source tools. They consume the
+tools above:
 
-- Collectors and validator in Rust, publishing to Kafka.
-- A batch service in Python for feature engineering.
-- A dashboard with a Go backend, a React frontend, and an ml bridge that reads
-  predictions and online features.
+- Rust websocket collector publishing trades to Kafka (running); the REST and
+  supplementary collection runs as scheduled CronJobs.
+- A Rust validator and gateway, deployed with KEDA scalers and scaled to zero
+  while idle.
+- A Python batch service for feature engineering, run by Airflow.
+- A dashboard with a Go backend, a React frontend, and a Python ml bridge (an
+  Argo Rollout) that reads predictions and online features.
 
-Open source libraries used inside the crypto code:
+Open source libraries inside the crypto code, verified in the dependency files:
 
-- FLAML for automated model selection.
-- LightGBM as the selected model.
-- Evidently for drift reports.
-- sentence-transformers for text embeddings.
+- FLAML for automated model selection (flaml 2.3 in the trainer).
+- LightGBM as the selected model family (lightgbm 4.5 in the trainer).
+- Evidently for drift reports (drift reporter service).
+- sentence-transformers for text embeddings, with the model baked into the
+  vector job image.
+
+## Known gaps at verification time
+
+An honest list, so this document does not overclaim. State on 1 July 2026,
+after an IO saturated period on the single disk node:
+
+- kafka-connect pod in image pull failure; no connectors registered anyway.
+- Loki crash looping; logs were flowing before the IO storm.
+- Superset stuck initializing; DataHub frontend pod Pending (it served fine
+  earlier the same day).
+- Argo Workflows controller and Trivy operator at zero replicas.
+- The Spark Iceberg archive and the Lakekeeper warehouse bootstrap are staged
+  in source and validated, waiting on the next Gitea push and Argo sync.
+- Latest runs of the lakehouse DAG, the Great Expectations checkpoint, and the
+  retrain decide step failed and need investigation.
 
 ## Notes on scope
 
-- Every tool listed is enabled in `platform/config/components.yaml` and present
-  under `platform/components/`.
-- A few tools are installed as capabilities but are deliberately not on the
-  production path on a single node: Knative Serving (KServe uses RawDeployment),
-  Kubeflow Trainer and Katib (the trainer uses FLAML directly). They are kept so
-  the architecture stays complete and can scale out on a multi node cluster.
-- node-exporter and kube-state-metrics are not separate components. They ship
-  inside the kube-prometheus-stack and provide node and object metrics.
+- Three tools are installed capabilities kept off the single node production
+  path on purpose: Knative Serving (KServe uses RawDeployment), Kubeflow
+  Trainer, and Katib (model selection happens in-trainer with FLAML). They keep
+  the architecture complete for multi node scale out.
+- node-exporter and kube-state-metrics are not separate components; they ship
+  inside the kube-prometheus-stack.
+- Storage is provisioned by the k3s built in local-path-provisioner; there is
+  no separate CSI component.
+
+## How this was verified
+
+Status comes from a four command read only kubectl snapshot on 1 July 2026
+(pods, deployments and statefulsets, cronjobs, and the Spark, KServe, Flink,
+and KEDA custom resources across all namespaces), cross checked against the
+manifests in this repository and `platform/config/components.yaml`. Row counts
+and catalog numbers come from queries run against the live ClickHouse and
+DataHub earlier the same day. Nothing in this document is inferred from tool
+marketing descriptions.
