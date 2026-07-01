@@ -10,7 +10,10 @@ metadata:
     component: ingestion
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "0 * * * *"
+  # Staggered off :00 (was "0 * * * *") — single-HDD: supplementary feeds +
+  # vector-embedding all firing on the hour caused a same-tick job storm that
+  # fed an IO cascade (2026-06-30). Spread across the hour: feargreed :12.
+  schedule: "12 * * * *"
   # suspend declared so ArgoCD owns the field under SSA — an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
@@ -112,9 +115,18 @@ spec:
                 - name: SUPPLEMENTARY_SOURCE_NAME
                   value: "fear-greed"
                 - name: SUPPLEMENTARY_SOURCE_URL
-                  value: "https://api.alternative.me/fng/?limit=1&format=json"
+                  # limit=0 → alternative.me returns the FULL daily history
+                  # (~3000 days), covering the OHLCV training window. limit=1
+                  # (one row) starved the backfill (#514). Real data, no synthesis.
+                  value: "https://api.alternative.me/fng/?limit=0&format=json"
                 - name: SUPPLEMENTARY_SOURCE_ENABLED
                   value: "true"
+                # Per-source mapping for alternative.me fear-greed JSON:
+                # data[] of {value, value_classification, timestamp}. Without an
+                # explicit mapping the job inherits the OHLCV field mapping from the
+                # shared ConfigMap and extracts nothing → placeholder score=0.
+                - name: RESPONSE_FIELD_MAPPING
+                  value: "root=data,timestamp=timestamp,value=value,title=value_classification"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL
                   value: "0s"
                 - name: SUPPLEMENTARY_BACKFILL_ENABLED

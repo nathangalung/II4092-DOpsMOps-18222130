@@ -55,11 +55,17 @@ spec:
                 configMapKeyRef:
                   name: pipeline-config
                   key: SYMBOLS
-            - name: FCACHE_REDIS_URL
+            # The config crate (Environment::with_prefix("FCACHE").separator("__"))
+            # maps onto the flat struct fields (redis_url/health_port/grpc_port)
+            # ONLY via the double-underscore FCACHE__ separator. Single FCACHE_
+            # was silently ignored → redis_url fell back to its localhost:6379
+            # default → ECONNREFUSED against Valkey. (FCACHE_SYMBOLS below stays
+            # single — it is read via std::env::var directly, not the config crate.)
+            - name: FCACHE__REDIS_URL
               value: "redis://valkey.storage.svc.cluster.local:6379"
-            - name: FCACHE_HEALTH_PORT
+            - name: FCACHE__HEALTH_PORT
               value: "8080"
-            - name: FCACHE_GRPC_PORT
+            - name: FCACHE__GRPC_PORT
               value: "50053"
           resources:
             requests:

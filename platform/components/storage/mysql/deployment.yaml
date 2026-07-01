@@ -99,12 +99,64 @@ spec:
       labels:
         app: mysql
     spec:
+      # mysqld needs time to flush + finalize redo on shutdown; the 30s default
+      # SIGKILLs it mid-write under disk contention, the root of the corruption.
+      terminationGracePeriodSeconds: 120
       securityContext:
         runAsNonRoot: true
         runAsUser: 27
         fsGroup: 27
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Prepare datadir + render root-reset SQL
+        # (1) Reset a partial first-init datadir (no `mysql/` system schema): the
+        #     image won't re-init a non-empty dir, so a first init killed before
+        #     the schema exists traps mysqld forever. Safe — a normal crash keeps
+        #     the schema and recovers via redo replay, so it is never wiped.
+        # (2) Render an --init-file that re-asserts root@'%' / root@localhost from
+        #     mysql-root-secret on every start. The datadir survives across
+        #     OpenBao re-derivations of that secret, so without this the stored
+        #     password drifts and clients (MLMD, Katib) + the reconcile hook hit
+        #     Access denied. The init-file runs as root during startup (no auth
+        #     needed), healing drift the running server otherwise cannot.
+        #     CREATE-IF-NOT-EXISTS before ALTER so a datadir missing root@'%'
+        #     (e.g. initialised before MYSQL_ROOT_HOST=%) is healed too: a bare
+        #     ALTER on an absent account raises 1396 and aborts the whole file,
+        #     leaving root@localhost un-reset. Order-independent + idempotent.
+        #     Also ensures the KFP/Katib databases (metadb, mlpipeline, cachedb,
+        #     katib): the image's initdb scripts only run on first init, so a
+        #     datadir that loses a schema is never re-healed without this.
+        - name: prepare-datadir
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - secretRef:
+                name: mysql-root-secret
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              DIR=/var/lib/mysql
+              if [ -n "$(ls -A "$DIR" 2>/dev/null)" ] && [ ! -d "$DIR/mysql" ]; then
+                echo "Partial first-init (no system schema); resetting datadir"
+                rm -rf "$DIR"/* "$DIR"/.[!.]* 2>/dev/null || true
+              fi
+              printf "CREATE USER IF NOT EXISTS 'root'@'%%' IDENTIFIED WITH mysql_native_password BY '%s';\nALTER USER 'root'@'%%' IDENTIFIED WITH mysql_native_password BY '%s';\nGRANT ALL PRIVILEGES ON *.* TO 'root'@'%%' WITH GRANT OPTION;\nCREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '%s';\nALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '%s';\nGRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;\n" "$MYSQL_ROOT_PASSWORD" "$MYSQL_ROOT_PASSWORD" "$MYSQL_ROOT_PASSWORD" "$MYSQL_ROOT_PASSWORD" > /startup/reset-root.sql
+              printf "CREATE DATABASE IF NOT EXISTS katib;\nCREATE DATABASE IF NOT EXISTS metadb;\nCREATE DATABASE IF NOT EXISTS mlpipeline;\nCREATE DATABASE IF NOT EXISTS cachedb;\n" >> /startup/reset-root.sql
+              echo "datadir prepared; root-reset SQL rendered"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+              subPath: mysql-data-v8
+            - name: startup
+              mountPath: /startup
       containers:
         - name: mysql
           image: mysql:8.4.9-oraclelinux9
@@ -117,6 +169,15 @@ spec:
             # Enable mysql_native_password plugin (disabled by default in 8.4)
             # Required for MLMD (metadata-grpc) and Katib db-manager
             - "--mysql-native-password=ON"
+            # Pin redo capacity so InnoDB never auto-resizes the redo log. A
+            # resize interrupted by an unclean kill leaves half-written
+            # `#ib_redo*_tmp` files that can trap InnoDB in MY-012960; a fixed
+            # capacity removes the resize entirely. 100 MiB = the 8.4 default.
+            - "--innodb-redo-log-capacity=104857600"
+            # Re-assert root password from mysql-root-secret on every start
+            # (rendered by the prepare-datadir init container) — heals datadir
+            # vs secret drift the running server cannot fix itself.
+            - "--init-file=/startup/reset-root.sql"
           env:
             - name: MYSQL_DATABASE
               value: "platform"
@@ -136,6 +197,9 @@ spec:
               subPath: mysql-data-v8
             - name: init-sql
               mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            - name: startup
+              mountPath: /startup
               readOnly: true
           resources:
             # Single-pod bootstrap; bump for production load.
@@ -158,7 +222,8 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - mysqladmin ping -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
+                # status (unlike ping) needs a real auth — surfaces password drift
+                - mysqladmin status -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
             periodSeconds: 10
           livenessProbe:
             exec:
@@ -174,6 +239,11 @@ spec:
         - name: init-sql
           configMap:
             name: mysql-init-sql
+        # Tmpfs for the rendered root-reset --init-file (password never on disk).
+        - name: startup
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

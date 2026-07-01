@@ -240,7 +240,7 @@ spec:
             - { containerPort: 8201, name: cluster }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            limits:   { cpu: 500m, memory: 1Gi }
+            limits:   { cpu: 500m, memory: 2Gi }
           readinessProbe:
             # `/v1/sys/health` with `standbyok=true` returns 200 for both
             # the active and (unsealed) standby peers, 503 when sealed,

@@ -59,4 +59,4 @@ spec:
               # value already reaches the container via envFrom above. This base
               # CronJob runs the no-bake platform image so the mount was inert,
               # but it is the exact reintroduction vector for an overlay image —
-              # removed here too. See use-case-crypto sma=0 / CONFIG_PATH fix.
+              # removed here too. See the use-case CONFIG_PATH fix.

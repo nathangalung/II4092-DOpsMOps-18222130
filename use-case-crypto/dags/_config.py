@@ -113,12 +113,13 @@ def k8s_pod(
         # registry is in-cluster, so re-pulling each run is cheap and
         # air-gap-safe (mirrors #301/#459/#291).
         image_pull_policy="Always",
-        # Keep FAILED task pods for post-mortem (`kubectl logs`/`describe`);
-        # delete only successful ones to stay tidy on the single node. Mirrors
-        # the platform Airflow KubernetesExecutor policy
-        # (AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS_ON_FAILURE=False):
-        # a child pod that errors must be inspectable, or the failure is opaque.
-        on_finish_action="delete_succeeded_pod",
+        # Delete all pods (succeeded and failed) on finish. Post-mortem is
+        # covered by get_logs=True below, which streams the full pod log into
+        # the Airflow task log BEFORE deletion — so failure output is always
+        # visible in the Airflow UI / S3 remote log without leaving orphaned
+        # Error pods on the node. Prevents accumulation of stale
+        # `airflow-batch-features` Error pods (~87 observed 2026-06-28).
+        on_finish_action="delete_pod",
         get_logs=True,
         # 600s (not 300s): on the single IO-constrained node, a cold
         # `Always`-pull of a freshly-rebuilt child image (256MB, all-new

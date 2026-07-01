@@ -31,7 +31,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-              name: metrics
+              name: http
           envFrom:
             - configMapRef:
                 name: pipeline-config
@@ -80,4 +80,4 @@ spec:
   ports:
     - port: 8080
       targetPort: 8080
-      name: metrics
+      name: http

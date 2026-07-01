@@ -7,13 +7,13 @@
 #
 # Sizing (KNF-05 / KNF-08):
 #   partitions        : 12    — 1 per symbol-shard, allows 12-way parallel consumers
-#   replicas          : 3     — matches platform-kafka replication.factor=3
+#   replicas          : 1     — matches platform-kafka replication.factor=1
 #   retention.ms      : 7d    — raw stream replay window for incident triage
-#   min.insync.replicas : 2   — quorum-write durability
+#   min.insync.replicas : 1   — single-node, one broker
 #   compression.type  : zstd  — better ratio than snappy on JSON payloads
 #   cleanup.policy    : delete — time-based only; compaction would drop intra-second ticks
 # =============================================================================
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: rest-raw
@@ -26,11 +26,11 @@ metadata:
 spec:
   topicName: crypto.rest.raw
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
     retention.ms: 604800000            # 7d
     segment.ms: 86400000               # 1d
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: delete
     max.message.bytes: 1048576         # 1 MiB

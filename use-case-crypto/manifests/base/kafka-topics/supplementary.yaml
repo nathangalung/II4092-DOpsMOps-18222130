@@ -10,14 +10,14 @@
 #
 # Sizing:
 #   partitions        : 3     — low fan-in; 1 per upstream SaaS provider
-#   replicas          : 3
+#   replicas          : 1
 #   retention.ms      : 30d
-#   min.insync.replicas : 2
+#   min.insync.replicas : 1
 #   compression.type  : zstd
 #   cleanup.policy    : compact,delete  — keep latest per key indefinitely
 #                                         AND purge > 30d old keys
 # =============================================================================
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: supplementary
@@ -30,11 +30,11 @@ metadata:
 spec:
   topicName: crypto.supplementary
   partitions: 3
-  replicas: 3
+  replicas: 1
   config:
     retention.ms: 2592000000           # 30d
     segment.ms: 604800000              # 7d
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: "compact,delete"
     min.cleanable.dirty.ratio: "0.1"

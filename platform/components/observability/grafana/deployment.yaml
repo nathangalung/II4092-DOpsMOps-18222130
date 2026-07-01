@@ -1,5 +1,5 @@
 # =============================================================================
-# Grafana 12.4 — OIDC via Dex, persistent storage, ExternalSecret-backed
+# Grafana 13.0 — OIDC via Dex, persistent storage, ExternalSecret-backed
 # admin credential, dashboards + datasources provisioned via ConfigMap.
 # =============================================================================
 apiVersion: v1

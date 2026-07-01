@@ -28,6 +28,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -u 1000 -m -s /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder --chown=1000:1000 /app /app
+# Ensure the WORKDIR itself (not just its contents) is owned by uid 1000: the
+# `COPY --chown` above sets file owners but leaves the root-created /app dir
+# root-owned, so a uid-1000 process cannot create NEW entries in it. CatBoost
+# (one of FLAML's estimators) mkdir's a per-run train working dir in CWD and
+# otherwise dies with "Can't create train working dir". This keeps catboost in
+# the AutoML search without a writable-CWD workaround at the call site.
+RUN chown 1000:1000 /app
 
 USER 1000:1000
 ENV PATH="/app/.venv/bin:$PATH"

@@ -20,7 +20,14 @@ set -euo pipefail
 NS=security
 JOB=openbao-bootstrap
 
+# Skip delete+recreate if Job already Complete.
 if kubectl -n "$NS" get job "$JOB" >/dev/null 2>&1; then
+  job_complete=$(kubectl -n "$NS" get job "$JOB" \
+    -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+  if [[ "$job_complete" == "True" ]]; then
+    echo "    [pre-apply] $NS/$JOB already initialized, skipping"
+    exit 0
+  fi
   echo "    [pre-apply] deleting prior $NS/$JOB Job (immutable spec.template)"
   # ArgoCD attaches `argocd.argoproj.io/hook-finalizer` on PostSync Jobs and
   # only removes it via its own hook-GC. When kubectl bypasses ArgoCD to

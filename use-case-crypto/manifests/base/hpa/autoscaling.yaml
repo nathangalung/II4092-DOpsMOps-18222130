@@ -160,16 +160,6 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: feature-cache-pdb
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: feature-cache
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
   name: dashboard-backend-pdb
 spec:
   minAvailable: 1

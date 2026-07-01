@@ -83,7 +83,12 @@ services:
       language: rust
       description: "REST/gRPC API gateway"
     feature_cache:
-      enabled: true
+      # Crypto serves online features via Feast materialize → Valkey → ml-bridge
+      # (Feast online read); the feature-cache Rust gRPC online writer is
+      # redundant and its gRPC has zero consumers, so it is disabled here.
+      # The platform still offers this component for use-cases that want a
+      # low-latency Rust online cache.
+      enabled: false
       language: rust
       description: "Redis-backed online feature serving"
     inference_engine:

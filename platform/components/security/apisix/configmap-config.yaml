@@ -80,7 +80,7 @@ data:
         resource:
           service.name: apisix
         collector:
-          address: otel-collector.observability.svc.cluster.local:4317
+          address: gateway-collector.observability.svc.cluster.local:4317
           request_timeout: 3
     #END
 ---

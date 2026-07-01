@@ -20,12 +20,15 @@ spec:
   replicas: 1
   roles: [controller, broker]
   # Single-pod bootstrap; bump for production load.
+  # ephemeral-storage request keeps the broker off the node-pressure
+  # eviction shortlist; heap capped below the memory limit so Kafka's
+  # off-heap/direct buffers have headroom (Xmx==limit caused OOMKilled).
   resources:
-    requests: { cpu: 200m, memory: 512Mi }
-    limits:   { cpu: 1500m, memory: 2Gi }
+    requests: { cpu: 200m, memory: 1Gi, ephemeral-storage: 512Mi }
+    limits:   { cpu: 1500m, memory: 2Gi, ephemeral-storage: 2Gi }
   jvmOptions:
     -Xms: "1g"
-    -Xmx: "2g"
+    -Xmx: "1g"
   storage:
     type: persistent-claim
     size: 5Gi

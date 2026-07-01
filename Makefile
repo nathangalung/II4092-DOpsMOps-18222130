@@ -36,7 +36,7 @@
 #   make phase-observability         + LGTM stack (Prom/Grafana/Loki/Tempo/Alloy)
 #   make phase-ingest-stream         + Kafka only (no proc, no Feast)
 #   make phase-stream                Kafka + Flink (no Feast)
-#   make phase-batch                 Spark + Airflow + dbt + Trino + Superset + GE (no Feast)
+#   make phase-batch                 Spark + Airflow + Trino + Superset + GE (no Feast)
 #   make phase-feast                 Redis + Feast standalone (BYO upstream)
 #   make phase-mlflow                MySQL + MLflow standalone
 #   make phase-kubeflow              MySQL + Kubeflow Pipelines/Trainer/Katib/Notebooks
@@ -44,7 +44,7 @@
 #
 # Cross-layer phases (compose two stages):
 #   make phase-stream-to-feast       Stream ingest → Flink → Feast
-#   make phase-batch-to-feast        Batch ingest → Spark/Airflow/dbt/GE → Feast
+#   make phase-batch-to-feast        Batch ingest → Spark/Airflow/GE → Feast
 #   make phase-feast-to-mlflow       Feast → MLflow only
 #   make phase-feast-to-kubeflow     Feast → Kubeflow only
 #   make phase-feast-to-training     Feast → MLflow + Kubeflow
@@ -56,7 +56,7 @@
 # End-to-end phases (full pipeline):
 #   make phase-stream-e2e            Stream → Feast → Train → Serve
 #   make phase-batch-e2e             Batch → Feast → Train → Serve
-#   make phase-governance            DataHub + OpenSearch + OpenLineage + ingestion
+#   make phase-governance            DataHub + OpenSearch + ingestion
 #   make phase-gitops                ArgoCD + Tekton + Gitea + Argo Rollouts
 #   make phase-security              Chaos Mesh + Falco + Trivy + Velero + APISIX (opt-in)
 #   make phase-auth                  RBAC + Dex/oauth2-proxy + SpiceDB authz (opt-in)
@@ -111,7 +111,7 @@ REPLICAS ?= 1
 #   containers and any RUN that does outbound DNS (wget, curl, apk add, mill,
 #   apt-get) fails with "bad address". Override on the CLI to disable:
 #       make platform-build-services DOCKER_BUILD='docker build'
-DOCKER_BUILD ?= docker build --network=host
+DOCKER_BUILD ?= docker build --network=host --provenance=false --sbom=false
 
 # Retry tuning for apply-component.sh — handles CRD-before-CR + slow webhook boot.
 # Override per-call:  make phase-base APPLY_MAX_ATTEMPTS=20 APPLY_DELAY=15
@@ -134,7 +134,7 @@ PLATFORM_SERVICES := \
   rest-collector:ingestion/rest-collector \
   validator:quality/validator \
   analyzer:quality/analyzer \
-  flink-job:processing/stream/flink-job \
+  flink-job:processing/stream \
   vector-processing:processing/vector \
   trainer:trainer \
   drift-detector:quality/drift \
@@ -143,7 +143,8 @@ PLATFORM_SERVICES := \
   gateway:serving/gateway \
   feature-cache:serving/feature-cache \
   inference-engine:serving/inference-engine \
-  drift-reporter:drift-reporter
+  drift-reporter:drift-reporter \
+  platform-airflow:airflow
 
 # Pass-through to platform/scripts/render-scalability.sh, platform/scripts/scale.sh, platform/scripts/apply-component.sh
 export KIND CPU_TARGET MEM_TARGET MODE CPU_MIN CPU_MAX MEM_MIN MEM_MAX MIN MAX TRIGGER TRIGGER_META NS NUKE_ALL FORCE
@@ -322,10 +323,10 @@ install-ns-storage: ## Apply all storage components (postgres, minio, valkey, my
 install-ns-data-ingestion: ## Apply all ingestion components (kafka stack)
 	@bash $(SCRIPTS)/retry.sh $(APPLY_MAX_ATTEMPTS) $(APPLY_DELAY) -- $(KUBECTL) apply -k $(COMPONENTS)/data-ingestion
 
-install-ns-data-processing: ## Apply all processing components (flink, spark, airflow, dbt, trino, superset, GE)
+install-ns-data-processing: ## Apply all processing components (flink, spark, airflow, trino, superset, GE)
 	@bash $(SCRIPTS)/retry.sh $(APPLY_MAX_ATTEMPTS) $(APPLY_DELAY) -- $(KUBECTL) apply -k $(COMPONENTS)/data-processing
 
-install-ns-data-governance: ## Apply all governance components (datahub, opensearch, openlineage)
+install-ns-data-governance: ## Apply all governance components (datahub, opensearch)
 	@bash $(SCRIPTS)/retry.sh $(APPLY_MAX_ATTEMPTS) $(APPLY_DELAY) -- $(KUBECTL) apply -k $(COMPONENTS)/data-governance
 
 install-ns-model-lifecycle: ## Apply all model-lifecycle (mlflow, feast, kubeflow*, katib)
@@ -350,7 +351,7 @@ atom-namespaces: ## Create all platform namespaces only
 
 atom-cert-istio: install-cert-manager install-istio ## Cert-manager + Istio mesh
 
-atom-keda-kueue: install-keda install-kueue install-metrics-server ## KEDA + Kueue + metrics-server
+atom-keda-kueue: install-keda install-kueue install-metrics-server install-vertical-pod-autoscaler ## KEDA + Kueue + metrics-server + VPA recommender (installs autoscaling.k8s.io CRD before any VerticalPodAutoscaler CR in later phases)
 
 atom-eso: install-external-secrets ## External-secrets operator + CRDs (must precede atom-openbao + atom-storage-core: their ExternalSecret CRs need ESO CRDs)
 
@@ -380,11 +381,11 @@ atom-obs-stack: install-kube-prometheus-stack install-grafana install-loki insta
 
 atom-obs-extra: install-pyroscope install-opencost install-evidently install-sloth ## Pyroscope + OpenCost + Evidently + SLO
 
-atom-ingest-stream: install-registry install-kafka-operator install-kafka install-karapace install-kafka-ui install-kafka-connect ## Kafka streaming stack (Strimzi). install-registry must precede install-kafka-connect: KafkaConnect Build (kaniko) pushes the Debezium+Iceberg image to registry.platform-registry.svc.cluster.local:5000 — without the registry the connect-build pod fails DNS lookup and the KafkaConnect cluster never reaches Ready.
+atom-ingest-stream: install-registry install-kafka-operator install-kafka install-karapace install-kafka-ui install-kafka-connect ## Kafka streaming stack (Strimzi). install-registry must precede install-kafka-connect: KafkaConnect.spec.image points at the pre-built Debezium+Iceberg image in registry.platform-registry.svc.cluster.local:5000 (built by `make build-kafka-connect`, bundled into platform-build-services) — without the registry + image the KafkaConnect pod ImagePullBackOffs and never reaches Ready. The old in-cluster `.spec.build` (buildah) path is gone: buildah's unshare(CLONE_NEWUSER) is blocked by the hardened kernel.
 
 atom-proc-stream: install-flink ## Flink streaming
 
-atom-proc-batch: install-spark install-airflow install-dbt install-trino install-superset ## Spark + Airflow + dbt + Trino + Superset
+atom-proc-batch: install-spark install-airflow install-trino install-superset ## Spark + Airflow + Trino + Superset (dbt is a use-case concern — models live in use-case-*/dbt/)
 
 atom-proc-quality: install-great-expectations ## Great Expectations data validation
 
@@ -396,7 +397,7 @@ atom-train-kubeflow: install-kubeflow-pipelines install-kubeflow-trainer install
 
 atom-serving-core: install-knative install-kserve ## Knative + KServe
 
-atom-governance-core: install-opensearch install-datahub install-openlineage ## DataHub + OpenSearch + OpenLineage
+atom-governance-core: install-opensearch install-datahub ## DataHub + OpenSearch (OpenLineage events emitted inline by producers — no standalone deployment)
 
 atom-gitops-core: install-argo-cd install-argo-rollouts install-gitea install-tekton seed-gitea ## Argo + Tekton + Gitea (+ seed working tree into gitea so ArgoCD app-of-apps can reconcile)
 
@@ -474,7 +475,7 @@ phase-security: phase-base atom-security-extra ## Base + Chaos Mesh + Falco + Tr
 
 phase-auth: phase-base atom-rbac atom-auth ## Base + RBAC + Dex/oauth2-proxy + SpiceDB authz
 
-phase-full: phase-base atom-rbac phase-observability atom-storage-kv atom-storage-vector atom-storage-mysql atom-storage-olap atom-storage-lake atom-auth atom-ingest-stream atom-proc-stream atom-proc-batch atom-proc-quality atom-features atom-train-mlflow atom-train-kubeflow atom-kubeflow-base atom-serving-core atom-governance-core atom-governance-extra atom-gitops-core atom-obs-extra atom-security-extra ## Everything (incl. RBAC, auth, kubeflow gateway, datahub ingestion, security extras)
+phase-full: phase-base atom-rbac atom-obs-stack atom-storage-kv atom-storage-vector atom-storage-mysql atom-storage-olap atom-storage-lake atom-auth atom-ingest-stream atom-proc-stream atom-proc-batch atom-proc-quality atom-features atom-train-mlflow atom-kubeflow-base atom-train-kubeflow atom-serving-core atom-governance-core atom-governance-extra atom-gitops-core atom-obs-extra atom-security-extra ## Everything (incl. RBAC, auth, kubeflow gateway, datahub ingestion, security extras)
 
 # =============================================================================
 # FULL-STACK (platform phase + use-case-crypto deploy in one shot)
@@ -538,7 +539,7 @@ seed-gitea: ## Push platform/ tree into the in-cluster gitea (force-push, idempo
 # =============================================================================
 # PLATFORM TEMPLATE CONFIGURATION — config-driven kustomization
 # =============================================================================
-# Mirrors usecase-crypto-generate-kustomization: platform/config/services.yaml
+# platform/config/services.yaml
 # (enabled flags) is the single source of truth for which service templates
 # platform/services/base/kustomization.yaml includes.
 .PHONY: platform-generate-kustomization
@@ -572,8 +573,8 @@ install-keda-scaledobject: ## Install KEDA ScaledObject — make install-keda-sc
 # Registry runs in-cluster (platform/components/common/registry → ns
 # platform-registry, hostPort 5000). The platform-registry-up target only
 # verifies reachability; it does not spawn a docker registry container.
-.PHONY: platform-registry-up platform-build-services platform-push-services \
-        platform-clean-services
+.PHONY: platform-registry-up platform-build-services platform-build-service \
+        platform-push-services platform-clean-services
 
 platform-registry-up: ## Verify in-cluster registry reachable on :5000 (platform/components/common/registry)
 	@if curl -fsS http://$(PLATFORM_REGISTRY)/v2/ >/dev/null 2>&1; then \
@@ -612,6 +613,62 @@ platform-build-services: platform-registry-up ## Build + push all $(PLATFORM_SER
 	@docker images --format '{{.Repository}}:{{.Tag}}' | \
 		awk -F: 'BEGIN{n=split("$(PLATFORM_SERVICES)",a," ")} \
 		         {for(i=1;i<=n;i++){split(a[i],p,":");if($$1==p[1])print "  "$$0}}' | sort -u
+	@# Drop dangling layers from rebuilds.
+	@docker image prune -f >/dev/null 2>&1 || true
+	@echo "$(GREEN)Dangling build layers pruned$(NC)"
+	@# NOTE: the Kafka Connect plugin image (`build-kafka-connect`) is deliberately
+	@# NOT built here. On a single-HDD node its ≈1GB base + 129MB plugin saturate
+	@# the disk (load ~190, BuildKit lease loss). Run `make build-kafka-connect`
+	@# manually on a multi-disk node. See components/data-ingestion/kafka-connect/.
+
+platform-build-service: platform-registry-up ## Build + push ONE generic image — make platform-build-service SERVICE=platform-airflow
+	@entry=""; for e in $(PLATFORM_SERVICES); do [ "$${e%%:*}" = "$(SERVICE)" ] && entry="$$e"; done; \
+	if [ -z "$$entry" ]; then \
+		echo "$(RED)SERVICE='$(SERVICE)' not found in PLATFORM_SERVICES$(NC)"; \
+		echo "$(YELLOW)Pass one of the image names listed in PLATFORM_SERVICES (e.g. platform-airflow)$(NC)"; \
+		exit 1; \
+	fi; \
+	img=$${entry%%:*}; path=$${entry#*:}; ctx=$(PLATFORM_DIR)/services/$$path; \
+	tag=$$img:$(PLATFORM_IMAGE_TAG); remote=$(PLATFORM_REGISTRY)/$$tag; \
+	if [ ! -f $$ctx/Dockerfile ]; then echo "$(RED)Dockerfile missing at $$ctx/Dockerfile$(NC)"; exit 1; fi; \
+	echo "$(GREEN)  + building $$tag from $$ctx$(NC)"; \
+	$(DOCKER_BUILD) -t $$tag $$ctx && \
+	docker tag $$tag $$remote && \
+	docker push $$remote >/dev/null && \
+	echo "$(GREEN)    pushed → $$remote$(NC)"
+
+# -----------------------------------------------------------------------------
+# Strimzi Kafka Connect plugin image (Debezium-PostgreSQL CDC + Iceberg sink).
+# NOT a generic service — it's a custom Connect image referenced by
+# KafkaConnect.spec.image (components/data-ingestion/kafka-connect/). The old
+# in-cluster `.spec.build` (buildah) path is blocked by this single-node
+# cluster's hardened kernel — buildah's unshare(CLONE_NEWUSER) is denied — so
+# the image is pre-built here and pushed to the registry. MUST run before
+# `install-kafka-connect`, or the KafkaConnect pod ImagePullBackOffs.
+KAFKA_CONNECT_IMAGE ?= kafka-connect:debezium-3.0.7-iceberg-0.6.19
+KC_DEBEZIUM_VERSION ?= 3.0.7.Final
+KC_ICEBERG_VERSION  ?= 0.6.19
+KC_DEBEZIUM_URL := https://repo1.maven.org/maven2/io/debezium/debezium-connector-postgres/$(KC_DEBEZIUM_VERSION)/debezium-connector-postgres-$(KC_DEBEZIUM_VERSION)-plugin.tar.gz
+KC_ICEBERG_URL  := https://github.com/databricks/iceberg-kafka-connect/releases/download/v$(KC_ICEBERG_VERSION)/iceberg-kafka-connect-runtime-$(KC_ICEBERG_VERSION).zip
+.PHONY: build-kafka-connect
+build-kafka-connect: platform-registry-up ## Build + push the Kafka Connect plugin image (Debezium + Iceberg)
+	@ctx=$(PLATFORM_DIR)/components/data-ingestion/kafka-connect; plug=$$ctx/plugins; \
+	remote=$(PLATFORM_REGISTRY)/$(KAFKA_CONNECT_IMAGE); \
+	echo "$(BLUE)  + fetching connector plugins host-side (in-build egress is blocked)$(NC)"; \
+	rm -rf $$plug && mkdir -p $$plug/debezium-postgres $$plug/iceberg-kafka-connect; \
+	curl -fSL --retry 5 --retry-delay 5 --retry-all-errors --retry-connrefused -o /tmp/kc-dbz.tar.gz "$(KC_DEBEZIUM_URL)" && \
+	tar -xzf /tmp/kc-dbz.tar.gz -C $$plug/debezium-postgres --strip-components=1 && \
+	curl -fSL --retry 5 --retry-delay 5 --retry-all-errors --retry-connrefused -o /tmp/kc-ice.zip "$(KC_ICEBERG_URL)" && \
+	unzip -q -o /tmp/kc-ice.zip -d $$plug/iceberg-kafka-connect && \
+	rm -f /tmp/kc-dbz.tar.gz /tmp/kc-ice.zip && \
+	[ -n "$$(find $$plug/debezium-postgres -name '*.jar' -print -quit)" ] && \
+	[ -n "$$(find $$plug/iceberg-kafka-connect -name '*.jar' -print -quit)" ] && \
+	echo "$(GREEN)  + building $(KAFKA_CONNECT_IMAGE) from $$ctx$(NC)" && \
+	$(DOCKER_BUILD) -t $(KAFKA_CONNECT_IMAGE) $$ctx && \
+	docker tag $(KAFKA_CONNECT_IMAGE) $$remote && \
+	docker push $$remote >/dev/null && \
+	echo "$(GREEN)    pushed → $$remote$(NC)"; \
+	rc=$$?; rm -rf $$plug; exit $$rc
 
 platform-push-services: platform-registry-up ## Re-push already-built generic images (no rebuild)
 	@set -e; for entry in $(PLATFORM_SERVICES); do \
@@ -633,6 +690,20 @@ platform-clean-services: ## Remove local generic images (registry data preserved
 	done
 	@echo "$(GREEN)Local generic images removed$(NC)"
 
+.PHONY: docker-prune docker-prune-all
+docker-prune: ## Reclaim dangling images + dangling build cache (warm cache kept)
+	@echo "$(BLUE)Reclaiming dangling images and build cache$(NC)"
+	@docker image prune -f
+	@docker builder prune -f
+	@echo "$(GREEN)Dangling docker data reclaimed$(NC)"
+
+docker-prune-all: ## Reclaim every image/cache not used by a running container (cold next build)
+	@echo "$(YELLOW)k3s runs on containerd, so docker images here are build artefacts only.$(NC)"
+	@echo "$(YELLOW)All are already pushed to the registry; the next build will be cold.$(NC)"
+	@docker image prune -af
+	@docker builder prune -af
+	@echo "$(GREEN)All unused docker data reclaimed$(NC)"
+
 # =============================================================================
 # USE-CASE DISPATCH — crypto microservices, data init, build, deploy, ops
 # =============================================================================
@@ -649,7 +720,7 @@ platform-clean-services: ## Remove local generic images (registry data preserved
 #   serve  = KServe inference services (~3GB)
 #   app    = dashboard (frontend + backend) + automation (~2GB)
 # =============================================================================
-.PHONY: usecase-crypto-configure usecase-crypto-generate-kustomization usecase-crypto-compile-pipelines \
+.PHONY: usecase-crypto-configure usecase-crypto-compile-pipelines \
         usecase-crypto-seed-airflow-vars \
         usecase-crypto-setup usecase-crypto-setup-full \
         usecase-crypto-init-db usecase-crypto-init-clickhouse usecase-crypto-init-postgres \
@@ -679,17 +750,12 @@ platform-clean-services: ## Remove local generic images (registry data preserved
         usecase-crypto-clean usecase-crypto-clean-images usecase-crypto-clean-all usecase-crypto-images \
         usecase-crypto-shell-clickhouse usecase-crypto-shell-redis usecase-crypto-shell-kafka \
         usecase-crypto-port-forward-dashboard usecase-crypto-port-forward-gateway \
-        usecase-crypto-check-cluster usecase-crypto-proto \
+        usecase-crypto-check-cluster \
         usecase-crypto-sync-dags usecase-crypto-submit-pipeline
 
 # -----------------------------------------------------------------------------
 # TEMPLATE CONFIGURATION
 # -----------------------------------------------------------------------------
-
-usecase-crypto-generate-kustomization: ## Generate $(USECASE_DIR)/manifests/base/kustomization.yaml from services.yaml
-	@echo "$(YELLOW)Generating $(USECASE_DIR)/manifests/base/kustomization.yaml from services config...$(NC)"
-	@cd $(USECASE_DIR) && uv run scripts/generate_kustomization.py
-	@echo "$(GREEN)Done. Verify with: kubectl kustomize $(USECASE_DIR)/manifests/overlays/$(ENV) --load-restrictor LoadRestrictionsNone | head$(NC)"
 
 usecase-crypto-compile-pipelines: ## Recompile KFP pipeline YAMLs (bakes USE_CASE-derived defaults)
 	@echo "$(YELLOW)Compiling KFP pipelines (USE_CASE=$(USE_CASE_NAME))...$(NC)"
@@ -798,7 +864,7 @@ usecase-crypto-lint-data: ## Lint Data services
 	@uv run --with ruff ruff check $(SERVICES_SRC)/quality/drift/
 	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/batch/
 	@uv run --with ruff ruff check $(SERVICES_SRC)/processing/vector/
-	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
+	@cd $(SERVICES_SRC)/processing/stream && mill flink.compile
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo clippy -- -D warnings
 	@echo "$(GREEN)Data lint passed.$(NC)"
 
@@ -829,7 +895,7 @@ usecase-crypto-test-data: ## Test Data services
 	@cd $(SERVICES_SRC)/quality/validator && cargo nextest run 2>/dev/null || cargo test
 	@cd $(SERVICES_SRC)/quality/analyzer && uv run pytest tests/ -v
 	@cd $(SERVICES_SRC)/quality/drift && uv run pytest tests/ -v
-	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
+	@cd $(SERVICES_SRC)/processing/stream && mill flink.test
 	@cd $(SERVICES_SRC)/processing/batch && uv run pytest tests/ -v
 	@cd $(SERVICES_SRC)/processing/vector && uv run pytest tests/ -v
 	@cd $(USECASE_DIR)/services/websocket-collector && cargo nextest run 2>/dev/null || cargo test
@@ -1099,6 +1165,9 @@ usecase-crypto-build: platform-build-services ## Build generic + retag/rebuild +
 	@echo ""
 	@echo "$(GREEN)All images ready.$(NC)"
 	@docker images | grep "$(USE_CASE_PREFIX)-" | head -20
+	@# Same dangling-layer cleanup as the generic build.
+	@docker image prune -f >/dev/null 2>&1 || true
+	@echo "$(GREEN)Dangling build layers pruned$(NC)"
 
 usecase-crypto-build-ingestion: ## Retag ingestion + build websocket-collector overlay
 	@echo "$(YELLOW)── Ingestion ──$(NC)"
@@ -1133,7 +1202,7 @@ usecase-crypto-build-processing: ## Rebuild batch (overlay) + retag others
 	@if [ "$(call svc_enabled,processing,batch)" = "true" ]; then \
 		TMPDIR=$$(mktemp -d) && \
 		cp -r $(SERVICES_SRC)/processing/batch/* $$TMPDIR/ && \
-		if [ -d $(USECASE_DIR)/services/processing/batch ]; then cp -r $(USECASE_DIR)/services/processing/batch/* $$TMPDIR/; fi && \
+		if [ -d $(USECASE_DIR)/services/batch ]; then cp -r $(USECASE_DIR)/services/batch/* $$TMPDIR/; fi && \
 		$(DOCKER_BUILD) -t $(USE_CASE_PREFIX)-batch-processing:$(VERSION) $$TMPDIR && \
 		rm -rf $$TMPDIR && \
 		$(call _push,$(USE_CASE_PREFIX)-batch-processing) && \
@@ -1482,7 +1551,7 @@ usecase-crypto-test-go: ## Run Go tests
 	@cd $(SERVICES_SRC)/dashboard/backend && go test ./...
 
 usecase-crypto-test-java: ## Run Java tests (Mill)
-	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.test
+	@cd $(SERVICES_SRC)/processing/stream && mill flink.test
 
 usecase-crypto-test-cpp: ## Run C++ tests (xmake — requires protoc, grpc, onnxruntime)
 	@(pkg-config --exists grpc++ protobuf 2>/dev/null && test -d /opt/onnxruntime) || { echo "$(YELLOW)  SKIP: C++ system deps not installed$(NC)"; exit 0; }
@@ -1518,7 +1587,7 @@ usecase-crypto-lint-go: ## Lint Go (golangci-lint)
 	@cd $(SERVICES_SRC)/dashboard/backend && golangci-lint run ./... 2>/dev/null || go vet ./...
 
 usecase-crypto-lint-java: ## Lint Java (Mill compile check)
-	@cd $(SERVICES_SRC)/processing/stream/flink-job && mill flink.compile
+	@cd $(SERVICES_SRC)/processing/stream && mill flink.compile
 
 usecase-crypto-lint-cpp: ## Lint C++ (xmake compile check)
 	@which xmake > /dev/null 2>&1 || { echo "$(YELLOW)  SKIP: xmake not installed$(NC)"; exit 0; }
@@ -1550,7 +1619,7 @@ usecase-crypto-clean: ## Clean use-case build artifacts
 	@cd $(SERVICES_SRC)/serving/gateway && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/feature-cache && cargo clean 2>/dev/null || true
 	@cd $(SERVICES_SRC)/serving/inference-engine && xmake clean 2>/dev/null || rm -rf build 2>/dev/null || true
-	@cd $(SERVICES_SRC)/processing/stream/flink-job && rm -rf out/ .mill-jvm-opts 2>/dev/null || true
+	@cd $(SERVICES_SRC)/processing/stream && rm -rf out/ .mill-jvm-opts 2>/dev/null || true
 	@rm -rf $(SERVICES_SRC)/dashboard/frontend/dist 2>/dev/null || true
 	@rm -rf $(SERVICES_SRC)/dashboard/frontend/node_modules 2>/dev/null || true
 	@find $(SERVICES_SRC) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -1594,11 +1663,6 @@ usecase-crypto-check-cluster: ## Check if K8s cluster is running + dependencies
 	@kubectl get pods -n data-ingestion | grep kafka || true
 	@kubectl get pods -n model-lifecycle | grep mlflow || true
 	@echo "$(GREEN)Cluster ready.$(NC)"
-
-usecase-crypto-proto: ## Generate all proto files
-	@$(USECASE_DIR)/scripts/proto-gen.sh 2>/dev/null || \
-		(echo "$(YELLOW)Running inline proto generation...$(NC)" && \
-		protoc --go_out=. --go-grpc_out=. $(USECASE_DIR)/proto/*.proto 2>/dev/null || true)
 
 # -----------------------------------------------------------------------------
 # WORKFLOW COMMANDS (Airflow / Kubeflow)

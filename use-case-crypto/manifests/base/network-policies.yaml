@@ -9,7 +9,7 @@
 # Posture:
 #   1. `default-deny-ingress` denies all ingress to the namespace.
 #   2. `allow-same-namespace` allows crypto-internal east-west traffic
-#      (stream-processor JM↔TM, gateway → feature-cache, etc.).
+#      (stream-processor JM↔TM, gateway, etc.).
 #      Crypto is a single trust boundary — intra-namespace IS trusted.
 #   3. Every external source gets a NARROWLY-SCOPED policy that names
 #      the destination pods AND ports.  Any broad `podSelector: {}` from
@@ -68,8 +68,6 @@ spec:
         - protocol: TCP
           port: 8082    # validator
         - protocol: TCP
-          port: 8084    # feature-cache
-        - protocol: TCP
           port: 8000    # ml-bridge
         - protocol: TCP
           port: 9090
@@ -107,7 +105,7 @@ spec:
     - Ingress
 ---
 # Allow Istio ingressgateway to reach the crypto gateway on 8080 ONLY.
-# Other pods (feature-cache, dashboard-*, ml-bridge, analyzer) MUST NOT be
+# Other pods (dashboard-*, ml-bridge, analyzer) MUST NOT be
 # reachable from istio-system directly — they are accessed via the
 # in-namespace gateway which proxies after AuthorizationPolicy.
 apiVersion: networking.k8s.io/v1

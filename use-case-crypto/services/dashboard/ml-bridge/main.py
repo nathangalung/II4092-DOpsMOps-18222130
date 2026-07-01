@@ -100,19 +100,29 @@ def _run_server() -> None:
 def _run_batch_score() -> None:
     """One-shot batch inference for the Airflow `scoring` task.
 
-    Reads the latest feature row per symbol from the feature table, calls the
-    KServe predictor (same contract as the online `/api/predictions/predict`
-    route), and writes predictions to ClickHouse `gold.crypto_predictions`.
-
-    The feature table defaults to the *training* table (`gold.fct_training_data`)
-    so the scored feature set matches what the model was trained on — no
-    train/serve skew on this batch path. All endpoints/tables are env-driven.
+    Reuses the EXACT online-serving path (``services.prediction._infer`` +
+    ``_feature_order``) so a batch-scored prediction is byte-identical to what
+    ``GET /api/predictions/latest`` returns — one feature-selection rule, one
+    KServe V2 inference contract, no second code path to drift. (The previous
+    implementation POSTed a ``{features}`` dict to ``{predictor}/predict`` — a
+    legacy custom route that does not exist on the V2-only MLServer predictor,
+    so every batch run 404'd and ``gold.crypto_predictions`` never advanced.)
+    Reads the latest feature row per symbol from the training table (so the
+    scored feature set matches training), runs one inference, writes to
+    ClickHouse ``gold.crypto_predictions``. Tables/symbols are env-driven.
     """
     import logging
     from datetime import UTC, datetime, timedelta
 
-    import clickhouse_connect
-    import httpx
+    from services.prediction import (
+        FEATURES_TABLE,
+        MODEL_VERSION,
+        TARGET_COLUMN,
+        _ch_client,
+        _feature_order,
+        _infer,
+        _signal,
+    )
 
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger("batch-score")
@@ -122,61 +132,35 @@ def _run_batch_score() -> None:
         for s in os.getenv("SYMBOLS", "BTC-USD,ETH-USD,SOL-USD").split(",")
         if s.strip()
     ]
-    features_table = os.getenv("FEATURES_TABLE", "gold.fct_training_data")
     predictions_table = os.getenv("PREDICTIONS_TABLE", "gold.crypto_predictions")
-    inference_url = os.getenv(
-        "INFERENCE_URL",
-        "http://crypto-predictor-predictor.use-case-crypto.svc.cluster.local",
-    )
     model_type = os.getenv("MODEL_TYPE", "lightgbm")
     horizon_h = int(os.getenv("PREDICTION_HORIZON_HOURS", "1"))
-    # Identifier / label columns that are not model features (mirrors the
-    # trainer's EXCLUDE_COLUMNS so the served feature set matches training).
-    exclude = {
-        c.strip()
-        for c in os.getenv(
-            "EXCLUDE_COLUMNS",
-            "symbol,timestamp,date,hour,data_type,created_at,"
-            "computed_at,fear_greed_label",
-        ).split(",")
-        if c.strip()
-    }
 
-    ch = clickhouse_connect.get_client(
-        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-        username=os.getenv("CLICKHOUSE_USER", "default"),
-        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    )
-
+    ch = _ch_client()
     written = 0
-    with httpx.Client(timeout=30.0) as client:
+    try:
         for symbol in symbols:
             res = ch.query(
-                f"SELECT * FROM {features_table} WHERE symbol = %(s)s "
+                f"SELECT * FROM {FEATURES_TABLE} WHERE symbol = %(s)s "
                 "ORDER BY timestamp DESC LIMIT 1",
                 parameters={"s": symbol},
             )
             if not res.result_rows:
-                log.warning("no features for %s in %s", symbol, features_table)
+                log.warning("no features for %s in %s", symbol, FEATURES_TABLE)
                 continue
-            row = dict(zip(res.column_names, res.result_rows[0]))
-            features = {
-                k: float(v)
-                for k, v in row.items()
-                if k not in exclude and isinstance(v, (int, float))
-            }
+            row = dict(zip(res.column_names, res.result_rows[0], strict=False))
+            # Column-type feature selection + V2 inference — identical to the
+            # online /api/predictions/latest route (single source of truth);
+            # NULL → 0.0 mirrors the trainer's fillna(0).
+            order = _feature_order(res.column_names, res.column_types)
+            vector = [float(row[c]) if row.get(c) is not None else 0.0 for c in order]
             try:
-                resp = client.post(
-                    f"{inference_url}/predict",
-                    json={"symbol": symbol, "features": features},
-                )
-                resp.raise_for_status()
-                pred = resp.json()
-            except httpx.HTTPError as e:
-                log.error("predict failed for %s: %s", symbol, e)
+                predicted = _infer(vector)
+            except Exception as e:  # noqa: BLE001 — skip one symbol, keep the batch going
+                log.error("inference failed for %s: %s", symbol, e)
                 continue
-
+            current = float(row.get(TARGET_COLUMN) or 0.0)
+            signal, confidence = _signal(predicted, current)
             now = datetime.now(tz=UTC)
             ch.insert(
                 table=predictions_table,
@@ -185,11 +169,11 @@ def _run_batch_score() -> None:
                         symbol,
                         now,
                         now + timedelta(hours=horizon_h),
-                        float(pred.get("predicted_price", 0.0)),
-                        str(pred.get("signal", "")),
-                        float(pred.get("predicted_volatility", 0.0)),
-                        float(pred.get("confidence", 0.0)),
-                        str(pred.get("model_version", "")),
+                        predicted,
+                        signal,
+                        0.0,  # predicted_volatility — point regressor, no σ head
+                        confidence,
+                        MODEL_VERSION,
                         model_type,
                     ]
                 ],
@@ -206,6 +190,8 @@ def _run_batch_score() -> None:
                 ],
             )
             written += 1
+    finally:
+        ch.close()
     log.info(
         "batch-score wrote %d/%d predictions to %s",
         written,

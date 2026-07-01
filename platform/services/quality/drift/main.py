@@ -78,9 +78,9 @@ class Config:
     CONFIG_PATH = os.getenv("CONFIG_PATH", "/app/config.yaml")
 
 
+# Per-scale comparison window; reference is the prior equal window.
 DEFAULT_SCALES = {
     "minute": {
-        "reference_window": "6h",
         "comparison_window": "5m",
         "psi_warning": 0.10,
         "psi_severe": 0.20,
@@ -88,15 +88,6 @@ DEFAULT_SCALES = {
         "trigger_retrain": False,
     },
     "hourly": {
-        "reference_window": "24h",
-        "comparison_window": "1h",
-        "psi_warning": 0.10,
-        "psi_severe": 0.20,
-        "ks_pvalue": 0.03,
-        "trigger_retrain": True,
-    },
-    "hour": {
-        "reference_window": "24h",
         "comparison_window": "1h",
         "psi_warning": 0.10,
         "psi_severe": 0.20,
@@ -104,7 +95,6 @@ DEFAULT_SCALES = {
         "trigger_retrain": True,
     },
     "daily": {
-        "reference_window": "30d",
         "comparison_window": "24h",
         "psi_warning": 0.20,
         "psi_severe": 0.30,
@@ -112,8 +102,14 @@ DEFAULT_SCALES = {
         "trigger_retrain": True,
     },
     "weekly": {
-        "reference_window": "90d",
         "comparison_window": "7d",
+        "psi_warning": 0.20,
+        "psi_severe": 0.30,
+        "ks_pvalue": 0.05,
+        "trigger_retrain": True,
+    },
+    "monthly": {
+        "comparison_window": "30d",
         "psi_warning": 0.20,
         "psi_severe": 0.30,
         "ks_pvalue": 0.05,
@@ -239,11 +235,11 @@ def check_scale(
 ) -> int:
     """Run drift check for a single scale. Returns number of drifts detected."""
     now = datetime.now(tz=UTC)
-    ref_window = parse_duration(scale_config["reference_window"])
     comp_window = parse_duration(scale_config["comparison_window"])
 
-    ref_start = now - ref_window
+    # Adjacent equal-length windows
     comp_start = now - comp_window
+    ref_start = comp_start - comp_window
     drift_count = 0
 
     for feature in features:

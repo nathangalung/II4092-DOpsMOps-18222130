@@ -8561,7 +8561,7 @@ data:
   request-metrics-endpoint: http://promstack-kube-prometheus-prometheus.observability:9090/api/v1/otlp/v1/metrics
   runtime-profiling: enabled
   tracing-protocol: http/protobuf
-  tracing-endpoint: http://otel-collector-gateway.observability:4318/v1/traces
+  tracing-endpoint: http://gateway-collector.observability:4318/v1/traces
   tracing-sampling-rate: "1"
   _example: |
     ################################
@@ -8678,7 +8678,7 @@ data:
     #
     # The endpoint MUST be set when the protocol is http/protobuf or grpc.
     # The endpoint MUST NOT be set when the protocol is none.
-    tracing-endpoint: http://otel-collector-gateway.observability:4318/v1/traces
+    tracing-endpoint: http://gateway-collector.observability:4318/v1/traces
 
     # tracing-sampling-rate allows the user to specify what percentage of all traces should be exported
     # The value should be between 0 (never sample) to 1 (always sample)

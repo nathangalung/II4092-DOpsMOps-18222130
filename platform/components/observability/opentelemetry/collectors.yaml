@@ -20,7 +20,11 @@ spec:
   serviceAccount: otel-collector-gateway
   resources:
     requests: { cpu: 100m, memory: 256Mi }
-    limits:   { cpu: 200m, memory: 256Mi } # Single-pod bootstrap; bump for production load.
+    # The gateway runs tail_sampling, which buffers whole traces in memory for
+    # the decision window — at 256Mi it OOMKill-looped (r=45). 512Mi gives the Go
+    # heap + sampling cache headroom; memory_limiter (80%) soft-limits at ~410Mi.
+    # request stays 256Mi (Burstable) to honour the single-node idle floor.
+    limits:   { cpu: 300m, memory: 512Mi }
   ports:
     - { name: otlp-grpc,  port: 4317, protocol: TCP }
     - { name: otlp-http,  port: 4318, protocol: TCP }
@@ -221,7 +225,7 @@ spec:
       batch: { timeout: 5s }
     exporters:
       otlp/gateway:
-        endpoint: otel-collector-gateway.observability.svc.cluster.local:4317
+        endpoint: gateway-collector.observability.svc.cluster.local:4317
         tls: { insecure: true }
     service:
       telemetry: { logs: { level: info, encoding: json } }
@@ -274,7 +278,7 @@ metadata:
   name: platform-default
   namespace: observability
 spec:
-  exporter: { endpoint: http://otel-collector-gateway.observability.svc.cluster.local:4317 }
+  exporter: { endpoint: http://gateway-collector.observability.svc.cluster.local:4317 }
   propagators: [tracecontext, baggage, b3]
   sampler: { type: parentbased_traceidratio, argument: "0.1" }
   python: { image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.50b0 }

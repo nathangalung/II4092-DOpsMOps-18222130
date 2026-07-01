@@ -55,6 +55,9 @@ spec:
 #
 # Domain-agnostic: every use-case Kafka engine table reuses this CA. Use-case
 # overlays only add their KafkaUser + named collection — no CA plumbing.
+# The CA source (Strimzi) installs after storage, so the pod volume is optional
+# (see podTemplate) — ClickHouse must start before Kafka exists; the file lands
+# once ESO mirrors it, well before any use-case Kafka table is created.
 # =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -112,7 +115,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: clickhouse-keeper
-              image: clickhouse/clickhouse-keeper:26.3.10.60
+              image: clickhouse/clickhouse-keeper:26.3.9.8
               resources:
                 requests: { cpu: 100m, memory: 256Mi }
                 limits:   { cpu: 500m, memory: 512Mi }
@@ -266,7 +269,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: clickhouse
-              image: clickhouse/clickhouse-server:26.3.10.60
+              image: clickhouse/clickhouse-server:26.3.9.8
               resources:
                 # Single-node bootstrap. Bump for production load.
                 requests: { cpu: 200m, memory: 1Gi }
@@ -295,6 +298,13 @@ spec:
             - name: kafka-ca
               secret:
                 secretName: clickhouse-kafka-ca
+                # Optional: the CA is produced by Strimzi (data-ingestion), a
+                # LATER phase than storage. The platform server has no Kafka
+                # engine table of its own, so it must start without the CA;
+                # kubelet populates the file once ESO mirrors it, and use-case
+                # Kafka tables (created later still) then find it. Required mount
+                # would wedge ClickHouse in ContainerCreating during phase-full.
+                optional: true
                 defaultMode: 0444
                 items:
                   - key: ca.crt

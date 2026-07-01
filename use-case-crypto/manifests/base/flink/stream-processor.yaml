@@ -4,7 +4,7 @@
 # Canonical speed-layer for the crypto use case. The Flink Kubernetes Operator
 # (platform/components/data-processing/flink/flink-operator.yaml, cluster-wide
 # watch) reconciles this application-mode FlinkDeployment and submits the
-# platform `flink-job` fat JAR's main class (com.pipeline.StreamJob).
+# platform `flink-job` fat JAR's main class (pipeline.StreamJob).
 #
 # WHY FLINK OWNS THE SPEED LAYER (vs the legacy Rust feature-engine):
 #   - one engine for the entire streaming feature path (no second bespoke
@@ -287,7 +287,7 @@ spec:
             - name: STREAM_TIME_SERIES_TOPIC
               value: "crypto.validated"
             - name: STREAM_TIME_SERIES_FUNCTION
-              value: "com.pipeline.functions.FeatureFunction"
+              value: "pipeline.functions.FeatureFunction"
             - name: STREAM_TIME_SERIES_GROUP
               value: "flink-features"          # matches the flink-* group ACL prefix
             # Kafka sink (bronze): EXACTLY_ONCE under a crypto.* txn-id prefix
@@ -314,7 +314,7 @@ spec:
               valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_SECRET_KEY } }
             # --- OTEL auto-instrumentation fan-out.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector-gateway.observability.svc.cluster.local:4317"
+              value: "http://gateway-collector.observability.svc.cluster.local:4317"
             - name: OTEL_SERVICE_NAME
               value: "crypto-stream-processor"
             - name: OTEL_RESOURCE_ATTRIBUTES
@@ -361,7 +361,7 @@ spec:
   # entryClass; StreamJob then wires streams from the env above.
   job:
     jarURI: local:///opt/flink/usrlib/flink-job.jar
-    entryClass: com.pipeline.StreamJob
+    entryClass: pipeline.StreamJob
     args: []
     parallelism: 2
     # initialSavepointPath unset for first deploy; the Tekton savepoint-upgrade

@@ -7,10 +7,10 @@
 #
 # Sizing:
 #   partitions        : 1     — low volume by design
-#   replicas          : 3
+#   replicas          : 1
 #   retention.ms      : 7d
 # =============================================================================
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: iceberg-dlq
@@ -23,9 +23,9 @@ metadata:
 spec:
   topicName: iceberg-dlq
   partitions: 1
-  replicas: 3
+  replicas: 1
   config:
     retention.ms: 604800000              # 7d
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: delete

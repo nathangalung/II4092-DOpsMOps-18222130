@@ -1,0 +1,72 @@
+# PySpark lake-archive job — mounted as a ConfigMap volume so no custom image is
+# built (reuses the platform apache/spark:4.1.1 image). Reads raw trades from the
+# ClickHouse warehouse and appends them to an Apache Iceberg table on MinIO via the
+# Lakekeeper REST catalog: the "cold, open, immutable" lake tier that complements
+# the "hot, operational" ClickHouse warehouse. Incremental by an event-time
+# watermark, so re-runs are idempotent regardless of cadence.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lake-archive-script
+  labels:
+    app.kubernetes.io/part-of: lakehouse
+data:
+  archive_trades.py: |
+    """Warehouse (ClickHouse) -> Lake (Iceberg on MinIO) raw-tick archive."""
+    import os
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.builder.appName("trades-lake-archive").getOrCreate()
+    spark.sparkContext.setLogLevel("WARN")
+
+    ch_host = os.environ.get("CLICKHOUSE_HOST", "clickhouse-platform.storage.svc.cluster.local")
+    ch_user = os.environ["CLICKHOUSE_USER"]
+    ch_pass = os.environ["CLICKHOUSE_PASSWORD"]
+    jdbc_url = f"jdbc:clickhouse://{ch_host}:8123/bronze"
+
+    # Open-format lake table (engine-neutral: Spark/Trino/Flink/DuckDB can read it).
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.market")
+    spark.sql(
+        """
+        CREATE TABLE IF NOT EXISTS iceberg.market.trades_raw (
+            symbol     STRING,
+            trade_id   STRING,
+            event_time TIMESTAMP,
+            price      DOUBLE,
+            size       DOUBLE,
+            side       STRING
+        ) USING iceberg
+        PARTITIONED BY (days(event_time))
+        """
+    )
+
+    # Incremental watermark: only pull warehouse rows newer than what the lake holds.
+    watermark = None
+    try:
+        row = spark.sql("SELECT max(event_time) AS wm FROM iceberg.market.trades_raw").collect()[0]
+        watermark = row["wm"]
+    except Exception:
+        watermark = None
+
+    where = f"WHERE timestamp > toDateTime64('{watermark}', 3)" if watermark else ""
+    query = (
+        "SELECT symbol, trade_id, timestamp AS event_time, price, size, side "
+        f"FROM bronze.crypto_trades {where}"
+    )
+
+    df = (
+        spark.read.format("jdbc")
+        .option("url", jdbc_url)
+        .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
+        .option("user", ch_user)
+        .option("password", ch_pass)
+        .option("query", query)
+        .option("fetchsize", "50000")
+        .load()
+    )
+
+    appended = df.count()
+    if appended:
+        df.writeTo("iceberg.market.trades_raw").append()
+    print(f"lake-archive: appended {appended} rows since watermark={watermark}")
+    spark.stop()

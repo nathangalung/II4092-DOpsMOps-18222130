@@ -270,7 +270,7 @@ spec:
         # Validate Dockerfiles exist for all enabled services
         echo "--- Dockerfile check ---"
         for svc in rest-collector websocket-collector validator analyzer \
-                    gateway feature-cache ml-bridge \
+                    gateway ml-bridge \
                     dashboard-backend dashboard-frontend; do
           if [ ! -f "services/"*"/${svc}/Dockerfile" ] 2>/dev/null && \
              [ ! -f "../platform/services/"*"/${svc}/Dockerfile" ] 2>/dev/null; then
@@ -417,7 +417,6 @@ spec:
           build_image "trainer"              "${SRC}/out/trainer"
           build_image "drift-detector"       "${SRC}/out/drift-detector"
           build_image "gateway"              "${SRC}/out/gateway"
-          build_image "feature-cache"        "${SRC}/out/feature-cache"
           build_image "ml-bridge"            "${SRC}/out/ml-bridge"
         fi
         # App: Dashboard + Automation

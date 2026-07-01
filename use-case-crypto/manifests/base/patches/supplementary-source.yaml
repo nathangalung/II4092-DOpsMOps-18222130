@@ -31,3 +31,25 @@ spec:
                       name: pipeline-secrets
                       key: NEWSAPI_KEY
                       optional: true
+                # Generic supplementary-source wiring actually consumed by the
+                # rest-collector's buildSupplementarySourcesFromEnv (gates on
+                # SUPPLEMENTARY_SOURCE_NAME + _URL). CryptoPanic public news feed →
+                # crypto.supplementary; votes.positive is the sentiment value,
+                # source.domain the symbol. Recent posts only (no date range) →
+                # backfill off, no synthesis.
+                - name: SUPPLEMENTARY_SOURCE_NAME
+                  value: "cryptopanic"
+                - name: SUPPLEMENTARY_SOURCE_URL
+                  value: "https://cryptopanic.com/api/v1/posts/?kind=news&public=true"
+                - name: SUPPLEMENTARY_SOURCE_ENABLED
+                  value: "true"
+                - name: SUPPLEMENTARY_SOURCE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: pipeline-secrets
+                      key: CRYPTOPANIC_API_KEY
+                      optional: true
+                - name: RESPONSE_FIELD_MAPPING
+                  value: "root=results,timestamp=published_at,title=title,url=url,symbol=source.domain,value=votes.positive"
+                - name: SUPPLEMENTARY_BACKFILL_ENABLED
+                  value: "false"

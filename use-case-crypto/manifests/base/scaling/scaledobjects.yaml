@@ -70,7 +70,11 @@ spec:
     kind: Deployment
     name: validator
   minReplicaCount: 1
-  maxReplicaCount: 8
+  # Single spinning-disk cap (verified 2026-06-30): each validator replica writes
+  # crypto.validated → the ClickHouse Kafka-engine consumes it → one HDD. 8 concurrent
+  # validators saturated the disk (IO-PSI 67, CH ops timing out). 3 is the disk-serveable
+  # scale-on-load bound here; raise it once the k3s data dir is on an SSD/2nd disk.
+  maxReplicaCount: 3
   pollingInterval: 15
   cooldownPeriod: 180
   advanced:
@@ -129,7 +133,9 @@ spec:
     kind: Deployment
     name: analyzer
   minReplicaCount: 1
-  maxReplicaCount: 5
+  # Single-disk cap (2026-06-30): GE checks write results to ClickHouse; bound the
+  # disk-path fan-out to 2 on the one HDD. Raise with an SSD/2nd disk.
+  maxReplicaCount: 2
   pollingInterval: 15
   cooldownPeriod: 180
   advanced:

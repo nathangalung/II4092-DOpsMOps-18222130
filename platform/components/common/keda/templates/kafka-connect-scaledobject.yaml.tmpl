@@ -4,7 +4,7 @@
 #   Strimzi reconciles KafkaConnect via a StrimziPodSet, not a vanilla apps/v1
 #   Deployment, so a stock HPA with scaleTargetRef={apps/v1, Deployment} resolves
 #   FailedGetScale. KEDA can target the KafkaConnect /scale subresource that
-#   Strimzi exposes since v0.41 (kafka.strimzi.io/v1beta2 KafkaConnect kind).
+#   Strimzi exposes since v0.41 (kafka.strimzi.io/v1 KafkaConnect kind).
 #
 # Domain-agnostic by construction:
 #   - All ${VAR} placeholders are parameterized by the use-case overlay

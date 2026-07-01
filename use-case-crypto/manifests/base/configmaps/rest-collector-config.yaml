@@ -24,8 +24,10 @@ data:
       port: 8080
 
     kafka:
+      # Overridden at runtime by pipeline-config env (KAFKA_BROKERS / SASL_SSL
+      # on :9093). Listed here only as a self-consistent in-file default.
       brokers:
-        - platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9092
+        - platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
       topic: crypto.rest.raw
       supplementary_topic: crypto.supplementary
       batch_size: 100

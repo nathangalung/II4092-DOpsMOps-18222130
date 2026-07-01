@@ -69,7 +69,7 @@ metadata:
   labels:
     app: schema-registration
   annotations:
-    # ArgoCD PostSync hook — see debezium-postgres.yaml for full rationale.
+    # ArgoCD PostSync hook: registers Kafka topic schemas after the main sync wave.
     # Idempotent registration against karapace /subjects REST API; subjects
     # are versioned and re-registration of identical schemas is a no-op.
     argocd.argoproj.io/hook: PostSync

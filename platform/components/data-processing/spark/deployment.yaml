@@ -114,17 +114,28 @@ data:
     spark.sql.catalog.iceberg.type          rest
     spark.sql.catalog.iceberg.uri           http://lakekeeper.storage.svc.cluster.local:8181/catalog
     spark.sql.catalog.iceberg.warehouse     warehouse
+    # Iceberg SQL extensions (MERGE INTO, CALL, time-travel) — class ships in the
+    # iceberg-spark-runtime jar below.
+    spark.sql.extensions                    org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 
-    # OpenLineage listener — emits Spark job lineage to DataHub GMS (ADR-013).
-    spark.jars.packages                     io.openlineage:openlineage-spark_2.13:1.26.0
+    # Runtime jars resolved by Ivy at driver start (offline nodes: pre-populate the
+    # ivy cache once). Versions pinned to the container image (apache/spark:4.1.1,
+    # scala2.13):
+    #   - iceberg-spark-runtime-4.1_2.13:1.11.0  (Iceberg 1.11 = first line to
+    #     ship a dedicated Spark 4.1 runtime; matches the 4.1.1 image). Fallback if
+    #     unavailable: pin the image to apache/spark:4.0.x + runtime-4.0_2.13:1.10.1.
+    #   - clickhouse-jdbc:0.8.2 (:all shaded)    (reads the warehouse over JDBC for
+    #     the lake-archive Spark batch — see use-case spark/ manifests)
+    # OpenLineage listener also emits Spark job lineage to DataHub GMS (ADR-013).
+    spark.jars.packages                     io.openlineage:openlineage-spark_2.13:1.26.0,org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,com.clickhouse:clickhouse-jdbc:0.8.2
     spark.extraListeners                    io.openlineage.spark.agent.OpenLineageSparkListener
     spark.openlineage.transport.type        http
     spark.openlineage.transport.url         http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage
     spark.openlineage.namespace             spark-data-processing
 
     # OpenTelemetry auto-instrumentation (picks up OTEL_* env from container).
-    spark.driverEnv.OTEL_EXPORTER_OTLP_ENDPOINT   http://otel-collector-gateway.observability.svc.cluster.local:4317
-    spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT http://otel-collector-gateway.observability.svc.cluster.local:4317
+    spark.driverEnv.OTEL_EXPORTER_OTLP_ENDPOINT   http://gateway-collector.observability.svc.cluster.local:4317
+    spark.executorEnv.OTEL_EXPORTER_OTLP_ENDPOINT http://gateway-collector.observability.svc.cluster.local:4317
     spark.driverEnv.OTEL_SERVICE_NAME             spark-driver
     spark.executorEnv.OTEL_SERVICE_NAME           spark-executor
 

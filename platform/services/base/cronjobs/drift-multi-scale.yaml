@@ -2,7 +2,9 @@
 # DRIFT DETECTION — Multi-scale Monitoring (Python + scipy/numpy)
 # =============================================================================
 # Detects data drift and concept drift using PSI and KS tests at
-# multiple time scales (minute, hourly, daily, weekly).
+# multiple time scales (minute, hourly, daily, weekly, monthly). Each scale
+# compares the current window against the immediately preceding equal-length
+# window (week vs prior week, month vs prior month) so results stay comparable.
 #
 # Platform tool integration:
 #   - Grafana: Unified alerting on drift detection events
@@ -25,7 +27,13 @@ spec:
   # to the ArgoCD diff (app stays Synced while the CronJob sleeps; #513 froze
   # 7 CronJobs for 14 days this way). Declaring it gives ArgoCD ownership, so
   # any out-of-band suspend self-heals on the next sync.
-  suspend: false
+  #
+  # DEFAULT-OFF on single-node: minute-scale drift over per-second market data is
+  # statistical noise, and at 1 Job pod/minute (1440/day) it was a primary IO-
+  # cascade driver on a single HDD. The meaningful comparable-timeline drift the
+  # platform reports is daily/weekly/monthly (all kept on). A use case that truly
+  # needs minute-granularity drift sets `suspend: false` in its overlay patch.
+  suspend: true
   # Bounds missed-schedule lookback after unsuspend/downtime: without it the
   # controller counts every missed slot and hard-stops at >100 ("too many
   # missed start times") — a fast cron suspended >100 periods never fires
@@ -76,7 +84,8 @@ metadata:
     app: drift-detector
     scale: hourly
 spec:
-  schedule: "*/15 * * * *" # Every 15 minutes
+  schedule: "0 * * * *" # Hourly (was */15 = 96 Job pods/day; once/hour is ample
+  # for hourly-window drift on a single-node platform and cuts that churn 4x).
   suspend: false # SSA-owned — see drift-check-minute header (#513)
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
@@ -184,6 +193,49 @@ spec:
               imagePullPolicy: IfNotPresent
               command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "weekly", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: pipeline-config
+                - secretRef:
+                    name: pipeline-secrets
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: drift-check-monthly
+  labels:
+    app: drift-detector
+    scale: monthly
+spec:
+  schedule: "0 4 * * *" # Daily 04:00, rolling 30d vs prior 30d
+  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  startingDeadlineSeconds: 300
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 7200
+      template:
+        metadata:
+          labels:
+            app: drift-detector
+            scale: monthly
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: drift-detector
+              image: drift-detector:latest
+              imagePullPolicy: IfNotPresent
+              command: ["uv", "run", "--no-sync", "main.py"]
+              args: ["--scale", "monthly", "--once"]
               envFrom:
                 - configMapRef:
                     name: pipeline-config

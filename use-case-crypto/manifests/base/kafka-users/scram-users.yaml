@@ -35,7 +35,7 @@
 # Read on the group itself is needed because OffsetFetch is checked as
 # `Read on Group`, not `Describe on Group`, contrary to what the trigger docs
 # imply.
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser
 metadata:
   name: keda-consumer
@@ -76,7 +76,7 @@ spec:
 # acceptable because they share trust boundary (same use-case namespace, same
 # Vault path). If we ever need per-workload audit trails, split into three
 # users with distinct group ACLs.
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser
 metadata:
   name: app-consumer
@@ -108,7 +108,7 @@ spec:
           patternType: literal
         operations: [Describe, Read]
       # Flink consumer groups follow the `flink-{stream-name}` pattern emitted
-      # by com.pipeline.StreamJob. Prefix-scoped so any new stream wired via
+      # by pipeline.StreamJob. Prefix-scoped so any new stream wired via
       # ENABLED_STREAMS env inherits ACL without re-applying KafkaUser.
       - resource:
           type: group
@@ -134,7 +134,7 @@ spec:
 # When stock and other use cases land, each gets its own `<usecase>-kafka-
 # connect` user with that use case's prefix; the platform Connect cluster
 # loads them as separate listener stanzas.
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser
 metadata:
   name: kafka-connect
@@ -182,7 +182,7 @@ spec:
 #
 # Read-only — ClickHouse never publishes back to Kafka. No transactionalId
 # resource needed.
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser
 metadata:
   name: clickhouse

@@ -28,6 +28,7 @@ resources:
   - clickhouse
   - lakekeeper
   - lakefs/deployment.yaml
+  - lakefs/hpa.yaml
   - minio
   - mysql
   - postgresql

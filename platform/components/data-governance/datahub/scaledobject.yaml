@@ -1,0 +1,60 @@
+# =============================================================================
+# DataHub frontend — KEDA cron scale-to-zero (idle-UI elasticity)
+# =============================================================================
+# datahub-frontend is the React/Play catalog UI. It is a stateless read view
+# over datahub-gms (the metadata API) — a human browses lineage/glossary, then
+# leaves. ONLY the frontend scales to zero here:
+#   - datahub-gms      stays up (HPA in hpa.yaml) — it is the metadata API that
+#                      the ingestion CronJobs (PG/CH/MinIO/Kafka/dbt/Feast/
+#                      MLflow + inline OpenLineage emit) write to on a schedule;
+#                      zeroing it would drop governance writes.
+#   - datahub-actions  stays up (HPA in hpa.yaml) — event consumer.
+#   - opensearch       stays up (StatefulSet) — GMS search/graph backend, data-path.
+# Scaling the frontend to zero overnight reclaims its JVM footprint without
+# touching any pipeline-path component.
+#
+# WHY CRON, NOT HTTP-DEMAND: see superset/scaledobject.yaml — request-driven
+# scale-from-zero needs the always-on http-add-on interceptor (a permanent idle
+# cost on a single node), and Prometheus-on-RPS cannot wake from zero. Cron is
+# the dependency-free fit. Off-hours escape hatch:
+#   kubectl -n data-governance scale deploy/datahub-frontend --replicas=1
+#
+# COEXISTENCE: KEDA emits `keda-hpa-datahub-frontend`; the datahub-frontend
+# HorizontalPodAutoscaler is removed from datahub/hpa.yaml in the same change
+# (gms + actions HPAs are kept). Do NOT re-add a frontend HPA.
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: datahub-frontend
+  namespace: data-governance
+  labels:
+    app: datahub-frontend
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: datahub-frontend
+  idleReplicaCount: 0
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  pollingInterval: 30
+  cooldownPeriod: 300
+  initialCooldownPeriod: 300
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+        scaleUp:
+          stabilizationWindowSeconds: 0
+  triggers:
+    - type: cron
+      metadata:
+        timezone: Asia/Jakarta
+        start: "0 6 * * *"
+        end: "0 23 * * *"
+        desiredReplicas: "1"

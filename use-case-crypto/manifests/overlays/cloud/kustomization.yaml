@@ -76,9 +76,6 @@ images:
   - name: gateway
     newName: crypto-gateway
     newTag: v1.0.0
-  - name: feature-cache
-    newName: crypto-feature-cache
-    newTag: v1.0.0
   # inference-engine omitted — crypto serves via KServe (crypto-predictor);
   #   disabled in config/services.yaml, so no image is built/retagged.
   # Dashboard
@@ -111,8 +108,6 @@ replicas:
   # (kustomize `replicas:` does not support the FlinkDeployment kind).
   # Serving
   - name: gateway
-    count: 3
-  - name: feature-cache
     count: 3
   # Dashboard
   # ADR-025: ml-bridge has no Deployment/StatefulSet — pod lifecycle is on

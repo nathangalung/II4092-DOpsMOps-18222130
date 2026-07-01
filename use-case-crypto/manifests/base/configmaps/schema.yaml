@@ -96,7 +96,28 @@ data:
   # post-`--full-refresh` cluster. If `o.*` columns appear in the live view,
   # these entries silently drop them from training features. Once verified
   # absent, prune the `o.*` entries.
-  EXCLUDE_COLUMNS: "symbol,timestamp,date,hour,data_type,created_at,computed_at,fear_greed_label,o.symbol,o.timestamp,o.date"
+  #
+  # The 7 news/sentiment columns are HELD OUT of the MODEL feature set — a
+  # model-feature decision, NOT a data-path gap. The dbt sentiment aggregation is
+  # fixed (fct_sentiment_agg no longer drops newsless windows — `HAVING
+  # news_count > 0` removed), so fct_training_data populates sentiment_1h/6h/24h,
+  # news_count_1h/6h/24h, positive_ratio_24h for every bar. The PATH is proven
+  # E2E: ingest → bronze.crypto_sentiment (44k rows) → dbt agg → 516k training
+  # rows. MEASURED 2026-06-29 over the built table: the per-symbol news features
+  # are HOLLOW — sentiment_24h uniqExact=1, min=max=avg=0 across all rows. Root
+  # cause is a SOURCE data-modelling gap, not plumbing: the supplementary feeds
+  # don't key `symbol` to the tradable pair (defillama=protocol slug e.g.
+  # "zyxswap" = 88% of rows; fear-greed=literal "fear-greed"; coingecko=lowercase
+  # "eth", not "ETH-USD") AND mix incompatible scales (sentiment_score spans
+  # -100 .. 3.6e6). So they stay EXCLUDED, keeping the trainer (26 feats) ≡ the
+  # ml-bridge serving vector (26) in exact train/serve parity. NOTE: market
+  # sentiment IS already a live model feature via fear_greed_value (date-joined
+  # dim_fear_greed, 0-100, real variance) — not in this list. Promoting the
+  # per-symbol news features is a DATA-SCIENCE Phase-2 (normalise source symbols →
+  # tradable pairs + per-source scale coherence, THEN materialise to the Feast
+  # online store + add to the ml-bridge vector for parity) — a user-decided step;
+  # the architecture path is already demonstrated and queryable.
+  EXCLUDE_COLUMNS: "symbol,timestamp,date,hour,data_type,created_at,computed_at,fear_greed_label,o.symbol,o.timestamp,o.date,news_count_1h,sentiment_1h,news_count_6h,sentiment_6h,news_count_24h,sentiment_24h,positive_ratio_24h"
   FEATURES_TABLE: "gold.fct_training_data"
   TRAINING_DB: "gold"
   # GE analyzer query target — must list columns that exist on FEATURES_TABLE

@@ -92,10 +92,17 @@ spec:
         # is acceptable for this single-tenant platform; a multi-tenant overlay
         # should split it into a dedicated platform/airflow/admin:jwt_secret.
         AIRFLOW__API_AUTH__JWT_SECRET: "{{ .webserver_secret_key }}"
-        # Airflow Connection for remote task logging.  The URI format is the
-        # one Airflow's S3Hook understands: `aws://<key>:<secret>@?endpoint_url=`.
-        # The bucket name is configured via AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER.
-        AIRFLOW_CONN_AWS_MINIO: "aws://{{ .minio_access_key }}:{{ .minio_secret_key }}@/?endpoint_url=http%3A%2F%2Fminio.storage.svc.cluster.local%3A9000"
+        # Airflow Connection for remote task logging — JSON form, NOT URI.
+        # The URI form `aws://<key>:<secret>@/?endpoint_url=...` is parsed by
+        # urllib.parse, which casts the substring after the last `:` as the
+        # port. Any secret with a non-numeric tail — or a dropped `@/` separator
+        # from a stale ESO render while OpenBao was sealed — raises
+        # `ValueError: Port could not be cast to integer value` and remote
+        # task-log shipping silently breaks (observed 2026-06-30 across every
+        # worker pod). Airflow's JSON connection form bypasses the URI parser
+        # entirely, so it is robust to any character in the MinIO secret.
+        # Bucket via AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER.
+        AIRFLOW_CONN_AWS_MINIO: '{"conn_type":"aws","login":"{{ .minio_access_key }}","password":"{{ .minio_secret_key }}","extra":{"endpoint_url":"http://minio.storage.svc.cluster.local:9000"}}'
         # LakeFS admin credentials — scheduler-side env for DAG PythonOperator
         # LakeFS API calls (see <use-case>/dags/lakehouse_dag.py).
         # Scheduler reads these via os.getenv(); the same OpenBao path seeds the
@@ -280,6 +287,38 @@ data:
   # ceiling (tightest DAG schedule is hourly with max_active_runs_per_dag=1),
   # so a TI can never linger queued past its own next schedule boundary.
   AIRFLOW__SCHEDULER__TASK_QUEUED_TIMEOUT: "3000"
+  # Scheduler liveness threshold — how long the scheduler may miss its DB
+  # heartbeat before the HA layer marks the SchedulerJob failed. The 30s default
+  # is fatal on the single spinning HDD: an IO spike (CH compaction, MinIO,
+  # git-sync burst) stalled the scheduler heartbeat ~42s (observed 2026-06-30),
+  # so it marked ITSELF failed, restarted, re-adopted already-QUEUED task
+  # instances and re-dispatched them → api-server 409 "Unique constraint
+  # violation" on the duplicate TI + ReadTimeout to the IO-saturated metadata DB
+  # (the dbt_run task's exact failure tree). 120s rides out the spike without a
+  # needless scheduler restart. Single scheduler here, so this only governs
+  # self-failure. Cloud overlay can drop back to 30s on SSD.
+  AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD: "120"
+  # Task SDK → Execution-API HTTP client read timeout. Airflow 3's Task SDK
+  # (airflow/sdk/api/client.py) builds its httpx client with a single bare-float
+  # timeout applied to connect/read/write/pool; the default is 5.0s. On this
+  # single spinning HDD the api-server (Postgres-backed) frequently answers the
+  # worker's heartbeat + final status-PATCH slower than 5s under IO load, so the
+  # worker raised httpx.ReadTimeout, exhausted its tenacity retries (~31s budget),
+  # hit the supervisor "Last chance exception handler" and finalized the TI as
+  # FAILED even though the task body already succeeded (observed across
+  # ensure-lakefs-repo / batch-features / quality-gate / dbt-run). Knob added in
+  # Airflow 3.1.1 (apache/airflow#56571 → PR #56969); this image pins 3.2.1 so it
+  # is available with no upgrade. 30s absorbs the IO stall; 5 retries × 30s + ~26s
+  # backoff ≈ 176s worst-case stays under the 300s task_instance_heartbeat_timeout
+  # zombie wall, so the scheduler never independently kills a still-running task.
+  AIRFLOW__WORKERS__EXECUTION_API_TIMEOUT: "30.0"
+  # Extra cushion: how many consecutive heartbeat failures before the worker
+  # self-terminates. Default 3; 5 rides out a short burst of fully-exhausted
+  # heartbeat cycles on the contended disk without abandoning a live task.
+  AIRFLOW__WORKERS__MAX_FAILED_HEARTBEATS: "5"
+  # Halve worker→api-server heartbeat round-trips (30s→60s) so fewer heartbeats
+  # land mid-IO-spike. Stays well under the 300s heartbeat-timeout wall.
+  AIRFLOW__SCHEDULER__TASK_INSTANCE_HEARTBEAT_SEC: "60"
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "True"
   # DAG parse-timeout headroom for the single-node spinning-HDD constraint.
@@ -319,8 +358,9 @@ data:
   # --- KubernetesExecutor ----------------------------------------------
   AIRFLOW__KUBERNETES_EXECUTOR__NAMESPACE: "data-processing"
   AIRFLOW__KUBERNETES_EXECUTOR__POD_TEMPLATE_FILE: "/opt/airflow/pod_template/pod_template.yaml"
-  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_REPOSITORY: "apache/airflow"
-  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_TAG: "3.2.1"
+  # Worker image matches pod template
+  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_REPOSITORY: "localhost:5000/platform-airflow"
+  AIRFLOW__KUBERNETES_EXECUTOR__WORKER_CONTAINER_TAG: "latest"
   AIRFLOW__KUBERNETES_EXECUTOR__IN_CLUSTER: "True"
   # Delete successful worker pods to keep the namespace clean; keep failed
   # pods so operators can `kubectl logs` / `kubectl describe` for triage.
@@ -493,14 +533,31 @@ data:
             capabilities: { drop: ["ALL"] }
       containers:
         - name: base
-          # `localhost:5000/platform-airflow` requires the in-cluster registry
-          # component (TODO: platform/components/common/registry). Until that
-          # ships, use the public full image — bundles ~80 providers including
-          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
-          # openlineage (datahub). Slim image lacks amazon → ImportError on
-          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
-          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
-          image: apache/airflow:3.2.1
+          # Platform-owned image: uv-locked Airflow 3.2.1 + providers (amazon
+          # S3 remote logging, fab auth, cncf.kubernetes executor, openlineage
+          # to DataHub) and clickhouse-connect for inline SQL quality checks.
+          # Built by `make platform-build-services` (PLATFORM_SERVICES entry
+          # platform-airflow). `:latest` from the in-cluster registry.
+          #
+          # IfNotPresent (NOT Always): KubernetesExecutor creates a fresh worker
+          # pod per task, so Always re-pulls this 203MB image on EVERY task. On
+          # the single spinning HDD during a deploy burst (4 make targets at
+          # once) that pull measured 88 min — far past the worker's 3600s
+          # execution-token TTL — so every queued task died at supervisor
+          # bootstrap with `ServerResponseError: Invalid auth token: Signature
+          # has expired` BEFORE task code ran (hit 5 DAG task types at once:
+          # batch_features, ensure_lakefs_repo, dbt_run, ge_validation,
+          # sql_quality_checks — 2026-06-30). On a quiet disk the same pull is
+          # ~52s and tasks succeed, confirming pull latency (not the JWT knob)
+          # is the root cause; the bounded JWT / task_queued_timeout below stay
+          # as-is. DAG code is git-synced (initContainer above), NOT baked into
+          # this image, so a warm cached layer is safe — only the Airflow
+          # runtime/deps could drift, and those change only on explicit rebuild.
+          # CAVEAT: after `make platform-build-services` rebuilds platform-airflow
+          # the node keeps the stale cached layer under IfNotPresent; force a
+          # refresh (`crictl rmi` the cached image, or bump an explicit tag) so
+          # workers pick up the new runtime.
+          image: localhost:5000/platform-airflow:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef: { name: airflow-secrets }
@@ -654,15 +711,14 @@ spec:
             readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
         - name: airflow-init
-          # `localhost:5000/platform-airflow` requires the in-cluster registry
-          # component (TODO: platform/components/common/registry). Until that
-          # ships, use the public full image — bundles ~80 providers including
-          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
-          # openlineage (datahub). Slim image lacks amazon → ImportError on
-          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
-          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
-          image: apache/airflow:3.2.1
-          imagePullPolicy: IfNotPresent
+          # Platform-owned image: uv-locked Airflow 3.2.1 + providers (amazon
+          # S3 remote logging, fab auth, cncf.kubernetes executor, openlineage
+          # to DataHub) and clickhouse-connect for inline SQL quality checks.
+          # Built by `make platform-build-services` (PLATFORM_SERVICES entry
+          # platform-airflow). `:latest` from the in-cluster registry, so
+          # imagePullPolicy Always re-pulls after every rebuild (air-gap-safe).
+          image: localhost:5000/platform-airflow:latest
+          imagePullPolicy: Always
           envFrom:
             - secretRef:
                 name: airflow-secrets
@@ -724,15 +780,14 @@ spec:
             capabilities: { drop: ["ALL"] }
       containers:
         - name: scheduler
-          # `localhost:5000/platform-airflow` requires the in-cluster registry
-          # component (TODO: platform/components/common/registry). Until that
-          # ships, use the public full image — bundles ~80 providers including
-          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
-          # openlineage (datahub). Slim image lacks amazon → ImportError on
-          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
-          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
-          image: apache/airflow:3.2.1
-          imagePullPolicy: IfNotPresent
+          # Platform-owned image: uv-locked Airflow 3.2.1 + providers (amazon
+          # S3 remote logging, fab auth, cncf.kubernetes executor, openlineage
+          # to DataHub) and clickhouse-connect for inline SQL quality checks.
+          # Built by `make platform-build-services` (PLATFORM_SERVICES entry
+          # platform-airflow). `:latest` from the in-cluster registry, so
+          # imagePullPolicy Always re-pulls after every rebuild (air-gap-safe).
+          image: localhost:5000/platform-airflow:latest
+          imagePullPolicy: Always
           command: ["airflow"]
           args: ["scheduler"]
           envFrom:
@@ -941,12 +996,11 @@ spec:
             capabilities: { drop: ["ALL"] }
       containers:
         - name: dag-processor
-          # Full image (not slim) for the same provider-bundle reason as the
-          # scheduler: DAG import pulls in remote-logging/auth/executor
-          # providers; the slim image lacks amazon → ImportError on the
-          # logging-config import when REMOTE_LOGGING=True.
-          image: apache/airflow:3.2.1
-          imagePullPolicy: IfNotPresent
+          # Platform-owned image (see scheduler): uv-locked Airflow + providers
+          # including openlineage, plus clickhouse-connect, built by
+          # `make platform-build-services`. `:latest` from in-cluster registry.
+          image: localhost:5000/platform-airflow:latest
+          imagePullPolicy: Always
           command: ["airflow"]
           args: ["dag-processor"]
           envFrom:
@@ -1068,15 +1122,14 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: webserver
-          # `localhost:5000/platform-airflow` requires the in-cluster registry
-          # component (TODO: platform/components/common/registry). Until that
-          # ships, use the public full image — bundles ~80 providers including
-          # amazon (S3 remote logging), fab (auth), cncf.kubernetes (executor),
-          # openlineage (datahub). Slim image lacks amazon → ImportError on
-          # `airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG`
-          # when AIRFLOW__LOGGING__REMOTE_LOGGING=True.
-          image: apache/airflow:3.2.1
-          imagePullPolicy: IfNotPresent
+          # Platform-owned image: uv-locked Airflow 3.2.1 + providers (amazon
+          # S3 remote logging, fab auth, cncf.kubernetes executor, openlineage
+          # to DataHub) and clickhouse-connect for inline SQL quality checks.
+          # Built by `make platform-build-services` (PLATFORM_SERVICES entry
+          # platform-airflow). `:latest` from the in-cluster registry, so
+          # imagePullPolicy Always re-pulls after every rebuild (air-gap-safe).
+          image: localhost:5000/platform-airflow:latest
+          imagePullPolicy: Always
           command: ["airflow"]
           args: ["api-server"]
           envFrom:

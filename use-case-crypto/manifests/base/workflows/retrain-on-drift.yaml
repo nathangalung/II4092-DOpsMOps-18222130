@@ -117,7 +117,7 @@ spec:
           # clickhouse/clickhouse-client publishes only legacy 21.x tags on Docker Hub;
           # the server image ships /usr/bin/clickhouse-client and tracks the same tag
           # as the platform StatefulSet (platform/components/storage/clickhouse/installation.yaml).
-          image: clickhouse/clickhouse-server:26.3.10.60
+          image: clickhouse/clickhouse-server:26.3.9.8
           command: [sh, -ceu]
           envFrom:
             - secretRef: { name: retrain-on-drift }

@@ -16,7 +16,7 @@ Usage:
 
 Mirrors the use-case-side generator's contract so
 `make platform-generate-kustomization` and the use-case
-`make usecase-crypto-generate-kustomization` are uniform.
+`make usecase-<name>-generate-kustomization` are uniform.
 """
 
 from __future__ import annotations

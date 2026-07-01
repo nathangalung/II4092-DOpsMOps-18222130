@@ -46,20 +46,18 @@ spec:
         name: mlflow
         version: "2"
       protocolVersion: v2
-      # Boot-time warmup: points at the iris MLflow bundle the
-      # minio-bucket-bootstrap Job pre-seeds to s3://platform-models/sklearn/iris/
-      # (platform/components/storage/minio/bucket-bootstrap.yaml). This is
-      # a 4-feature sklearn logistic regression — wrong domain, but
-      # *loadable*, so MLServer transitions Ready instead of crash-looping
-      # with "Invalid URI /mnt/models" (#348 spam root cause). Predictions
-      # in this state are meaningless; the platform-health-check probe
-      # exercises the same model so smoke-tests still validate the serving
-      # path end-to-end. The model-promotion bridge (Phase B.14, follow-up
-      # task) patches this field to
-      # `s3://mlflow/artifacts/{experiment_id}/{run_id}/artifacts/model/`
-      # after the first KFP retraining_pipeline run completes — see
-      # retrain-on-drift.yaml workflow.
-      storageUri: "s3://platform-models/sklearn/iris/"
+      # Champion crypto model (LightGBM regressor, next-period close forecast,
+      # 33 features, r2≈0.95) produced by the trainer Job + logged to MLflow.
+      # MLflow 3.x stores model artifacts under
+      #   s3://mlflow/artifacts/{experiment_id}/models/{model_uuid}/artifacts/
+      # (NOT the 2.x `{run_id}/artifacts/model/` layout). This is the path the
+      # promotion bridge (deploy_kserve.py) now resolves via the MLflow API and
+      # patches in after each retrain. It is pinned here so a fresh GitOps apply
+      # serves a real model immediately (the prior `s3://platform-models/
+      # sklearn/iris/` placeholder bucket was never seeded → ProgressDeadline-
+      # Exceeded). The Argo app sets `ignoreDifferences` on this field so the
+      # bridge can promote a newer champion without selfHeal reverting it.
+      storageUri: "s3://mlflow/artifacts/1/models/m-0fbe5672a11d4f49ac957653374100e3/artifacts/"
       resources:
         requests:
           cpu: 100m

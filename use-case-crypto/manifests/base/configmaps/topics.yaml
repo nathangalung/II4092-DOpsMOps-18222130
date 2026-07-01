@@ -56,8 +56,8 @@ data:
   KAFKA_SUPPLEMENTARY_TOPIC: "crypto.supplementary"
   # The trades topic name is declared on the consumer that needs it
   # (crypto-websocket-collector sets COINBASE_TRADES_TOPIC via the deployment
-  # patch; crypto.trades.v1 is consumed by the iceberg-sink connector +
-  # ClickHouse bronze.crypto_trades_kafka). No shared KAFKA_TRADES_TOPIC env
+  # patch; crypto.trades.v1 is consumed by the ClickHouse
+  # bronze.crypto_trades_kafka engine). No shared KAFKA_TRADES_TOPIC env
   # is needed — the convention is per-consumer.
 
   # --- Sentiment batch processing (writable targets → gold layer) ---

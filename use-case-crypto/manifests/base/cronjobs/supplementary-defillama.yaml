@@ -103,10 +103,16 @@ spec:
                   value: "https://api.llama.fi/protocols"
                 - name: SUPPLEMENTARY_SOURCE_ENABLED
                   value: "true"
+                # DefiLlama /protocols: top-level array; fields name/slug/tvl/
+                # change_1d (float). Snapshot-only (no timestamp → now()). Without
+                # this mapping the job inherits the OHLCV mapping → score=0.
+                - name: RESPONSE_FIELD_MAPPING
+                  value: "value=change_1d,title=name,symbol=slug"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL
                   value: "0s"
+                # Snapshot-only API — backfill just re-fetches the current snapshot.
                 - name: SUPPLEMENTARY_BACKFILL_ENABLED
-                  value: "true"
+                  value: "false"
                 - name: SUPPLEMENTARY_BACKFILL_START_DATE
                   value: "2026-01-01T00:00:00Z"
                 - name: KAFKA_SUPPLEMENTARY_TOPIC

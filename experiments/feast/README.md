@@ -35,11 +35,27 @@ The thesis SK-F-02 acceptance (`uji_penerimaan.tex`) is stronger than non-null:
 same entity and reference time*. That value-equality leg uses the Feast **SDK**
 (the thesis-named tooling) rather than this REST check, because Feast itself maps
 feature refs to the offline columns — no hand-mapping of gold-mart columns. Run it
-from the use-case feature repo (the same `get_online_features` call shape the
-platform `ml-bridge` reader uses), comparing against `get_historical_features`:
+against the use-case feature repo (the same `get_online_features` call shape the
+platform `ml-bridge` reader uses), comparing against `get_historical_features`.
+
+The Feast repo is NOT a checked-in directory — it lives as the ConfigMap
+`crypto-feast-feature-repo` (source: `use-case-crypto/manifests/base/configmaps/feast.yaml`)
+and is only rendered onto disk inside the materialize / ml-bridge pods. Materialize
+it locally from that ConfigMap, then point the SDK at it (port-forward the online
+Valkey + offline ClickHouse stores its `feature_store.yaml` references first):
 
 ```bash
-FEAST_REPO_PATH=use-case-crypto/services/.../feature_store \
+mkdir -p /tmp/feast-repo
+# definitions.py is a plain ConfigMap key. The repo config is stored as
+# `feature_store.yaml.tmpl` with ${CLICKHOUSE_USER}/${CLICKHOUSE_PASSWORD}
+# placeholders (the pod renders it at init via envsubst from pipeline-secrets),
+# so fetch it and envsubst it into a real feature_store.yaml:
+kubectl -n use-case-crypto get configmap crypto-feast-feature-repo \
+  -o 'jsonpath={.data.definitions\.py}' > /tmp/feast-repo/definitions.py
+export CLICKHOUSE_USER CLICKHOUSE_PASSWORD   # from `kubectl -n use-case-crypto get secret pipeline-secrets -o jsonpath=...`
+kubectl -n use-case-crypto get configmap crypto-feast-feature-repo \
+  -o 'jsonpath={.data.feature_store\.yaml\.tmpl}' | envsubst > /tmp/feast-repo/feature_store.yaml
+FEAST_REPO_PATH=/tmp/feast-repo \
 uv run --with feast - <<'PY'
 import os, pandas as pd
 from datetime import datetime, timezone

@@ -280,6 +280,11 @@ kind: CronJob
 metadata: { name: datahub-ingest-kafka, namespace: data-governance }
 spec:
   schedule: "0 * * * *"
+  # Single-node HDD idle-default OFF: an ArgoCD reconcile wave coinciding with
+  # this hourly ingest pod-spawn compounds IO on one spinning disk. Resume for a
+  # live governance demo: kubectl -n data-governance patch cronjob
+  # datahub-ingest-kafka --type merge -p '{"spec":{"suspend":false}}'.
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -360,6 +365,10 @@ kind: CronJob
 metadata: { name: datahub-ingest-feast, namespace: data-governance }
 spec:
   schedule: "20 * * * *"
+  # Single-node HDD idle-default OFF (see datahub-ingest-kafka). Resume:
+  # kubectl -n data-governance patch cronjob datahub-ingest-feast --type merge
+  # -p '{"spec":{"suspend":false}}'.
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -562,6 +571,10 @@ kind: CronJob
 metadata: { name: datahub-ingest-mlflow, namespace: data-governance }
 spec:
   schedule: "30 * * * *"
+  # Single-node HDD idle-default OFF (see datahub-ingest-kafka). Resume:
+  # kubectl -n data-governance patch cronjob datahub-ingest-mlflow --type merge
+  # -p '{"spec":{"suspend":false}}'.
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3

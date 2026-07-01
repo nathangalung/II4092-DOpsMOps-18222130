@@ -18,6 +18,18 @@ data:
       http_listen_port: 3100
       grpc_listen_port: 9095
       log_level: info
+      # The OTel gateway-collector batches logs and pushes via OTLP/HTTP to
+      # :3100/otlp; Loki's distributor then fans the batch out to ingesters over
+      # gRPC. The default 4MB gRPC message cap rejected the collector's 6.9-7MB
+      # batches with ResourceExhausted → its export retry queue grew until the
+      # MemoryLimiter OOM-killed it (73 restarts in 9h, ~7-min telemetry gaps,
+      # 2026-06-30). Raise both directions to 32MiB (matches loki/alloy.yaml's
+      # max_recv_msg_size) so a full batch lands in one message. This is the
+      # receiver-side cure: with Loki accepting the push there is no reject, no
+      # retry queue, and no collector OOM. Comfortably above ingestion_burst_
+      # size_mb:30 so the wire frame is never the limiting factor.
+      grpc_server_max_recv_msg_size: 33554432
+      grpc_server_max_send_msg_size: 33554432
     common:
       path_prefix: /loki
       replication_factor: 1

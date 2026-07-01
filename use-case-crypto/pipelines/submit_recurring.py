@@ -145,6 +145,32 @@ def upsert_recurring_run(
     print(f"Created: {job_name} (cron={cron_expression!r})")
 
 
+def _get_or_create_experiment(client: kfp.Client, name: str):
+    """Idempotent experiment resolve — reuse an existing one by display_name.
+
+    The PostSync bootstrap Job (manifests/base/workflows/pipeline-bootstrap.yaml)
+    runs this on EVERY ArgoCD sync; kfp `create_experiment` errors / duplicates
+    on a name that already exists, so resolve an existing experiment first and
+    create only when absent. Mirrors upload_or_replace_pipeline's reuse logic.
+    """
+    existing = client.list_experiments(
+        filter=(
+            '{"predicates":[{"operation":"EQUALS","key":"display_name",'
+            f'"stringValue":"{name}"}}]}}'
+        )
+    )
+    experiments = getattr(existing, "experiments", None) or []
+    if experiments:
+        print(f"Experiment reused: {name} ({experiments[0].experiment_id})")
+        return experiments[0]
+    created = client.create_experiment(
+        name=name,
+        description="FLAML AutoML retraining — drift-triggered and scheduled",
+    )
+    print(f"Experiment created: {name} ({created.experiment_id})")
+    return created
+
+
 def main() -> None:
     client = kfp.Client(host=KFP_HOST)
 
@@ -153,10 +179,7 @@ def main() -> None:
 
     pipeline_id = upload_or_replace_pipeline(client, pipeline_path)
 
-    experiment = client.create_experiment(
-        name=f"{USE_CASE}-retraining",
-        description="FLAML AutoML retraining — drift-triggered and scheduled",
-    )
+    experiment = _get_or_create_experiment(client, f"{USE_CASE}-retraining")
 
     common_params = {
         "symbol": SYMBOL,

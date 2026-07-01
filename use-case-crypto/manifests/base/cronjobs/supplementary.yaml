@@ -18,7 +18,9 @@ metadata:
     type: supplementary
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "*/5 * * * *" # Every 5 minutes
+  schedule: "0 * * * *" # Hourly. (Was */5 — on this single-HDD node a 5-min
+  # cadence created 288 Job pods/day per CronJob and was a primary IO-cascade
+  # driver; supplementary source/news data does not change faster than hourly.)
   # suspend declared so ArgoCD owns the field under SSA — an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff and the app
   # stays Synced while the CronJob sleeps (#513, 14 days frozen).

@@ -283,7 +283,13 @@ with DAG(
         image_pull_policy="Always",
         on_finish_action="delete_pod",
         get_logs=True,
-        startup_timeout_seconds=300,
+        # 600 (not 300) to match dags/_config.py:k8s_pod() — a cold pull of a
+        # freshly-rebuilt platform-analyzer:latest measured 4m33s on the single
+        # spinning HDD; 300s marked the task up_for_retry even when the child
+        # pod itself succeeded. The KPO child keeps image_pull_policy=Always
+        # above (rebuilt analyzer code must not run stale); only the start
+        # deadline widens to absorb the cold-pull window.
+        startup_timeout_seconds=600,
         container_resources=k8s.V1ResourceRequirements(
             requests={"cpu": "100m", "memory": "256Mi"},
             limits={"cpu": "500m", "memory": "1Gi"},

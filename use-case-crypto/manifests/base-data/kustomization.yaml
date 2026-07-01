@@ -13,20 +13,25 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Namespace here so siblings survive
+namespace: use-case-crypto
+
 resources:
   # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
-  - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
+  - ../../../platform/services/base/pipeline-infrastructure-configmap.yaml
   - ../base/namespace.yaml
   - ../base/configmaps/feast.yaml
   - ../base/configmaps/rest-collector-config.yaml
   - ../base/external-secrets.yaml
   - ../base/schema-registration.yaml
-  - ../base/connectors/debezium-postgres.yaml
-  - ../base/connectors/iceberg-sink.yaml
-  # KafkaUsers + KEDA TriggerAuthentication (cycle-3 §3.1). Required for
-  # data because validator + analyzer + the Flink stream-processor all
-  # consume Kafka over SCRAM-SHA-512 once the broker enforces ACLs.
-  - ../base/kafka-users/scram-users.yaml
+  # Kafka Connect connectors removed from this use case (Debezium CDC = wrong
+  # tool for an API source; the Iceberg-sink is superseded by the Spark-batch
+  # Iceberg writer — see manifests/base/spark/ — NOT by Flink, which sinks only
+  # to Kafka + Valkey and writes zero Iceberg). See the rationale in
+  # ../base/kustomization.yaml. Platform retains the capability.
+  # KEDA TriggerAuthentication stays in use-case-crypto. KafkaUsers moved to
+  # cross-namespace-data so the namespace setter above does not clobber their
+  # explicit data-ingestion namespace (Strimzi User Operator watches there).
   - ../base/kafka-users/triggerauth.yaml
 
   # --- Data: Ingestion (platform Deployments + crypto CronJobs) ---
@@ -50,6 +55,16 @@ resources:
   - ../base/flink/stream-processor.yaml
   - ../base/cronjobs/vector-embedding.yaml
   # batch-features, batch-sentiment, dbt-run, backfill → Airflow DAGs
+
+  # --- Data: Lakehouse (Spark → Iceberg cold archive via Lakekeeper) ---
+  # Activates spark-operator + Iceberg + Lakekeeper + Trino as a NON-redundant
+  # tier: ClickHouse = hot warehouse, Iceberg-on-MinIO = cold open archive of raw
+  # ticks, Trino = federation across both. 6-hourly ScheduledSparkApplication, no
+  # custom image (reuses apache/spark + --packages jars), idle Spark pods = 0.
+  - ../base/lakehouse/warehouse-bootstrap.yaml
+  - ../base/spark/rbac.yaml
+  - ../base/spark/archive-script.yaml
+  - ../base/spark/trades-archive.yaml
 
   # --- RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount) ---
   - ../../../platform/services/base/rbac/roles.yaml

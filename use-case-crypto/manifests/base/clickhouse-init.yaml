@@ -79,7 +79,7 @@ spec:
           # `clickhouse-server` image ships `clickhouse-client` so re-using it
           # avoids pulling a second image and guarantees client/server protocol
           # parity (no version-skew issues with newer DDL features).
-          image: clickhouse/clickhouse-server:26.3.10.60
+          image: clickhouse/clickhouse-server:26.3.9.8
           imagePullPolicy: IfNotPresent
           resources:
             requests: { cpu: 50m, memory: 128Mi }

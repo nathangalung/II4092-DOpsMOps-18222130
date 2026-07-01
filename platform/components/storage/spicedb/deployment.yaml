@@ -113,7 +113,7 @@ spec:
       # Wait for PostgreSQL (CNPG read-write endpoint) before spicedb starts.
       initContainers:
         - name: wait-for-pg
-          image: postgres:18.4-alpine
+          image: postgres:18.3-alpine
           command: ["sh", "-c"]
           args:
             - |

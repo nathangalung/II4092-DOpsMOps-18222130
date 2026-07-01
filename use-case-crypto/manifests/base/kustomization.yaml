@@ -49,7 +49,7 @@ resources:
   # Base ConfigMap `pipeline-config` with platform service endpoints. Crypto
   # patches it below (configmaps/*.yaml) to add domain-specific keys and to
   # override CLICKHOUSE_DB / set KSERVE_INFERENCE_URL (configmaps/serving.yaml).
-  - ../../../platform/services/base/configmaps/pipeline-infrastructure.yaml
+  - ../../../platform/services/base/pipeline-infrastructure-configmap.yaml
 
   # Platform RBAC (Roles + RoleBindings). The ServiceAccount itself is
   # use-case-scoped and declared locally in rbac/service-account.yaml.
@@ -80,7 +80,6 @@ resources:
 
   # --- Serving (generic Deployments from platform) ---
   - ../../../platform/services/base/deployments/gateway.yaml
-  - ../../../platform/services/base/deployments/feature-cache.yaml
 
   # --- Dashboard (generic Deployments from platform) ---
   - ../../../platform/services/base/deployments/dashboard-backend.yaml
@@ -110,8 +109,18 @@ resources:
   # `clickhouse-init-sql` ConfigMap (configMapGenerator below) — same source
   # file used historically (use-case-crypto/database/init_clickhouse.sql).
   - clickhouse-init.yaml
-  - connectors/debezium-postgres.yaml
-  - connectors/iceberg-sink.yaml
+  # Kafka Connect connectors are intentionally NOT wired by this use case
+  # (the platform keeps Kafka Connect / Debezium / Iceberg-sink as domain-
+  # agnostic capabilities for a future use case that needs them):
+  #   • Debezium CDC taps a relational WAL (Postgres/MySQL); the crypto source is
+  #     the Coinbase WebSocket/REST API, which has no transaction log — CDC is the
+  #     wrong tool. Market data is produced to Kafka directly by the rest- and
+  #     websocket-collectors.
+  #   • The Kafka-Connect Iceberg sink is superseded by Flink as the best-proper
+  #     Iceberg writer (exactly-once, stateful, reuses the running Flink cluster;
+  #     Kafka Connect adds a separate cluster + ~5-min commit latency).
+  # Removing them here also eliminates the in-cluster KafkaConnect build that
+  # repeatedly IO-cascaded this single-node node.
 
   # --- Kafka topics + KafkaUsers (cycle-3 §3.1) ---
   # Cross-namespace CRs live in `../cross-namespace/`; the TriggerAuthentication
@@ -138,7 +147,8 @@ resources:
   - cronjobs/ge-checkpoint.yaml
 
   # --- Drift detection CronJobs (platform-provided, domain-agnostic) ---
-  # Multi-scale: minute (1m), hourly (15m), daily (6h), weekly (12h).
+  # Multi-scale: minute (1m), hourly (15m), daily (6h), weekly (12h),
+  # monthly (1d). Each compares the current window vs the prior equal window.
   # Each Job runs `drift-detector main.py --scale <s> --once`, reads silver
   # features + gold predictions from ClickHouse `clickhouse-platform.storage`,
   # and writes PSI/KS rows to `gold.drift_multi_scale` (consumed by the
@@ -151,19 +161,21 @@ resources:
   - inferenceservices/inference.yaml
 
   # --- HPO (Katib) ---
-  # Declarative Experiment CR (flaml-automl-hpo) — the canonical HPO
-  # shape lives in Git. The KFP `retraining_pipeline` does NOT mutate
-  # this CR; on drift it calls the Katib SDK with this Experiment as a
-  # template and spawns a run-scoped Experiment (name suffixed with the
-  # pipeline run id). Applying the base creates a one-shot baseline
-  # Experiment that writes the initial best-trial to MLflow. Trial Pods
-  # are admitted through `crypto-training-queue` (see kueue/queues.yaml).
+  # Declarative Experiment CR (flaml-automl-hpo) — a STANDALONE demonstration of
+  # the platform's HPO capability. It tunes FLAML's meta-parameters (time_budget,
+  # n_splits) via Bayesian optimization; its Trial Pods are admitted through
+  # `crypto-training-queue` (see kueue/queues.yaml).
+  # IMPORTANT (was wrong before): the production retrain path does NOT use Katib.
+  # The KFP `retraining_pipeline` uses fixed env-sourced params and FLAML's own
+  # internal HPO; `retrain-on-drift.yaml` queries gold.drift_multi_scale and POSTs
+  # directly to the KFP /runs API — it never calls the Katib SDK. Katib is a
+  # demonstrated capability, not on the production hot path.
   - katib/experiment-lightgbm.yaml
 
   # =========================================================================
   # ORCHESTRATED BY AIRFLOW + KFP + ARGO WORKFLOWS (not CronJobs):
   #   - Batch features, sentiment, materialization → Airflow: crypto_hourly_features
-  #   - Drift detection → platform CronJobs drift-check-{minute,hourly,daily,weekly}
+  #   - Drift detection → platform CronJobs drift-check-{minute,hourly,daily,weekly,monthly}
   #     (writes `gold.drift_multi_scale`; pulled in above from
   #     ../../../platform/services/base/cronjobs/drift-multi-scale.yaml)
   #   - Retrain-on-drift → Argo CronWorkflow `retrain-on-drift` (model-lifecycle ns,

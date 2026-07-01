@@ -49,6 +49,7 @@ declare -a PLATFORM_NS=(
   argo-rollouts spark-operator flink-operator chaos-mesh velero
   tekton-pipelines tekton-pipelines-resolvers
   platform-registry
+  platform-test
 )
 
 if [[ "${FORCE:-0}" != "1" ]]; then
@@ -519,7 +520,7 @@ fi
 #       failed to allocate for range 0: no IP addresses available in
 #       range set: 10.42.0.1-10.42.0.254
 #   Field-observed 2026-05-15: post-nuke phase-full had 127 stale leases
-#   out of 254 slots; new use-case-crypto pods could not get IPs.
+#   out of 254 slots; new use-case overlay pods could not get IPs.
 #
 # What this hook does:
 #   1. Enumerate live pod IPs from the apiserver (.status.podIP).

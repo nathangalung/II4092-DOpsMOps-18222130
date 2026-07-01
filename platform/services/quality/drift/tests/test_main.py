@@ -158,5 +158,5 @@ def test_load_config_fallback() -> None:
     with patch("builtins.open", side_effect=Exception):
         config = load_config()
         assert "scales" in config
-        assert "hour" in config["scales"]
+        assert "hourly" in config["scales"]
         assert "daily" in config["scales"]

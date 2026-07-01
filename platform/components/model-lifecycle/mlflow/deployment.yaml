@@ -79,7 +79,7 @@ spec:
           # defence-in-depth guard for cluster re-bootstraps where the
           # postInit SQL did not run (e.g. restore-from-backup without
           # re-running initdb).
-          image: postgres:18.4-alpine
+          image: postgres:18.3-alpine
           command: ["/bin/sh", "-c"]
           securityContext:
             allowPrivilegeEscalation: false

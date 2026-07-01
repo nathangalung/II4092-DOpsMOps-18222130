@@ -1,0 +1,164 @@
+# =============================================================================
+# PostSync bootstrap — register the KFP retraining pipeline + recurring runs
+# =============================================================================
+# MLOps-L2 gap closer (companion to retrain-on-drift.yaml / ADR-017).
+#
+# The retrain-on-drift CronWorkflow resolves the KFP pipeline
+# `<use-case>-retraining_pipeline` by display_name at trigger time — the
+# pipeline MUST already exist in KFP. But nothing registered it:
+# `pipelines/submit_recurring.py` was a documented MANUAL step
+# (base-train/kustomization.yaml note), so on a fresh cluster every 6h
+# CronWorkflow tick failed `RuntimeError: KFP pipelines not found:
+# 'crypto-retraining_pipeline'` until a human ran it by hand (3 ticks lost
+# 2026-06-30; concurrencyPolicy:Forbid then silently skipped subsequent ticks).
+#
+# This ArgoCD PostSync Job runs submit_recurring.py automatically on every sync:
+# compile retraining_pipeline.py → idempotently upload it as a named KFP
+# Pipeline → upsert the weekly + 6-hourly recurring runs. submit_recurring.py is
+# fully idempotent (reuse-by-display_name for BOTH pipeline and experiment — see
+# _get_or_create_experiment / upload_or_replace_pipeline), so re-running on every
+# sync neither duplicates nor errors. This closes the manual-bootstrap hole so
+# the automated-retrain loop survives a KFP DB reset / cluster rebuild.
+#
+# Source delivery: a git-sync initContainer clones the use-case repo from the
+# in-cluster Gitea (the SAME repo + pattern the Airflow workers use for DAGs),
+# so pipelines/*.py stay single-source-of-truth — NOT duplicated into a
+# ConfigMap (which would also hit the kustomize load-restrictor, the files
+# living outside manifests/base/). retraining_pipeline.py's image refs default
+# to localhost:5000/<use-case>-*:latest, already correct for this cluster, so no
+# pipeline-config ConfigMap is needed in model-lifecycle.
+#
+# Runs in model-lifecycle (where KFP + the pipeline-runner SA live), same ns as
+# the CronWorkflow. PostSync + BeforeHookCreation delete-policy so each sync
+# re-registers cleanly without a stale completed-Job pod-template immutability
+# clash.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-bootstrap
+  namespace: model-lifecycle
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: retrain-trigger
+    mlops-platform.io/use-case: crypto
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  # uv resolve of kfp[kubernetes] on a cold cache + KFP compile/upload/upsert
+  # under single-HDD IO contention; generous upper bound, ttl reaps the pod.
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: mlops-platform
+        app.kubernetes.io/component: retrain-trigger
+        mlops-platform.io/use-case: crypto
+      annotations:
+        # Short-lived Job: the istio sidecar would keep the pod Running after
+        # the container exits. KFP API + Gitea + MinIO calls are in-cluster.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: pipeline-runner
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Clone the use-case repo so pipelines/{submit_recurring,retraining_pipeline}.py
+        # are available without baking them into an image or duplicating them
+        # into a ConfigMap. Mirrors the Airflow worker git-sync pattern; the
+        # `app.kubernetes.io/part-of: mlops-platform` pod label above satisfies
+        # Gitea's allow-gitea-clients ingress NetworkPolicy.
+        - name: git-sync-init
+          image: registry.k8s.io/git-sync/git-sync:v4.6.0
+          args:
+            - --repo=http://gitea.gitops.svc.cluster.local:3000/platform/use-case-crypto.git
+            - --root=/git
+            - --link=current
+            - --ref=main
+            - --depth=1
+            - --one-time
+            - --submodules=off
+            # Single HDD: a transient Gitea TCP hiccup under IO load must not
+            # abort the one-time init (mirrors the worker pod template).
+            - --max-failures=5
+          volumeMounts:
+            - name: src
+              mountPath: /git
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: register
+          # UV mandate: uv resolves kfp[kubernetes]==2.16.0 into an ephemeral
+          # venv cached under /tmp; no pip ever runs. Pin matches the
+          # kfp-launcher/driver image so the compiled spec stays compatible.
+          image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
+          imagePullPolicy: IfNotPresent
+          workingDir: /git/current/pipelines
+          command: ["/bin/sh", "-ceu"]
+          args:
+            - |
+              # --no-project: the cloned repo has no top-level pyproject for this
+              # dir; run the script standalone with the pinned KFP extra. The
+              # script imports retraining_pipeline.py from the same dir (CWD).
+              uv run --no-project --with 'kfp[kubernetes]==2.16.0' submit_recurring.py
+          env:
+            - name: HOME
+              value: /tmp
+            - name: UV_CACHE_DIR
+              value: /tmp/.uv-cache
+            - name: UV_LINK_MODE
+              value: copy
+            - name: KFP_HOST
+              value: "http://ml-pipeline.model-lifecycle.svc.cluster.local:8888"
+            # Real MinIO creds for the recurring-run params (MLflow artifact
+            # upload). The model-lifecycle pipeline-secrets carries only
+            # CLICKHOUSE/VALKEY keys; the KFP artifact secret holds the MinIO
+            # creds under accesskey/secretkey. Map them to the names
+            # submit_recurring.py reads; optional so a missing key degrades to
+            # the script default rather than blocking the pod.
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mlpipeline-minio-artifact
+                  key: accesskey
+                  optional: true
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mlpipeline-minio-artifact
+                  key: secretkey
+                  optional: true
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false # uv writes its cache under /tmp
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: src
+              mountPath: /git
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: src
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

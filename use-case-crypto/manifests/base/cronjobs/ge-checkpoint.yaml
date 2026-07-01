@@ -35,7 +35,9 @@ metadata:
     component: data-quality
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "15 */6 * * *"
+  # :48 every 6h — staggered off :15 (was "15 */6") so it no longer collides with
+  # supplementary-coingecko's hourly :15 on the single HDD (same-tick job storm, 2026-06-30).
+  schedule: "48 */6 * * *"
   # suspend declared so ArgoCD owns the field under SSA — an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
@@ -261,7 +263,7 @@ spec:
 
                   sys.exit(0 if success else 2)
                   PYEOF
-                  run_and_push uv run /tmp/ge_check.py
+                  uv run /tmp/ge_check.py
               resources:
                 requests:
                   cpu: "200m"

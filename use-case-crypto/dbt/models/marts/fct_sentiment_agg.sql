@@ -16,4 +16,11 @@ LEFT JOIN {{ ref('stg_sentiment') }} AS s
     AND s.timestamp >= o.timestamp - INTERVAL w.window_hours HOUR
     AND s.timestamp <= o.timestamp
 GROUP BY symbol, timestamp, window_hours
-HAVING news_count > 0
+-- NO `HAVING news_count > 0`: emit a row for EVERY OHLCV bar × window, not only
+-- bars that happen to have news in the window. The LEFT JOIN to stg_sentiment
+-- already yields news_count=0 / avg_sentiment=0 (neutral) for newsless windows;
+-- dropping those rows is what left the downstream exact-timestamp join in
+-- fct_training_data unmatched → NULL → fillna(0) → the 7 sentiment features were
+-- dead-zero for every row. Dense output makes the join hit every bar: sparse
+-- windows carry a real neutral signal (count=0), news-bearing windows carry the
+-- true trailing aggregate. FLAML drops any window that stays near-constant.

@@ -108,6 +108,12 @@ spec:
                   value: "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum&order=market_cap_desc&per_page=10&page=1&sparkline=false"
                 - name: SUPPLEMENTARY_SOURCE_ENABLED
                   value: "true"
+                # CoinGecko /coins/markets is a top-level array of coin objects.
+                # Real fields: last_updated (RFC3339), price_change_percentage_24h
+                # (float, sentiment proxy), name, symbol. Without this mapping the
+                # job inherits the OHLCV mapping and extracts nothing → score=0.
+                - name: RESPONSE_FIELD_MAPPING
+                  value: "timestamp=last_updated,value=price_change_percentage_24h,title=name,symbol=symbol"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL
                   value: "0s"
                 - name: SUPPLEMENTARY_SOURCE_API_KEY

@@ -84,3 +84,12 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+  # cert-manager injects caBundle into the CRD conversion webhook at runtime;
+  # ArgoCD has no desired-state value and reports OutOfSync on every reconcile.
+  # Single exact path — jsonPointers (no array traversal needed).
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: opentelemetrycollectors.opentelemetry.io
+      jsonPointers:
+        - /spec/conversion/webhook/clientConfig/caBundle

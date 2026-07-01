@@ -77,8 +77,8 @@ data:
         # `en_core_web_sm` (~12.8 MB) from github.com; this cluster is air-gapped
         # with istio STRICT egress, so the fetch fails and the classification
         # worker raises SystemExit:1, aborting the whole pipeline (verified
-        # 2026-06-07). The data this platform catalogs (warehouse OHLCV / technical
-        # features / symbols) carries no PII, so info-type classification yields
+        # 2026-06-07). The data this platform catalogs carries no PII, so info-type
+        # classification yields
         # nothing of value. Profiling — the data-quality governance signal (row
         # counts, null fraction, min/max/stddev) — is retained. To re-enable
         # classification, bake en_core_web_sm into the datahub-ingestion image so

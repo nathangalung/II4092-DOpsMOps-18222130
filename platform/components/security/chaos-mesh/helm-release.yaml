@@ -107,6 +107,24 @@ spec:
       namespace: chaos-mesh
       jsonPointers:
         - /data
+    # cert-manager injects caBundle into webhook configs at runtime; ArgoCD
+    # has no desired-state value for this field and reports OutOfSync on every
+    # reconcile. jqPathExpressions required — jsonPointers has no wildcard.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: chaos-mesh-mutation
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: chaos-mesh-validation
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: chaos-mesh-validation-auth
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
 ---
 # =============================================================================
 # PolicyException — exempt chaos-daemon DaemonSet pods from disallow-privileged.

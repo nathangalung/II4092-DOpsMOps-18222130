@@ -1,0 +1,15 @@
+# =============================================================================
+# DATA-PHASE CROSS-NAMESPACE SUBKUSTOMIZATION
+# =============================================================================
+# KafkaUsers live in data-ingestion (Strimzi User Operator watches there and
+# emits the SCRAM Secret of metadata.name). This file has NO namespace setter
+# so the explicit metadata.namespace survives, mirroring cross-namespace for
+# the data subset. The overlay namePrefix crypto- still applies.
+#
+# CONSUMED BY: overlays/local-data via resources.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base/kafka-users/scram-users.yaml

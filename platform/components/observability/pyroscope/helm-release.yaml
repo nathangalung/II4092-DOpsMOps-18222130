@@ -172,7 +172,7 @@ spec:
       # all. Respect, meanwhile, is actively harmful: combined with the global
       # argocd-cm array-wildcard ignores it back-patches live array elements
       # into desired state and silently no-ops real changes in the same
-      # element (argo-cd#25284 — proven live on the crypto use-case app).
+      # element (argo-cd#25284 — proven live on a use-case app).
       - ApplyOutOfSyncOnly=true
     retry:
       limit: 5

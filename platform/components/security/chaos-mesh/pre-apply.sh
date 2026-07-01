@@ -110,8 +110,11 @@ if ! kubectl -n "$NS" get deployment/chaos-controller-manager >/dev/null 2>&1; t
   exit 1
 fi
 
+# 900s (in-family with the CRD wait above): on a fresh phase-full this is the
+# last atom on a fully-loaded single node, where the controller image is a cold
+# pull from ghcr.io under IO contention — observed ~27 min once, exceeding 600s.
 echo "    pre-apply: waiting chaos-controller-manager Deployment Available"
-kubectl -n "$NS" wait --for=condition=Available --timeout=600s \
+kubectl -n "$NS" wait --for=condition=Available --timeout=900s \
   deployment/chaos-controller-manager 2>&1 | tail -3
 
 echo "    pre-apply: waiting chaos-mesh webhook endpoints populated"

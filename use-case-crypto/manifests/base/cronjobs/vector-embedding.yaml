@@ -22,7 +22,9 @@ metadata:
     type: embedding
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "*/5 * * * *" # Every 5 minutes
+  schedule: "36 * * * *" # Hourly @ :36, staggered off :00 (single-HDD same-tick storm, 2026-06-30). (Was */5 — a 5-min cadence
+  # spawned 288 embedding Job pods/day and fed the IO cascade; news-embedding
+  # refresh is best-proper hourly, matching the supplementary-news ingest cadence.)
   # suspend declared so ArgoCD owns the field under SSA — an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
@@ -104,6 +106,22 @@ spec:
                   value: "sentence-transformers/all-mpnet-base-v2"
                 - name: EMBEDDING_DIM
                   value: "768"
+                # Vector embeds news/sentiment TEXT (bronze.crypto_sentiment), not
+                # OHLCV. VECTOR_DATA_TABLE overrides the DATA_TABLE inherited via
+                # envFrom pipeline-config (= bronze.crypto_ohlcv for the batch path).
+                - name: VECTOR_DATA_TABLE
+                  value: "bronze.crypto_sentiment"
+                # Qdrant collection the embeddings are written to (and that the
+                # KF-04 vector-search eval queries). The platform vector service
+                # defaults to the domain-agnostic "embeddings"
+                # (services/processing/vector/config.py); the use case overrides it
+                # to a domain-named collection. Every sibling VECTOR_* knob was
+                # wired except this one, so the live collection was the generic
+                # default and experiments/config.crypto.env COLLECTION
+                # (crypto_sentiment) 404'd against it. Keep this value in sync with
+                # experiments/config.crypto.env COLLECTION.
+                - name: VECTOR_COLLECTION
+                  value: "crypto_sentiment"
                 - name: JOB_NAME
                   value: "vector_embedding"
                 - name: USE_CASE

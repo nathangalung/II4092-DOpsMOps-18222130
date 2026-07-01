@@ -1,3 +1,0 @@
-# Extra Python dependencies for crypto use-case batch processing.
-# Installed during Docker build via the Makefile overlay mechanism.
-ta>=0.11.0

@@ -7,3 +7,4 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - schema-loader.yaml
+  - hpa.yaml

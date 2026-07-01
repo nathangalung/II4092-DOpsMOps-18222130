@@ -1,0 +1,76 @@
+# =============================================================================
+# Superset — KEDA cron scale-to-zero (idle-UI elasticity)
+# =============================================================================
+# Superset is a pure BI front-end: a human opens it, runs a query against an
+# already-materialised backend (ClickHouse / Trino / Postgres), and closes it.
+# It holds NO pipeline state and nothing downstream blocks on it — so when no
+# one is looking at a dashboard, a warm gunicorn process is pure idle cost
+# (~0.5–2 GiB RAM, JIT page-cache churn) on a single-node cluster whose only
+# scarce resource is one spinning disk.
+#
+# WHY CRON, NOT HTTP-DEMAND (ADR-022 lineage, KEDA scaler choice):
+#   True request-driven scale-from-zero for an HTTP service needs the KEDA
+#   http-add-on interceptor — an ALWAYS-ON proxy that holds the first request
+#   while the pod cold-starts. On a single node that interceptor is itself a
+#   permanent idle footprint, defeating the purpose. A Prometheus-on-RPS
+#   trigger cannot wake from zero either: with 0 replicas there is no backend,
+#   so `istio_requests_total` never increments → the metric stays flat → the
+#   pod never scales up (chicken-and-egg). This is the structural reason
+#   event-driven services (validator/analyzer: Kafka LAG accrues with 0
+#   consumers) CAN scale from zero but HTTP UIs cannot without an interceptor.
+#   Cron is therefore the correct dependency-free fit: scale to 1 across the
+#   working-hours window, to 0 overnight. Escape hatch for off-hours access:
+#   `kubectl -n data-processing scale deploy/superset --replicas=1` (KEDA
+#   yields to an out-of-band scale until the next reconcile).
+#
+# COEXISTENCE: KEDA generates its own HPA (`keda-hpa-superset`) and refuses to
+# reconcile if an operator-owned HPA already targets `superset`. The standalone
+# superset/hpa.yaml is therefore REMOVED from the data-processing kustomization
+# in the same change — do NOT re-add it.
+# =============================================================================
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: superset
+  namespace: data-processing
+  labels:
+    app: superset
+    app.kubernetes.io/part-of: mlops-platform
+    app.kubernetes.io/component: scaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: superset
+  # idleReplicaCount < minReplicaCount is webhook-enforced by KEDA.
+  # Outside the cron window every trigger is inactive → scale to idle (0).
+  # Inside the window the cron trigger reports desiredReplicas → floor of 1.
+  idleReplicaCount: 0
+  minReplicaCount: 1
+  # Headroom for a future CPU/RPS trigger if multi-analyst load ever appears;
+  # with cron alone the workload sits at desiredReplicas (1) during the window.
+  maxReplicaCount: 3
+  pollingInterval: 30
+  # Superset's gunicorn + DB-driver init is slow on this disk; wait 5 min of
+  # continuous inactivity past window close before tearing the pod down so a
+  # late query at 22:58 is not killed mid-flight.
+  cooldownPeriod: 300
+  # Grace after (re)creation before the first scale-to-zero is allowed — avoids
+  # a freshly-applied SO immediately zeroing a pod that ops just brought up.
+  initialCooldownPeriod: 300
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+        scaleUp:
+          stabilizationWindowSeconds: 0
+  triggers:
+    # Working-hours window, WIB (Asia/Jakarta). 1 replica 06:00–23:00, 0 otherwise.
+    - type: cron
+      metadata:
+        timezone: Asia/Jakarta
+        start: "0 6 * * *"
+        end: "0 23 * * *"
+        desiredReplicas: "1"

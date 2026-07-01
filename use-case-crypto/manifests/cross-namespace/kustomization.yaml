@@ -61,6 +61,13 @@ resources:
   # and reads Workflows from there.
   - ../base/workflows/retrain-on-drift.yaml
 
+  # --- KFP pipeline bootstrap Job (model-lifecycle ns) ---
+  # ArgoCD PostSync hook that runs submit_recurring.py to register the KFP
+  # retraining pipeline + recurring runs the CronWorkflow above resolves by
+  # name. Closes the manual-bootstrap gap (CronWorkflow ticks were failing
+  # `KFP pipelines not found` on a fresh cluster). Idempotent per sync.
+  - ../base/workflows/pipeline-bootstrap.yaml
+
   # --- pipeline-secrets mirror into model-lifecycle ns ---
   # KFP single-user mode runs pipeline executor pods in `model-lifecycle`;
   # `kubernetes.use_secret_as_env(secret_name="pipeline-secrets")` on

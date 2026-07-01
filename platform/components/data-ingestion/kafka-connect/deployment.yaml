@@ -33,6 +33,27 @@ metadata:
     strimzi.io/use-connector-resources: "false"
 spec:
   version: 4.2.0
+  # Pre-built custom image: Strimzi Kafka Connect base + Debezium-PostgreSQL
+  # 3.0.7 (CDC) + Iceberg sink 0.6.19 plugins (see ./Dockerfile). Replaces the
+  # in-cluster `.spec.build` (buildah) path, which is blocked by this single-node
+  # cluster's hardened kernel — buildah's unshare(CLONE_NEWUSER) returns
+  # "Operation not permitted", so the connect-build pod never produced the image.
+  # Built + pushed to localhost:5000 (`make build-kafka-connect`); pulled
+  # in-cluster via the registry Service DNS. The image's Kafka version (4.2.0)
+  # matches `spec.version`, as Strimzi requires.
+  #
+  # DEFERRED ON THIS HARDWARE (2026-06-29): the build (≈1GB Strimzi base + a
+  # 129MB Iceberg plugin + BuildKit layer assembly) saturates the single-HDD
+  # node — it drove load to ~190 and BuildKit lost its content-store lease under
+  # the IO starvation. Build this image ONLY on a multi-disk node, then `make
+  # build-kafka-connect` + push. Until then KafkaConnect ImagePullBackOffs (image
+  # absent) and the Debezium CDC + Iceberg-sink path is degraded-by-design. This
+  # is NOT on the verified E2E path: gold is built by dbt, the data lake +
+  # lineage are covered by the Airflow lakeFS-WAP lakehouse + DataHub, and the
+  # ClickHouse `cdc.pipeline.*` / Iceberg tables have no live consumers. Whether
+  # to fully remove this component (no-redundant-tools) vs keep it for a
+  # multi-disk deployment is a user architecture+thesis decision — left intact.
+  image: registry.platform-registry.svc.cluster.local:5000/kafka-connect:debezium-3.0.7-iceberg-0.6.19
   replicas: 1
   # Strimzi Kafka has `authorization.type: simple` and only `admin` as
   # superuser, so the PLAIN listener (9092) returns
@@ -112,48 +133,6 @@ spec:
         allowPrivilegeEscalation: false
         capabilities:
           drop: [ALL]
-    # Build pod skips Istio sidecar — Strimzi build is a one-shot Kaniko Job
-    # that pulls plugin tarballs and pushes a custom image. Istio CNI races
-    # with the build pod's iptables setup; cni.repair.deletePods doesn't
-    # respawn Strimzi build pods. Sidecar-skip avoids the race. Build pod
-    # also runs as root because Kaniko chowns /kaniko/Dockerfile during
-    # init (no rootless mode supports it). PSA enforce=baseline permits root;
-    # Kyverno `require-run-as-nonroot` is Audit-only here.
-    buildPod:
-      metadata:
-        annotations:
-          sidecar.istio.io/inject: "false"
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-  build:
-    # Kyverno `require-resource-limits` (cluster-wide) rejects the build pod
-    # unless every container declares CPU+memory requests AND limits.
-    resources:
-      requests: { cpu: 200m, memory: 512Mi }
-      limits:   { cpu: "1",  memory: 2Gi }
-    output:
-      type: docker
-      # In-cluster Distribution v3 registry (platform/components/common/
-      # registry). k3s containerd is configured via /etc/rancher/k3s/
-      # registries.yaml at bootstrap to trust this hostname (insecure HTTP,
-      # cluster-internal only). Overlays may override to push to an external
-      # registry that requires auth (set `pushSecret` to a dockerconfigjson
-      # Secret in this namespace).
-      image: registry.platform-registry.svc.cluster.local:5000/kafka-connect:debezium-3.0.7-iceberg-0.6.19
-    plugins:
-      - name: debezium-postgres-connector
-        artifacts:
-          - type: tgz
-            url: https://repo1.maven.org/maven2/io/debezium/debezium-connector-postgres/3.0.7.Final/debezium-connector-postgres-3.0.7.Final-plugin.tar.gz
-      # Iceberg sink: tabular-io was acquired by Databricks (June 2024); the
-      # repo and release assets are now under github.com/databricks. The
-      # connector class `io.tabular.iceberg.connect.IcebergSinkConnector` is
-      # preserved for backwards compatibility.
-      - name: iceberg-kafka-connect
-        artifacts:
-          - type: zip
-            url: https://github.com/databricks/iceberg-kafka-connect/releases/download/v0.6.19/iceberg-kafka-connect-runtime-0.6.19.zip
   # Kafka 4.x ships log4j2 (Strimzi 0.51 bumped from log4j 1.x). The legacy
   # `log4j.rootLogger: INFO` key is silently rejected by log4j2's properties
   # parser with "No type attribute provided for component log4j", which

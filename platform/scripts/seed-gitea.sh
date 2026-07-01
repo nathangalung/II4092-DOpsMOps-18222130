@@ -7,7 +7,7 @@
 #   1. install-gitea (atom-gitops-core) creates the gitea pod + the
 #      gitea-bootstrap Job, which provisions org `platform` and an empty repo
 #      `platform/platform` plus one repo per use-case overlay
-#      (`platform/use-case-crypto`, ...). auto_init=true seeds each with a
+#      (`platform/use-case-<name>`, ...). auto_init=true seeds each with a
 #      README.md so downstream consumers always find a `main` ref.
 #   2. ArgoCD has TWO source-of-truth surfaces:
 #        - `platform/platform.git` — app-of-apps + per-component ApplicationSet
@@ -52,8 +52,15 @@ PLATFORM_DIR="${REPO_ROOT}/platform"
 #                 source.path stays unchanged after refactor)
 SEED_TARGETS=(
   "platform:${PLATFORM_DIR}:platform"
-  "use-case-crypto:${REPO_ROOT}/use-case-crypto:use-case-crypto"
 )
+# Auto-discover every `use-case-*/` overlay sibling — the platform seeder is
+# domain-agnostic and must not hardcode any specific use-case. Adding a new
+# use-case (e.g. `use-case-fraud/`) needs zero changes here.
+for uc_dir in "${REPO_ROOT}"/use-case-*/; do
+  [ -d "${uc_dir}" ] || continue          # no-glob-match guard
+  uc_name="$(basename "${uc_dir}")"
+  SEED_TARGETS+=("${uc_name}:${uc_dir%/}:${uc_name}")
+done
 
 if [[ ! -d "${PLATFORM_DIR}" ]]; then
   echo "ERROR: ${PLATFORM_DIR} not found — must run from a checkout containing platform/" >&2

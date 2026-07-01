@@ -40,40 +40,54 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def get_latest_run(experiment_name: str) -> tuple[str, str]:
-    """Return (experiment_id, run_id) for the latest FINISHED MLflow run."""
+def resolve_latest_model_uri(experiment_name: str) -> str:
+    """Resolve the S3 artifact URI of the latest logged model in an experiment.
+
+    MLflow 3.x stores model artifacts under
+    ``{artifact_root}/{experiment_id}/models/{model_id}/artifacts`` — NOT the
+    2.x ``{run_id}/artifacts/{path}`` layout the previous version constructed
+    (that path simply does not exist in MinIO under MLflow 3.x, so the
+    storage-initializer would find nothing and the InferenceService never went
+    Ready). We query the logged-models API and use the model's own
+    ``artifact_location`` when it is already an ``s3://`` URI; otherwise we
+    reconstruct the 3.x path from experiment_id + model_id under the configured
+    S3 artifact bucket. KServe's storage-initializer pulls this directory (it
+    holds ``MLmodel`` + ``model.pkl``); a trailing slash is required.
+    """
     mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
     experiment = mlflow.get_experiment_by_name(experiment_name)
     if experiment is None:
         logger.error("Experiment '%s' not found in MLflow", experiment_name)
         sys.exit(1)
 
-    runs = mlflow.search_runs(
+    models = mlflow.search_logged_models(
         experiment_ids=[experiment.experiment_id],
-        filter_string="status = 'FINISHED'",
+        order_by=[{"field_name": "creation_time", "ascending": False}],
         max_results=1,
-        order_by=["start_time DESC"],
+        output_format="list",
     )
-
-    if len(runs) == 0:
-        logger.error("No successful runs in experiment '%s'", experiment_name)
+    if not models:
+        logger.error("No logged models in experiment '%s'", experiment_name)
         sys.exit(1)
 
-    run_id = runs.iloc[0]["run_id"]
-    estimator = runs.iloc[0].get("params.flaml_best_estimator", "unknown")
-    metrics = {
-        k.replace("metrics.", ""): v
-        for k, v in runs.iloc[0].items()
-        if k.startswith("metrics.")
-    }
+    model = models[0]
+    loc = (getattr(model, "artifact_location", "") or "").rstrip("/")
+    if loc.startswith("s3://"):
+        storage_uri = loc + "/"
+    else:
+        bucket = os.getenv("MLFLOW_ARTIFACT_BUCKET", "mlflow")
+        storage_uri = (
+            f"s3://{bucket}/artifacts/{experiment.experiment_id}"
+            f"/models/{model.model_id}/artifacts/"
+        )
     logger.info(
-        "Latest run: experiment_id=%s run_id=%s estimator=%s metrics=%s",
-        experiment.experiment_id,
-        run_id,
-        estimator,
-        metrics,
+        "Latest logged model: id=%s source_run=%s status=%s → %s",
+        model.model_id,
+        getattr(model, "source_run_id", "?"),
+        getattr(model, "status", "?"),
+        storage_uri,
     )
-    return experiment.experiment_id, run_id
+    return storage_uri
 
 
 def patch_storage_uri(
@@ -145,8 +159,7 @@ def patch_storage_uri(
 
 
 def deploy(model_name: str, namespace: str, experiment_name: str) -> None:
-    experiment_id, run_id = get_latest_run(experiment_name)
-    storage_uri = f"s3://mlflow/artifacts/{experiment_id}/{run_id}/artifacts/model/"
+    storage_uri = resolve_latest_model_uri(experiment_name)
     logger.info("Deploying model from %s", storage_uri)
     patch_storage_uri(model_name, namespace, storage_uri)
 

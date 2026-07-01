@@ -1,7 +1,7 @@
 # SK-N-04 — game-day resilience drills (validates KNF-04 end-to-end).
 # Two serial Workflows run manually during evaluation:
 #   eval-game-day          use-case serving tier: gateway packet loss ->
-#                          feature-cache kill -> ml-bridge MLflow latency.
+#                          ml-bridge reader kill -> MLflow latency (to ml-bridge).
 #   eval-platform-game-day platform substrate tier: CNPG primary kill ->
 #                          Kafka broker link loss.
 # The per-fault one-shots in pod-chaos.yaml / network-chaos.yaml run each
@@ -23,7 +23,7 @@ spec:
   templates:
     - name: resilience
       templateType: Serial
-      children: [gateway-loss, cache-kill, mlflow-latency]
+      children: [gateway-loss, ml-bridge-kill, mlflow-latency]
     - name: gateway-loss
       templateType: NetworkChaos
       deadline: '6m'
@@ -37,7 +37,7 @@ spec:
         # Inside Workflow templates duration is forbidden (vworkflow.kb.io);
         # the parent deadline (6m) bounds it. Empty targets -> direction `to`.
         direction: to
-    - name: cache-kill
+    - name: ml-bridge-kill
       templateType: PodChaos
       deadline: '3m'
       podChaos:
@@ -45,7 +45,7 @@ spec:
         mode: one
         selector:
           namespaces: [${USE_CASE_NAMESPACE}]
-          labelSelectors: { app: ${FEATURE_CACHE_APP} }
+          labelSelectors: { app: ${ML_BRIDGE_APP} }
     - name: mlflow-latency
       templateType: NetworkChaos
       deadline: '5m'

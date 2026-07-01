@@ -67,10 +67,10 @@ sibling, so a prefix change there must be mirrored here by hand.
 
 | KF | Skenario | Artefak / Cara jalan |
 |----|----------|----------------------|
-| KF-01 | SK-F-01 | Edit `use-case-crypto/scripts/libs/feature_store/definitions.py` → `git push` Gitea → Argo CD sync → `uv run feast feature-views list` |
+| KF-01 | SK-F-01 | Edit the Feast feature-repo ConfigMap source `use-case-crypto/manifests/base/configmaps/feast.yaml` (rendered as ConfigMap `crypto-feast-feature-repo`, the registry Argo CD syncs) → `git push` Gitea → Argo CD sync → verify `kubectl -n use-case-crypto get configmap crypto-feast-feature-repo -o jsonpath='{.data.definitions\.py}' \| grep 'FeatureView('` (or `uv run feast feature-views list` against the rendered repo). NOTE: `scripts/libs/feature_store/definitions.py` is the legacy bespoke store, NOT the Feast registry — editing it has no effect on the deployed feature views. |
 | KF-02 | SK-F-02 | `uv run experiments/feast/online-serving-check.py` (online non-null) + `etl/data-landed-check.sh` (offline landed) + online↔offline value parity via Feast SDK `get_online_features`/`get_historical_features` (see `feast/README.md`) |
 | KF-03 | SK-F-03 | `get_historical_features` point-in-time audit on `gold.fct_training_data` |
-| KF-04 | SK-F-04 | `k6 run load/vector-search-latency.js` (Qdrant top-10 recall) |
+| KF-04 | SK-F-04 | `k6 run load/vector-search-latency.js` — Qdrant vector-search **latency** (sub-second; p50/p95/p99). Top-10 **recall** is deferred until the embedding collection is populated (thesis status: *Terinstrumentasi*); the script queries a random vector and asserts latency only, so recall must be measured separately once vectors land. |
 | KF-05 | SK-F-05 | `uv run --with 'kfp[kubernetes]==2.16.0' use-case-crypto/pipelines/retraining_pipeline.py` (Kubeflow Pipelines) |
 | KF-06 | SK-F-06 | Argo Rollouts canary + forced-bad-model rollback |
 | KF-07 | SK-F-07 | `uv run experiments/drift/inject_drift.py --sigma 2.0` → `quality/drift` → `retrain-on-drift` CronWorkflow |

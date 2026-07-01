@@ -1,0 +1,70 @@
+# Lakekeeper warehouse bootstrap — the missing step that made lakekeeper dead
+# weight. The platform lakekeeper-bootstrap Job only calls POST /bootstrap (accepts
+# terms); it never creates a Warehouse, so no Iceberg table could ever be written.
+# This use-case Job registers the `warehouse` warehouse backed by the MinIO
+# `warehouse` bucket (already created by the platform minio-bucket-bootstrap), which
+# the Spark archive job and Trino then read/write. Idempotent: a duplicate returns
+# 409, which we accept.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lakekeeper-warehouse-bootstrap
+  labels:
+    app.kubernetes.io/part-of: lakehouse
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: { job: lakekeeper-warehouse-bootstrap }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: warehouse
+          image: curlimages/curl:8.20.0
+          envFrom:
+            - secretRef: { name: pipeline-secrets }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              LK="http://lakekeeper.storage.svc.cluster.local:8181"
+              echo "waiting for lakekeeper ..."
+              i=0; until curl -sf "$LK/health" >/dev/null 2>&1; do
+                i=$((i+1)); [ "$i" -gt 60 ] && echo "lakekeeper not healthy" && exit 1
+                sleep 5
+              done
+              # Idempotent create of warehouse `warehouse` on MinIO bucket `warehouse`.
+              BODY=$(cat <<JSON
+              {
+                "warehouse-name": "warehouse",
+                "storage-profile": {
+                  "type": "s3",
+                  "bucket": "warehouse",
+                  "flavor": "s3-compat",
+                  "key-prefix": "iceberg",
+                  "endpoint": "http://minio.storage.svc.cluster.local:9000",
+                  "region": "local-01",
+                  "path-style-access": true,
+                  "sts-enabled": false
+                },
+                "storage-credential": {
+                  "type": "s3",
+                  "credential-type": "access-key",
+                  "access-key-id": "${S3_ACCESS_KEY_ID}",
+                  "secret-access-key": "${S3_SECRET_ACCESS_KEY}"
+                }
+              }
+              JSON
+              )
+              CODE=$(curl -s -o /tmp/out -w "%{http_code}" -X POST \
+                -H "Content-Type: application/json" \
+                -d "$BODY" "$LK/management/v1/warehouse" || true)
+              echo "POST /management/v1/warehouse -> $CODE"; cat /tmp/out || true
+              case "$CODE" in
+                2*|409) echo "warehouse ready"; exit 0 ;;
+                *) echo "warehouse create failed"; exit 1 ;;
+              esac

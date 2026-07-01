@@ -6,13 +6,13 @@
 #
 # Sizing:
 #   partitions        : 12    — matches rest.raw; keeps per-symbol ordering stable
-#   replicas          : 3
+#   replicas          : 1
 #   retention.ms      : 14d   — long enough for Feast backfill windows
-#   min.insync.replicas : 2
+#   min.insync.replicas : 1
 #   compression.type  : zstd
 #   cleanup.policy    : delete
 # =============================================================================
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: validated
@@ -25,11 +25,11 @@ metadata:
 spec:
   topicName: crypto.validated
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
     retention.ms: 1209600000           # 14d
     segment.ms: 86400000               # 1d
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: delete
     max.message.bytes: 1048576         # 1 MiB

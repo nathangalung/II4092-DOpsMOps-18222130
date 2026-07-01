@@ -43,9 +43,10 @@ RUN xmake f -m release -y && xmake build inference-engine
 # Runtime image
 FROM ubuntu:26.04
 
-RUN apt-get update && apt-get install -y \
-    libgrpc++1.51t64 \
-    libprotobuf32t64 \
+# Runtime libs match builder ABI
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgrpc++-dev \
+    libprotobuf-dev \
     && rm -rf /var/lib/apt/lists/* \
     && userdel -r ubuntu 2>/dev/null || true \
     && useradd -u 1000 -m -s /usr/sbin/nologin app

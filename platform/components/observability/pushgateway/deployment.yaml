@@ -3,6 +3,11 @@ kind: Service
 metadata:
   name: pushgateway
   namespace: observability
+  labels:
+    app: pushgateway
+    app.kubernetes.io/name: pushgateway
+    app.kubernetes.io/component: metrics-gateway
+    app.kubernetes.io/part-of: mlops-platform
 spec:
   ports:
     - port: 9091

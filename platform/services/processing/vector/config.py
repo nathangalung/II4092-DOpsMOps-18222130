@@ -182,4 +182,11 @@ def load_config(path: str | None = None) -> Config:
     config.redis_password = os.getenv("VALKEY_PASSWORD", config.redis_password)
     config.qdrant_api_key = os.getenv("QDRANT_API_KEY", config.qdrant_api_key)
 
+    # Generic SYMBOLS env override (domain-agnostic): use-cases set
+    # SYMBOLS=<comma-list> in their ConfigMap. Without this the embedding job
+    # falls back to the placeholder SAMPLE-001/002 defaults.
+    symbols_env = os.getenv("SYMBOLS", "")
+    if symbols_env:
+        config.symbols = [s.strip() for s in symbols_env.split(",") if s.strip()]
+
     return config

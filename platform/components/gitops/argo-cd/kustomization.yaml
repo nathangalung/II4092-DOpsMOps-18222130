@@ -98,3 +98,7 @@ patches:
   - path: argocd-server-patch.yaml
   - path: argocd-repo-server-patch.yaml
   - path: argocd-application-controller-patch.yaml
+  # Single-HDD controller throttle (status/operation/kubectl/reposerver
+  # parallelism + selfHeal timeout) — the empty upstream cmd-params-cm ran
+  # multi-node-SSD defaults that storm one spinning disk's kine store.
+  - path: argocd-cmd-params-patch.yaml

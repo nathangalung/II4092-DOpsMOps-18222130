@@ -42,7 +42,15 @@ resources:
   - opencost/deployment.yaml
   - pushgateway
   - sloth
-  - pyroscope
+  # pyroscope REMOVED (single-HDD IO budget): 0 use-case references and the
+  # highest-IO NON-essential resident workload — an eBPF profiler DaemonSet
+  # that samples every pod continuously + a server doing Prometheus-style chunk
+  # compaction, all writing to the one spinning disk. The observability pillar
+  # (logs/metrics/traces/dashboards) is fully met by Loki + Grafana + Tempo +
+  # kube-prometheus-stack without continuous profiling. THESIS NOTE: Pyroscope
+  # is named in ADR-014 + ~4 chapter mentions; reframe those as "evaluated and
+  # deployed in the design, excluded from the single-node production profile for
+  # the IO budget" (resource-aware engineering under a documented HW constraint).
   # VPA (Fairwinds 4.11.0) — recommender-only advisory autoscaler.
   # Owns autoscaling.k8s.io VerticalPodAutoscaler CRs across the platform.
   # See helm-release.yaml header for single-node `updateMode: Off` policy.

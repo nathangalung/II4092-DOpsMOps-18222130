@@ -32,7 +32,13 @@ spec:
   secretStoreRef: { name: platform-kafka-users, kind: ClusterSecretStore }
   target:
     name: clickhouse-kafka-sasl
-    creationPolicy: Owner
+    # Merge, not Owner: the platform seeds an empty `clickhouse-kafka-sasl`
+    # placeholder in its clickhouse pre-apply so the CHI pod starts before any
+    # use-case (the Altinity operator drops `optional` on settings-derived env,
+    # so an absent secret would wedge it). This ES merges the real SCRAM creds
+    # into that existing secret; Owner would refuse to adopt a secret it did
+    # not create.
+    creationPolicy: Merge
     template:
       type: Opaque
       data:

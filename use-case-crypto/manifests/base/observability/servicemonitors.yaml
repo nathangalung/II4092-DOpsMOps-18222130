@@ -123,23 +123,6 @@ spec:
       interval: 15s  # gateway is on the hot path — scrape often
       scrapeTimeout: 10s
 ---
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: feature-cache
-  namespace: use-case-crypto
-  labels:
-    app.kubernetes.io/part-of: use-case-crypto
-    usecase: crypto
-spec:
-  selector:
-    matchLabels: { app: feature-cache }
-  endpoints:
-    - port: http
-      path: /metrics
-      interval: 30s
-      scrapeTimeout: 10s
----
 # -----------------------------------------------------------------------------
 # ML bridge (ml-bridge latency alert feed)
 # -----------------------------------------------------------------------------

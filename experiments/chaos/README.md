@@ -10,10 +10,10 @@ placeholders rendered from the config with `envsubst`.
 
 | File | Kind(s) | Validates | Targets |
 |------|---------|-----------|---------|
-| `pod-chaos.yaml` | PodChaos ×4 | KNF-04 (SK-N-04) | kafka broker, KServe predictor, feature-cache, CNPG primary pod-kill recovery |
+| `pod-chaos.yaml` | PodChaos ×4 | KNF-04 (SK-N-04) | kafka broker, KServe predictor, ml-bridge reader, CNPG primary pod-kill recovery |
 | `network-chaos.yaml` | NetworkChaos ×4 | KNF-04 (SK-N-04) | Feast delay, gateway egress loss, ml-bridge→MLflow latency, kafka broker loss |
 | `stress-chaos.yaml` | StressChaos ×1 | KNF-03 (SK-N-03) | gateway CPU stress → KEDA cpu trigger scale-out |
-| `game-day.yaml` | Workflow ×2 | KNF-04 (SK-N-04) | use-case drill: gateway→cache→mlflow; substrate drill: cnpg→kafka |
+| `game-day.yaml` | Workflow ×2 | KNF-04 (SK-N-04) | use-case drill: gateway→ml-bridge→mlflow; substrate drill: cnpg→kafka |
 
 The use-case-targeted CRs carry `${...}` placeholders; the platform-substrate
 CRs (kafka broker, CNPG primary) use literal selectors — domain-stable infra,
@@ -58,6 +58,6 @@ Swap `apply` for `delete` to end each experiment when the window closes.
 * **Target via selector.** mlflow latency selects `model-lifecycle`
   `app.kubernetes.io/name: mlflow` and hits only ml-bridge traffic; the kafka kill
   selects `data-ingestion`. Retargeting an app is a config change
-  (`GATEWAY_APP` / `FEATURE_CACHE_APP` / `ML_BRIDGE_APP`), never a manifest edit.
+  (`GATEWAY_APP` / `ML_BRIDGE_APP`), never a manifest edit.
 * **Workflow legs omit `duration`.** Inside `game-day.yaml` each leg is bounded by
   its parent `deadline` (`vworkflow.kb.io` rejects `duration` in a Workflow template).

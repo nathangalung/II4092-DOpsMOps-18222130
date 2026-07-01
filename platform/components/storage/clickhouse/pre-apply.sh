@@ -24,6 +24,25 @@ REQUIRED_CRDS=(
   clickhousekeeperinstallations.clickhouse-keeper.altinity.com
 )
 
+# The platform CHI <kafka> block references secret `clickhouse-kafka-sasl` for
+# librdkafka SASL creds — the only place ClickHouse honours them. The real creds
+# are owned by a use-case ExternalSecret (creationPolicy: Merge). On a
+# platform-only install (or before that ES syncs) the secret is absent, and the
+# Altinity operator drops `optional` when turning settings into pod env, so the
+# CH pod wedges in CreateContainerConfigError. Seed an empty placeholder (keys
+# present, values blank) so the pod starts; the use-case Merge fills real creds
+# later. Created here, NOT via kustomize, so it is not Argo/SSA-tracked and
+# never flaps OutOfSync against the ESO-merged value.
+ensure_kafka_sasl_placeholder() {
+  if kubectl -n storage get secret clickhouse-kafka-sasl >/dev/null 2>&1; then
+    echo "    pre-apply: clickhouse-kafka-sasl already present"
+    return 0
+  fi
+  echo "    pre-apply: seeding empty clickhouse-kafka-sasl placeholder (use-case Merge fills creds)"
+  kubectl -n storage create secret generic clickhouse-kafka-sasl \
+    --from-literal=username= --from-literal=password=
+}
+
 echo "    pre-apply: waiting up to ${WAIT_SECS}s for CRDs: ${REQUIRED_CRDS[*]}"
 ATTEMPTS=$((WAIT_SECS / SLEEP_INTERVAL))
 for i in $(seq 1 "$ATTEMPTS"); do
@@ -35,6 +54,7 @@ for i in $(seq 1 "$ATTEMPTS"); do
   done
   if [[ ${#MISSING[@]} -eq 0 ]]; then
     echo "    pre-apply: all required CRDs Established"
+    ensure_kafka_sasl_placeholder
     exit 0
   fi
   echo "    pre-apply: waiting on ${MISSING[*]} (attempt ${i}/${ATTEMPTS}); sleep ${SLEEP_INTERVAL}s"

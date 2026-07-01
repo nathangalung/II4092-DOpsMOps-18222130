@@ -1,0 +1,25 @@
+# Scrapes the Pushgateway so batch-job metrics reach Prometheus.
+# CronJobs and Airflow DAGs push last-value metrics (job success, duration,
+# exit code, run timestamp) here; without this ServiceMonitor those series
+# never enter Prometheus and every batch-pipeline dashboard panel stays empty.
+# honorLabels: true is mandatory — it preserves the `job` label each pipeline
+# pushed (e.g. airflow_dag_lakehouse) instead of overwriting it with the
+# scrape job, which would collapse all pipelines into one series.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pushgateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: pushgateway
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  selector:
+    matchLabels:
+      app: pushgateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true

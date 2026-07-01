@@ -99,13 +99,10 @@ images:
     newTag: latest
   - name: drift-detector
     newName: localhost:5000/crypto-drift-detector
-    newTag: v2026.05.22
+    newTag: latest
   # Serving
   - name: gateway
     newName: localhost:5000/crypto-gateway
-    newTag: latest
-  - name: feature-cache
-    newName: localhost:5000/crypto-feature-cache
     newTag: latest
   # inference-engine: crypto serves via KServe InferenceService (crypto-predictor),
   #   not the platform C++ engine — disabled in config/services.yaml (no image
@@ -152,8 +149,6 @@ replicas:
   # supports Deployment/StatefulSet/ReplicaSet/Rollout, not FlinkDeployment.
   # Serving
   - name: gateway
-    count: 1
-  - name: feature-cache
     count: 1
   # inference-engine replaced by KServe InferenceService
   # Dashboard

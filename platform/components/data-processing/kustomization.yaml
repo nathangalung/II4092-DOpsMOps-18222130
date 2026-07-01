@@ -4,11 +4,10 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - airflow
-  - dbt/deployment.yaml
   - flink
   - great-expectations
   - spark
   - superset/deployment.yaml
-  - superset/hpa.yaml
+  - superset/scaledobject.yaml
   - trino/deployment.yaml
   - trino/hpa.yaml

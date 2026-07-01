@@ -178,12 +178,18 @@ spec:
           # exceeded" and endpoint ejection -> downstream S3 clients (loki,
           # tempo, pyroscope) get 503/no-healthy-upstream and crash-loop.
           # timeoutSeconds + failureThreshold give slow-disk slack before eject.
+          # Widened 2026-06-29: under a concurrent IO spike (docker build +
+          # bootstrap) /minio/health/ready exceeded the 5s timeout and flapped
+          # the endpoint out for 6h (x379 probe fails), cascading "connection
+          # refused" to every S3 client. 15s timeout × 6 failures × 15s period
+          # = ~90s of *sustained* unreadiness before eject (a real outage),
+          # while brief IO transients no longer eject the core object store.
           readinessProbe:
             httpGet: { path: /minio/health/ready, port: 9000 }
             initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 4
+            periodSeconds: 15
+            timeoutSeconds: 15
+            failureThreshold: 6
           livenessProbe:
             httpGet: { path: /minio/health/live, port: 9000 }
             initialDelaySeconds: 30

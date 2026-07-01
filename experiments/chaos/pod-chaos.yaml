@@ -1,10 +1,10 @@
 # SK-N-04 — fault tolerance & automatic recovery (validates KNF-04).
 # Kills one Kafka broker, the CNPG Postgres primary, one KServe predictor
-# pod, and the use-case feature-cache pod; measure recovery (RTO < 5 min,
-# RPO < 1 min) via Prometheus availability queries.
+# pod, and the use-case ml-bridge online-feature reader; measure recovery
+# (RTO < 5 min, RPO < 1 min) via Prometheus availability queries.
 #
-# The predictor + feature-cache PodChaos target the use-case namespace, so
-# render ${USE_CASE_NAMESPACE} / ${PREDICTOR_NAME} / ${FEATURE_CACHE_APP} from
+# The predictor + ml-bridge PodChaos target the use-case namespace, so
+# render ${USE_CASE_NAMESPACE} / ${PREDICTOR_NAME} / ${ML_BRIDGE_APP} from
 # the loaded config before applying (the Kafka + CNPG PodChaos are
 # platform-generic, no vars):
 #   set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
@@ -41,12 +41,16 @@ spec:
     labelSelectors:
       serving.kserve.io/inferenceservice: ${PREDICTOR_NAME}
 ---
-# Use-case serving-side cache invalidation: kill the online feature-cache pod
-# and verify warm-cache rebuild keeps prediction serving within RTO.
+# Use-case serving-side fault: kill the ml-bridge online-feature reader — the
+# KServe transformer that fetches Feast/Valkey online features for the
+# predictor — and verify it restarts and the serving path resumes within RTO.
+# (Replaces the retired feature-cache target: the bespoke Rust gRPC cache was
+# removed when crypto moved to Feast-materialize -> Valkey -> ml-bridge, so the
+# old `app: feature-cache` selector matched zero pods and the leg was a no-op.)
 apiVersion: chaos-mesh.org/v1alpha1
 kind: PodChaos
 metadata:
-  name: eval-feature-cache-kill
+  name: eval-ml-bridge-kill
   namespace: platform-test
 spec:
   action: pod-kill
@@ -55,7 +59,7 @@ spec:
     namespaces:
       - ${USE_CASE_NAMESPACE}
     labelSelectors:
-      app: ${FEATURE_CACHE_APP}
+      app: ${ML_BRIDGE_APP}
   gracePeriod: 0
 ---
 # Platform substrate fault: kill the CNPG Postgres primary. Single-instance

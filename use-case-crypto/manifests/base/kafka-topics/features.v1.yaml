@@ -10,13 +10,13 @@
 #
 # Sizing:
 #   partitions        : 12
-#   replicas          : 3
+#   replicas          : 1
 #   retention.ms      : 90d   — matches Feast offline TTL + model back-test window
-#   min.insync.replicas : 2
+#   min.insync.replicas : 1
 #   compression.type  : zstd
 #   cleanup.policy    : delete
 # =============================================================================
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: features-v1
@@ -30,11 +30,11 @@ metadata:
 spec:
   topicName: crypto.features.v1
   partitions: 12
-  replicas: 3
+  replicas: 1
   config:
     retention.ms: 7776000000           # 90d
     segment.ms: 604800000              # 7d
-    min.insync.replicas: 2
+    min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: delete
     max.message.bytes: 2097152         # 2 MiB — feature vectors can be wide

@@ -76,8 +76,13 @@ components:
       required_by: [knative, gateway]
     knative:
       enabled: true
-      description: "Serverless (required for KServe)"
-      required_by: [kserve]
+      # NOTE: KServe runs in RawDeployment mode on this node
+      # (ENABLE_KNATIVE_SERVING=false) because kine-backed Serverless was
+      # unstable and scale-to-zero conflicts with the 1-replica-idle invariant.
+      # Knative is installed as an available serverless capability but is NOT on
+      # the serving path — do not claim it as required by KServe here.
+      description: "Serverless runtime (available; KServe uses RawDeployment, not on serving path)"
+      required_by: []
     kueue:
       enabled: true
       description: "K8s-native job queueing (priority, quotas, fair sharing)"

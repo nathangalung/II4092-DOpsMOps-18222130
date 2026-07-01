@@ -147,19 +147,22 @@ spec:
   generators:
     - list:
         elements:
-          # wave -10 : foundations that every other component depends on
-          - { name: common,          path: platform/components/common,          wave: "-10" }
-          - { name: storage,         path: platform/components/storage,         wave: "-10" }
-          - { name: security,        path: platform/components/security,        wave: "-10" }
-          # wave 0 : ingest / process / ML lifecycle
-          - { name: data-ingestion,  path: platform/components/data-ingestion,  wave:   "0" }
-          - { name: data-processing, path: platform/components/data-processing, wave:   "0" }
-          - { name: model-lifecycle, path: platform/components/model-lifecycle, wave:   "0" }
-          # wave 10 : downstream consumers that read from the above
-          - { name: data-governance, path: platform/components/data-governance, wave:  "10" }
-          - { name: model-serving,   path: platform/components/model-serving,   wave:  "10" }
-          - { name: observability,   path: platform/components/observability,   wave:  "10" }
-          - { name: gitops,          path: platform/components/gitops,          wave:  "10" }
+          # SINGLE-HDD serialization: one app per wave so a full app-of-apps
+          # resync advances ONE Application at a time (each must reach Healthy
+          # before the next starts) instead of 3-4 applying in parallel and
+          # storming the single spinning disk's kine store. Combined with the
+          # cmd-params throttle (operation.processors=3) this caps the disk to
+          # one heavy stateful app applying at a time. Ordered by dependency.
+          - { name: common,          path: platform/components/common,          wave: "-10" }  # CRDs/operators: cert-manager, ESO, KEDA, gateway-api
+          - { name: storage,         path: platform/components/storage,         wave:  "-8" }  # CNPG/MinIO/ClickHouse/Valkey — needs common CRDs
+          - { name: security,        path: platform/components/security,        wave:  "-6" }  # Kyverno/OpenBao/Istio/Falco
+          - { name: data-ingestion,  path: platform/components/data-ingestion,  wave:   "0" }  # Kafka — first consumer of storage
+          - { name: data-processing, path: platform/components/data-processing, wave:   "2" }  # Airflow/Spark/Flink — need Kafka + storage
+          - { name: model-lifecycle, path: platform/components/model-lifecycle, wave:   "4" }  # MLflow/Feast/Kubeflow
+          - { name: data-governance, path: platform/components/data-governance, wave:  "10" }  # DataHub — reads Kafka + upstream
+          - { name: model-serving,   path: platform/components/model-serving,   wave:  "12" }  # KServe — needs MLflow registry
+          - { name: observability,   path: platform/components/observability,   wave:  "14" }  # Grafana/Loki/OTel/Pyroscope
+          - { name: gitops,          path: platform/components/gitops,          wave:  "16" }  # Tekton/Argo Rollouts — CI/CD on top
   template:
     metadata:
       name: "platform-{{name}}"
@@ -212,8 +215,8 @@ spec:
           # the LIVE array element into the desired state at sync time, so any
           # real change in the same element (an image bump next to an ignored
           # env var) becomes a silent no-op apply and the app sticks OutOfSync
-          # forever (argo-cd#25284, #11876; proven live 2026-06-10 on the
-          # crypto use-case KafkaUsers/Tasks/PrometheusServiceLevel).
+          # forever (argo-cd#25284, #11876; proven live 2026-06-10 on
+          # use-case KafkaUsers/Tasks/PrometheusServiceLevel).
           # Diff-side ignoreDifferences still work without it, and with
           # ApplyOutOfSyncOnly a resource whose only drift is ignored never
           # enters the apply set — runtime-mutated fields stay preserved.

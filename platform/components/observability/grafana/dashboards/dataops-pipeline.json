@@ -11,6 +11,54 @@
   "panels": [
     {
       "datasource": "Prometheus",
+      "description": "Per-job success flag reported to the pushgateway (1 = ok, 0 = fail).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": { "text": "OK", "color": "green", "index": 0 },
+                "0": { "text": "FAIL", "color": "red", "index": 1 }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "expr": "crypto_job_last_success{use_case=\"crypto\"}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Pipeline Success",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Seconds since each crypto batch job last reported to the pushgateway.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -19,13 +67,15 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "red", "value": 0 }
+              { "color": "yellow", "value": 1800 },
+              { "color": "red", "value": 3600 }
             ]
-          }
+          },
+          "unit": "s"
         }
       },
-      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 0 },
-      "id": 1,
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -39,16 +89,56 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(data_collected_total[5m]))",
-          "legendFormat": "Records/s",
+          "expr": "time() - crypto_job_last_run_timestamp{use_case=\"crypto\"}",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
-      "title": "Data Collection Rate",
+      "title": "Job Freshness",
       "type": "stat"
     },
     {
       "datasource": "Prometheus",
+      "description": "Count of crypto batch jobs whose last exit code was non-zero.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(crypto_job_last_exit_code{use_case=\"crypto\"} != 0)",
+          "legendFormat": "Failed Jobs",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Jobs",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total consumer lag across all Kafka consumer groups and topics.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -63,8 +153,8 @@
           }
         }
       },
-      "gridPos": { "h": 6, "w": 5, "x": 5, "y": 0 },
-      "id": 2,
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -79,151 +169,31 @@
       "targets": [
         {
           "expr": "sum(kafka_consumergroup_lag)",
-          "legendFormat": "Consumer Lag",
+          "legendFormat": "Total Lag",
           "refId": "A"
         }
       ],
-      "title": "Kafka Consumer Lag",
+      "title": "Kafka Lag Total",
       "type": "stat"
     },
     {
       "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          }
-        }
-      },
-      "gridPos": { "h": 6, "w": 5, "x": 10, "y": 0 },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(etl_pipeline_failures_total[24h]))",
-          "legendFormat": "Failures",
-          "refId": "A"
-        }
-      ],
-      "title": "ETL Failures (24h)",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 95 },
-              { "color": "green", "value": 99 }
-            ]
-          },
-          "unit": "percent"
-        }
-      },
-      "gridPos": { "h": 6, "w": 5, "x": 15, "y": 0 },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["mean"],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "expr": "(1 - sum(rate(etl_pipeline_failures_total[24h])) / sum(rate(etl_pipeline_runs_total[24h]))) * 100",
-          "legendFormat": "Success Rate",
-          "refId": "A"
-        }
-      ],
-      "title": "Pipeline Success Rate",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.01 },
-              { "color": "red", "value": 0.05 }
-            ]
-          },
-          "unit": "percentunit"
-        }
-      },
-      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 0 },
-      "id": 5,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      },
-      "targets": [
-        {
-          "expr": "data_quality_null_ratio",
-          "legendFormat": "Null Ratio",
-          "refId": "A"
-        }
-      ],
-      "title": "Data Quality (Null Ratio)",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
+      "description": "Duration of the last run of each crypto batch job.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1
           },
-          "mappings": []
+          "mappings": [],
+          "unit": "s"
         }
       },
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
-      "id": 6,
+      "id": 5,
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -234,16 +204,17 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(data_collected_total[5m])) by (source)",
-          "legendFormat": "{{source}}",
+          "expr": "crypto_job_last_duration_seconds{use_case=\"crypto\"}",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
-      "title": "Data Collection by Source",
+      "title": "Pipeline Duration",
       "type": "timeseries"
     },
     {
       "datasource": "Prometheus",
+      "description": "Consumer lag broken down by Kafka topic.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -261,6 +232,45 @@
         }
       },
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (topic) (kafka_consumergroup_lag)",
+          "legendFormat": "{{topic}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Kafka Consumer Lag by Topic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Container restart counts for pods in the use-case-crypto namespace.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 16 },
       "id": 7,
       "options": {
         "legend": {
@@ -272,30 +282,34 @@
       },
       "targets": [
         {
-          "expr": "sum(kafka_consumergroup_lag) by (topic)",
-          "legendFormat": "{{topic}}",
+          "expr": "kube_pod_container_status_restarts_total{namespace=\"use-case-crypto\"}",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
-      "title": "Kafka Consumer Lag by Topic",
+      "title": "Ingestion/Processing Pod Restarts",
       "type": "timeseries"
     },
     {
       "datasource": "Prometheus",
+      "description": "Available replica count per deployment in use-case-crypto.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "linear",
-            "lineWidth": 1
+            "fillOpacity": 20,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
           },
-          "mappings": [],
-          "unit": "s"
+          "mappings": []
         }
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 16 },
       "id": 8,
       "options": {
         "legend": {
@@ -307,42 +321,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(etl_pipeline_duration_bucket[5m])) by (le, pipeline))",
-          "legendFormat": "{{pipeline}} P95",
+          "expr": "kube_deployment_status_replicas_available{namespace=\"use-case-crypto\"}",
+          "legendFormat": "{{deployment}}",
           "refId": "A"
         }
       ],
-      "title": "ETL Pipeline Duration P95",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "lineWidth": 1,
-            "stacking": { "group": "A", "mode": "normal" }
-          },
-          "mappings": []
-        }
-      },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 16 },
-      "id": 9,
-      "options": {
-        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(feature_generation_total[1h])) by (feature_category)",
-          "legendFormat": "{{feature_category}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Features Generated by Category (1h)",
+      "title": "Available Replicas",
       "type": "timeseries"
     }
   ],

@@ -19,3 +19,4 @@ dbt/
 docs/
 config/
 database/
+notebooks/
