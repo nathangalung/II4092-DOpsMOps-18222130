@@ -382,7 +382,6 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits:   { cpu: 500m, memory: 256Mi }
-# PodMonitor CRs (postgresql + pgbouncer pooler) live in pod-monitors.yaml,
-# applied by atom-obs-stack overlay after monitoring.coreos.com/v1 CRD lands
-# (chart-rendered components use the same `serviceMonitor.enabled: false`
-# bootstrap pattern).
+# PodMonitor CRs (postgresql + pgbouncer pooler) live in
+# platform/components/observability/scrape-targets/postgresql.yaml — applied
+# with the observability phase so the monitoring.coreos.com CRDs exist first.

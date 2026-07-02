@@ -41,6 +41,10 @@ resources:
   - evidently/hpa.yaml
   - opencost/deployment.yaml
   - pushgateway
+  # Cross-namespace PodMonitors (Kafka broker+exporter, CNPG postgresql+pooler).
+  # Applied here, not in their own components: the monitoring CRDs only exist
+  # after kube-prometheus-stack, so this keeps phase-full ordering-safe.
+  - scrape-targets
   - sloth
   # pyroscope REMOVED (single-HDD IO budget): 0 use-case references and the
   # highest-IO NON-essential resident workload — an eBPF profiler DaemonSet

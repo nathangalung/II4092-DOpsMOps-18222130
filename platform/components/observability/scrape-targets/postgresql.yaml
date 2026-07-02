@@ -1,0 +1,41 @@
+# Scrapes the CloudNativePG cluster and its pgbouncer pooler. Replaces the
+# orphan pod-monitors.yaml that sat unreferenced in the postgresql component
+# (it could not be applied there: the monitoring CRDs do not exist yet when
+# the storage phase runs on a fresh cluster).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgresql
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  namespaceSelector:
+    matchNames:
+      - storage
+  selector:
+    matchLabels:
+      cnpg.io/cluster: postgresql
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgresql-rw-pool
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  namespaceSelector:
+    matchNames:
+      - storage
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: postgresql-rw-pool
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s

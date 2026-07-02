@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Live-demo scenario runner.
+# Live-demo runner: data scenarios plus UI port-forwards.
 # Entry point is experiments/Makefile.
-# Usage: bash demo.sh <scenario>
+# Usage: bash demo.sh <target>
 set -euo pipefail
 
-# Resolve paths from script.
+# Resolve paths and bind address.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CH_POD="chi-platform-main-0-0-0"
+ADDR="${DEMO_ADDR:-127.0.0.1}"
 
 # Query the ClickHouse pod.
 ch() {
@@ -20,6 +21,30 @@ ch() {
 # Find a service by keyword.
 svc_in() {
   kubectl get svc -n "$1" -o name 2>/dev/null | grep -iE "$2" | head -1
+}
+
+# Port-forward a UI, resolving the real service port.
+pf() {
+  local ns="$1" re="$2" local_port="$3" want="${4:-}" path="${5:-}"
+  local svc port
+  svc=$(svc_in "$ns" "$re")
+  [ -z "$svc" ] && { echo "no service matching '$re' in namespace $ns"; return 1; }
+  # Prefer a named or numbered port, else take the first.
+  if [ -n "$want" ]; then
+    port=$(kubectl get "$svc" -n "$ns" -o jsonpath="{.spec.ports[?(@.name=='$want')].port}" 2>/dev/null)
+    [ -z "$port" ] && port=$(kubectl get "$svc" -n "$ns" -o jsonpath="{.spec.ports[?(@.port==$want)].port}" 2>/dev/null)
+  fi
+  [ -z "$port" ] && port=$(kubectl get "$svc" -n "$ns" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+  [ -z "$port" ] && { echo "could not resolve a port for $svc"; return 1; }
+  echo "${svc#service/} in $ns  ->  http://${ADDR}:${local_port}${path}"
+  echo "Press Ctrl-C to stop the port-forward"
+  kubectl port-forward --address "$ADDR" -n "$ns" "$svc" "${local_port}:${port}"
+}
+
+# Decode one secret key, print a fallback.
+secret_val() {
+  local v; v=$(kubectl get secret -n "$1" "$2" -o jsonpath="{.data.$3}" 2>/dev/null | base64 -d 2>/dev/null)
+  [ -n "$v" ] && printf '%s' "$v" || printf '%s' "check secret $1/$2"
 }
 
 scenario_data() {
@@ -55,16 +80,13 @@ scenario_predict() {
 
 scenario_lineage() {
   echo "KF-08 DataHub lineage UI"
-  local s; s=$(svc_in data-governance 'datahub-frontend|frontend')
-  [ -z "$s" ] && { echo "datahub-frontend service not found"; return 1; }
-  echo "Open http://localhost:9002 then press Ctrl-C"
-  kubectl port-forward -n data-governance "$s" 9002:9002
+  pf data-governance 'datahub-frontend|frontend' 9002 9002
 }
 
 scenario_vector() {
   echo "KF-04 Qdrant vector-search latency"
   kubectl port-forward -n storage svc/qdrant 6333:6333 >/dev/null 2>&1 &
-  local pf=$!; sleep 4
+  local p=$!; sleep 4
   if command -v k6 >/dev/null 2>&1; then
     k6 run "$HERE/load/vector-search-latency.js" || echo "k6 run failed, check Qdrant"
   else
@@ -75,14 +97,44 @@ scenario_vector() {
       curl -s -o /dev/null -w "%{time_total}\n" -H "api-key: $key" http://localhost:6333/collections
     done | awk '{ ms=$1*1000; s+=ms; if(ms>mx)mx=ms; n++ } END{ printf "avg=%.2fms max=%.2fms n=%d\n", s/n, mx, n }'
   fi
-  kill "$pf" 2>/dev/null || true
+  kill "$p" 2>/dev/null || true
+}
+
+# Print UI login details read live.
+creds() {
+  echo "UI login details, values read from live cluster secrets"
+  echo ""
+  printf '%-11s %-28s %s\n' TOOL URL LOGIN
+  printf '%-11s %-28s %s\n' grafana    "http://${ADDR}:3000" "$(secret_val observability grafana-admin GF_SECURITY_ADMIN_USER) / $(secret_val observability grafana-admin GF_SECURITY_ADMIN_PASSWORD)"
+  printf '%-11s %-28s %s\n' datahub    "http://${ADDR}:9002" "datahub / datahub"
+  printf '%-11s %-28s %s\n' superset   "http://${ADDR}:8088" "admin / $(secret_val data-processing superset-admin ADMIN_PASSWORD)"
+  printf '%-11s %-28s %s\n' argocd     "http://${ADDR}:8081" "admin / $(secret_val gitops argocd-initial-admin-secret password)"
+  printf '%-11s %-28s %s\n' minio      "http://${ADDR}:9001" "$(secret_val storage minio MINIO_ROOT_USER) / $(secret_val storage minio MINIO_ROOT_PASSWORD)"
+  printf '%-11s %-28s %s\n' mlflow     "http://${ADDR}:5000" "no login"
+  printf '%-11s %-28s %s\n' kafka-ui   "http://${ADDR}:8080" "no login"
+  printf '%-11s %-28s %s\n' prometheus "http://${ADDR}:9090" "no login"
+  printf '%-11s %-28s %s\n' trino      "http://${ADDR}:8082" "any username, no password"
+  printf '%-11s %-28s %s\n' airflow    "http://${ADDR}:8085" "admin / $(secret_val data-processing airflow-admin password)"
+  printf '%-11s %-28s %s\n' qdrant     "http://${ADDR}:6333/dashboard" "api-key header (pipeline-secrets QDRANT_API_KEY)"
 }
 
 case "${1:-help}" in
-  data)    scenario_data ;;
-  drift)   scenario_drift ;;
-  predict) scenario_predict ;;
-  lineage) scenario_lineage ;;
-  vector)  scenario_vector ;;
-  *) echo "usage: bash demo.sh {data|drift|predict|lineage|vector}" ;;
+  data)       scenario_data ;;
+  drift)      scenario_drift ;;
+  predict)    scenario_predict ;;
+  lineage)    scenario_lineage ;;
+  vector)     scenario_vector ;;
+  creds)      creds ;;
+  grafana)    pf observability 'grafana$' 3000 http ;;
+  datahub)    pf data-governance 'datahub-frontend|frontend' 9002 9002 ;;
+  superset)   pf data-processing 'superset$' 8088 ;;
+  argocd)     pf gitops 'argocd-server' 8081 http ;;
+  minio)      pf storage '^service/minio$|/minio$' 9001 console ;;
+  mlflow)     pf model-lifecycle 'mlflow$' 5000 ;;
+  kafka-ui)   pf data-ingestion 'kafka-ui' 8080 ;;
+  prometheus) pf observability 'kube-prometheus-stack-prometheus$' 9090 web ;;
+  trino)      pf data-processing 'trino$' 8082 ;;
+  airflow)    pf data-processing 'airflow-(api-server|webserver|web)$' 8085 ;;
+  qdrant)     pf storage 'qdrant$' 6333 6333 /dashboard ;;
+  *) echo "usage: bash demo.sh {data|drift|predict|lineage|vector|creds|grafana|datahub|superset|argocd|minio|mlflow|kafka-ui|prometheus|trino|airflow|qdrant}" ;;
 esac

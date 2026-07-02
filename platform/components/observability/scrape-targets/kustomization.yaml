@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Cross-namespace scrape targets for platform datastores and brokers.
+# These PodMonitors live in the observability component (not in each
+# component's own kustomization) because the monitoring.coreos.com CRDs
+# only exist once kube-prometheus-stack is installed; applying them with
+# the observability phase keeps phase-full ordering-safe.
+resources:
+  - kafka.yaml
+  - postgresql.yaml

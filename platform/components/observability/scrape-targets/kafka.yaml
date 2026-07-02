@@ -1,0 +1,24 @@
+# Scrapes the Strimzi Kafka pods: brokers (JMX metrics on 9404) and the
+# kafka-exporter (consumer group lag). Both carry the strimzi.io/kind=Kafka
+# label and expose the same tcp-prometheus port name, so one PodMonitor
+# covers them. Without this, kafka_consumergroup_lag never reaches
+# Prometheus and every Kafka lag panel and KEDA lag debug view stays empty.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kafka
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: mlops-platform
+spec:
+  namespaceSelector:
+    matchNames:
+      - data-ingestion
+  selector:
+    matchLabels:
+      strimzi.io/kind: Kafka
+  podMetricsEndpoints:
+    - port: tcp-prometheus
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
