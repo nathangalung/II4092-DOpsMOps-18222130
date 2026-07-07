@@ -7,7 +7,7 @@ import {
   symbolsApi,
 } from "../utils/api";
 
-// ---- Predictions ----
+// Predictions
 
 export const usePredictions = () =>
   useQuery({
@@ -29,7 +29,7 @@ export const useLatestPrediction = (symbol: string) =>
     enabled: !!symbol,
   });
 
-// ---- Metrics ----
+// Metrics
 
 export const useSystemMetrics = () =>
   useQuery({
@@ -69,7 +69,7 @@ export const useMetricsSummary = () =>
     queryFn: metricsApi.getSummary,
   });
 
-// ---- Models ----
+// Models
 
 export const useModels = (stage?: string) =>
   useQuery({
@@ -109,7 +109,7 @@ export const useDeployModel = () => {
   });
 };
 
-// ---- Features ----
+// Features
 
 export const useFeatures = (entity?: string) =>
   useQuery({
@@ -138,7 +138,7 @@ export const useFeatureStatistics = (symbol: string) =>
     enabled: !!symbol,
   });
 
-// ---- Symbols ----
+// Symbols
 
 export const useSymbols = () =>
   useQuery({

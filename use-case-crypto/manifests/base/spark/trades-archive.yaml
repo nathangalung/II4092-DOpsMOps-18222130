@@ -1,4 +1,4 @@
-# ScheduledSparkApplication — the ONLY thing that turns spark-operator + Iceberg +
+# ScheduledSparkApplication - the ONLY thing that turns spark-operator + Iceberg +
 # Lakekeeper + Trino from "deployed" into "genuinely used". A 6-hourly batch that
 # archives raw trades from the ClickHouse warehouse into an Iceberg table on MinIO
 # (open, immutable, engine-neutral cold tier). Native operator scheduling means
@@ -8,7 +8,7 @@
 # Role split (no redundancy): ClickHouse = hot operational warehouse (serving, BI,
 # Feast offline); Iceberg = cold open archive of the same raw ticks for long-term,
 # engine-neutral history; Trino = federation that JOINs ClickHouse gold bars against
-# Iceberg tick prints — a query neither store can answer alone.
+# Iceberg tick prints - a query neither store can answer alone.
 apiVersion: sparkoperator.k8s.io/v1beta2
 kind: ScheduledSparkApplication
 metadata:
@@ -48,7 +48,7 @@ spec:
       "spark.jars.packages": "org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.iceberg:iceberg-aws-bundle:1.11.0,com.clickhouse:clickhouse-jdbc:0.8.2,io.openlineage:openlineage-spark_2.13:1.26.0"
       "spark.hadoop.fs.s3a.endpoint": "http://minio.storage.svc.cluster.local:9000"
       "spark.hadoop.fs.s3a.path.style.access": "true"
-      # OpenLineage → DataHub: the Spark archive shows up in the lineage graph.
+      # OpenLineage to DataHub: the Spark archive shows up in the lineage graph.
       "spark.extraListeners": "io.openlineage.spark.agent.OpenLineageSparkListener"
       "spark.openlineage.transport.type": "http"
       "spark.openlineage.transport.url": "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"

@@ -1,16 +1,13 @@
-# =============================================================================
-# GRAFANA ALLOY — Unified telemetry collector (replaces EOL Promtail)
-# =============================================================================
+# GRAFANA ALLOY - Unified telemetry collector (replaces EOL Promtail)
 # Collects logs from all pods via /var/log/pods and ships to Loki.  In
 # addition, Alloy exposes an OTLP receiver (4317 gRPC / 4318 HTTP) that
 # forwards traces to Tempo and metrics to the kube-prometheus-stack
-# Prometheus — this gives edge workloads that can't reach the OTel gateway
+# Prometheus - this gives edge workloads that can't reach the OTel gateway
 # a drop-in collector sidecar, and is the migration path to retire the
 # separate OTel Collector agent DaemonSet once every trace producer is
 # repointed (see ADR-010 §Migration).
 # Alloy is the official Grafana successor to Promtail, built on
 # OpenTelemetry Collector with native OTLP support.
-# =============================================================================
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -69,7 +66,7 @@ metadata:
     app: alloy
 data:
   config.alloy: |
-    // ── Log collection from Kubernetes pods ──────────────────────────
+    // Log collection from Kubernetes pods
     // Discovers all pods and collects their container logs via CRI format.
 
     // Kubernetes pod discovery
@@ -120,7 +117,7 @@ data:
       }
     }
 
-    // ── OTLP receiver ────────────────────────────────────────────────
+    // OTLP receiver
     // Accepts OTLP traces + metrics on gRPC 4317 / HTTP 4318 from any
     // workload that points its exporter here (sidecarless path).  The
     // OTel Collector gateway handles platform-wide sampling/fan-out; this
@@ -139,7 +136,7 @@ data:
       }
     }
 
-    // ── Processing ───────────────────────────────────────────────────
+    // Processing
     // k8sattributes enriches spans/samples with pod/namespace labels;
     // batch groups them for the downstream exporter.
     otelcol.processor.k8sattributes "default" {
@@ -173,8 +170,8 @@ data:
       }
     }
 
-    // ── Exporters ────────────────────────────────────────────────────
-    // Traces → Tempo (LGTM stack), matches the OTel Collector gateway's
+    // Exporters
+    // Traces to Tempo (LGTM stack), matches the OTel Collector gateway's
     // `otlp/tempo` exporter so dashboards work with both paths.
     otelcol.exporter.otlp "tempo" {
       client {
@@ -185,7 +182,7 @@ data:
       }
     }
 
-    // Metrics → kube-prometheus-stack Prometheus (remote_write).
+    // Metrics to kube-prometheus-stack Prometheus (remote_write).
     otelcol.exporter.prometheus "kps" {
       forward_to = [prometheus.remote_write.kps.receiver]
     }

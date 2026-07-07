@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 /// stored in the `values` map, keyed by configurable field names.
 /// This allows any use-case to define its own schema.
 ///
-/// JSON wire format is FLAT — values are promoted to top-level fields:
+/// JSON wire format is FLAT - values are promoted to top-level fields:
 ///
 ///   {"symbol":"X","timestamp":123,"source":"s","value":100,"volume":50}
 ///

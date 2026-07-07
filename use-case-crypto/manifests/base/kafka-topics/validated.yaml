@@ -1,17 +1,14 @@
-# =============================================================================
 # KafkaTopic: crypto.validated
-# =============================================================================
-# Silver-tier — records that passed the validator (schema + range + freshness).
+# Silver-tier - records that passed the validator (schema + range + freshness).
 # Feeds Flink feature job + Iceberg sink (via Kafka Connect).
 #
 # Sizing:
-#   partitions        : 12    — matches rest.raw; keeps per-symbol ordering stable
+#   partitions        : 12 - matches rest.raw; keeps per-symbol ordering stable
 #   replicas          : 1
-#   retention.ms      : 14d   — long enough for Feast backfill windows
+#   retention.ms      : 14d - long enough for Feast backfill windows
 #   min.insync.replicas : 1
 #   compression.type  : zstd
 #   cleanup.policy    : delete
-# =============================================================================
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:

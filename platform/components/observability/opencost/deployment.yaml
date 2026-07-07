@@ -1,12 +1,9 @@
-# =============================================================================
-# OPENCOST — Kubernetes Cost Monitoring (CNCF Incubating)
-# =============================================================================
+# OPENCOST - Kubernetes Cost Monitoring (CNCF Incubating)
 # Real-time cost allocation by namespace, controller, pod, service.
 # Integrates natively with Prometheus (scrapes cost metrics) and
 # Grafana (pre-built dashboards available).
 #
 # Dependencies: Prometheus (required for metrics storage)
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -115,7 +112,7 @@ spec:
         # opencost-ui entrypoint runs `envsubst < default.nginx.conf.template
         # > default.nginx.conf` inside /etc/nginx/conf.d. The image bakes the
         # template into that directory, but mounting an emptyDir there to
-        # satisfy the write step shadows the template — nginx then fails
+        # satisfy the write step shadows the template - nginx then fails
         # `default.nginx.conf.template: no such file`. This init seeds the
         # emptyDir with the image's /etc/nginx/conf.d/* before the main
         # container starts so the entrypoint sees both: the template (read)
@@ -141,11 +138,11 @@ spec:
               cpu: 50m
               memory: 32Mi
         # opencost-ui v1.120.1 bakes the UI dist (index.html, assets/, logo,
-        # favicon) directly at /var/www in the image — there is no entrypoint
+        # favicon) directly at /var/www in the image - there is no entrypoint
         # `cp /opt/ui/dist/* /var/www` step (the prior comment referencing
         # /opt/ui/dist was for older builds). Mounting an emptyDir at /var/www
-        # shadows the baked dist, leaving nginx serving an empty directory →
-        # 403 directory index forbidden on every probe. This init seeds the
+        # shadows the baked dist, leaving nginx serving an empty directory,
+        # causing 403 directory index forbidden on every probe. This init seeds the
         # emptyDir with the image's /var/www contents so the main container
         # sees both: dist files (read) and a writable directory.
         - name: seed-var-www
@@ -229,7 +226,7 @@ spec:
             # kills the container in CrashLoopBackOff (field-observed
             # 2026-05-21, 100+ restarts). Pinning BASE_URL=/ tells the
             # entrypoint's envsubst to render the nginx location block at
-            # /, so probe GET / lands on /var/www/index.html → 200. Routes
+            # /, so probe GET / lands on /var/www/index.html, returning 200. Routes
             # exposed by the platform Ingress can still front this with a
             # /opencost/ prefix; that's an Ingress rewrite concern, not a
             # backend path concern.

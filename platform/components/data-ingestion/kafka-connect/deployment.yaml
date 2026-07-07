@@ -1,8 +1,6 @@
-# =============================================================================
-# Strimzi KafkaConnect — operator-managed Connect cluster (ADR-011)
-# =============================================================================
+# Strimzi KafkaConnect - operator-managed Connect cluster (ADR-011)
 # Replaces the previous vanilla Deployment that:
-#   - was never reconciled (no ApplicationSet for platform/components — §5.1)
+#   - was never reconciled (no ApplicationSet for platform/components - §5.1)
 #   - shipped only the Debezium image (no Iceberg sink plugin), so even when
 #     applied it could not satisfy `io.tabular.iceberg.connect.IcebergSinkConnector`
 #     registrations from use-cases.
@@ -17,7 +15,6 @@
 # Service alias `kafka-connect` is preserved so existing use-case registration
 # Jobs (use-case-*/manifests/base/connectors/*.yaml) keep working without
 # rewrites; they POST to http://kafka-connect.data-ingestion:8083.
-# =============================================================================
 ---
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaConnect
@@ -36,7 +33,7 @@ spec:
   # Pre-built custom image: Strimzi Kafka Connect base + Debezium-PostgreSQL
   # 3.0.7 (CDC) + Iceberg sink 0.6.19 plugins (see ./Dockerfile). Replaces the
   # in-cluster `.spec.build` (buildah) path, which is blocked by this single-node
-  # cluster's hardened kernel — buildah's unshare(CLONE_NEWUSER) returns
+  # cluster's hardened kernel - buildah's unshare(CLONE_NEWUSER) returns
   # "Operation not permitted", so the connect-build pod never produced the image.
   # Built + pushed to localhost:5000 (`make build-kafka-connect`); pulled
   # in-cluster via the registry Service DNS. The image's Kafka version (4.2.0)
@@ -44,7 +41,7 @@ spec:
   #
   # DEFERRED ON THIS HARDWARE (2026-06-29): the build (≈1GB Strimzi base + a
   # 129MB Iceberg plugin + BuildKit layer assembly) saturates the single-HDD
-  # node — it drove load to ~190 and BuildKit lost its content-store lease under
+  # node - it drove load to ~190 and BuildKit lost its content-store lease under
   # the IO starvation. Build this image ONLY on a multi-disk node, then `make
   # build-kafka-connect` + push. Until then KafkaConnect ImagePullBackOffs (image
   # absent) and the Debezium CDC + Iceberg-sink path is degraded-by-design. This
@@ -52,13 +49,13 @@ spec:
   # lineage are covered by the Airflow lakeFS-WAP lakehouse + DataHub, and the
   # ClickHouse `cdc.pipeline.*` / Iceberg tables have no live consumers. Whether
   # to fully remove this component (no-redundant-tools) vs keep it for a
-  # multi-disk deployment is a user architecture+thesis decision — left intact.
+  # multi-disk deployment is a user architecture+thesis decision - left intact.
   image: registry.platform-registry.svc.cluster.local:5000/kafka-connect:debezium-3.0.7-iceberg-0.6.19
   replicas: 1
   # Strimzi Kafka has `authorization.type: simple` and only `admin` as
   # superuser, so the PLAIN listener (9092) returns
   # TopicAuthorizationException for `_connect-offsets` to anonymous
-  # clients and the herder thread exits with status 1 → CrashLoopBackOff.
+  # clients and the herder thread exits with status 1, so CrashLoopBackOff.
   # Bind to the TLS+SCRAM listener (9093) and authenticate as the
   # `kafka-connect` KafkaUser created in kafka-cluster.yaml.
   bootstrapServers: platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093
@@ -102,7 +99,7 @@ spec:
   # single-broker single-Connect cluster (verified field 2026-05-07: pod
   # restartCount=32, kubelet killed at 86s with 'HTTP probe failed
   # statuscode: 500' on /health because group-join still in progress).
-  # Strimzi defaults initialDelaySeconds=60 — bump to 120 so the herder is
+  # Strimzi defaults initialDelaySeconds=60 - bump to 120 so the herder is
   # actually past `RUNNING` before kubelet starts probing /health.
   livenessProbe:
     initialDelaySeconds: 120
@@ -150,17 +147,15 @@ spec:
         name: kafka-connect-metrics
         key: metrics-config.yml
 ---
-# =============================================================================
-# PeerAuthentication — allow plaintext from istio-exempt namespaces.
+# PeerAuthentication - allow plaintext from istio-exempt namespaces.
 # Mesh-wide default in istio-system enforces STRICT mTLS for all sidecar-
 # injected pods. KafkaConnect runs with istio sidecar (data-ingestion ns has
 # istio-injection=enabled). Use-case namespaces (e.g., any <usecase>) are
 # istio-exempt by design (`mlops-platform.io/istio-exempt=true`) so their
 # registration Jobs and Kafka Connect REST callers speak plain HTTP. STRICT
 # would RST these connections at the inbound sidecar. PERMISSIVE accepts both
-# mTLS (from meshed callers) and plaintext (from exempt namespaces) — the
+# mTLS (from meshed callers) and plaintext (from exempt namespaces) - the
 # standard Istio pattern for hybrid-mesh service boundaries.
-# =============================================================================
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
@@ -177,12 +172,10 @@ spec:
   mtls:
     mode: PERMISSIVE
 ---
-# =============================================================================
-# Service alias `kafka-connect` — backwards-compat for registration Jobs that
+# Service alias `kafka-connect` - backwards-compat for registration Jobs that
 # target http://kafka-connect.data-ingestion.svc.cluster.local:8083.
 # Strimzi exposes its REST API as `<name>-connect-api`; this alias selects the
 # same pods via Strimzi's standard labels.
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -200,9 +193,7 @@ spec:
     strimzi.io/cluster: kafka-connect
     strimzi.io/kind: KafkaConnect
 ---
-# =============================================================================
-# JMX → Prometheus metrics config (Strimzi-managed sidecar exposes :9404)
-# =============================================================================
+# JMX to Prometheus metrics config (Strimzi-managed sidecar exposes :9404)
 apiVersion: v1
 kind: ConfigMap
 metadata:

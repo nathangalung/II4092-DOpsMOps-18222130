@@ -1,6 +1,4 @@
-# =============================================================================
-# Platform ClusterIssuers — private CA only (air-gapped single-node lab)
-# =============================================================================
+# Platform ClusterIssuers - private CA only (air-gapped single-node lab)
 # cert-manager v1.20.0 (2026-03-09).  Creates:
 #
 #   1. platform-selfsigned-bootstrap: self-signed issuer used ONLY to create
@@ -23,7 +21,6 @@
 #
 # KNF-07: TLS 1.3 end-to-end.  All Istio Gateways + APISIX routes must set
 # `minProtocolVersion: TLSV1_3`.
-# =============================================================================
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

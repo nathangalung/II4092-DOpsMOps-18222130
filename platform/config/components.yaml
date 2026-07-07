@@ -1,6 +1,4 @@
-# =============================================================================
-# COMPONENT CONFIGURATION — Enable/Disable Infrastructure Tools
-# =============================================================================
+# COMPONENT CONFIGURATION - Enable/Disable Infrastructure Tools
 # Controls which platform infrastructure components are installed.
 # Set enabled: false to skip installing a component.
 #
@@ -16,12 +14,9 @@
 #   no KServe                -> can disable knative (if no other serverless)
 #   no Kubeflow              -> can disable mysql, kubeflow_*
 #   no DataHub               -> can disable opensearch
-# =============================================================================
 
 components:
-  # ---------------------------------------------------------------------------
-  # STORAGE — Databases and object storage
-  # ---------------------------------------------------------------------------
+  # STORAGE - Databases and object storage
   storage:
     clickhouse:
       enabled: true
@@ -62,9 +57,7 @@ components:
       description: "Lakekeeper — Rust Iceberg REST catalog (replaces Polaris, remote signing for MinIO)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # COMMON — Core platform infrastructure
-  # ---------------------------------------------------------------------------
+  # COMMON - Core platform infrastructure
   common:
     cert_manager:
       enabled: true
@@ -80,7 +73,7 @@ components:
       # (ENABLE_KNATIVE_SERVING=false) because kine-backed Serverless was
       # unstable and scale-to-zero conflicts with the 1-replica-idle invariant.
       # Knative is installed as an available serverless capability but is NOT on
-      # the serving path — do not claim it as required by KServe here.
+      # the serving path - do not claim it as required by KServe here.
       description: "Serverless runtime (available; KServe uses RawDeployment, not on serving path)"
       required_by: []
     kueue:
@@ -88,9 +81,7 @@ components:
       description: "K8s-native job queueing (priority, quotas, fair sharing)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # DATA INGESTION — Event streaming
-  # ---------------------------------------------------------------------------
+  # DATA INGESTION - Event streaming
   data_ingestion:
     kafka:
       enabled: true
@@ -104,7 +95,7 @@ components:
           flink_job,
           drift,
         ]
-      # Core dependency — disabling breaks most pipeline services
+      # Core dependency - disabling breaks most pipeline services
     kafka_connect:
       enabled: true
       description: "CDC connectors (Debezium) + sink connectors"
@@ -119,9 +110,7 @@ components:
       description: "Kafbat UI for Kafka cluster monitoring"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # DATA PROCESSING — Batch and stream processing engines
-  # ---------------------------------------------------------------------------
+  # DATA PROCESSING - Batch and stream processing engines
   data_processing:
     flink:
       enabled: true
@@ -151,9 +140,7 @@ components:
       enabled: true
       description: "Federated SQL query engine"
       required_by: [superset]
-  # ---------------------------------------------------------------------------
-  # OBSERVABILITY — Monitoring, logging, tracing
-  # ---------------------------------------------------------------------------
+  # OBSERVABILITY - Monitoring, logging, tracing
   observability:
     prometheus:
       enabled: true
@@ -184,9 +171,7 @@ components:
       description: "ML monitoring and data drift detection"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # MODEL LIFECYCLE — Experiment tracking, feature store, training
-  # ---------------------------------------------------------------------------
+  # MODEL LIFECYCLE - Experiment tracking, feature store, training
   model_lifecycle:
     mlflow:
       enabled: true
@@ -213,18 +198,14 @@ components:
       description: "Hyperparameter tuning (AutoML)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # MODEL SERVING — Inference infrastructure
-  # ---------------------------------------------------------------------------
+  # MODEL SERVING - Inference infrastructure
   model_serving:
     kserve:
       enabled: true
       description: "Model serving (canary, A/B, autoscaling)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # DATA GOVERNANCE — Metadata and lineage
-  # ---------------------------------------------------------------------------
+  # DATA GOVERNANCE - Metadata and lineage
   data_governance:
     datahub:
       enabled: true
@@ -239,9 +220,7 @@ components:
       description: "Lineage event standard (native integration → DataHub)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # SECURITY — Authentication, authorization, API gateway
-  # ---------------------------------------------------------------------------
+  # SECURITY - Authentication, authorization, API gateway
   security:
     apisix:
       enabled: true
@@ -252,9 +231,7 @@ components:
       description: "Secret management (OpenBao — MPL-2.0, Vault-API-compatible LF fork)"
       required_by: []
 
-  # ---------------------------------------------------------------------------
-  # GITOPS — CI/CD and continuous delivery
-  # ---------------------------------------------------------------------------
+  # GITOPS - CI/CD and continuous delivery
   gitops:
     argocd:
       enabled: true

@@ -1,6 +1,4 @@
-# =============================================================================
-# VECTOR EMBEDDING — Sentiment Embedding Generation (Python + BERT)
-# =============================================================================
+# VECTOR EMBEDDING - Sentiment Embedding Generation (Python + BERT)
 # Generates BERT embeddings for news/sentiment and stores in Qdrant.
 #
 # Infrastructure dependencies:
@@ -11,7 +9,6 @@
 #   - Stencil (Raystack): Schema for embedding records
 #
 # Emits run outcome to platform Pushgateway via push-helper ConfigMap.
-# =============================================================================
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -22,10 +19,10 @@ metadata:
     type: embedding
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "36 * * * *" # Hourly @ :36, staggered off :00 (single-HDD same-tick storm, 2026-06-30). (Was */5 — a 5-min cadence
+  schedule: "36 * * * *" # Hourly @ :36, staggered off :00 (single-HDD same-tick storm, 2026-06-30). (Was */5 - a 5-min cadence
   # spawned 288 embedding Job pods/day and fed the IO cascade; news-embedding
   # refresh is best-proper hourly, matching the supplementary-news ingest cadence.)
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
   # controller stops scheduling permanently).
@@ -36,17 +33,17 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     # Kueue admission: routes spawned Jobs to LocalQueue batch-queue
-    # (use-case-crypto ns) → ClusterQueue mlops-cluster-queue. The webhook
+    # (use-case-crypto ns), which maps to ClusterQueue mlops-cluster-queue. The webhook
     # softened in platform/components/common/kueue/pre-apply.sh only acts
     # on workloads carrying this label, so unlabeled bootstrap Jobs bypass
     # admission entirely. Label MUST be on jobTemplate.metadata (Job level),
-    # not on the pod template — Kueue's Job integration reads Job labels.
+    # not on the pod template - Kueue's Job integration reads Job labels.
     metadata:
       labels:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       ttlSecondsAfterFinished: 600
-      # 600→1800: in-cluster registry pulls under IO contention measured
+      # 600 to 1800: in-cluster registry pulls under IO contention measured
       # at 18+ min (#402). The vector-processing image is larger than the
       # rest-collector image; first cold-cache fire pays once with
       # IfNotPresent below keeping later fires warm.
@@ -72,7 +69,7 @@ spec:
           containers:
             - name: embedding
               image: vector-processing:latest
-              # IfNotPresent — local-registry pull serialises behind the
+              # IfNotPresent - local-registry pull serialises behind the
               # rest-collector pulls (#402). Always policy forced a full
               # re-pull every fire which queued into 18+ min waits.
               imagePullPolicy: IfNotPresent
@@ -88,7 +85,7 @@ spec:
               # rest-collector CronJobs use. Image already has /bin/sh.
               # UV mandate: `uv run --no-sync` runs the baked venv WITHOUT
               # re-syncing, so it never triggers the editable rebuild
-              # (hatchling from PyPI) that fails air-gapped — same pattern the
+              # (hatchling from PyPI) that fails air-gapped - same pattern the
               # image's own download_model step uses.
               command: ["/bin/sh", "-c"]
               args:
@@ -146,7 +143,7 @@ spec:
                   mountPath: /app/config
                 # Model weights live in the image at /home/app/hf-cache
                 # (baked by Dockerfile, HF_HOME env above). No model-cache
-                # volume is mounted — an EmptyDir at /root/.cache/
+                # volume is mounted - an EmptyDir at /root/.cache/
                 # huggingface was both wrong-path-for-uid-1000 and a cold
                 # cache each fire.
                 - name: push-helper

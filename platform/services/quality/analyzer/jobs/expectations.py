@@ -66,7 +66,7 @@ class ExpectationsRunner:
         suite = gx.ExpectationSuite(name=suite_name)
         suite = self.context.suites.add(suite)
 
-        # Required columns — from env (e.g., "symbol,timestamp,value")
+        # Required columns - from env (e.g., "symbol,timestamp,value")
         required_columns = _parse_csv_env("REQUIRED_COLUMNS", "symbol,timestamp")
         for col in required_columns:
             suite.add_expectation(gx.expectations.ExpectColumnToExist(column=col))
@@ -74,7 +74,7 @@ class ExpectationsRunner:
                 gx.expectations.ExpectColumnValuesToNotBeNull(column=col)
             )
 
-        # Numeric range checks — from env (e.g., "price,value,score")
+        # Numeric range checks - from env (e.g., "price,value,score")
         range_columns = _parse_csv_env("RANGE_CHECK_COLUMNS", "")
         range_min = float(os.getenv("RANGE_CHECK_MIN", "0"))
         range_max = float(os.getenv("RANGE_CHECK_MAX", "1000000"))
@@ -87,14 +87,14 @@ class ExpectationsRunner:
                 )
             )
 
-        # Non-negative columns — from env (e.g., "volume,count")
+        # Non-negative columns - from env (e.g., "volume,count")
         nonneg_columns = _parse_csv_env("NONNEG_COLUMNS", "")
         for col in nonneg_columns:
             suite.add_expectation(
                 gx.expectations.ExpectColumnValuesToBeBetween(column=col, min_value=0)
             )
 
-        # Pair comparison rules — from env (e.g., "col_a>col_b,col_c>col_d")
+        # Pair comparison rules - from env (e.g., "col_a>col_b,col_c>col_d")
         pair_rules = _parse_pair_rules("PAIR_RULES", "")
         for col_a, col_b in pair_rules:
             suite.add_expectation(
@@ -105,7 +105,7 @@ class ExpectationsRunner:
                 )
             )
 
-        # Valid entity set — from env (e.g., "ENTITY-A,ENTITY-B")
+        # Valid entity set - from env (e.g., "ENTITY-A,ENTITY-B")
         valid_entities = _parse_csv_env("VALID_SYMBOLS", "")
         entity_column = os.getenv("ENTITY_COLUMN", "symbol")
         if valid_entities:
@@ -123,7 +123,7 @@ class ExpectationsRunner:
         suite = gx.ExpectationSuite(name="features_expectations")
         suite = self.context.suites.add(suite)
 
-        # Bounded features — from env (e.g., "feature_name:0:100,other_feature:0:1")
+        # Bounded features - from env (e.g., "feature_name:0:100,other_feature:0:1")
         bounded_features = os.getenv("BOUNDED_FEATURES", "")
         if bounded_features:
             for entry in bounded_features.split(","):
@@ -141,7 +141,7 @@ class ExpectationsRunner:
                         )
                     )
 
-        # Feature pair rules — from env (e.g., "feature_a>feature_b")
+        # Feature pair rules - from env (e.g., "feature_a>feature_b")
         feature_pair_rules = _parse_pair_rules("FEATURE_PAIR_RULES", "")
         for col_a, col_b in feature_pair_rules:
             suite.add_expectation(
@@ -152,7 +152,7 @@ class ExpectationsRunner:
                 )
             )
 
-        # Non-negative features — from env (e.g., "feature_x,feature_y")
+        # Non-negative features - from env (e.g., "feature_x,feature_y")
         nonneg_features = _parse_csv_env("NONNEG_FEATURES", "")
         for col in nonneg_features:
             suite.add_expectation(
@@ -300,7 +300,7 @@ class ExpectationsRunner:
                 # use-case sets CLICKHOUSE_DB and qualifies every table). A use-case
                 # may set QUALITY_RESULTS_TABLE to a Null-engine staging table; a
                 # MaterializedView funnels rows into the durable results table. We
-                # never target a read-only View directly — it rejects INSERTs
+                # never target a read-only View directly - it rejects INSERTs
                 # ("Method write is not supported by storage View").
                 self.client.insert(
                     os.getenv("QUALITY_RESULTS_TABLE", "quality_write_buffer"),

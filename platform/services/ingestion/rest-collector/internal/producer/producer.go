@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// SCRAM client glue for sarama — sarama only ships the interface; we wire in
+// SCRAM client glue for sarama - sarama only ships the interface; we wire in
 // xdg-go/scram. Same pattern used across the IBM/sarama community for
 // SASL_SSL + SCRAM-SHA-512 (Strimzi default).
 var (
@@ -85,10 +85,10 @@ func NewKafkaProducer(cfg config.KafkaConfig, logger *zap.Logger) (*KafkaProduce
 // applyKafkaSecurity wires SASL+TLS into sarama from KafkaConfig. Mirrors the
 // platform pipeline-config / <usecase>-app-consumer envFrom contract:
 //
-//	KAFKA_SECURITY_PROTOCOL = SASL_SSL  → enable both
+//	KAFKA_SECURITY_PROTOCOL = SASL_SSL  enables both
 //	KAFKA_SASL_MECHANISM    = SCRAM-SHA-512 (or SCRAM-SHA-256 / PLAIN)
-//	KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD → SCRAM creds
-//	KAFKA_SSL_CA_LOCATION   = /etc/kafka/ca/ca.crt → broker CA truststore
+//	KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD are SCRAM creds
+//	KAFKA_SSL_CA_LOCATION   = /etc/kafka/ca/ca.crt is the broker CA truststore
 //
 // PLAINTEXT (platform default :9092) stays the no-op fall-through.
 func applyKafkaSecurity(saramaCfg *sarama.Config, cfg config.KafkaConfig, logger *zap.Logger) error {

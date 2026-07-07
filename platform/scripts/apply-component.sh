@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# apply-component.sh — install or uninstall a single platform component
-# =============================================================================
+# apply-component.sh - install or uninstall a single platform component
 # Usage:
 #   apply-component.sh <apply|delete> <component-name>
 #
@@ -15,7 +13,6 @@
 # A component may also ship `pre-apply.sh` for cases that kustomize+helm
 # cannot express cleanly (e.g. patching a distro-bundled Deployment that was
 # disabled at install time, like k3s metrics-server).
-# =============================================================================
 set -euo pipefail
 
 ACTION="${1:-}"
@@ -81,7 +78,7 @@ fi
 
 # Strip Helm lifecycle hooks. `kustomize build --enable-helm` calls
 # `helm template` which by default INCLUDES hook resources (helm.sh/hook
-# annotation) — pre-delete, post-upgrade, test, etc. Applying these as plain
+# annotation) - pre-delete, post-upgrade, test, etc. Applying these as plain
 # k8s resources via `kubectl apply` runs them imperatively, which is
 # catastrophic: e.g. Kyverno's pre-delete `scale-to-zero` Job scales the
 # admission-controller Deployment to 0 on first install, and
@@ -106,7 +103,7 @@ if [[ "$ACTION" == "apply" && -x "$COMPONENT_PATH/pre-apply.sh" ]]; then
   fi
 fi
 
-# Empty render → component is fully owned by pre-apply.sh (e.g. metrics-server).
+# Empty render, so component is fully owned by pre-apply.sh (e.g. metrics-server).
 if ! grep -qvE '^---$|^[[:space:]]*$' "$RENDER" 2>/dev/null; then
   echo "    render empty — pre-apply hook owns this component, skipping main $ACTION"
   exit 0
@@ -173,7 +170,7 @@ fi
 # `spec.storageClassName`.  If volumeClaimTemplates.storageClassName
 # changed, this guard orphan-deletes the sts but the existing PVCs stay on
 # the old class.  When no PVCs exist for the sts (e.g. fresh deploy or
-# pre-cleaned), the new sts provisions PVCs with the new class — fully
+# pre-cleaned), the new sts provisions PVCs with the new class - fully
 # clean migration.  When PVCs do exist on the old class, this guard
 # additionally deletes them ONLY IF the sts has zero pods running (i.e.
 # `replicas: 0` or all pods already terminated), so data loss is bounded
@@ -183,8 +180,8 @@ fi
 # storage class.
 #
 # Field-validated 2026-05-19 against
-# data-governance/opensearch (longhorn-replicated → local-path migration,
-# replicas=0, no PVCs — clean orphan-delete + reapply).
+# data-governance/opensearch (longhorn-replicated to local-path migration,
+# replicas=0, no PVCs - clean orphan-delete + reapply).
 if [[ "$ACTION" == "apply" ]] && grep -q '^kind: StatefulSet$' "$RENDER" 2>/dev/null; then
   STSS=$(yq eval-all 'select(.kind == "StatefulSet") | .metadata.namespace + "/" + .metadata.name' "$RENDER" 2>/dev/null || true)
   while IFS=/ read -r sts_ns sts_name; do
@@ -243,7 +240,7 @@ if [[ "$ACTION" == "apply" ]] && grep -q '^kind: StatefulSet$' "$RENDER" 2>/dev/
     fi
 
     # Orphan-delete the sts.  Keeps pods (if any) + PVCs.  Fail loud if
-    # the delete itself errors — falling through to the apply would re-hit
+    # the delete itself errors - falling through to the apply would re-hit
     # the same `spec: Forbidden` immutable-field rejection and the retry
     # loop would simply mask it as a flaky apply.
     echo "      orphan-deleting sts $sts_ns/$sts_name (keeps pods + PVCs)"
@@ -254,9 +251,9 @@ if [[ "$ACTION" == "apply" ]] && grep -q '^kind: StatefulSet$' "$RENDER" 2>/dev/
 
     # Storage-class migration: delete stale PVCs so the new sts provisions
     # fresh ones on the new class.  Selector matches the vct-derived name
-    # pattern `<vct.name>-<sts.name>-<ordinal>` — list and delete by prefix
+    # pattern `<vct.name>-<sts.name>-<ordinal>` - list and delete by prefix
     # rather than by label (vct PVCs don't always inherit sts labels).
-    # Failures here are fatal too — leaving a stale-class PVC bound would
+    # Failures here are fatal too - leaving a stale-class PVC bound would
     # silently keep new pods on the old storage class.
     if (( pvc_drift )); then
       vct_names=$(echo "$render_fp" | jq -r '.vct[]?.name')
@@ -296,8 +293,8 @@ fi
 #     than silently interrupt an in-progress run.
 #
 # Field-validated 2026-05-19 against data-governance/datahub-upgrade-job
-# (image acryldata/datahub-upgrade v1.5.0.1 → v1.5.0.3, status=Failed/
-# DeadlineExceeded — clean foreground-delete + reapply).
+# (image acryldata/datahub-upgrade v1.5.0.1 to v1.5.0.3, status=Failed/
+# DeadlineExceeded - clean foreground-delete + reapply).
 if [[ "$ACTION" == "apply" ]] && grep -q '^kind: Job$' "$RENDER" 2>/dev/null; then
   JOBS=$(yq eval-all 'select(.kind == "Job") | .metadata.namespace + "/" + .metadata.name' "$RENDER" 2>/dev/null || true)
   fp_filter='{
@@ -325,7 +322,7 @@ if [[ "$ACTION" == "apply" ]] && grep -q '^kind: Job$' "$RENDER" 2>/dev/null; th
     # otherwise slip past the container/env fingerprint and the apply would
     # fail loudly with `spec.template: ... field is immutable`.  Labels are
     # excluded because the Job controller auto-injects batch.kubernetes.io/
-    # controller-uid + job-name, which the render does not declare → always
+    # controller-uid + job-name, which the render does not declare, so it always yields a
     # false-positive drift.  Field-validated 2026-05-20.
     templateAnnotations: (.spec.template.metadata.annotations // {})
   }'
@@ -399,9 +396,9 @@ bash "$ROOT/platform/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}" 2
 #   "Warning: Detected changes to resource X which is currently being deleted."
 # AND `serverside-applied`, then later the resource is gone. Field-observed
 # against `cnpg-system/barman-cloud` Service after `make nuke && make
-# phase-full` — Service was mid-deletion, SSA accepted the new spec, GC
-# finalised the deletion, cnpg-operator booted with no Service → barman
-# plugin registration failed → openbao-0 timed out at the StatefulSet
+# phase-full` - Service was mid-deletion, SSA accepted the new spec, GC
+# finalised the deletion, cnpg-operator booted with no Service, so barman
+# plugin registration failed, so openbao-0 timed out at the StatefulSet
 # rollout wait, phase-full halted at install-openbao. Same race shape held
 # historically for any operator CRD (pre-ADR-031 longhorn was the canonical
 # repro path; the defense is operator-agnostic).
@@ -412,7 +409,7 @@ bash "$ROOT/platform/scripts/retry.sh" "$MAX_ATTEMPTS" "$DELAY" -- "${CMD[@]}" 2
 #   2. Poll until each one actually disappears (or 180s deadline). The
 #      resources we hit this on are cluster-scoped CRDs, so plain
 #      `kubectl get crd <name>` works without -n.
-#   3. If anything still lingers, force-strip finalizers (last resort —
+#   3. If anything still lingers, force-strip finalizers (last resort -
 #      never block phase-full forever on a wedged finalizer).
 #   4. Re-apply. SSA on a clean cluster is idempotent + fast.
 if grep -q "currently being deleted" "$APPLY_OUT" 2>/dev/null; then
@@ -428,7 +425,7 @@ if grep -q "currently being deleted" "$APPLY_OUT" 2>/dev/null; then
   # extracted only `<name>` from the warning, which made `kubectl get $name`
   # fall through to a NotFound for namespaced or non-default-kind resources,
   # so the defense exited the wait loop instantly and re-applied while the
-  # finalizer was still chained — defeating its own purpose.
+  # finalizer was still chained - defeating its own purpose.
   mid_del=$(awk '
     /currently being deleted/ { expect=1; next }
     expect==1 && / serverside-applied$/ { print $1; expect=0; next }
@@ -494,7 +491,7 @@ fi
 
 # Post-apply hook runs AFTER the main apply succeeds. Used by components whose
 # steady-state requires waiting on a Job/StatefulSet/etc. that is created by
-# the apply itself (e.g. openbao-bootstrap Job that seeds OpenBao KV — the
+# the apply itself (e.g. openbao-bootstrap Job that seeds OpenBao KV - the
 # downstream phase-full steps depend on those secrets existing). Hooks run
 # only on `apply`, not `delete`, and only after a successful apply.
 if [[ -x "$COMPONENT_PATH/post-apply.sh" ]]; then

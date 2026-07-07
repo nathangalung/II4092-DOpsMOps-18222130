@@ -1,6 +1,4 @@
-# =============================================================================
-# DRIFT DETECTION — Multi-scale Monitoring (Python + scipy/numpy)
-# =============================================================================
+# DRIFT DETECTION - Multi-scale Monitoring (Python + scipy/numpy)
 # Detects data drift and concept drift using PSI and KS tests at
 # multiple time scales (minute, hourly, daily, weekly, monthly). Each scale
 # compares the current window against the immediately preceding equal-length
@@ -11,7 +9,6 @@
 #   - Prometheus: Drift metrics exported via Pushgateway
 #   - Great Expectations: Data quality validation on reference vs current
 #   - Kafka: Drift events published to 'drift-events' topic
-# =============================================================================
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -23,7 +20,7 @@ metadata:
 spec:
   schedule: "* * * * *" # Every minute
   # suspend declared explicitly: with ServerSideApply, a field git never sets
-  # is owned by whoever patched it live — a manual `suspend: true` is invisible
+  # is owned by whoever patched it live - a manual `suspend: true` is invisible
   # to the ArgoCD diff (app stays Synced while the CronJob sleeps; #513 froze
   # 7 CronJobs for 14 days this way). Declaring it gives ArgoCD ownership, so
   # any out-of-band suspend self-heals on the next sync.
@@ -36,7 +33,7 @@ spec:
   suspend: true
   # Bounds missed-schedule lookback after unsuspend/downtime: without it the
   # controller counts every missed slot and hard-stops at >100 ("too many
-  # missed start times") — a fast cron suspended >100 periods never fires
+  # missed start times") - a fast cron suspended >100 periods never fires
   # again. 300s = catch up at most the last 5 minutes, skip the rest.
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
@@ -59,7 +56,7 @@ spec:
               # UV mandate (project policy): no `uv run python`, no `python -c`.
               # `uv run --no-sync main.py` runs the project entry point inside
               # the baked venv WITHOUT re-syncing (image built --no-editable, so
-              # nothing to rebuild — air-gap safe). `--scale minute --once`
+              # nothing to rebuild - air-gap safe). `--scale minute --once`
               # invokes the one-shot CronJob mode (see main.py:212-251).
               command: ["uv", "run", "--no-sync", "main.py"]
               args: ["--scale", "minute", "--once"]
@@ -86,7 +83,7 @@ metadata:
 spec:
   schedule: "0 * * * *" # Hourly (was */15 = 96 Job pods/day; once/hour is ample
   # for hourly-window drift on a single-node platform and cuts that churn 4x).
-  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  suspend: false # SSA-owned - see drift-check-minute header (#513)
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
@@ -129,7 +126,7 @@ metadata:
     scale: daily
 spec:
   schedule: "0 */6 * * *" # Every 6 hours
-  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  suspend: false # SSA-owned - see drift-check-minute header (#513)
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
@@ -172,7 +169,7 @@ metadata:
     scale: weekly
 spec:
   schedule: "0 */12 * * *" # Every 12 hours
-  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  suspend: false # SSA-owned - see drift-check-minute header (#513)
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5
@@ -215,7 +212,7 @@ metadata:
     scale: monthly
 spec:
   schedule: "0 4 * * *" # Daily 04:00, rolling 30d vs prior 30d
-  suspend: false # SSA-owned — see drift-check-minute header (#513)
+  suspend: false # SSA-owned - see drift-check-minute header (#513)
   startingDeadlineSeconds: 300
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 5

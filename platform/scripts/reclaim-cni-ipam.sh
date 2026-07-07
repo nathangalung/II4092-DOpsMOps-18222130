@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# reclaim-cni-ipam.sh — reclaim leaked flannel host-local IPAM lease files.
-# =============================================================================
+# reclaim-cni-ipam.sh - reclaim leaked flannel host-local IPAM lease files.
 # k3s flannel + host-local IPAM writes one file per allocated pod IP under
 # /var/lib/cni/networks/cbr0/<10.42.x.y>. The file contains the container ID
 # and pod metadata. Release happens via CNI DEL when a sandbox tears down.
@@ -19,7 +17,6 @@
 # Usage:
 #   sudo platform/scripts/reclaim-cni-ipam.sh           # reconcile + delete leaks
 #   sudo platform/scripts/reclaim-cni-ipam.sh --dry-run # report only, no changes
-# =============================================================================
 set -euo pipefail
 
 CNI_DIR=/var/lib/cni/networks/cbr0

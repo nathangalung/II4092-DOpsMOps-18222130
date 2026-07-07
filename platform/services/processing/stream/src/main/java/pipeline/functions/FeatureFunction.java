@@ -24,35 +24,35 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Keyed feature-computation function — the Flink stream processor that owns the
+ * Keyed feature-computation function - the Flink stream processor that owns the
  * use-case speed layer (replaces the retired Rust feature-engine).
  *
  * <p>State per symbol: the primary value window (e.g. close), the secondary
- * value window (e.g. volume), and — when trend convergence is enabled — the
+ * value window (e.g. volume), and - when trend convergence is enabled - the
  * MACD-line window used to derive a real stateful signal line.
  *
  * <p>Two outputs per tick (emitted EVERY tick, like the feature-engine; the
  * indicators self-gate to warm-up defaults rather than the operator gating
  * emission):
  * <ul>
- *   <li><b>main</b> → the full feature record (input passthrough + indicators)
+ *   <li><b>main</b> is the full feature record (input passthrough + indicators)
  *       with an ISO-normalised string {@code timestamp}, destined for the Kafka
- *       → ClickHouse bronze contract.</li>
- *   <li><b>{@link Tags#CACHE_TAG}</b> → the indicator-only projection (plus
+ *       to ClickHouse bronze contract.</li>
+ *   <li><b>{@link Tags#CACHE_TAG}</b> is the indicator-only projection (plus
  *       {@code symbol} + numeric {@code timestamp} for sink routing/scoring),
  *       destined for the Valkey online cache under {@code features:{symbol}}.</li>
  * </ul>
  *
  * <p>All indicator math is the faithful Rust-parity port in {@link Indicators};
- * the only deliberate divergence is the trend signal line — see
- * {@link #computeTrend} — which is a correct stateful MACD EMA rather than the
+ * the only deliberate divergence is the trend signal line - see
+ * {@link #computeTrend} - which is a correct stateful MACD EMA rather than the
  * feature-engine's {@code convergence*0.2} approximation.
  */
 public class FeatureFunction extends KeyedProcessFunction<String, String, String> {
     private static final Logger LOG = LoggerFactory.getLogger(FeatureFunction.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Bronze timestamp format — matches the feature-engine's "%Y-%m-%d %H:%M:%S%.3f". */
+    /** Bronze timestamp format - matches the feature-engine's "%Y-%m-%d %H:%M:%S%.3f". */
     private static final DateTimeFormatter BRONZE_TS =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
     /** Tolerated input string timestamp with a space separator (UTC assumed). */
@@ -116,7 +116,7 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
         double primaryValue = input.get(primaryValueField).asDouble();
         boolean hasSecondary = input.has(secondaryValueField) && !input.get(secondaryValueField).isNull();
 
-        // --- Update windowed state ---
+        // Update windowed state
         List<Double> primaryValues = toList(primaryValueHistory.get());
         primaryValues.add(primaryValue);
         trim(primaryValues, config.windowSize);
@@ -129,20 +129,19 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
             secondaryValueHistory.update(secondaryValues);
         }
 
-        // --- Stateless indicators (faithful feature-engine parity) ---
+        // Stateless indicators (faithful feature-engine parity)
         Map<String, Double> features = Indicators.computeAll(primaryValues, secondaryValues, config);
 
-        // --- Stateful trend (MACD) triple ---
+        // Stateful trend (MACD) triple
         if (config.trendConvergenceEnabled) {
             computeTrend(primaryValues, features);
         }
 
-        // --- Main output: full bronze record (passthrough + indicators) ---
+        // Main output: full bronze record (passthrough + indicators)
         ObjectNode bronze = MAPPER.createObjectNode();
         bronze.put("symbol", symbol);
         bronze.put("timestamp", formatBronzeTs(epochMillis));
-        // Passthrough every original field except the ones we set explicitly,
-        // mirroring the feature-engine's flattened original_values (OHLCV + source).
+        // Passthrough original fields alongside indicators.
         Iterator<Map.Entry<String, JsonNode>> fields = input.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> e = fields.next();
@@ -154,7 +153,7 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
         putFeatures(bronze, features);
         out.collect(MAPPER.writeValueAsString(bronze));
 
-        // --- Side output: indicator-only online-cache projection ---
+        // Side output: indicator-only online-cache projection
         ObjectNode cache = MAPPER.createObjectNode();
         cache.put("symbol", symbol);
         cache.put("timestamp", epochMillis);
@@ -167,8 +166,8 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
      * EMA signal line + histogram. DELIBERATE divergence from the feature-engine
      * (which used {@code signal = convergence*0.2}): a proper stateful EMA over
      * the MACD line is the correct, standard MACD signal. See the speed-layer
-     * ADR — the bronze stream features are not on the offline-training path, so
-     * this strictly improves correctness without affecting batch↔stream parity
+     * ADR - the bronze stream features are not on the offline-training path, so
+     * this strictly improves correctness without affecting batch and stream parity
      * (which is asserted on volume SMA, not the trend triple).
      */
     private void computeTrend(List<Double> primaryValues, Map<String, Double> features) throws Exception {
@@ -240,19 +239,19 @@ public class FeatureFunction extends KeyedProcessFunction<String, String, String
         try {
             return Instant.parse(s).toEpochMilli();
         } catch (Exception ignored) {
-            // not a Z/offset instant — fall through
+            // not a Z/offset instant - fall through
         }
         try {
             return OffsetDateTime.parse(s).toInstant().toEpochMilli();
         } catch (Exception ignored) {
-            // not an offset datetime — fall through
+            // not an offset datetime - fall through
         }
         try {
             String normalised = s.contains("T") ? s.replace('T', ' ') : s;
             LocalDateTime ldt = LocalDateTime.parse(normalised, SPACE_TS);
             return ldt.toInstant(ZoneOffset.UTC).toEpochMilli();
         } catch (Exception ignored) {
-            // not a space/T datetime — fall through
+            // not a space/T datetime - fall through
         }
         try {
             return normaliseEpoch(Long.parseLong(s));

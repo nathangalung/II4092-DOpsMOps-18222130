@@ -493,11 +493,12 @@ data:
   controller_manager_config.yaml: |
     apiVersion: config.jobset.x-k8s.io/v1alpha1
     kind: Configuration
-    # Bump leader-election timings — controller-runtime defaults (15s/10s/2s)
+    # Bump leader-election timings - controller-runtime defaults (15s/10s/2s)
     # are too tight under K3s kine pressure. Lease-renewal HTTP uses a 5s
-    # client-go timeout against API server; under pressure those time out →
-    # controller exits with `leader election lost` → SystemD restart → lease
-    # still held by dead pod for 15s → API thrash. 60/40/10 keeps lease alive
+    # client-go timeout against API server; under pressure those time out,
+    # so the controller exits with `leader election lost`, then SystemD
+    # restarts while the lease is still held by the dead pod for 15s, causing
+    # API thrash. 60/40/10 keeps lease alive
     # across multi-second API stalls. Same pattern as ESO/kueue/spark
     # (#216 leader-elect storm fix).
     leaderElection:
@@ -507,7 +508,7 @@ data:
       retryPeriod: 10s
     # cert-manager Certificate (jobset-webhook-server-cert below) owns the
     # webhook Secret. Setting enable=true here makes the controller ALSO
-    # rotate the cert in-process — both managers race on the same Secret,
+    # rotate the cert in-process - both managers race on the same Secret,
     # producing a renewal loop (~12 rev/min observed via Secret managedFields).
     # Disable internal management; cert-manager is the platform-wide standard.
     internalCertManagement:
@@ -538,11 +539,11 @@ data:
       port: 9443
       host: ""
 
-    # Leader election configuration — bump from defaults (15/10/2) to keep
+    # Leader election configuration - bump from defaults (15/10/2) to keep
     # lease alive across K3s kine API stalls. Same pattern as ESO/kueue/spark
     # (#216 leader-elect storm fix). 60/40/10 keeps lease intact during
     # multi-second renewal HTTP timeouts without slowing failover past a
-    # minute (single replica → no contender anyway).
+    # minute (single replica, so no contender anyway).
     leaderElection:
       leaderElect: true
       resourceName: trainer.kubeflow.org
@@ -561,7 +562,7 @@ data:
     # Certificate management configuration
     # cert-manager Certificate (kubeflow-trainer-webhook-cert below) owns the
     # webhook Secret. Setting enable=true here makes the controller ALSO
-    # rotate it in-process — both managers race, producing a renewal loop.
+    # rotate it in-process - both managers race, producing a renewal loop.
     # Disable internal management; cert-manager is the platform-wide standard.
     certManagement:
       enable: false
@@ -714,7 +715,7 @@ spec:
             - /manager
           image: registry.k8s.io/jobset/jobset:v0.11.1
           # Default timeoutSeconds=1 fails under kine apiserver latency on
-          # single-node k3s — pod restarts ~34 times in 12h with
+          # single-node k3s - pod restarts ~34 times in 12h with
           # "Liveness probe failed: context deadline exceeded". Bump to 10s
           # and lift initialDelay/period so the manager has room to settle
           # after leader-elect + webhook cert watch boot.
@@ -807,7 +808,7 @@ spec:
             - --config=/controller_manager_config.yaml
             - --zap-log-level=2
           image: ghcr.io/kubeflow/trainer/trainer-controller-manager:v2.2.0
-          # See jobset comment above — same kine-pressure restart pattern
+          # See jobset comment above - same kine-pressure restart pattern
           # (36 restarts/12h with /healthz context deadline). 10s timeout +
           # longer initialDelay gives the trainer manager room to settle
           # under single-node kine apiserver latency.

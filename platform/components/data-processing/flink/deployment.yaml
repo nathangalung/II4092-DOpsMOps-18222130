@@ -1,6 +1,4 @@
-# =============================================================================
-# FLINK RBAC + Shared Config — Platform-level Flink resources
-# =============================================================================
+# FLINK RBAC + Shared Config - Platform-level Flink resources
 # The Flink Kubernetes Operator (flink-operator.yaml) manages all
 # FlinkDeployment CRs. Each use-case ships its own FlinkDeployment
 # (e.g. <use-case>/manifests/base/flink/flinkdeployment.yaml).
@@ -12,7 +10,6 @@
 #
 # Legacy standalone JobManager/TaskManager Deployments removed (ADR-023/025):
 # the operator manages pod lifecycle, scaling, and upgrades.
-# =============================================================================
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -1,4 +1,4 @@
-# CoinGecko market data — free Demo plan (30 req/min, needs free API key)
+# CoinGecko market data - free Demo plan (30 req/min, needs free API key)
 # Runs every hour, fetches market overview and trending data
 # Emits run outcome to platform Pushgateway via push-helper ConfigMap.
 apiVersion: batch/v1
@@ -11,7 +11,7 @@ metadata:
     mlops-platform.io/use-case: crypto
 spec:
   schedule: "15 * * * *"
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
   # controller stops scheduling permanently).
@@ -21,13 +21,13 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
-    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    # Kueue admission: Job-level label routes to batch-queue, which maps to cluster cohort.
     metadata:
       labels:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 2
-      # 600→1800: see supplementary.yaml header. Paired with IfNotPresent
+      # 600 to 1800: see supplementary.yaml header. Paired with IfNotPresent
       # below so only the first cold-cache fire absorbs the long pull.
       activeDeadlineSeconds: 1800
       template:
@@ -56,7 +56,7 @@ spec:
             - name: rest-collector-config
               configMap:
                 name: crypto-rest-collector-config
-            # Kafka SASL_SSL CA — required by librdkafka producer in rest-collector
+            # Kafka SASL_SSL CA - required by librdkafka producer in rest-collector
             # (KAFKA_SSL_CA_LOCATION=/etc/kafka/ca/ca.crt). patches/kafka-sasl.yaml
             # only patches Deployments; CronJobs embed the mount directly.
             - name: kafka-ca
@@ -68,7 +68,7 @@ spec:
           containers:
             - name: rest-collector
               image: rest-collector:latest
-              # IfNotPresent — see #167 / #402.
+              # IfNotPresent - see #167 / #402.
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
@@ -93,7 +93,7 @@ spec:
               env:
                 # rest-collector source-registry path. Moved off the shared
                 # pipeline-config ConfigMap (it leaked into non-rest-collector
-                # envFrom consumers → Python batch loader sma_*/volatility_* = 0);
+                # envFrom consumers, so Python batch loader sma_*/volatility_* = 0);
                 # explicit set also fails loud if the mount is missing. See
                 # configmaps/sources.yaml.
                 - name: CONFIG_PATH
@@ -111,7 +111,7 @@ spec:
                 # CoinGecko /coins/markets is a top-level array of coin objects.
                 # Real fields: last_updated (RFC3339), price_change_percentage_24h
                 # (float, sentiment proxy), name, symbol. Without this mapping the
-                # job inherits the OHLCV mapping and extracts nothing → score=0.
+                # job inherits the OHLCV mapping and extracts nothing, so score=0.
                 - name: RESPONSE_FIELD_MAPPING
                   value: "timestamp=last_updated,value=price_change_percentage_24h,title=name,symbol=symbol"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL

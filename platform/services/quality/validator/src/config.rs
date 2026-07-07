@@ -1,4 +1,4 @@
-//! Configuration — generic, domain-agnostic.
+//! Configuration - generic, domain-agnostic.
 //! All validation rules (schema, bounds, columns) are configurable via env vars.
 
 use anyhow::Result;
@@ -20,7 +20,7 @@ pub struct KafkaConfig {
     pub brokers: String,
     pub input_topic: String,
     pub output_topic: String,
-    /// Optional SASL/SSL — set to "SASL_SSL" by use-cases needing auth.
+    /// Optional SASL/SSL - set to "SASL_SSL" by use-cases needing auth.
     /// Platform default (None) keeps PLAINTEXT to stay domain-agnostic.
     #[serde(default)]
     pub security_protocol: Option<String>,
@@ -69,7 +69,7 @@ pub struct BoundsConfig {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        // Generic default schema — only requires symbol + timestamp.
+        // Generic default schema - only requires symbol + timestamp.
         // Use-cases override via VALIDATOR__SCHEMA env var with their full schema.
         let schema = r#"{
             "type": "object",
@@ -106,7 +106,7 @@ impl Config {
         if let Ok(v) = std::env::var("KAFKA_BROKERS") {
             cfg.kafka.brokers = v;
         }
-        // VALIDATOR_INPUT_TOPICS (CSV) is the canonical fan-in input env —
+        // VALIDATOR_INPUT_TOPICS (CSV) is the canonical fan-in input env -
         // separating consumer semantics from the producer-output KAFKA_TOPIC
         // that collector Deployments use. Falls back to KAFKA_TOPIC for
         // back-compat with stand-alone validator deployments that haven't
@@ -119,7 +119,7 @@ impl Config {
         if let Ok(v) = std::env::var("KAFKA_OUTPUT_TOPIC") {
             cfg.kafka.output_topic = v;
         }
-        // SASL/SSL security config — only populated when the deploying
+        // SASL/SSL security config - only populated when the deploying
         // use-case sets these env vars. Platform default leaves them None
         // and the rdkafka client runs PLAINTEXT.
         if let Ok(v) = std::env::var("KAFKA_SECURITY_PROTOCOL") {

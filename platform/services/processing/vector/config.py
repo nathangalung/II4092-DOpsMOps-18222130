@@ -51,7 +51,7 @@ class Config:
     clickhouse_database: str = "features"
     redis_host: str = "localhost"
     redis_port: int = 6379
-    # Auth credentials — populated from environment only (pipeline-secrets
+    # Auth credentials - populated from environment only (pipeline-secrets
     # Secret injects CLICKHOUSE_USER / CLICKHOUSE_PASSWORD / VALKEY_PASSWORD
     # / QDRANT_API_KEY into every pod).
     # Never set a YAML default: the YAML file is baked into the image and

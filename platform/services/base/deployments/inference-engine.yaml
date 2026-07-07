@@ -1,9 +1,7 @@
-# =============================================================================
-# INFERENCE ENGINE — Model Serving (C++ + ONNX Runtime, gRPC)
-# =============================================================================
+# INFERENCE ENGINE - Model Serving (C++ + ONNX Runtime, gRPC)
 # Loads an ONNX model from MODEL_PATH (default /app/models/model.onnx) and
 # serves predictions over gRPC on :50052 (custom Inference + Health RPCs,
-# InsecureServerCredentials — TLS is terminated by the Istio sidecar).
+# InsecureServerCredentials - TLS is terminated by the Istio sidecar).
 #
 # Domain-agnostic platform serving OPTION. A use-case may serve via this C++
 # engine OR via a KServe InferenceService; a use-case that serves via KServe
@@ -14,7 +12,6 @@
 #   - Feast: feature retrieval for inference requests
 #   - KServe: the alternative serving path (InferenceService CRDs) most
 #     use-cases choose instead of this engine
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +20,7 @@ metadata:
     app: inference-engine
     component: serving
 spec:
-  # Single-node k3s platform mandate — replicas=1 everywhere.
+  # Single-node k3s platform mandate - replicas=1 everywhere.
   replicas: 1
   selector:
     matchLabels:
@@ -52,7 +49,7 @@ spec:
             limits:
               cpu: "2"
               memory: "4Gi"
-          # The binary serves only gRPC on :50052 (no HTTP endpoint) — probe the
+          # The binary serves only gRPC on :50052 (no HTTP endpoint) - probe the
           # TCP port. A native grpc: probe would require the standard
           # grpc.health.v1 service, but this binary exposes a *custom* Health RPC
           # (common.HealthRequest), so tcpSocket is the correct readiness signal.

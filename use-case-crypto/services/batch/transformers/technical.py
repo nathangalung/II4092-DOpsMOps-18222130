@@ -1,6 +1,6 @@
 """
 Crypto-specific technical analysis transformers.
-Drop-in replacement for the generic transformers/technical.py — same function signatures,
+Drop-in replacement for the generic transformers/technical.py - same function signatures,
 but adds financial indicators (MACD, Bollinger, ATR, OBV, MFI, VWAP) via the `ta` library.
 
 This module is overlaid INTO the Docker image during build (replaces the generic version).
@@ -16,7 +16,7 @@ import ta
 
 def compute_technical_indicators(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     """
-    Compute technical indicators — generic stats + crypto-specific financial TA.
+    Compute technical indicators - generic stats + crypto-specific financial TA.
 
     Same function signature as the generic version so it works as a drop-in
     replacement. Adds MACD, Bollinger Bands, ATR, OBV, MFI, VWAP when OHLCV columns
@@ -41,7 +41,7 @@ def compute_technical_indicators(df: pd.DataFrame, config: dict) -> pd.DataFrame
 
     has_ohlcv = all(c in df.columns for c in ["open", "high", "low", "close", "volume"])
 
-    # ── Generic rolling statistics ──
+    # Generic rolling statistics
 
     ma_config = config.get("moving_averages", {})
     for period in ma_config.get("sma", [20, 50]):
@@ -80,7 +80,7 @@ def compute_technical_indicators(df: pd.DataFrame, config: dict) -> pd.DataFrame
             .apply(lambda x: pd.Series(x).rank(pct=True).iloc[-1], raw=False)
         )
 
-    # ── Crypto-specific financial indicators (requires OHLCV) ──
+    # Crypto-specific financial indicators (requires OHLCV)
 
     if not has_ohlcv:
         return result
@@ -172,7 +172,7 @@ def compute_volatility_features(
     df: pd.DataFrame, windows: list[int] | None = None
 ) -> pd.DataFrame:
     """
-    Compute volatility features — generic + crypto OHLCV-based.
+    Compute volatility features - generic + crypto OHLCV-based.
 
     Same signature as the generic version.
 
@@ -197,7 +197,7 @@ def compute_volatility_features(
     has_ohlcv = all(c in df.columns for c in ["high", "low", "close"])
 
     for window in windows:
-        # window=1 → rolling(1).std() is always NaN — an all-NaN column that
+        # window=1, so rolling(1).std() is always NaN - an all-NaN column that
         # would pollute a downstream dropna (the #500 green-but-empty cause).
         # Skip degenerate windows entirely.
         if window <= 1:

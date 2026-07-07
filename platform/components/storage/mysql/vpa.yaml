@@ -1,15 +1,12 @@
-# =============================================================================
-# VerticalPodAutoscaler — MySQL (single-replica RDBMS, advisory only)
-# =============================================================================
+# VerticalPodAutoscaler - MySQL (single-replica RDBMS, advisory only)
 # MySQL backs DataHub GMS + KServe metadata. Single-replica stateful workload;
 # horizontal scaling not applicable (would need ClusterSet or InnoDB Cluster).
 # VPA(Off) recommends right-sized requests/limits based on observed connection
 # count + InnoDB buffer pool pressure.
 #
-# updateMode: Off only — Auto mode would evict the mysqld pod on every
+# updateMode: Off only - Auto mode would evict the mysqld pod on every
 # recommendation refresh, dropping connections + risking redo-log corruption
 # during forced restart on a low-IO single-node.
-# =============================================================================
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:

@@ -1,29 +1,24 @@
-# =============================================================================
 # CLOUD OVERLAY (GKE Production)
-# =============================================================================
 # Uses base configuration. To disable services, edit base/kustomization.yaml.
 #
 # Usage:
 #   kubectl apply -k manifests/overlays/cloud
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# =============================================================================
-# USE-CASE CONFIGURATION — Change these values for a new use case:
-#   1. namePrefix    → your use-case prefix (e.g., crypto-)
-#   2. namespace     → your use-case namespace (e.g., use-case-crypto)
-#   3. commonLabels  → app.kubernetes.io/name (e.g., crypto-pipeline)
-#   4. images        → newName prefix matches USE_CASE_NAME in Makefile
-# =============================================================================
+# USE-CASE CONFIGURATION - Change these values for a new use case:
+#   1. namePrefix    to your use-case prefix (e.g., crypto-)
+#   2. namespace     to your use-case namespace (e.g., use-case-crypto)
+#   3. commonLabels  to app.kubernetes.io/name (e.g., crypto-pipeline)
+#   4. images        so newName prefix matches USE_CASE_NAME in Makefile
 namePrefix: crypto-
 namespace: use-case-crypto
 
 resources:
   - ../../base
 
-# Secrets — kserve-storage-secret and pipeline-secrets are both provisioned
+# Secrets - kserve-storage-secret and pipeline-secrets are both provisioned
 # by ExternalSecrets from Vault in use-case-crypto/manifests/base/external-
 # secrets.yaml (ADR-008). The previous literal-based `secretGenerator` blocks
 # here collided with those ExternalSecret-owned secrets (duplicate resource
@@ -42,7 +37,7 @@ labels:
 
 # Image name mapping: base uses generic `:latest` placeholders. Cloud
 # pins explicit semver tags so a regression rolls back via overlay edit
-# alone — base manifests stay untouched. Bump VERSION in Makefile,
+# alone - base manifests stay untouched. Bump VERSION in Makefile,
 # rebuild + push, then bump newTag here.
 images:
   # Only map images for resources actually in base/kustomization.yaml.
@@ -60,7 +55,7 @@ images:
   - name: analyzer
     newName: crypto-analyzer
     newTag: v1.0.0
-  # Processing — Flink stream-processor (generic flink-job image, crypto-tagged)
+  # Processing - Flink stream-processor (generic flink-job image, crypto-tagged)
   - name: flink-job
     newName: crypto-flink-job
     newTag: v1.0.0
@@ -76,7 +71,7 @@ images:
   - name: gateway
     newName: crypto-gateway
     newTag: v1.0.0
-  # inference-engine omitted — crypto serves via KServe (crypto-predictor);
+  # inference-engine omitted - crypto serves via KServe (crypto-predictor);
   #   disabled in config/services.yaml, so no image is built/retagged.
   # Dashboard
   - name: dashboard-backend
@@ -104,13 +99,13 @@ replicas:
     count: 3
   - name: analyzer
     count: 2
-  # Processing — Flink JM/TM replicas live on the FlinkDeployment CR, not here
+  # Processing - Flink JM/TM replicas live on the FlinkDeployment CR, not here
   # (kustomize `replicas:` does not support the FlinkDeployment kind).
   # Serving
   - name: gateway
     count: 3
   # Dashboard
-  # ADR-025: ml-bridge has no Deployment/StatefulSet — pod lifecycle is on
+  # ADR-025: ml-bridge has no Deployment/StatefulSet - pod lifecycle is on
   # the Argo Rollout (rollouts/ml-bridge-rollout.yaml). Kustomize `replicas:`
   # does not support `Rollout` kind; set replicas on the Rollout spec itself.
   - name: dashboard-backend
@@ -119,13 +114,11 @@ replicas:
     count: 2
 
 patches:
-  # =========================================================================
-  # namePrefix cross-reference fixes — Kustomize namePrefix: crypto-
+  # namePrefix cross-reference fixes - Kustomize namePrefix: crypto-
   # renames metadata.name but NOT string fields inside CRD specs.
   # These patches correct serviceAccountName and secret references.
-  # =========================================================================
 
-  # Fix KServe InferenceService → ServiceAccount reference.
+  # Fix KServe InferenceService to ServiceAccount reference.
   # Patch target is the BASE name (`predictor`); kustomize resolves the
   # effective target after namePrefix is applied. Rendered IS name is
   # `crypto-predictor`.
@@ -139,7 +132,7 @@ patches:
         path: /spec/predictor/serviceAccountName
         value: crypto-kserve-sa
 
-  # Fix KServe ServiceAccount → Secret reference
+  # Fix KServe ServiceAccount to Secret reference
   - target:
       kind: ServiceAccount
       name: kserve-sa
@@ -148,11 +141,11 @@ patches:
         path: /secrets/0/name
         value: crypto-kserve-storage-secret
 
-  # NOTE: no EventListener serviceAccountName patch — see the explanation in
+  # NOTE: no EventListener serviceAccountName patch - see the explanation in
   # overlays/local/kustomization.yaml; the rename is handled by the
   # nameReference rule in base/kustomize-config/name-reference.yaml.
 
-  # Fix Tekton RoleBinding → ServiceAccount subject name
+  # Fix Tekton RoleBinding to ServiceAccount subject name
   - target:
       kind: RoleBinding
       name: tekton-triggers-binding
@@ -161,7 +154,7 @@ patches:
         path: /subjects/0/name
         value: crypto-tekton-triggers-sa
 
-  # Fix Tekton ClusterRoleBinding → ServiceAccount subject name
+  # Fix Tekton ClusterRoleBinding to ServiceAccount subject name
   - target:
       kind: ClusterRoleBinding
       name: tekton-triggers-crypto-binding
@@ -170,9 +163,7 @@ patches:
         path: /subjects/0/name
         value: crypto-tekton-triggers-sa
 
-  # =========================================================================
   # Image pull policy
-  # =========================================================================
 
   # Use Always pull policy for cloud (pull from registry)
   - target:

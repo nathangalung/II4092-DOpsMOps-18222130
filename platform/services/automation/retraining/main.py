@@ -5,9 +5,9 @@ Checks Valkey for recent drift events. If severe drift detected,
 creates a K8s Job to retrain the model with fresh data.
 
 Flow:
-  Drift Detector → Valkey pub/sub (drift-events; redis-py client over RESP)
-  → Retraining Service (this) → K8s Job API → Trainer pod
-  → MLflow (new model logged)
+  Drift Detector to Valkey pub/sub (drift-events; redis-py client over RESP)
+  to Retraining Service (this) to K8s Job API to Trainer pod
+  to MLflow (new model logged)
 """
 
 import argparse

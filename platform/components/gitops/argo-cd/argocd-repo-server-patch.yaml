@@ -37,7 +37,7 @@ spec:
           args: ["/usr/local/bin/argocd-repo-server"]
           ports:
             - containerPort: 8081
-          # Bumped from 256Mi/1Gi → 1Gi/4Gi: repo-server runs concurrent
+          # Bumped from 256Mi/1Gi to 1Gi/4Gi: repo-server runs concurrent
           # kustomize+helm renders for ~30 ArgoCD apps over a 1292-file
           # platform tree; 1Gi OOMs at scale (exit 137). Pairs with #174
           # which bumped argocd-application-controller to 4Gi for the same

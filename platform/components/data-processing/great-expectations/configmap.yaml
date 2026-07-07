@@ -33,14 +33,14 @@ data:
         type: sql
         connection_string: clickhousedb+connect://${CH_USER}:${CH_PASSWORD}@clickhouse-platform.storage.svc.cluster.local:8123/default
 
-      # PostgreSQL OLTP store — PG_USER / POSTGRES_PASSWORD must be set from
+      # PostgreSQL OLTP store - PG_USER / POSTGRES_PASSWORD must be set from
       # the CNPG-mirrored `postgresql-app` Secret (OpenBao path
       # `platform/postgres/app`; the `platform` user owns the `platform` DB).
       postgresql:
         type: sql
         connection_string: postgresql+psycopg2://${PG_USER}:${POSTGRES_PASSWORD}@postgresql-rw.storage.svc.cluster.local:5432/platform
 
-    # Store validation results in MinIO — credentials from env
+    # Store validation results in MinIO - credentials from env
     stores:
       expectations_store:
         class_name: ExpectationsStore

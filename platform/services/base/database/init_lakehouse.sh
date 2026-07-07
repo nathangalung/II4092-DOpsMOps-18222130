@@ -1,11 +1,8 @@
 #!/bin/bash
-# ============================================================================
 # Lakehouse Initialization (MinIO + Lakekeeper + LakeFS)
-# ============================================================================
 # Bucket creation uses MinIO root credentials resolved from the ESO-managed
 # Secret `minio-credentials` in the `storage` namespace (ADR-008).  No
 # plaintext passwords are embedded in this script.
-# ============================================================================
 set -euo pipefail
 
 echo "=== Lakehouse Initialization ==="
@@ -22,13 +19,11 @@ if [ -z "${MINIO_USER:-}" ] || [ -z "${MINIO_PASS:-}" ]; then
     exit 1
 fi
 
-# ============================================================================
 # MinIO: Create buckets using a temporary pod with mc
-# ============================================================================
 echo ""
 echo "--- MinIO Buckets ---"
 
-# Use `mc alias set` with separate args — prevents URL-encoding issues when
+# Use `mc alias set` with separate args - prevents URL-encoding issues when
 # `rand_base64` generates passwords containing `/`, `+`, or `=`.
 for BUCKET in warehouse lakefs mlflow; do
     kubectl run "minio-init-$BUCKET" --rm -i --restart=Never \
@@ -40,9 +35,7 @@ for BUCKET in warehouse lakefs mlflow; do
         || echo "  Bucket '$BUCKET' (already exists or mc failed)"
 done
 
-# ============================================================================
 # Lakekeeper: Verify catalog
-# ============================================================================
 echo ""
 echo "--- Lakekeeper (Iceberg REST Catalog) ---"
 kubectl run lakekeeper-check --rm -i --restart=Never \
@@ -50,9 +43,7 @@ kubectl run lakekeeper-check --rm -i --restart=Never \
     -- curl -sf http://lakekeeper.storage:8181/health 2>/dev/null && \
     echo "  Lakekeeper catalog ready" || echo "  WARNING: Lakekeeper not responding"
 
-# ============================================================================
 # LakeFS: Verify
-# ============================================================================
 echo ""
 echo "--- LakeFS (Data Versioning) ---"
 kubectl run lakefs-check --rm -i --restart=Never \

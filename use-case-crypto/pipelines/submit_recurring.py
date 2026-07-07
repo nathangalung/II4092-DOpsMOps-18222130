@@ -2,12 +2,12 @@
 Submit FLAML AutoML retraining pipeline as recurring runs to Kubeflow Pipelines.
 
 Creates two scheduled runs:
-  1. Weekly full training — Sundays 2AM
+  1. Weekly full training - Sundays 2AM
   2. 6-hourly drift-triggered retraining
 
 Also uploads the compiled pipeline as a named KFP Pipeline resource so the
 Argo CronWorkflow `retrain-on-drift` can resolve its UUID at trigger time
-(see manifests/base/workflows/retrain-on-drift.yaml). Upload is idempotent —
+(see manifests/base/workflows/retrain-on-drift.yaml). Upload is idempotent -
 existing pipeline of the same display_name is reused; a new pipeline_version
 is created on bytes-change.
 
@@ -34,7 +34,7 @@ KFP_HOST = os.getenv(
     "http://ml-pipeline.model-lifecycle.svc.cluster.local:8888",
 )
 
-# USE_CASE master-knob — derives experiment + recurring-job names so cloning
+# USE_CASE master-knob - derives experiment + recurring-job names so cloning
 # to a new use-case requires no body edits, only env exports / ConfigMap edits.
 USE_CASE = os.getenv("USE_CASE", "crypto")
 PIPELINE_DISPLAY_NAME = os.getenv(
@@ -63,7 +63,7 @@ S3_SECRET_ACCESS_KEY = os.getenv(
 
 
 def upload_or_replace_pipeline(client: kfp.Client, pipeline_path: str) -> str:
-    """Idempotent upload — reuse existing pipeline_id, push new version on change.
+    """Idempotent upload - reuse existing pipeline_id, push new version on change.
 
     Returns the pipeline_id UUID so retrain-on-drift can reference it via
     pipeline_version_reference at trigger time.
@@ -110,10 +110,10 @@ def upsert_recurring_run(
     params: dict,
     service_account: str,
 ) -> None:
-    """Idempotent recurring-run create — delete prior copies, then create.
+    """Idempotent recurring-run create - delete prior copies, then create.
 
     KFP backend allows multiple recurring runs with identical display_name
-    and embeds the pipeline_spec at create time (frozen — uploading a new
+    and embeds the pipeline_spec at create time (frozen - uploading a new
     pipeline version does NOT update existing recurring runs). Without this
     delete-before-create, repeat invocations leak stale recurring runs that
     keep firing workflows against the old IR (e.g. lacking secretAsEnv
@@ -146,7 +146,7 @@ def upsert_recurring_run(
 
 
 def _get_or_create_experiment(client: kfp.Client, name: str):
-    """Idempotent experiment resolve — reuse an existing one by display_name.
+    """Idempotent experiment resolve - reuse an existing one by display_name.
 
     The PostSync bootstrap Job (manifests/base/workflows/pipeline-bootstrap.yaml)
     runs this on EVERY ArgoCD sync; kfp `create_experiment` errors / duplicates
@@ -206,7 +206,7 @@ def main() -> None:
     # `serviceaccount "default-editor" not found` at root-driver pod creation.
     sa = "pipeline-runner"
 
-    # Weekly full training — Sundays 2:01 AM UTC
+    # Weekly full training - Sundays 2:01 AM UTC
     upsert_recurring_run(
         client,
         experiment_id=experiment.experiment_id,
@@ -217,7 +217,7 @@ def main() -> None:
         service_account=sa,
     )
 
-    # Drift-triggered retraining — every 6 hours
+    # Drift-triggered retraining - every 6 hours
     upsert_recurring_run(
         client,
         experiment_id=experiment.experiment_id,

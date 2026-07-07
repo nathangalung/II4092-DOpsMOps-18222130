@@ -33,9 +33,9 @@ spec:
                       optional: true
                 # Generic supplementary-source wiring actually consumed by the
                 # rest-collector's buildSupplementarySourcesFromEnv (gates on
-                # SUPPLEMENTARY_SOURCE_NAME + _URL). CryptoPanic public news feed →
+                # SUPPLEMENTARY_SOURCE_NAME + _URL). CryptoPanic public news feed to
                 # crypto.supplementary; votes.positive is the sentiment value,
-                # source.domain the symbol. Recent posts only (no date range) →
+                # source.domain the symbol. Recent posts only (no date range), so
                 # backfill off, no synthesis.
                 - name: SUPPLEMENTARY_SOURCE_NAME
                   value: "cryptopanic"

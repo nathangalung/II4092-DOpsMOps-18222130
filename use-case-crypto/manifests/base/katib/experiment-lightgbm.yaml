@@ -1,15 +1,12 @@
-# =============================================================================
-# KATIB EXPERIMENT — FLAML AutoML Meta-Parameter Optimization
-# =============================================================================
-# Tunes FLAML's search strategy — time budget, estimator list, and CV folds.
+# KATIB EXPERIMENT - FLAML AutoML Meta-Parameter Optimization
+# Tunes FLAML's search strategy - time budget, estimator list, and CV folds.
 # FLAML internally selects and tunes the best algorithm (LightGBM, XGBoost,
 # CatBoost, RF, etc.). Katib optimizes HOW FLAML searches.
 #
 # Data flow:
-#   Katib Controller → spawns Trial pods (each runs FLAML AutoML)
-#     → Metrics collected from stdout (StdOut collector)
-#     → Best FLAML config logged to MLflow
-# =============================================================================
+#   Katib Controller spawns Trial pods (each runs FLAML AutoML), then
+#     metrics collected from stdout (StdOut collector), then
+#     best FLAML config logged to MLflow
 apiVersion: kubeflow.org/v1beta1
 kind: Experiment
 metadata:
@@ -60,9 +57,9 @@ spec:
       apiVersion: batch/v1
       kind: Job
       # Kueue admission: Job-level label routes each FLAML Trial to the
-      # use-case training-queue → ClusterQueue mlops-cluster-queue
+      # use-case training-queue maps to ClusterQueue mlops-cluster-queue
       # (cohort=mlops, ResourceFlavor default-flavor). Kueue Job integration
-      # reads Job.metadata.labels (not pod template) — Katib propagates this
+      # reads Job.metadata.labels (not pod template) - Katib propagates this
       # block onto the spawned Job manifest.
       metadata:
         labels:

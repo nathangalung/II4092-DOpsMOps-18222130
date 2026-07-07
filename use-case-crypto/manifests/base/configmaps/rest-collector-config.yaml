@@ -1,15 +1,12 @@
-# =============================================================================
-# REST Collector — Declarative config for Coinbase endpoints
-# =============================================================================
+# REST Collector - Declarative config for Coinbase endpoints
 # This ConfigMap carries the full rest-collector config.yaml, including
 # per-endpoint polling definitions (ticker, trades, ...). It is mounted at
 # /etc/rest-collector/config.yaml inside the rest-collector pod and
 # selected via CONFIG_PATH.
 #
 # Domain-specific knowledge (Coinbase URL paths, response shapes, cursor
-# fields, value transforms) lives here — NOT in the platform Go code.
+# fields, value transforms) lives here - NOT in the platform Go code.
 # Adding a new endpoint or a new provider means editing this file only.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,8 +30,7 @@ data:
       batch_size: 100
       flush_timeout_ms: 1000
 
-    # -------------------------------------------------------------------------
-    # Historical backfill — Coinbase exchange-api `/products/{symbol}/candles`.
+    # Historical backfill - Coinbase exchange-api `/products/{symbol}/candles`.
     # The Coinbase candle endpoint exposes six granularity buckets in seconds:
     # 60 / 300 / 900 / 3600 / 21600 / 86400. Sub-minute (per-second) candles
     # are NOT available from Coinbase Exchange REST; per-second resolution at
@@ -42,7 +38,7 @@ data:
     # public WS feed) with Flink aggregating sub-second event-time windows
     # into bronze.crypto_tick. The candle endpoint here provides the dense
     # 1-minute OHLCV baseline that backstops the websocket stream for both
-    # cold-start and gap-recovery (websocket gap > N seconds → re-pull the
+    # cold-start and gap-recovery (websocket gap > N seconds, so re-pull the
     # missing candle range).
     #
     # start_date 2026-01-01 gives ~5 months of 1-minute candles from clean
@@ -50,9 +46,8 @@ data:
     # used by the dbt silver/gold marts).
     #
     # batch_days=1 + concurrent_fetches=4 + max_records=300 + granularity=60
-    # = 24 requests/day, 5h per request, 4-wide → ~6 sequential rounds/day
+    # = 24 requests/day, 5h per request, 4-wide, so ~6 sequential rounds/day
     # of backfill ≈ 1s/day at 150ms rate-limit. 5 months backfills in <3 min.
-    # -------------------------------------------------------------------------
     history:
       start_date: "2026-01-01T00:00:00Z"
       end_date: ""
@@ -69,7 +64,7 @@ data:
     data_sources:
       - name: coinbase
         enabled: true
-        # Historical (candles) endpoint — consumed by FetchHistorical
+        # Historical (candles) endpoint - consumed by FetchHistorical
         base_url: https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={granularity}&start={start}&end={end}
         # Prefix for EndpointConfig.Path resolution
         api_base_url: https://api.exchange.coinbase.com
@@ -84,10 +79,8 @@ data:
         rate_limit_ms: 150
 
         endpoints:
-          # -----------------------------------------------------------------
-          # Ticker snapshot — single object
+          # Ticker snapshot - single object
           # https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductticker
-          # -----------------------------------------------------------------
           - name: ticker
             enabled: true
             path: /products/{symbol}/ticker
@@ -109,10 +102,8 @@ data:
               field: trade_id
               query_param: ""   # ticker never sends cursor back; field only promotes trade_id into values
 
-          # -----------------------------------------------------------------
-          # Trades list — array of objects with numeric-id cursor pagination
+          # Trades list - array of objects with numeric-id cursor pagination
           # https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproducttrades
-          # -----------------------------------------------------------------
           - name: trades
             enabled: true
             path: /products/{symbol}/trades

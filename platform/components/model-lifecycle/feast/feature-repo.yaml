@@ -1,14 +1,12 @@
-# =============================================================================
-# Feast feature-repo — platform stub (ADR-013)
-# =============================================================================
+# Feast feature-repo - platform stub (ADR-013)
 # The platform layer is domain-agnostic, but the Feast Deployment expects a
 # `feast-feature-repo` ConfigMap and a rendered `feature_store.yaml` to start.
 # This stub ships:
 #
-#   * `render-feast-config.sh` — envsubst pass over the template, writes the
+#   * `render-feast-config.sh` - envsubst pass over the template, writes the
 #     materialised file to /opt/feast-repo/feature_store.yaml.
-#   * `feature_store.yaml`     — connection-only template (registry +
-#     offline_store + online_store). NO feature_views — those are domain
+#   * `feature_store.yaml` - connection-only template (registry +
+#     offline_store + online_store). NO feature_views - those are domain
 #     definitions, owned by the use-case overlay.
 #
 # Use-case overlays override this same ConfigMap (kustomize patch by name) to
@@ -20,20 +18,19 @@
 #                    Object versioning is enabled on the `feast` bucket by
 #                    minio/bucket-bootstrap.yaml, so registry mutations
 #                    keep snapshot history without a separate DB.  Drops the
-#                    PG dependency entirely — Feast no longer needs CNPG to
+#                    PG dependency entirely - Feast no longer needs CNPG to
 #                    boot, and there is no `feast` PG role to keep aligned.
 #   - Offline store: ClickHouse (Altinity CHI `clickhouse-platform`, native
 #                    TCP 9000, DB `default`).  The OLAP path matches the
 #                    rest of the platform's analytical reads (Trino, dbt,
-#                    great-expectations, Grafana) — keeping feature
+#                    great-expectations, Grafana) - keeping feature
 #                    historical retrieval on the same engine avoids a
 #                    second round-trip during training-data assembly.
-#   - Online store : Valkey (Redis protocol on 6379) — the connection_string
+#   - Online store : Valkey (Redis protocol on 6379) - the connection_string
 #                    carries the password substituted at pod start by
 #                    render-feast-config.sh.
 # Use-case overlays may override DB names / users via kustomize patch on
 # the same `feast-feature-repo` ConfigMap.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -48,7 +45,7 @@ data:
     # Evaluates CLICKHOUSE_USER/CLICKHOUSE_PASSWORD (offline_store) and
     # VALKEY_PASSWORD (online_store) from the envFrom-mounted secrets.
     # Registry credentials (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY) are
-    # picked up by boto3/s3fs at runtime — they don't need to be templated
+    # picked up by boto3/s3fs at runtime - they don't need to be templated
     # into feature_store.yaml.
     set -eu
     envsubst < /opt/feast-template/feature_store.yaml > /opt/feast-repo/feature_store.yaml
@@ -57,13 +54,13 @@ data:
     provider: local
     # File registry on MinIO S3 (boto3 reads credentials and
     # AWS_ENDPOINT_URL_S3 from the pod env, so the path itself stays plain
-    # `s3://`).  No `${VAR}` interpolation needed here — envsubst leaves
+    # `s3://`).  No `${VAR}` interpolation needed here - envsubst leaves
     # this block untouched. Versioned bucket gives us snapshot history.
     registry:
       registry_type: file
       path: s3://feast/registry.pb
       cache_ttl_seconds: 60
-    # ClickHouse offline store — native TCP, DB `default` (the Altinity CHI
+    # ClickHouse offline store - native TCP, DB `default` (the Altinity CHI
     # bootstrap creates only `default`; use-case overlays may switch to a
     # dedicated DB once they create it).
     offline_store:

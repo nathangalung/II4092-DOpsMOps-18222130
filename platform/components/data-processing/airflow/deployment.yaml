@@ -1,58 +1,18 @@
-# =============================================================================
-# Airflow — KubernetesExecutor layout (2026-04-21 refactor, ADR-025)
-# =============================================================================
-# Previous layout: a single Deployment running LocalExecutor, with webserver
-# and scheduler containers co-located in one pod.  LocalExecutor forks workers
-# inside the scheduler process, which caps concurrency at the scheduler pod's
-# CPU/memory budget, makes a scheduler restart kill every running task, and
-# leaves DataOps lineage (OpenLineage task-run events) attached to a long-lived
-# pod instead of discrete per-task pods.  That shape is not defensible for the
-# thesis's DataOps + MLOps story.
+# Airflow KubernetesExecutor layout (ADR-025).
+# Scheduler spawns one pod per task via /opt/airflow/pod_template.yaml;
+# scheduler and webserver are separate Deployments with their own
+# ServiceAccounts. The airflow-worker SA is bound only to the
+# airflow-pod-operator ClusterRole so KubernetesPodOperator tasks can
+# spawn pods in any use-case namespace. Task logs go to MinIO (bucket
+# airflow-logs) via the aws_minio connection. Worker pods opt out of
+# Istio injection (ADR-009 mesh is STRICT) so the sidecar cannot block
+# pod cleanup; NetworkPolicy still confines worker egress.
 #
-# New layout:
-#   - Executor: KubernetesExecutor.  The scheduler spawns one pod per task
-#     instance using the pod template mounted at /opt/airflow/pod_template.yaml.
-#     Workers are short-lived, isolated, and billed per task.
-#   - Scheduler and webserver are separate Deployments with dedicated
-#     ServiceAccounts (airflow-scheduler, airflow-webserver), each scoped to
-#     the RBAC it actually needs.
-#   - airflow-worker ServiceAccount is bound only to the ClusterRole
-#     `airflow-pod-operator` (pod + events + pods/log + pods/status) so
-#     KubernetesPodOperator-style DAG tasks can still spawn pods in any
-#     use-case namespace.
-#   - Remote task logs land in MinIO (bucket `airflow-logs`) via the
-#     `aws_minio` Airflow connection — without this every short-lived worker
-#     pod's logs would vanish on pod deletion.
-#   - Short-lived worker pods are opted out of Istio injection
-#     (`sidecar.istio.io/inject: "false"`); otherwise the istio-proxy sidecar
-#     keeps the pod `Running` indefinitely after the task container exits,
-#     which the KubernetesExecutor cannot clean up.  data-processing is in the
-#     ADR-009 mesh (STRICT); this carve-out is task-pod-only and NetworkPolicy
-#     continues to confine worker egress.
-#
-# OpenBao-sourced credentials (ADR-008):
-#   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN    — CNPG primary, DB-owner DSN
-#                                            (user `platform` from
-#                                            `secret/platform/postgres/app`;
-#                                            NOT the `postgres` superuser,
-#                                            which CNPG disables by default)
-#   AIRFLOW__API__SECRET_KEY               — API HMAC key
-#   AIRFLOW__WEBSERVER__SECRET_KEY         — webserver session signing key
-#   AIRFLOW__CORE__FERNET_KEY              — connection/variable encryption
-#   AIRFLOW_CONN_AWS_MINIO                 — MinIO-backed S3 conn for remote
-#                                            task-log storage (`airflow-logs`)
-#   LAKEFS_ACCESS_KEY_ID / LAKEFS_SECRET_ACCESS_KEY
-#     — LakeFS admin API creds consumed by use-case lakehouse DAGs'
-#       PythonOperator tasks (branch create/merge/delete); the same OpenBao
-#       path bootstraps the LakeFS server (platform/components/storage/lakefs).
-#
-# The `airflow` database is created by CNPG's `postInitApplicationSQL`
-# (platform/components/storage/postgresql/cluster.yaml) with OWNER=platform,
-# so `airflow db migrate` runs as the DB owner with full DDL rights.  No
-# defence-in-depth `ensure-db-exists` init container is needed (and it would
-# fail anyway, since CNPG's `enableSuperuserAccess: false` rejects password
-# auth for the `postgres` role).
-# =============================================================================
+# Credentials come from OpenBao (ADR-008). SQL_ALCHEMY_CONN uses the CNPG
+# DB-owner platform role, not the superuser (CNPG disables it). CNPG
+# postInitApplicationSQL creates the airflow database with OWNER=platform,
+# so no ensure-db init container is needed. LAKEFS_* creds are used by the
+# use-case lakehouse DAGs.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -80,39 +40,39 @@ spec:
         # short-lived JWTs so workers/triggerers can authenticate to the
         # api-server's /execution/ endpoints; the signing key ([api_auth]
         # jwt_secret) MUST be byte-identical across every component that mints
-        # or verifies a token — the scheduler's KubernetesExecutor mints the
+        # or verifies a token - the scheduler's KubernetesExecutor mints the
         # worker's token, the api-server verifies it.  Left UNSET, each process
         # auto-generates its own random key at boot, so the api-server rejects
         # the worker's token with "Invalid auth token: Signature verification
-        # failed" and the task is SIGKILLed → the entire task layer fails on a
+        # failed" and the task is SIGKILLed, so the entire task layer fails on a
         # fresh deploy.  All airflow pods load this via `envFrom: airflow-secrets`
         # (scheduler/api-server/dag-processor and the worker pod_template base
         # container), so one shared value guarantees the mint/verify match.
-        # Reuses the same OpenBao value as the webserver/API HMAC key — key reuse
+        # Reuses the same OpenBao value as the webserver/API HMAC key - key reuse
         # is acceptable for this single-tenant platform; a multi-tenant overlay
         # should split it into a dedicated platform/airflow/admin:jwt_secret.
         AIRFLOW__API_AUTH__JWT_SECRET: "{{ .webserver_secret_key }}"
-        # Airflow Connection for remote task logging — JSON form, NOT URI.
+        # Airflow Connection for remote task logging - JSON form, NOT URI.
         # The URI form `aws://<key>:<secret>@/?endpoint_url=...` is parsed by
         # urllib.parse, which casts the substring after the last `:` as the
-        # port. Any secret with a non-numeric tail — or a dropped `@/` separator
-        # from a stale ESO render while OpenBao was sealed — raises
+        # port. Any secret with a non-numeric tail - or a dropped `@/` separator
+        # from a stale ESO render while OpenBao was sealed - raises
         # `ValueError: Port could not be cast to integer value` and remote
         # task-log shipping silently breaks (observed 2026-06-30 across every
         # worker pod). Airflow's JSON connection form bypasses the URI parser
         # entirely, so it is robust to any character in the MinIO secret.
         # Bucket via AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER.
         AIRFLOW_CONN_AWS_MINIO: '{"conn_type":"aws","login":"{{ .minio_access_key }}","password":"{{ .minio_secret_key }}","extra":{"endpoint_url":"http://minio.storage.svc.cluster.local:9000"}}'
-        # LakeFS admin credentials — scheduler-side env for DAG PythonOperator
+        # LakeFS admin credentials - scheduler-side env for DAG PythonOperator
         # LakeFS API calls (see <use-case>/dags/lakehouse_dag.py).
         # Scheduler reads these via os.getenv(); the same OpenBao path seeds the
         # LakeFS server's first-boot admin account in platform/components/
-        # storage/lakefs/deployment.yaml — single source of truth.
+        # storage/lakefs/deployment.yaml - single source of truth.
         LAKEFS_ACCESS_KEY_ID: "{{ .lakefs_access_key }}"
         LAKEFS_SECRET_ACCESS_KEY: "{{ .lakefs_secret_key }}"
-        # OpenLineage → DataHub GMS auth.  The provider transport JSON lives
+        # OpenLineage to DataHub GMS auth.  The provider transport JSON lives
         # HERE (not in airflow-config) because its `auth.apiKey` carries the
-        # DataHub GMS personal-access-token — the SAME long-lived PAT the
+        # DataHub GMS personal-access-token - the SAME long-lived PAT the
         # datahub-ingestion CronJobs use (OpenBao platform/datahub/system_token,
         # property `token`).  GMS runs METADATA_SERVICE_AUTH_ENABLED=true, so
         # without the Bearer PAT the OpenLineage POST to
@@ -122,21 +82,21 @@ spec:
         # 1.46.0 (pinned by apache-airflow-providers-openlineage 2.14.0 in
         # apache/airflow:3.2.1) joins them as `url` + `endpoint`; keeping the path
         # out of `url` makes that join correct whether the client concatenates or
-        # uses urljoin() — a path on `url` WITHOUT a trailing slash is truncated by
-        # urljoin (`.../openapi/openlineage` + `api/v1/lineage` →
-        # `.../openapi/api/v1/lineage` → 404).  The apiKey is sent as
+        # uses urljoin() - a path on `url` WITHOUT a trailing slash is truncated by
+        # urljoin (`.../openapi/openlineage` + `api/v1/lineage` becomes
+        # `.../openapi/api/v1/lineage`, which 404s).  The apiKey is sent as
         # `Authorization: Bearer <PAT>`.  OPENLINEAGE_API_KEY exposes the same PAT
         # as a bare value for the data-quality-gate DAG's manual urllib emit (which
         # builds OPENLINEAGE_URL + "/api/v1/lineage" itself).
         AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://datahub-gms.data-governance.svc.cluster.local:8080", "endpoint": "openapi/openlineage/api/v1/lineage", "auth": {"type": "api_key", "apiKey": "{{ .gms_token }}"}}'
         OPENLINEAGE_API_KEY: "{{ .gms_token }}"
-        # Admin username/password — consumed by the scheduler's
+        # Admin username/password - consumed by the scheduler's
         # `airflow-init` container to bootstrap the FAB admin user via
         # `airflow users create`.  The pair also gives operators a stable
         # login for the web UI; DataHub no longer consumes it (the
-        # `datahub-ingest-airflow` CronJob was removed 2026-05-11 — see
+        # `datahub-ingest-airflow` CronJob was removed 2026-05-11 - see
         # platform/components/data-governance/datahub-ingestion/recipes.yaml
-        # header — lineage flows push-side via OpenLineage instead).
+        # header - lineage flows push-side via OpenLineage instead).
         # The `_AIRFLOW_WWW_USER_*` env convention from the helm chart was
         # a 2.x contract tied to the docker-stack entrypoint; 3.x expects
         # explicit `airflow users create` invocation instead, so we ship
@@ -145,7 +105,7 @@ spec:
         AIRFLOW_ADMIN_PASSWORD: "{{ .admin_password }}"
   data:
     # DB-owner credentials (`platform` user) sourced from the openbao path that
-    # mirrors CNPG's `postgresql-app` Secret — see
+    # mirrors CNPG's `postgresql-app` Secret - see
     # platform/components/security/openbao/openbao-bootstrap.yaml (the mirror
     # step right after the postgres/superuser seeding block).  CNPG defaults
     # `enableSuperuserAccess: false`, so we CANNOT use `postgres/superuser`
@@ -170,7 +130,7 @@ spec:
       remoteRef: { key: platform/lakefs/admin, property: access_key_id }
     - secretKey: lakefs_secret_key
       remoteRef: { key: platform/lakefs/admin, property: secret_access_key }
-    # DataHub GMS PAT (long-lived JWT) for OpenLineage push auth — identical
+    # DataHub GMS PAT (long-lived JWT) for OpenLineage push auth - identical
     # OpenBao path + property the datahub-ingestion ExternalSecret consumes (see
     # platform/components/data-governance/datahub-ingestion/ingestion-cronjob.yaml).
     # Minted once at openbao-bootstrap; single source of truth for GMS Bearer auth.
@@ -183,7 +143,7 @@ metadata:
   name: airflow-config
   namespace: data-processing
 data:
-  # --- Python runtime (single-node IO-contention hardening) ------------
+  # Python runtime (single-node IO-contention hardening)
   # PYTHONDONTWRITEBYTECODE disables CPython's .pyc bytecode cache write.
   # Root cause it fixes (proven by faulthandler + iostat, 2026-06-07): on
   # this single-node box `sda` runs IO-saturated under the DB/MinIO/
@@ -193,15 +153,15 @@ data:
   # airflow touches thousands of modules; on the contended disk each .pyc
   # write-back STALLS, and the cumulative stall during `airflow api-server`
   # import overran the webserver startupProbe budget. Kubernetes then
-  # SIGKILLed the container mid-_write_atomic — the atomic temp file is
-  # orphaned, so no .pyc ever lands — and the next boot re-compiles cold
+  # SIGKILLed the container mid-_write_atomic - the atomic temp file is
+  # orphaned, so no .pyc ever lands - and the next boot re-compiles cold
   # and stalls again: a crashloop that never converges (observed 34
   # restarts, 0 bytes of stdout because the process died before its first
   # log line). The scheduler/dag-processor avoided it only because each got
   # one complete cold-write boot whose container writable layer then
   # persisted warm; the webserver was killed mid-write on every cycle.
   # With the flag set, CPython compiles in memory and skips the write
-  # entirely (CPU-for-disk trade — correct on this 24-core, disk-bound
+  # entirely (CPU-for-disk trade - correct on this 24-core, disk-bound
   # node). Applied platform-wide via this shared ConfigMap so every airflow
   # process inherits it, most importantly the KubernetesExecutor worker
   # pods: each task runs in a FRESH cold container, so without the flag
@@ -211,11 +171,11 @@ data:
   # without. Domain-agnostic; cloud/SSD overlays may drop it (no benefit,
   # no harm). PYTHONUNBUFFERED keeps stdout/stderr unbuffered so any future
   # startup hang is visible on SIGKILL instead of swallowed in stdio
-  # buffers (it was NOT the cause of the 0-byte logs — the import simply
-  # had not reached its first print — but it makes the next failure legible).
+  # buffers (it was NOT the cause of the 0-byte logs - the import simply
+  # had not reached its first print - but it makes the next failure legible).
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONUNBUFFERED: "1"
-  # --- Filesystem layout -----------------------------------------------
+  # Filesystem layout
   # AIRFLOW_HOME relocated to `/tmp/airflow-home` so UID 50000 can write
   # airflow.cfg on first run.  DAGs delivered by git-sync v4 sidecar into
   # an emptyDir mounted at /opt/airflow/dags-git; the `current` symlink
@@ -223,7 +183,7 @@ data:
   #
   # DAGS_FOLDER is the git-sync WORKTREE ROOT (`current`), NOT `current/dags`.
   # seed-gitea.sh commits each project under a top-level dir matching the repo
-  # name (platform.git → `platform/`, <use-case>.git → `use-case-<name>/`) so
+  # name (platform.git maps to `platform/`, <use-case>.git maps to `use-case-<name>/`) so
   # ArgoCD `source.path` semantics survive (e.g. `<name>/manifests/...`). That
   # nesting means the actual DAGs live at `current/<top-level>/dags/`, not
   # `current/dags/`. Pointing DAGS_FOLDER at the worktree root lets Airflow's
@@ -240,65 +200,65 @@ data:
   # use-case repo) use regexp dir patterns (`services/`, `manifests/`, …) to
   # prune non-DAG subtrees from the worktree-root recursive scan. Pinning the
   # mode makes those patterns correct regardless of the image's default; an
-  # unknown key degrades gracefully (Airflow ignores it → worst case a few
+  # unknown key degrades gracefully (Airflow ignores it, so worst case a few
   # Broken-DAG banners from service modules, never a crash).
   AIRFLOW__CORE__DAG_IGNORE_FILE_SYNTAX: "regexp"
-  # --- Executor ---------------------------------------------------------
+  # Executor
   # KubernetesExecutor replaces LocalExecutor: each Airflow task instance
   # runs in its own pod created from the template in airflow-pod-template.
   AIRFLOW__CORE__EXECUTOR: "KubernetesExecutor"
   # Airflow 3.0 split the control plane: every task process (a KubernetesExecutor
   # worker pod) reports state to the api-server's Execution API via the Task SDK
   # (airflow.sdk.api.client). If unset, this derives from [api] base_url and
-  # resolves to http://localhost:8080/execution/ — wrong inside a worker pod
-  # (nothing listens on :8080 there) → `httpx.ConnectError: [Errno 111]
+  # resolves to http://localhost:8080/execution/ - wrong inside a worker pod
+  # (nothing listens on :8080 there), causing `httpx.ConnectError: [Errno 111]
   # Connection refused` and EVERY spawned task fails. Point it at the api-server
   # Service: the `airflow` Service selects the `airflow api-server` Deployment on
   # :8080, which serves the execution app by default (`api-server --apps all`).
   # Workers inherit this via the pod_template `base` container envFrom airflow-config.
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow.data-processing.svc.cluster.local:8080/execution/"
-  # Execution-API (AIP-72 Task SDK) EXECUTION-token lifetime — the token the
+  # Execution-API (AIP-72 Task SDK) EXECUTION-token lifetime - the token the
   # api-server MINTS and returns *after* the worker's first successful
   # `PATCH /execution/.../run`. It scopes the running task's subsequent
   # /heartbeat + XCom + state calls and auto-refreshes at 20% remaining, so
   # the 600s (10 min) default is already ample once the task is running. This
-  # knob does NOT gate the first /run call — that is gated by the scheduler-
+  # knob does NOT gate the first /run call - that is gated by the scheduler-
   # minted WORKLOAD token, whose lifetime is [scheduler] task_queued_timeout
   # (set immediately below). Raising THIS value therefore never widened the
-  # mint→/run window, which is why the earlier 3600s bump did not fix the
+  # window from mint to /run, which is why the earlier 3600s bump did not fix the
   # "Signature has expired" task failures. Kept at 3600s as a comfortable
   # execution-token TTL (fewer mid-task refreshes under IO pressure).
-  # Distinct from [api_auth] jwt_expiration_time (86400s — REST/public-API).
+  # Distinct from [api_auth] jwt_expiration_time (86400s - REST/public-API).
   AIRFLOW__EXECUTION_API__JWT_EXPIRATION_TIME: "3600"
   # Scheduler-minted WORKLOAD-token lifetime AND the deadline a QUEUED task
   # instance has to reach the api-server. In the AIP-72 flow the scheduler
   # mints the workload token with `exp = task_queued_timeout` and the worker
   # presents it on its first `PATCH /execution/.../run`; the api-server then
-  # (a) returns 409 if the TI is no longer QUEUED — which it won't be once
-  # the scheduler has failed it for exceeding this very deadline — and
+  # (a) returns 409 if the TI is no longer QUEUED - which it won't be once
+  # the scheduler has failed it for exceeding this very deadline - and
   # (b) returns 401 "Signature has expired" if the token itself has lapsed.
   # BOTH failure walls are this one knob. The 600s default is fatal here: on
   # the single-node spinning HDD `sda`, KubernetesExecutor worker pods sit
-  # ContainerCreating 25–45 min (42 min worst observed) under concurrent
+  # ContainerCreating 25-45 min (42 min worst observed) under concurrent
   # sandbox creation, so every scheduled task's first /run lands past the
-  # 600s wall → supervisor SIGKILLs the task child at bootstrap before task
+  # 600s wall, so supervisor SIGKILLs the task child at bootstrap before task
   # code runs (recorded as exit_code 1 / ServerResponseError). 3000s (50 min)
   # clears the 42-min worst-case boot yet stays UNDER the 3600s hourly cadence
   # ceiling (tightest DAG schedule is hourly with max_active_runs_per_dag=1),
   # so a TI can never linger queued past its own next schedule boundary.
   AIRFLOW__SCHEDULER__TASK_QUEUED_TIMEOUT: "3000"
-  # Scheduler liveness threshold — how long the scheduler may miss its DB
+  # Scheduler liveness threshold - how long the scheduler may miss its DB
   # heartbeat before the HA layer marks the SchedulerJob failed. The 30s default
   # is fatal on the single spinning HDD: an IO spike (CH compaction, MinIO,
   # git-sync burst) stalled the scheduler heartbeat ~42s (observed 2026-06-30),
   # so it marked ITSELF failed, restarted, re-adopted already-QUEUED task
-  # instances and re-dispatched them → api-server 409 "Unique constraint
+  # instances and re-dispatched them, causing api-server 409 "Unique constraint
   # violation" on the duplicate TI + ReadTimeout to the IO-saturated metadata DB
   # (the dbt_run task's exact failure tree). 120s rides out the spike without a
   # needless scheduler restart. Single scheduler here, so this only governs
   # self-failure. Cloud overlay can drop back to 30s on SSD.
   AIRFLOW__SCHEDULER__SCHEDULER_HEALTH_CHECK_THRESHOLD: "120"
-  # Task SDK → Execution-API HTTP client read timeout. Airflow 3's Task SDK
+  # Task SDK to Execution-API HTTP client read timeout. Airflow 3's Task SDK
   # (airflow/sdk/api/client.py) builds its httpx client with a single bare-float
   # timeout applied to connect/read/write/pool; the default is 5.0s. On this
   # single spinning HDD the api-server (Postgres-backed) frequently answers the
@@ -307,7 +267,7 @@ data:
   # hit the supervisor "Last chance exception handler" and finalized the TI as
   # FAILED even though the task body already succeeded (observed across
   # ensure-lakefs-repo / batch-features / quality-gate / dbt-run). Knob added in
-  # Airflow 3.1.1 (apache/airflow#56571 → PR #56969); this image pins 3.2.1 so it
+  # Airflow 3.1.1 (apache/airflow#56571, resolved by PR #56969); this image pins 3.2.1 so it
   # is available with no upgrade. 30s absorbs the IO stall; 5 retries × 30s + ~26s
   # backoff ≈ 176s worst-case stays under the 300s task_instance_heartbeat_timeout
   # zombie wall, so the scheduler never independently kills a still-running task.
@@ -316,7 +276,7 @@ data:
   # self-terminates. Default 3; 5 rides out a short burst of fully-exhausted
   # heartbeat cycles on the contended disk without abandoning a live task.
   AIRFLOW__WORKERS__MAX_FAILED_HEARTBEATS: "5"
-  # Halve worker→api-server heartbeat round-trips (30s→60s) so fewer heartbeats
+  # Halve worker to api-server heartbeat round-trips (30s to 60s) so fewer heartbeats
   # land mid-IO-spike. Stays well under the 300s heartbeat-timeout wall.
   AIRFLOW__SCHEDULER__TASK_INSTANCE_HEARTBEAT_SEC: "60"
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
@@ -331,15 +291,15 @@ data:
   # wraps the import). Cloud overlay can lower both back to defaults on SSD.
   AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: "120.0"
   AIRFLOW__DAG_PROCESSOR__DAG_FILE_PROCESSOR_TIMEOUT: "150"
-  # Airflow 3 moved [scheduler] dag_dir_list_interval → [dag_processor]
+  # Airflow 3 moved [scheduler] dag_dir_list_interval to [dag_processor]
   # refresh_interval (the standalone dag-processor owns DAG-folder rescans now).
   AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "60"
-  # --- Database connection pool ----------------------------------------
+  # Database connection pool
   # NullPool (pool disabled) on the metadata-DB engine. The scheduler forks
   # long-lived helper processes (KubernetesExecutor kube-watcher, callback
   # runners); with SQLAlchemy's default QueuePool a child can inherit a
   # parent's checked-in libpq connection fd and then both ends drive the same
-  # OpenSSL session — the TLS sequence numbers desync and PostgreSQL rejects
+  # OpenSSL session - the TLS sequence numbers desync and PostgreSQL rejects
   # the record with `SSL error: decryption failed or bad record mac`, crashing
   # the scheduler mid-INSERT (observed on the `log` table during executor-event
   # processing). pool_pre_ping (Airflow default True) can't catch it: the
@@ -347,15 +307,15 @@ data:
   # opens a fresh connection per checkout and closes it on return, so no
   # connection is ever retained to be inherited across a fork. The api-server
   # (same DSN, same image) never forks helper procs and never logs this error
-  # — which is what localises the bug to the scheduler's connection handling.
+  # - which is what localises the bug to the scheduler's connection handling.
   #
-  # PostgreSQL-native SSL stays on (DSN has no sslmode → libpq `prefer` → TLS):
+  # PostgreSQL-native SSL stays on (DSN has no sslmode, so libpq defaults to `prefer`, which means TLS):
   # `postgresql-rw` in the storage ns is NOT mesh-injected (no istio sidecar),
   # so the wire is plaintext-passthrough and Postgres SSL is the ONLY transport
   # encryption. `sslmode=disable` would expose credentials in cleartext and is
   # therefore not an option here; disabling the pool is the correct lever.
   AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_ENABLED: "False"
-  # --- KubernetesExecutor ----------------------------------------------
+  # KubernetesExecutor
   AIRFLOW__KUBERNETES_EXECUTOR__NAMESPACE: "data-processing"
   AIRFLOW__KUBERNETES_EXECUTOR__POD_TEMPLATE_FILE: "/opt/airflow/pod_template/pod_template.yaml"
   # Worker image matches pod template
@@ -366,14 +326,14 @@ data:
   # pods so operators can `kubectl logs` / `kubectl describe` for triage.
   AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS: "True"
   AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS_ON_FAILURE: "False"
-  # --- Concurrency caps (single-node anti-stampede) --------------------
+  # Concurrency caps (single-node anti-stampede)
   # Airflow's defaults (parallelism=32, max_active_tasks_per_dag=16,
   # max_active_runs_per_dag=16) assume a multi-node cluster with fast IO.
   # On this single k3s node (spinning HDD `sda`, PSI-pressured, 250-pod
   # cap) they are catastrophic: when several DAGs hit a schedule boundary
   # together, KubernetesExecutor creates a burst of worker pods that all
   # contend for sandbox creation on `sda`. Some pods then sit Pending for
-  # tens of minutes (42 min worst observed) — and the workload token the
+  # tens of minutes (42 min worst observed) - and the workload token the
   # scheduler minted at queue time (exp = task_queued_timeout, raised to
   # 3000s above) is exactly what the worker's first `/execution/.../run`
   # call must beat. Capping concurrency cuts the stampede so boots finish
@@ -389,20 +349,20 @@ data:
   #   MAX_ACTIVE_RUNS_PER_DAG conservative platform default of 1 (the most
   #     behaviour-changing knob; consistent with the catchup-storm fix). A
   #     use-case DAG that genuinely needs concurrent runs overrides it in
-  #     its own default_args — the per-DAG setting always wins.
+  #     its own default_args - the per-DAG setting always wins.
   # Cloud overlay (SSD, multi-node) can raise all three toward defaults.
   AIRFLOW__CORE__PARALLELISM: "6"
   AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "4"
   AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: "1"
   # Tune parallelism for a single k3s node (cloud overlay bumps this).
   AIRFLOW__KUBERNETES_EXECUTOR__WORKER_PODS_CREATION_BATCH_SIZE: "4"
-  # --- Remote task logs (MinIO via aws_minio connection) ---------------
+  # Remote task logs to MinIO.
   AIRFLOW__LOGGING__REMOTE_LOGGING: "True"
   AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: "aws_minio"
   AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: "s3://airflow-logs"
   AIRFLOW__LOGGING__ENCRYPT_S3_LOGS: "False"
-  # --- OpenLineage → DataHub (ADR-013) ---------------------------------
-  # OpenLineage integration — sends lineage events to DataHub for every task.
+  # OpenLineage to DataHub (ADR-013).
+  # OpenLineage integration - sends lineage events to DataHub for every task.
   # OPENLINEAGE_URL + OPENLINEAGE_NAMESPACE are non-secret and stay here; the
   # data-quality-gate DAG's manual emit reads OPENLINEAGE_URL via os.getenv.
   # AIRFLOW__OPENLINEAGE__TRANSPORT (the provider's transport) is deliberately
@@ -412,20 +372,20 @@ data:
   # `envFrom: airflow-secrets`. Two reasons it must live in the Secret, not this
   # ConfigMap: (a) no plaintext token in a ConfigMap; (b) the worker base
   # container lists `secretRef: airflow-secrets` BEFORE `configMapRef:
-  # airflow-config`, and later envFrom wins — a copy here would silently
+  # airflow-config`, and later envFrom wins - a copy here would silently
   # override the authed Secret value and re-break lineage with HTTP 401. GMS has
   # METADATA_SERVICE_AUTH_ENABLED=true, so the OpenLineage POST is 401 without
   # the Bearer PAT even after the datahub-gms :8080 PeerAuth PERMISSIVE carve-out
   # clears the mesh-STRICT mTLS reset.
   OPENLINEAGE_URL: "http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage"
   OPENLINEAGE_NAMESPACE: "default"
-  # --- Auth manager (FAB provider) -------------------------------------
+  # Auth manager (FAB provider)
   # Airflow 3.x ships SimpleAuthManager as default, but it auto-generates
   # passwords to an on-disk JSON file (incompatible with our OpenBao-sourced
   # credential pattern at secret/platform/airflow/admin) and exposes only
   # JWT tokens on /auth/token (no BasicAuth).  FAB is the only 3.x auth
   # manager that reads users from the metadata DB, giving us a declarative
-  # OpenBao→`airflow users create` path so the OPS admin (and any future
+  # path from OpenBao to `airflow users create` so the OPS admin (and any future
   # service accounts) come from a single source of truth.  `basic_auth` is
   # kept alongside `session` so external clients (CI smoke tests, future
   # API integrations) can hit Airflow's REST API with the same OpenBao
@@ -433,11 +393,11 @@ data:
   AIRFLOW__CORE__AUTH_MANAGER: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
   AIRFLOW__FAB__AUTH_BACKENDS: "airflow.providers.fab.auth_manager.api.auth.backend.session,airflow.providers.fab.auth_manager.api.auth.backend.basic_auth"
 ---
-# --- DAGs git-sync repo selector (deploy-time binding, domain-agnostic) -----
-# WHICH repo git-sync clones is a deploy-time binding, NOT platform source —
+# DAGs git-sync repo selector.
+# WHICH repo git-sync clones is a deploy-time binding, NOT platform source -
 # the platform ships ZERO DAGs and must never name a use-case. So the git-sync
 # sidecar + worker init read `GITSYNC_REPO` from this ConfigMap via envFrom.
-# Default = platform.git: harmless (no `dags/` there → Airflow finds nothing,
+# Default = platform.git: harmless (no `dags/` there, so Airflow finds nothing,
 # stays healthy), and names no use-case. A use-case OVERRIDES it by shipping
 # the optional `airflow-dags-source-override` ConfigMap into THIS namespace
 # (use-case-owned, fixed name, see use-case-*/manifests/airflow-dags-binding/).
@@ -445,7 +405,7 @@ data:
 # (optional)] in that order, so the override's GITSYNC_REPO wins when present.
 # Env-only (no `--repo` flag) keeps git-sync's flag-vs-env precedence moot.
 # NOTE: changing the override CM does NOT restart the scheduler (envFrom is
-# read at pod start) — roll airflow-scheduler once after first use-case deploy.
+# read at pod start) - roll airflow-scheduler once after first use-case deploy.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -458,12 +418,12 @@ metadata:
 data:
   GITSYNC_REPO: "http://gitea.gitops.svc.cluster.local:3000/platform/platform.git"
 ---
-# --- Pod template consumed by KubernetesExecutor ---------------------------
+# Pod template consumed by KubernetesExecutor
 # Mounted at /opt/airflow/pod_template/pod_template.yaml on the scheduler.
 # The scheduler reads it, substitutes task-specific fields, and POSTs the
 # resulting pod spec to the API server to launch each worker.  The template
 # must match the API shape Kubernetes accepts (not Airflow's `k8s_object`
-# abstraction) and must NOT contain Airflow connection credentials — those
+# abstraction) and must NOT contain Airflow connection credentials - those
 # are supplied by envFrom on `airflow-secrets`.
 apiVersion: v1
 kind: ConfigMap
@@ -516,7 +476,7 @@ data:
             - --depth=1
             - --one-time
             - --submodules=off
-            # max-failures default is 0 → any DNS/network hiccup aborts the
+            # max-failures default is 0, so any DNS/network hiccup aborts the
             # init and the worker pod never starts. Same failure class as the
             # scheduler git-sync sidecar (#213). 5 retries on a one-time init
             # is enough for CoreDNS to warm without blocking task launch.
@@ -542,16 +502,16 @@ data:
           # IfNotPresent (NOT Always): KubernetesExecutor creates a fresh worker
           # pod per task, so Always re-pulls this 203MB image on EVERY task. On
           # the single spinning HDD during a deploy burst (4 make targets at
-          # once) that pull measured 88 min — far past the worker's 3600s
-          # execution-token TTL — so every queued task died at supervisor
+          # once) that pull measured 88 min - far past the worker's 3600s
+          # execution-token TTL - so every queued task died at supervisor
           # bootstrap with `ServerResponseError: Invalid auth token: Signature
           # has expired` BEFORE task code ran (hit 5 DAG task types at once:
           # batch_features, ensure_lakefs_repo, dbt_run, ge_validation,
-          # sql_quality_checks — 2026-06-30). On a quiet disk the same pull is
+          # sql_quality_checks - 2026-06-30). On a quiet disk the same pull is
           # ~52s and tasks succeed, confirming pull latency (not the JWT knob)
           # is the root cause; the bounded JWT / task_queued_timeout below stay
           # as-is. DAG code is git-synced (initContainer above), NOT baked into
-          # this image, so a warm cached layer is safe — only the Airflow
+          # this image, so a warm cached layer is safe - only the Airflow
           # runtime/deps could drift, and those change only on explicit rebuild.
           # CAVEAT: after `make platform-build-services` rebuilds platform-airflow
           # the node keeps the stale cached layer under IfNotPresent; force a
@@ -581,7 +541,7 @@ data:
         - name: airflow-dags
           emptyDir: {}
 ---
-# --- ServiceAccounts -------------------------------------------------------
+# ServiceAccounts
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -609,7 +569,7 @@ metadata:
     app: airflow
     app.kubernetes.io/component: worker
 ---
-# --- RBAC: pod CRUD for scheduler + worker --------------------------------
+# RBAC for scheduler and worker.
 # The scheduler creates task pods (KubernetesExecutor).
 # The worker SA is reused by KubernetesPodOperator-backed DAG tasks that
 # themselves spawn pods in use-case namespaces; both need the same verbs.
@@ -641,13 +601,10 @@ roleRef:
   name: airflow-pod-operator
   apiGroup: rbac.authorization.k8s.io
 ---
-# =============================================================================
 # Scheduler Deployment
-# =============================================================================
 # Owns DAG parsing + worker-pod creation.  Init containers perform one-shot
-# DB migration and admin-user bootstrap — these run before the scheduler
+# DB migration and admin-user bootstrap - these run before the scheduler
 # container starts, so the webserver can assume the schema is up-to-date.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -671,12 +628,12 @@ spec:
         app.kubernetes.io/component: scheduler
       annotations:
         # Hold scheduler + git-sync containers until envoy sidecar is fully
-        # ready. Without this, git-sync runs `git fetch` before envoy is up
-        # → DNS lookup for gitea.gitops.svc.cluster.local hits the sidecar's
-        # pre-init iptables-redirected port → "Could not resolve host" → with
-        # --max-failures<1 (chart default), the container aborts and kubelet
-        # restart-loops it, producing 300+ restarts and a containerd CRI
-        # CreateContainer storm (#213, field-verified 2026-05-14).
+        # ready. Without this, git-sync runs `git fetch` before envoy is up,
+        # so the DNS lookup for gitea.gitops.svc.cluster.local hits the
+        # sidecar's pre-init iptables-redirected port and returns "Could not
+        # resolve host"; with max-failures<1 (chart default), the container
+        # aborts and kubelet restart-loops it, producing 300+ restarts and a
+        # containerd CRI CreateContainer storm (#213, field-verified 2026-05-14).
         proxy.istio.io/config: |
           holdApplicationUntilProxyStarts: true
     spec:
@@ -727,17 +684,17 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             # Three-phase init:
-            #   1. `airflow db migrate`      — Airflow core schema (DAG/Run/TI/etc.).
-            #   2. `airflow fab-db migrate`  — FAB auth schema (ab_user, ab_role,
+            #   1. `airflow db migrate` - Airflow core schema (DAG/Run/TI/etc.).
+            #   2. `airflow fab-db migrate` - FAB auth schema (ab_user, ab_role,
             #      ab_permission).  Airflow 3.x moved the FAB tables into a
             #      dedicated migration command owned by the FAB provider, so this
-            #      step is required IN ADDITION TO `airflow db migrate` — `db
+            #      step is required IN ADDITION TO `airflow db migrate` - `db
             #      migrate` alone does not create the FAB tables.  `fab-db migrate`
             #      creates the schema on first run and is a no-op on subsequent
             #      runs; the command is only available when the FAB provider is
             #      installed (see apache-airflow-providers-fab>=3.6.1 in
             #      platform/services/airflow/pyproject.toml).
-            #   3. `airflow users create …`  — idempotent admin-user bootstrap.
+            #   3. `airflow users create …` - idempotent admin-user bootstrap.
             #      The `users` subcommand is provided by the FAB auth manager;
             #      it exists ONLY when FAB is enabled (see ConfigMap
             #      `airflow-config`).  Check-then-create via `users list` keeps
@@ -760,7 +717,7 @@ spec:
               # changes between Airflow minor versions).  Matching on the
               # `"username": "<value>"` JSON field is tight: no other field
               # uses that exact key, and we set `--firstname Platform
-              # --lastname Admin` so those fields can never collide with the
+              # lastname Admin` so those fields can never collide with the
               # username value even on partial string match.
               if airflow users list -o json 2>/dev/null | grep -q "\"username\": \"${AIRFLOW_ADMIN_USERNAME}\""; then
                 echo "[init] admin user '${AIRFLOW_ADMIN_USERNAME}' already exists — skipping create."
@@ -799,19 +756,19 @@ spec:
           # connections only. The scheduler runs the KubernetesExecutor, which
           # forks a long-lived kube-watcher process; that child inherits the
           # parent's open libpq connection fd, and when its inherited connection
-          # object is finalised it writes to the shared SSL socket — desyncing
+          # object is finalised it writes to the shared SSL socket - desyncing
           # the TLS record sequence and crashing the parent mid-query with
           # `psycopg2.OperationalError: SSL error: decryption failed or bad
           # record mac` (~one crash per 10 min). NullPool cut nothing measurable
-          # (the dag-processor also forks + NullPool yet is stable — it's the
+          # (the dag-processor also forks + NullPool yet is stable - it's the
           # watcher's connection handling, not the pool). Removing client-side
           # TLS removes the corruption surface entirely: a forked child's
           # cleanup on a plaintext socket is a clean, *recoverable* disconnect
           # (SQLAlchemy reconnects) rather than an unrecoverable TLS desync.
           #
-          # The DSN carries no `sslmode`, so libpq honours PGSSLMODE — scoping
+          # The DSN carries no `sslmode`, so libpq honours PGSSLMODE - scoping
           # this to the scheduler container (api-server/dag-processor keep their
-          # default `prefer`/TLS). Safe on this single-node k3s: scheduler↔PG
+          # default `prefer`/TLS). Safe on this single-node k3s: scheduler-to-PG
           # traffic never leaves the host (same-node CNI). A multi-node cloud
           # overlay must instead route the metadata DB through PgBouncer (the
           # upstream Airflow recommendation) or a mesh-injected PG so the hop
@@ -841,9 +798,9 @@ spec:
                 - -c
                 - 'airflow jobs check --job-type SchedulerJob --hostname "$(hostname)"'
             # `jobs check` runs a Postgres query. On this single-node spinning
-            # HDD, disk I/O saturation makes that query exceed a tight timeout —
+            # HDD, disk I/O saturation makes that query exceed a tight timeout -
             # which false-kills a HEALTHY scheduler and triggers a restart storm
-            # that makes I/O worse (field-verified: "timed out after 20s" →
+            # that makes I/O worse (field-verified: "timed out after 20s" then
             # Killing). Generous timeout/threshold tolerate transient DB slowness
             # under I/O pressure while still catching a genuinely hung process
             # (~16 min). period=120s also halves the probe's own DB/I/O load.
@@ -855,10 +812,10 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             capabilities: { drop: ["ALL"] }
-        # git-sync v4 sidecar — keeps DAGs in sync with the Gitea repo.
+        # git-sync v4 sidecar - keeps DAGs in sync with the Gitea repo.
         # Assumes anonymous HTTP read on the internal Gitea (air-gapped,
         # no REQUIRE_SIGNIN_VIEW).  If Gitea is locked down, add
-        # --username / --password-file from a Secret.
+        # username / --password-file from a Secret.
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.6.0
           # GITSYNC_REPO sourced via envFrom (NOT a --repo flag): the platform
@@ -879,7 +836,7 @@ spec:
             # max-failures default is 0 (any fetch failure aborts the
             # container). On a cold cluster, the first `git fetch` races
             # CoreDNS warm-up + gitea pod readiness, deterministically
-            # producing one transient EAI_AGAIN → restart loop (#213).
+            # producing one transient EAI_AGAIN, which triggers a restart loop (#213).
             # 10 retries × 60s period = 10 min DNS-tolerance window before
             # we declare the upstream genuinely broken.
             - --max-failures=10
@@ -905,26 +862,23 @@ spec:
         - name: airflow-dags
           emptyDir: {}
 ---
-# =============================================================================
 # DAG Processor Deployment
-# =============================================================================
-# Airflow 3.0+ REQUIRES a standalone DAG processor — the scheduler no longer
+# Airflow 3.0+ REQUIRES a standalone DAG processor - the scheduler no longer
 # parses DAG files in-process (release notes: "Standalone DAG Processor
 # Required").  Without this component the metadata DB is never populated, so
 # `airflow dags list` returns "No data found" with ZERO import-errors (nothing
-# parses → nothing to error on).  This Deployment runs `airflow dag-processor`,
-# which scans the default `dags-folder` bundle (LocalDagBundle → DAGS_FOLDER =
+# parses, so nothing to error on).  This Deployment runs `airflow dag-processor`,
+# which scans the default `dags-folder` bundle (LocalDagBundle maps to DAGS_FOLDER =
 # the git-sync worktree root) every [dag_processor] refresh_interval and writes
 # serialized DAGs to Postgres for the scheduler to act on.
 #
 # It carries its OWN git-sync sidecar + emptyDir because a separate pod has a
 # separate filesystem from the scheduler (the scheduler's synced DAGs are not
 # visible here).  A dedicated zero-RBAC ServiceAccount is sufficient: the
-# processor only reads DAG files and writes to the metadata DB — it never
+# processor only reads DAG files and writes to the metadata DB - it never
 # touches the Kubernetes API (unlike the scheduler, which creates worker pods).
 # replicas:1 honors the single-node idle mandate; it scales independently of
 # the scheduler, matching the upstream Airflow Helm `dagProcessor` topology.
-# =============================================================================
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -957,7 +911,7 @@ spec:
         app.kubernetes.io/component: dag-processor
       annotations:
         # git-sync's first `git fetch` needs CoreDNS + the envoy sidecar ready
-        # — same #213 race the scheduler hits. Hold app containers until the
+        # - same #213 race the scheduler hits. Hold app containers until the
         # proxy is up so the clone does not abort on an unresolvable Gitea host.
         proxy.istio.io/config: |
           holdApplicationUntilProxyStarts: true
@@ -971,7 +925,7 @@ spec:
       initContainers:
         # The processor writes serialized DAGs to Postgres; gate on the CNPG
         # primary being reachable. Schema creation is owned by the scheduler's
-        # airflow-init (`db migrate`) — on a cold phase-full this container may
+        # airflow-init (`db migrate`) - on a cold phase-full this container may
         # win the race and the processor then crash-retries until the schema
         # exists. Benign: the kubelet restarts it and the system converges.
         - name: wait-for-db
@@ -1017,7 +971,7 @@ spec:
             # a subprocess that imports the full airflow + ~80-provider stack
             # (~500Mi resident), and `airflow` CLI invocations (e.g. liveness
             # `jobs check`, or an operator `dags list`) fork ANOTHER full stack
-            # inside this container — 1Gi was too tight and cgroup-OOM'd those
+            # inside this container - 1Gi was too tight and cgroup-OOM'd those
             # (exit 137). Match the scheduler's 2Gi ceiling; idle requests stay
             # modest so the single node schedules it cheaply.
             requests:
@@ -1034,7 +988,7 @@ spec:
                 - 'airflow jobs check --job-type DagProcessorJob --hostname "$(hostname)"'
             # Same I/O-tolerance rationale as the scheduler probe above: the
             # `jobs check` Postgres query times out under HDD I/O saturation and
-            # false-kills the dag-processor mid-parse — which is exactly why DAGs
+            # false-kills the dag-processor mid-parse - which is exactly why DAGs
             # never finish serializing (stale import_errors persists). Generous
             # values let a parse cycle complete under I/O pressure.
             initialDelaySeconds: 180
@@ -1045,10 +999,10 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             capabilities: { drop: ["ALL"] }
-        # git-sync v4 sidecar — identical contract to the scheduler's: the repo
+        # git-sync v4 sidecar - identical contract to the scheduler's: the repo
         # comes from envFrom (platform default `airflow-dags-source` + optional
         # use-case `airflow-dags-source-override`, later-envFrom wins), NOT a
-        # --repo flag, so the platform names no use-case. Its own emptyDir, so
+        # repo flag, so the platform names no use-case. Its own emptyDir, so
         # the processor reads the freshly-synced worktree at DAGS_FOLDER.
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.6.0
@@ -1081,13 +1035,10 @@ spec:
         - name: airflow-dags
           emptyDir: {}
 ---
-# =============================================================================
 # Webserver Deployment
-# =============================================================================
 # Read-only UI + REST API.  Scales independently of the scheduler.  Tolerates
 # an extended startup window (`startupProbe`) so a concurrent scheduler
 # migration does not knock it out of the rotation.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1141,7 +1092,7 @@ spec:
           # NullPool default that airflow-config sets for the fork-heavy
           # scheduler/dag-processor). The api-server is a request/response web
           # tier: it does NOT fork long-lived DB-writing helpers, so it never hit
-          # the cross-fork `bad record mac` corruption NullPool guards against —
+          # the cross-fork `bad record mac` corruption NullPool guards against -
           # making pooling safe here. Pooling keeps libpq connections warm so the
           # execution-API path stays fast as KubernetesExecutor scales task pods
           # (avoids a fresh TCP+TLS handshake to the mesh-external, SSL-required
@@ -1149,7 +1100,7 @@ spec:
           # cure for the historical startup CrashLoop: that was the .pyc
           # write-back stalling on the IO-contended disk during import, fixed by
           # PYTHONDONTWRITEBYTECODE in airflow-config (see the Python-runtime note
-          # there). DB connectivity was never the startup blocker — postgres logs
+          # there). DB connectivity was never the startup blocker - postgres logs
           # showed a single clean SSL session per cycle. Container env overrides
           # envFrom.
           env:
@@ -1193,7 +1144,7 @@ spec:
             readOnlyRootFilesystem: false
             capabilities: { drop: ["ALL"] }
 ---
-# Primary Service — selects only the webserver pods.  Kept on the generic
+# Primary Service - selects only the webserver pods.  Kept on the generic
 # name `airflow` so existing callers (AIRFLOW_URL, DataHub ingestion,
 # infrastructure.yaml) resolve without changes.
 apiVersion: v1
@@ -1214,16 +1165,16 @@ spec:
     app: airflow
     app.kubernetes.io/component: webserver
 ---
-# PeerAuthentication — port-level PERMISSIVE on the api-server's :8080.
+# PeerAuthentication - port-level PERMISSIVE on the api-server's :8080.
 # data-processing is in the ADR-009 mesh; the istio-system default PeerAuth is
 # STRICT, so the api-server (native istio-proxy sidecar) rejects any non-mTLS
 # inbound on :8080 with a TCP reset. But KubernetesExecutor worker pods are
-# deliberately mesh-EXCLUDED (pod_template `sidecar.istio.io/inject: false` —
+# deliberately mesh-EXCLUDED (pod_template `sidecar.istio.io/inject: false` -
 # the sidecar keeps a finished task pod Running forever and breaks the
 # executor's pod-deletion loop). Those non-meshed workers call the Airflow 3
 # Task SDK execution API at `airflow.data-processing.svc:8080/execution/` in
-# plaintext; under STRICT that handshake is reset → every task is SIGKILLed
-# (`httpx ReadError [Errno 104] Connection reset by peer`) → the entire task
+# plaintext; under STRICT that handshake is reset, so every task is SIGKILLed
+# (`httpx ReadError [Errno 104] Connection reset by peer`), so the entire task
 # layer fails. PERMISSIVE on :8080 lets the api-server accept BOTH the workers'
 # plaintext AND mTLS from in-mesh callers (UI, DataHub), while all other ports
 # stay STRICT. Same out-of-mesh-caller pattern as the prometheus/karapace/
@@ -1248,7 +1199,7 @@ spec:
     "8080":
       mode: PERMISSIVE
 ---
-# Component-qualified alias — matches the name some ingestion recipes use
+# Component-qualified alias - matches the name some ingestion recipes use
 # (e.g. <use-case>/scripts/libs/datahub/ingestion_config.py).
 apiVersion: v1
 kind: Service
@@ -1268,7 +1219,7 @@ spec:
     app: airflow
     app.kubernetes.io/component: webserver
 ---
-# Headless Service for the scheduler — needed by the `airflow jobs check`
+# Headless Service for the scheduler - needed by the `airflow jobs check`
 # liveness probe (`--hostname`) and by future HA-mode leader coordination.
 apiVersion: v1
 kind: Service

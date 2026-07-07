@@ -1,4 +1,4 @@
-# DeFi Llama — completely free, no API key needed
+# DeFi Llama - completely free, no API key needed
 # Runs every 6 hours, fetches protocol TVL and DeFi metrics
 # Emits run outcome to platform Pushgateway via push-helper ConfigMap.
 apiVersion: batch/v1
@@ -11,7 +11,7 @@ metadata:
     mlops-platform.io/use-case: crypto
 spec:
   schedule: "30 */6 * * *"
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
   # controller stops scheduling permanently).
@@ -21,13 +21,13 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
-    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    # Kueue admission: Job-level label routes to batch-queue, which maps to cluster cohort.
     metadata:
       labels:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 2
-      # 600→1800: see supplementary.yaml header. Paired with IfNotPresent.
+      # 600 to 1800: see supplementary.yaml header. Paired with IfNotPresent.
       activeDeadlineSeconds: 1800
       template:
         metadata:
@@ -53,7 +53,7 @@ spec:
             - name: rest-collector-config
               configMap:
                 name: crypto-rest-collector-config
-            # Kafka SASL_SSL CA — required by librdkafka producer in rest-collector
+            # Kafka SASL_SSL CA - required by librdkafka producer in rest-collector
             # (KAFKA_SSL_CA_LOCATION=/etc/kafka/ca/ca.crt). patches/kafka-sasl.yaml
             # only patches Deployments; CronJobs embed the mount directly.
             - name: kafka-ca
@@ -65,7 +65,7 @@ spec:
           containers:
             - name: rest-collector
               image: rest-collector:latest
-              # IfNotPresent — see #167 / #402.
+              # IfNotPresent - see #167 / #402.
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
@@ -88,7 +88,7 @@ spec:
               env:
                 # rest-collector source-registry path. Moved off the shared
                 # pipeline-config ConfigMap (it leaked into non-rest-collector
-                # envFrom consumers → Python batch loader sma_*/volatility_* = 0);
+                # envFrom consumers, so Python batch loader sma_*/volatility_* = 0);
                 # explicit set also fails loud if the mount is missing. See
                 # configmaps/sources.yaml.
                 - name: CONFIG_PATH
@@ -104,13 +104,13 @@ spec:
                 - name: SUPPLEMENTARY_SOURCE_ENABLED
                   value: "true"
                 # DefiLlama /protocols: top-level array; fields name/slug/tvl/
-                # change_1d (float). Snapshot-only (no timestamp → now()). Without
-                # this mapping the job inherits the OHLCV mapping → score=0.
+                # change_1d (float). Snapshot-only (no timestamp, falls back to now()). Without
+                # this mapping the job inherits the OHLCV mapping, so score=0.
                 - name: RESPONSE_FIELD_MAPPING
                   value: "value=change_1d,title=name,symbol=slug"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL
                   value: "0s"
-                # Snapshot-only API — backfill just re-fetches the current snapshot.
+                # Snapshot-only API - backfill just re-fetches the current snapshot.
                 - name: SUPPLEMENTARY_BACKFILL_ENABLED
                   value: "false"
                 - name: SUPPLEMENTARY_BACKFILL_START_DATE
@@ -137,7 +137,7 @@ spec:
                   memory: "128Mi"
                 limits:
                   cpu: "200m"
-                  # 128Mi→256Mi: the DeFiLlama /protocols JSON (every protocol's
+                  # 128Mi to 256Mi: the DeFiLlama /protocols JSON (every protocol's
                   # TVL, multi-MB and growing as new protocols list) risked GC
                   # thrash during parse at 128Mi (#514 secondary suspect). Only
                   # consumed during the brief --once run; idle footprint is 0.

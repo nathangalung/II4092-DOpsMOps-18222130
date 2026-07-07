@@ -1,11 +1,8 @@
-# =============================================================================
-# DASHBOARD FRONTEND — Web UI (React + Next.js)
-# =============================================================================
+# DASHBOARD FRONTEND - Web UI (React + Next.js)
 # Real-time prediction dashboard with charts and metrics.
 #
 # Platform tool alternatives:
 #   - Grafana (v12.4.0): Pre-built dashboards for Prometheus metrics
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +20,7 @@ spec:
       labels:
         app: dashboard-frontend
       annotations:
-        # Static-asset frontend — no /metrics endpoint to scrape.
+        # Static-asset frontend - no /metrics endpoint to scrape.
         prometheus.io/scrape: "false"
         prometheus.io/port: "8080"
     spec:

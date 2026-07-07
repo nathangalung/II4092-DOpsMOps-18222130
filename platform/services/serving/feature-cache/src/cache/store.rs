@@ -7,7 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::config::Config;
 
-/// Dynamic feature map — keys are feature names (configured per use-case),
+/// Dynamic feature map - keys are feature names (configured per use-case),
 /// values are computed f64 values. No hardcoded field names.
 pub type Features = BTreeMap<String, f64>;
 

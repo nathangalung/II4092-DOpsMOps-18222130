@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# =============================================================================
-# cnpg/post-apply.sh — block until CNPG operator + barman-cloud plugin are
+# cnpg/post-apply.sh - block until CNPG operator + barman-cloud plugin are
 # fully registered with the operator's plugin discovery loop.
-# =============================================================================
 # Why this exists:
 #   CNPG 1.30+ removed in-tree barman backup support (`Cluster.spec.backup.
 #   barmanObjectStore`). Backups now go through the CNPG-I plugin
@@ -19,17 +17,17 @@
 #   sets phase = "Cluster cannot proceed to reconciliation due to an
 #   unknown plugin being required", and the Cluster STAYS BLOCKED until
 #   the operator's next plugin-discovery refresh AFTER the Service appears
-#   — which can be 20+ minutes on a cold start. Every downstream consumer
+# - which can be 20+ minutes on a cold start. Every downstream consumer
 #   (Airflow, Superset, MLflow, DataHub, LakeFS, Lakekeeper, Kubeflow,
 #   Trino, datahub-ingestion) waits on `secret/postgresql-app`, which is
 #   only created post-initdb, so the entire phase-full graph stalls.
 #
 # What this hook does:
-#   1. Wait `cnpg-cloudnative-pg` operator Deployment Available — webhook
+#   1. Wait `cnpg-cloudnative-pg` operator Deployment Available - webhook
 #      must serve before Cluster admits.
 #   2. Wait `barman-cloud-plugin-barman-cloud` plugin Deployment Available.
 #   3. Wait `Service/barman-cloud` exists in cnpg-system AND carries the
-#      `cnpg.io/pluginName` label — this is the signal the operator's
+#      `cnpg.io/pluginName` label - this is the signal the operator's
 #      plugin loader uses to register the plugin gRPC endpoint.
 #   4. Trip the operator's plugin re-discovery once by patching the
 #      Deployment with a no-op annotation, so subsequent Cluster applies
@@ -37,7 +35,6 @@
 #      refresh tick.
 #
 # Idempotent: on a healthy cluster every wait returns instantly.
-# =============================================================================
 set -euo pipefail
 
 NS=cnpg-system
@@ -48,7 +45,6 @@ kubectl -n "$NS" rollout status deployment/cnpg-cloudnative-pg --timeout=300s
 echo "    [post-apply] waiting Deployment/barman-cloud-plugin-barman-cloud Available (timeout 300s)"
 kubectl -n "$NS" rollout status deployment/barman-cloud-plugin-barman-cloud --timeout=300s
 
-# -----------------------------------------------------------------------------
 # Service/barman-cloud is delete-prone after `make nuke`: K8s GC may finalise
 # the prior Service AFTER apply-component.sh's defense window, leaving a
 # `PluginCleanup: Removing plugin barman-cloud.cloudnative-pg.io from pool due
@@ -58,7 +54,6 @@ kubectl -n "$NS" rollout status deployment/barman-cloud-plugin-barman-cloud --ti
 # and postgresql/storage initdb never starts. Field-observed 2026-05-11 fresh
 # nuke + phase-full. Fix via idempotent re-extract from the rendered
 # manifest and re-apply.
-# -----------------------------------------------------------------------------
 : "${REPO_ROOT:=$(cd "$(dirname "$0")/../../../.." && pwd)}"
 RENDER="${CACHE_DIR:-$REPO_ROOT/.cache}/renders/component-storage-cnpg-rendered.yaml"
 
@@ -83,8 +78,8 @@ while (( $(date +%s) < deadline )); do
     echo "        Service/barman-cloud registered (cnpg.io/pluginName=$plugin_name)"
     break
   fi
-  # After 90s without Service appearing organically — past the typical chart
-  # Helm-hook wait window — assume Service was deleted by GC race or chart
+  # After 90s without Service appearing organically - past the typical chart
+  # Helm-hook wait window - assume Service was deleted by GC race or chart
   # gave up. Re-extract from render. 90s (not 60s) avoids a harmless SSA
   # conflict warning when chart legitimately takes 60-80s to issue mTLS certs
   # and create the Service.

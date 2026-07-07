@@ -8,7 +8,7 @@ from main import (
     query_feature_data,
 )
 
-# --- Helper Tests ---
+# Helper Tests
 
 
 def test_parse_duration() -> None:
@@ -36,7 +36,7 @@ def test_query_feature_data() -> None:
     assert "value_1" in query
 
 
-# --- check_scale Tests ---
+# check_scale Tests
 
 
 @patch("main.calculate_psi")

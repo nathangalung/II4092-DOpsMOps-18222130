@@ -1,10 +1,8 @@
-# =============================================================================
-# PostSync bootstrap — register the KFP retraining pipeline + recurring runs
-# =============================================================================
+# PostSync bootstrap - register the KFP retraining pipeline + recurring runs
 # MLOps-L2 gap closer (companion to retrain-on-drift.yaml / ADR-017).
 #
 # The retrain-on-drift CronWorkflow resolves the KFP pipeline
-# `<use-case>-retraining_pipeline` by display_name at trigger time — the
+# `<use-case>-retraining_pipeline` by display_name at trigger time - the
 # pipeline MUST already exist in KFP. But nothing registered it:
 # `pipelines/submit_recurring.py` was a documented MANUAL step
 # (base-train/kustomization.yaml note), so on a fresh cluster every 6h
@@ -13,16 +11,16 @@
 # 2026-06-30; concurrencyPolicy:Forbid then silently skipped subsequent ticks).
 #
 # This ArgoCD PostSync Job runs submit_recurring.py automatically on every sync:
-# compile retraining_pipeline.py → idempotently upload it as a named KFP
-# Pipeline → upsert the weekly + 6-hourly recurring runs. submit_recurring.py is
-# fully idempotent (reuse-by-display_name for BOTH pipeline and experiment — see
+# compile retraining_pipeline.py, then idempotently upload it as a named KFP
+# Pipeline, then upsert the weekly + 6-hourly recurring runs. submit_recurring.py is
+# fully idempotent (reuse-by-display_name for BOTH pipeline and experiment - see
 # _get_or_create_experiment / upload_or_replace_pipeline), so re-running on every
 # sync neither duplicates nor errors. This closes the manual-bootstrap hole so
 # the automated-retrain loop survives a KFP DB reset / cluster rebuild.
 #
 # Source delivery: a git-sync initContainer clones the use-case repo from the
 # in-cluster Gitea (the SAME repo + pattern the Airflow workers use for DAGs),
-# so pipelines/*.py stay single-source-of-truth — NOT duplicated into a
+# so pipelines/*.py stay single-source-of-truth - NOT duplicated into a
 # ConfigMap (which would also hit the kustomize load-restrictor, the files
 # living outside manifests/base/). retraining_pipeline.py's image refs default
 # to localhost:5000/<use-case>-*:latest, already correct for this cluster, so no
@@ -32,7 +30,6 @@
 # the CronWorkflow. PostSync + BeforeHookCreation delete-policy so each sync
 # re-registers cleanly without a stale completed-Job pod-template immutability
 # clash.
-# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:

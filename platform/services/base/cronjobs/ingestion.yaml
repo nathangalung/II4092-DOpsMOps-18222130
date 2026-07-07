@@ -1,9 +1,6 @@
-# =============================================================================
-# INGESTION — Hourly REST API Polling (Go)
-# =============================================================================
-# Polls REST API for time-series data → Kafka.
+# INGESTION - Hourly REST API Polling (Go)
+# Polls REST API for time-series data to Kafka.
 # Schema validation via Karapace schema registry.
-# =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:

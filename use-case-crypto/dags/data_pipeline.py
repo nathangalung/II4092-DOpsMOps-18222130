@@ -2,7 +2,7 @@
 Airflow DAGs: Crypto Data & Feature Pipeline
 
 Replaces bare K8s CronJobs with Airflow-orchestrated DAGs that provide:
-  - Dependency management (batch-features → dbt → materialization)
+  - Dependency management (batch-features then dbt then materialization)
   - Retry with exponential backoff
   - Backfill support for historical reprocessing
   - Observability via Airflow UI
@@ -14,12 +14,12 @@ CronJobs that STAY as CronJobs (independent, high-frequency):
   - vector-embedding (*/5 * * * *)
 
 CronJobs REPLACED by these DAGs:
-  - batch-features.yaml       → crypto_hourly_features
-  - batch-sentiment.yaml       → crypto_hourly_features
-  - materialization.yaml       → crypto_hourly_features
-  - dbt-run.yaml              → crypto_lakehouse (in lakehouse.py)
-  - evidently-report.yaml     → crypto_lakehouse (in lakehouse.py)
-  - backfill.yaml             → crypto_daily_backfill
+  - batch-features.yaml       becomes crypto_hourly_features
+  - batch-sentiment.yaml       becomes crypto_hourly_features
+  - materialization.yaml       becomes crypto_hourly_features
+  - dbt-run.yaml              becomes crypto_lakehouse (in lakehouse.py)
+  - evidently-report.yaml     becomes crypto_lakehouse (in lakehouse.py)
+  - backfill.yaml             becomes crypto_daily_backfill
 """
 
 from __future__ import annotations
@@ -31,11 +31,11 @@ from airflow import DAG
 # KubernetesPodOperator and the pod factory live in _config.py.
 from kubernetes.client import models as k8s
 
-# Pushgateway DAG-outcome callbacks — emits one `crypto_job_*` series per
+# Pushgateway DAG-outcome callbacks - emits one `crypto_job_*` series per
 # DagRun so SLO panels render Airflow alongside CronJob + Tekton runs.
 # DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
 # not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
-# directory on sys.path — `from _observability import …` then raises
+# directory on sys.path - `from _observability import …` then raises
 # ModuleNotFoundError at parse time. Register this file's own directory first
 # so the shared sibling module resolves regardless of where DAGS_FOLDER points.
 import sys  # noqa: E402
@@ -55,15 +55,12 @@ DEFAULT_ARGS = {
 }
 
 
-# ═════════════════════════════════════════════════════════════
 # DAG 1: Hourly Feature Pipeline
-# ═════════════════════════════════════════════════════════════
-# Dependency chain: batch_features → feast_materialize → sentiment
+# Dependency chain: batch_features then feast_materialize then sentiment
 #
 # batch_features computes technical indicators from raw OHLCV
 # feast_materialize pushes features to the Valkey online store
 # sentiment aggregates sentiment scores into windowed features
-# ═════════════════════════════════════════════════════════════
 with DAG(
     dag_id=f"{USE_CASE}_hourly_features",
     default_args=DEFAULT_ARGS,
@@ -74,7 +71,7 @@ with DAG(
     start_date=datetime(2026, 4, 1),
     catchup=False,
     # Auto-activate on first git-sync load (platform default pauses new DAGs
-    # via DAGS_ARE_PAUSED_AT_CREATION=True). Safe — catchup=False. The
+    # via DAGS_ARE_PAUSED_AT_CREATION=True). Safe - catchup=False. The
     # daily_backfill DAG below keeps the default (paused) because catchup=True.
     is_paused_upon_creation=False,
     tags=["crypto", "features", "hourly"],
@@ -91,10 +88,10 @@ with DAG(
         # Decouple the batch WRITE target from the trainer READ target. The
         # shared pipeline-config sets FEATURES_TABLE=gold.fct_training_data
         # (the dbt-owned mart the trainer reads). The batch job must NOT write
-        # there — gold is dbt-materialised, and the computed superset would hit
+        # there - gold is dbt-materialised, and the computed superset would hit
         # NO_SUCH_COLUMN. It writes the wide bronze feature table instead, which
         # (a) holds all technical-indicator columns and (b) is exactly what the
-        # Feast online feature views read — so this also populates online
+        # Feast online feature views read - so this also populates online
         # serving (fixes the train/serve "Feast returns 0" seam). An explicit
         # env var overrides the envFrom ConfigMap value for this key only.
         # (Proper long-term: give the trainer a distinct TRAINING_TABLE env so
@@ -111,12 +108,12 @@ with DAG(
     )
 
     # feast_materialize renders feature_store.yaml from the feast-feature-repo
-    # ConfigMap template at pod start (FEAST_TEMPLATE_DIR → FEAST_REPO_PATH),
-    # runs `feast apply`, then materializes bronze (ClickHouse) → Valkey online.
+    # ConfigMap template at pod start (FEAST_TEMPLATE_DIR to FEAST_REPO_PATH),
+    # runs `feast apply`, then materializes bronze (ClickHouse) to Valkey online.
     # The template is mounted read-only; rendering targets a writable emptyDir.
     # CLICKHOUSE_USER/PASSWORD + VALKEY_PASSWORD (template ${VAR}s) and the S3
     # registry creds/endpoint arrive via the pipeline-config + pipeline-secrets
-    # envFrom (ENV_FROM_SOURCES) — nothing hardcoded here.
+    # envFrom (ENV_FROM_SOURCES) - nothing hardcoded here.
     feast_materialize = k8s_pod(
         "feast_materialize",
         image=_image("materialization"),
@@ -154,7 +151,7 @@ with DAG(
     # Drift detection runs AFTER features are computed. PSI/KS scores are
     # written to ClickHouse `gold.drift_metrics`; the Argo CronWorkflow
     # `retrain-on-drift` (model-lifecycle) polls that table on its own
-    # schedule and triggers KFP retraining when thresholds are exceeded —
+    # schedule and triggers KFP retraining when thresholds are exceeded -
     # the DAG fans out and exits without waiting on retrain.
     drift_check = k8s_pod(
         "drift_check",
@@ -178,7 +175,7 @@ with DAG(
         mem_lim="1Gi",
     )
 
-    # Pipeline: features → materialize → [sentiment, drift, scoring]
+    # Pipeline: features then materialize then [sentiment, drift, scoring]
     # Retrain-on-drift is decoupled (Argo CronWorkflow polls ClickHouse).
     batch_features >> feast_materialize
     feast_materialize >> batch_sentiment
@@ -186,16 +183,13 @@ with DAG(
     feast_materialize >> scoring
 
 
-# crypto_transformation DAG removed — fully superseded by crypto_lakehouse
+# crypto_transformation DAG removed - fully superseded by crypto_lakehouse
 # (LakeFS-versioned dbt + Trino quality checks in lakehouse.py).
 
 
-# ═════════════════════════════════════════════════════════════
 # DAG 2: Daily Backfill
-# ═════════════════════════════════════════════════════════════
 # Runs daily at 4AM to backfill any missing data gaps.
 # catchup=True enables historical backfill via Airflow CLI.
-# ═════════════════════════════════════════════════════════════
 with DAG(
     dag_id=f"{USE_CASE}_daily_backfill",
     default_args={

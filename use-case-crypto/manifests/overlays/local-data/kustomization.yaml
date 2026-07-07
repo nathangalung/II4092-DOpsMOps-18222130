@@ -1,9 +1,6 @@
-# =============================================================================
-# LOCAL PHASE 1 OVERLAY — Only Ingestion + Quality + Processing
-# =============================================================================
+# LOCAL PHASE 1 OVERLAY - Only Ingestion + Quality + Processing
 # References base/kustomization-data.yaml instead of base/kustomization.yaml
 # so Train/3/4 resources are never created (no unnecessary image pulls).
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -21,7 +18,7 @@ labels:
       platform: k3s
     includeSelectors: true
 
-# Image name mapping — Data only. Tags pinned to `dev` so base
+# Image name mapping - Data only. Tags pinned to `dev` so base
 # `:latest` placeholder is fully overridden; bumping a phase service
 # is an overlay-edit only.
 images:
@@ -39,7 +36,7 @@ images:
   - name: analyzer
     newName: localhost:5000/crypto-analyzer
     newTag: latest
-  # Processing — Flink stream-processor. Base FlinkDeployment references the
+  # Processing - Flink stream-processor. Base FlinkDeployment references the
   # generic platform image name `flink-job`; this maps it to the crypto-tagged
   # registry ref. The spec/image rewrite on the FlinkDeployment CR is enabled
   # by the `images:` FieldSpec in base/kustomize-config/name-reference.yaml.
@@ -71,7 +68,7 @@ replicas:
   # supports Deployment/StatefulSet/ReplicaSet/Rollout, not FlinkDeployment.
 
 patches:
-  # Always — forces registry digest check on each pod create. IfNotPresent
+  # Always - forces registry digest check on each pod create. IfNotPresent
   # silently ran stale cached containerd layers after `make usecase-crypto-
   # build` re-pushed `:latest`, hiding new env-var reads (VALKEY_PASSWORD,
   # KAFKA_SASL_*) and producing NOAUTH at Valkey + SASL handshakes failures.
@@ -127,7 +124,7 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/cpu
         value: "500m"
-  # batch-features CronJob removed — superseded by Airflow DAG crypto_hourly_features
+  # batch-features CronJob removed - superseded by Airflow DAG crypto_hourly_features
   - target:
       kind: CronJob
       name: vector-embedding

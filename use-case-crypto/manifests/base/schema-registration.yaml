@@ -1,9 +1,6 @@
-# =============================================================================
 # SCHEMA REGISTRATION - Register JSON Schemas in Karapace Schema Registry
-# =============================================================================
 # Registers JSON schemas for Kafka topics in Karapace (Confluent-compatible).
-# Services use JSON format — schemas provide governance and validation.
-# =============================================================================
+# Services use JSON format - schemas provide governance and validation.
 apiVersion: v1
 kind: ConfigMap
 metadata:

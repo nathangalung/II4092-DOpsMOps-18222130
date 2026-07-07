@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# list-components.sh — print every installable component grouped by namespace
-# =============================================================================
+# list-components.sh - print every installable component grouped by namespace
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

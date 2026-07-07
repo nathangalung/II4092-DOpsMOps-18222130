@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
-# =============================================================================
-# cnpg/pre-apply.sh — install CNPG + barman-cloud plugin CRDs via SSA before
+# cnpg/pre-apply.sh - install CNPG + barman-cloud plugin CRDs via SSA before
 # the main kustomize render lands.
-# =============================================================================
 # Why this exists:
 #   CNPG ships two CRDs whose JSON-schema bodies exceed the
 #   `kubectl.kubernetes.io/last-applied-configuration` 262144-byte annotation
 #   limit:
-#     clusters.postgresql.cnpg.io  — 452 KB schema
-#     poolers.postgresql.cnpg.io   — 649 KB schema
+#     clusters.postgresql.cnpg.io - 452 KB schema
+#     poolers.postgresql.cnpg.io - 649 KB schema
 #
 #   apply-component.sh already uses `kubectl apply --server-side
 #   --force-conflicts` (SSA writes managedFields, not the legacy annotation)
 #   so the local make path is fine.
 #
 #   Argo CD 3.3.6, however, falls back to CSA (`kubectl replace --force`) when
-#   `syncStrategy.apply.force: true` is set on a sync operation — which our
+#   `syncStrategy.apply.force: true` is set on a sync operation - which our
 #   AppSet template enables for self-healing. CSA writes the legacy
 #   last-applied-configuration annotation, blows past 262144 bytes, the apply
 #   errors with "metadata.annotations: Too long: must have at most 262144
@@ -38,13 +36,12 @@
 #   `make phase-base` they install via this hook before the CNPG operator
 #   Deployment lands; on `make nuke` they tear down via the kustomize-managed
 #   sync (Argo no longer claims them, but they get GC'd by the operator's
-#   `helm.sh/resource-policy: keep` only if the chart explicitly says so —
+#   `helm.sh/resource-policy: keep` only if the chart explicitly says so -
 #   field-verified the CRDs have that annotation, so they survive helm
 #   uninstall, which matches the behaviour we want for stateful Cluster CRs).
 #
 # Idempotent: SSA does an upsert, so subsequent runs are no-op when CRDs are
 # already current.
-# =============================================================================
 set -euo pipefail
 
 CHART_ROOT="$(cd "$(dirname "$0")/charts" && pwd)"
@@ -63,7 +60,7 @@ trap 'rm -f "$TMP"' EXIT
 
 # Strip the single-line helm gate (`{{- if .Values.crds.create }}` at the top
 # and `{{- end }}` at the bottom) from both chart files and concat into one
-# render. sed '/^{{/d' is sufficient — there are no other Go-template tokens
+# render. sed '/^{{/d' is sufficient - there are no other Go-template tokens
 # anywhere in either file (field-verified).
 {
   sed '/^{{/d' "$CNPG_CRDS"

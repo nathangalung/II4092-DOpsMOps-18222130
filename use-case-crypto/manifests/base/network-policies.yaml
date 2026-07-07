@@ -1,7 +1,5 @@
-# =============================================================================
-# NETWORK POLICIES — Zero-Trust for use-case namespace  (ADR-024)
-# =============================================================================
-# ADR-024 — because use-case-crypto has `istio-injection: disabled` (ADR-009
+# NETWORK POLICIES - Zero-Trust for use-case namespace  (ADR-024)
+# ADR-024 - because use-case-crypto has `istio-injection: disabled` (ADR-009
 # allowlist), Istio AuthorizationPolicy is unavailable inside the namespace.
 # NetworkPolicy is therefore the SOLE enforcement layer for service-to-
 # service authorization between crypto pods and external sources.
@@ -9,23 +7,22 @@
 # Posture:
 #   1. `default-deny-ingress` denies all ingress to the namespace.
 #   2. `allow-same-namespace` allows crypto-internal east-west traffic
-#      (stream-processor JM↔TM, gateway, etc.).
-#      Crypto is a single trust boundary — intra-namespace IS trusted.
+#      (stream-processor JM and TM, gateway, etc.).
+#      Crypto is a single trust boundary - intra-namespace IS trusted.
 #   3. Every external source gets a NARROWLY-SCOPED policy that names
 #      the destination pods AND ports.  Any broad `podSelector: {}` from
 #      external namespaces was the prior (too-permissive) pattern and is
 #      removed in this ADR.
 #
 # Green-path preservation (audit §2.3 Stages 1-3+5):
-#   - Stage 1  collectors → Kafka (egress only; no ingress rule needed)
-#   - Stage 2  validator ← Kafka (egress only)
-#   - Stage 3  stream-processor (Flink) ← Kafka (egress only); Flink operator
-#                → JM REST 8081 ingress (see `allow-flink-operator`)
-#   - Stage 5  ml-bridge → MLflow (egress only; ingress needed from
+#   - Stage 1  collectors to Kafka (egress only; no ingress rule needed)
+#   - Stage 2  validator reads from Kafka (egress only)
+#   - Stage 3  stream-processor (Flink) reads from Kafka (egress only); Flink operator
+#                to JM REST 8081 ingress (see `allow-flink-operator`)
+#   - Stage 5  ml-bridge to MLflow (egress only; ingress needed from
 #                dashboard-frontend + gateway, both intra-ns)
 #
 # The scrape / ingressgateway / tekton / knative rules remain intact.
-# =============================================================================
 
 # Default deny all ingress traffic
 apiVersion: networking.k8s.io/v1
@@ -78,10 +75,10 @@ spec:
   policyTypes:
     - Ingress
 ---
-# Flink Kubernetes Operator → JobManager REST (8081). The operator runs in the
+# Flink Kubernetes Operator to JobManager REST (8081). The operator runs in the
 # `flink-operator` namespace and reconciles this use case's FlinkDeployment by
 # polling the JM REST API for job/savepoint status. Crypto has istio-injection
-# disabled (ADR-009), so NetworkPolicy is the SOLE layer — without this rule the
+# disabled (ADR-009), so NetworkPolicy is the SOLE layer - without this rule the
 # default-deny blocks the operator's status calls and the FlinkDeployment hangs
 # in RECONCILING despite a healthy job (regression class of #475). Scoped by
 # source namespace + port 8081 (only the Flink JM listens there), mirroring the
@@ -106,7 +103,7 @@ spec:
 ---
 # Allow Istio ingressgateway to reach the crypto gateway on 8080 ONLY.
 # Other pods (dashboard-*, ml-bridge, analyzer) MUST NOT be
-# reachable from istio-system directly — they are accessed via the
+# reachable from istio-system directly - they are accessed via the
 # in-namespace gateway which proxies after AuthorizationPolicy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -127,7 +124,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# Istio control-plane → namespace access (istiod → pods for CDS/EDS/SDS).
+# Istio control-plane to namespace access (istiod to pods for CDS/EDS/SDS).
 # Crypto has injection disabled so SDS is not used, but istiod still
 # calls into the ingressgateway on the crypto-side of its route; this
 # policy keeps the control-plane reachable at the gateway port.
@@ -147,7 +144,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# Airflow (data-processing) batch orchestration — restricted to the
+# Airflow (data-processing) batch orchestration - restricted to the
 # processing-tier apps.  Replaces the prior "allow all pods from data-
 # processing" rule which unnecessarily exposed gateway + dashboard.
 apiVersion: networking.k8s.io/v1
@@ -168,7 +165,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# KFP (model-lifecycle) launches training / retraining pipelines — needs to
+# KFP (model-lifecycle) launches training / retraining pipelines - needs to
 # reach ml-bridge (to register the resulting model). Training data comes from
 # ClickHouse / Feast, not a live stream-processor call, so the speed layer
 # (Flink) is intentionally NOT exposed here.  NO access to gateway /
@@ -191,7 +188,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# KServe + Knative — inference routing runs in front of gateway (which
+# KServe + Knative - inference routing runs in front of gateway (which
 # hosts the crypto web UI) and can reach ml-bridge (which proxies model
 # metadata).  NO access to the Flink stream-processor / validator.
 apiVersion: networking.k8s.io/v1
@@ -216,7 +213,7 @@ spec:
   policyTypes:
     - Ingress
 ---
-# Tekton triggers — unchanged; only EventListener pod accepts webhooks
+# Tekton triggers - unchanged; only EventListener pod accepts webhooks
 # from gitops namespace on port 8080.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

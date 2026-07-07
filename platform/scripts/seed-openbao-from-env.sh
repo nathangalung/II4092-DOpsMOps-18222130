@@ -1,7 +1,5 @@
 #!/bin/bash
-# =============================================================================
 # seed-openbao-from-env.sh
-# =============================================================================
 # Dev-only bootstrap helper for PLATFORM secrets. Reads a `.env` file and
 # creates a K8s Secret named `openbao-bootstrap-seed` in namespace `security`.
 # The platform OpenBao bootstrap Job consumes that Secret on first run: every
@@ -33,7 +31,7 @@
 #   FEAST_POSTGRES_PASSWORD      -> SEED_FEAST_POSTGRES_PASSWORD      -> platform/postgres/feast#password
 #
 # The `platform` PG app user (owner role used by every consumer) is NOT
-# listed here — CNPG generates and owns that credential and
+# listed here - CNPG generates and owns that credential and
 # openbao-bootstrap mirrors it into `platform/postgres/app`.  There is no
 # seed path because `enableSuperuserAccess: false` leaves the legacy
 # `postgres` superuser with no usable password to seed in the first place.
@@ -48,7 +46,6 @@
 #   ALERTMANAGER_PAGERDUTY_KEY   -> SEED_ALERTMANAGER_PAGERDUTY_KEY   -> platform/alertmanager/pagerduty#service_key
 #
 # Any key in the .env not in this list is ignored.
-# =============================================================================
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -1,4 +1,4 @@
-# --- Kubeflow Katib — Hyperparameter Tuning ---
+# Kubeflow Katib - Hyperparameter Tuning
 # Requires: CRDs (experiments, suggestions, trials), MySQL, cert-manager
 apiVersion: v1
 kind: ServiceAccount
@@ -240,11 +240,9 @@ spec:
       port: 6789
       targetPort: 6789
 ---
-# -----------------------------------------------------------------------------
-# Katib DB-Manager MySQL credentials — OpenBao-sourced (ADR-008).
+# Katib DB-Manager MySQL credentials - OpenBao-sourced (ADR-008).
 # Cross-namespace mirror of storage/mysql-root-secret; ESO writes it into
 # model-lifecycle so the db-manager pod can envFrom: secretRef.
-# -----------------------------------------------------------------------------
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

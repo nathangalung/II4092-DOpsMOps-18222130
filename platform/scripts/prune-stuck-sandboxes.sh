@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# =============================================================================
-# prune-stuck-sandboxes.sh — recover pods wedged by containerd CRI sandbox-name
+# prune-stuck-sandboxes.sh - recover pods wedged by containerd CRI sandbox-name
 # reservation cascade (#160 / #166 / #169 / #209).
-# =============================================================================
 # Usage:
 #   prune-stuck-sandboxes.sh <namespace> [min-stuck-seconds]
 #
@@ -22,18 +20,17 @@
 # controller mints a REPLACEMENT pod with a NEW UID. New UID = new sandbox
 # name = no matching reservation = containerd accepts. The old reservations
 # are eventually garbage-collected by containerd's stale-sandbox cleanup, but
-# we don't block on that — the new pod proceeds immediately.
+# we don't block on that - the new pod proceeds immediately.
 #
 # Scope: ONE namespace. Caller (wait-component.sh) only fires this on its own
 # component's namespace after wait-timeout, so blast-radius is bounded to the
 # component that's already known-stuck. Bare pods (no ownerRef) are skipped
-# because force-deleting them is destructive — the user must reconcile by hand.
+# because force-deleting them is destructive - the user must reconcile by hand.
 #
 # Threshold: default 60s of stuck-time. Caller already waited its own timeout
-# (typically 300–900s), so any matching pod has by definition been Pending for
+# (typically 300-900s), so any matching pod has by definition been Pending for
 # at least the wait duration. The 60s gate filters out pods that legitimately
 # started during the wait window's tail.
-# =============================================================================
 set -euo pipefail
 
 NS="${1:-}"
@@ -44,7 +41,7 @@ if [[ -z "$NS" ]]; then
   exit 1
 fi
 
-# --all → iterate every namespace. Useful as a phase-full tail safety net.
+# --all iterates every namespace. Useful as a phase-full tail safety net.
 # Per-namespace scope still applies inside the loop, so a wedge in one ns
 # can't block work on another.
 if [[ "$NS" == "--all" || "$NS" == "-A" ]]; then
@@ -82,7 +79,7 @@ while IFS=$'\t' read -r name created owner_kind; do
   fi
 
   # Confirm the symptom before acting. We only act on pods whose recent events
-  # show a sandbox-name reservation failure — other Pending reasons (image
+  # show a sandbox-name reservation failure - other Pending reasons (image
   # pull, scheduler unschedulable, init-container crash) are NOT fixable by
   # this script and force-deleting would just churn the workload.
   if kubectl -n "$NS" get events \

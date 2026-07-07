@@ -25,7 +25,7 @@ type Config struct {
 //
 // HistoricalRefreshInterval drives the FetchHistorical "latest window"
 // poll (domain-agnostic time-series refresh). Per-endpoint polling is
-// defined declaratively inside each DataSourceConfig.Endpoints entry —
+// defined declaratively inside each DataSourceConfig.Endpoints entry -
 // the rest-collector spawns one goroutine per (data_source, endpoint,
 // symbol) triple using that entry's own PollInterval.
 type PollingConfig struct {
@@ -43,7 +43,7 @@ type KafkaConfig struct {
 	SentTopic    string   `mapstructure:"supplementary_topic"`
 	BatchSize    int      `mapstructure:"batch_size"`
 	FlushTimeout int      `mapstructure:"flush_timeout_ms"`
-	// Security wiring — matches the platform's pipeline-config /
+	// Security wiring - matches the platform's pipeline-config /
 	// <usecase>-app-consumer envFrom contract (KAFKA_* env keys). Empty
 	// SecurityProtocol leaves the producer on PLAINTEXT (platform default).
 	SecurityProtocol string `mapstructure:"security_protocol"`
@@ -301,7 +301,7 @@ func buildSupplementarySourcesFromEnv() []SupplementarySourceConfig {
 		}
 		responseFieldMapping := os.Getenv("RESPONSE_FIELD_MAPPING")
 		// Idempotent-backfill sink check: same ClickHouse instance as the
-		// OHLCV history path (BACKFILL_CLICKHOUSE_URL), with a
+		// primary history path (BACKFILL_CLICKHOUSE_URL), with a
 		// supplementary-specific table. Empty values disable the check.
 		clickHouseURL := os.Getenv("BACKFILL_CLICKHOUSE_URL")
 		clickHouseTable := os.Getenv("BACKFILL_CLICKHOUSE_SUPPLEMENTARY_TABLE")

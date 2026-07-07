@@ -1,21 +1,18 @@
-# =============================================================================
-# KSERVE INFERENCESERVICE ��� Model Serving via KServe + Knative
-# =============================================================================
+# KSERVE INFERENCESERVICE - Model Serving via KServe + Knative
 # Uses MLflow model format. KServe auto-selects the platform's dedicated
 # `kserve-mlflowserver` ClusterServingRuntime (autoSelect on
 # modelFormat=mlflow), which serves ANY model logged via MLflow (LightGBM,
-# XGBoost, H2O, sklearn, etc.). Serving is model-agnostic — switch
+# XGBoost, H2O, sklearn, etc.). Serving is model-agnostic - switch
 # MODEL_TYPE in ConfigMap, retrain, and the same InferenceService serves
 # the new model.
 #
 # Models stored in MinIO via MLflow experiment tracking.
 # S3 credentials via annotated ServiceAccount (KServe standard).
-# =============================================================================
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  # Generic base name. Overlay applies `namePrefix: crypto-` → rendered
-  # InferenceService is `crypto-predictor`. Do not re-prefix here — that
+  # Generic base name. Overlay applies `namePrefix: crypto-`, so the rendered
+  # InferenceService is `crypto-predictor`. Do not re-prefix here - that
   # yielded `crypto-crypto-predictor` and a double-`-predictor-predictor-`
   # service hostname downstream.
   name: predictor
@@ -35,8 +32,8 @@ spec:
     serviceAccountName: kserve-sa
     model:
       # Explicit runtime ref (matches platform-health-check pattern). Skips
-      # KServe's autoSelect lookup against ClusterServingRuntimes which —
-      # under reconcile churn before the runtime cache primes — emits a
+      # KServe's autoSelect lookup against ClusterServingRuntimes which -
+      # under reconcile churn before the runtime cache primes - emits a
       # "no runtime found for modelFormat: mlflow/2" Event every ~60s
       # until the cache catches up (#348). Pinning runtime: silences that
       # path entirely; the runtime advertises mlflow v1+v2 in
@@ -54,7 +51,7 @@ spec:
       # promotion bridge (deploy_kserve.py) now resolves via the MLflow API and
       # patches in after each retrain. It is pinned here so a fresh GitOps apply
       # serves a real model immediately (the prior `s3://platform-models/
-      # sklearn/iris/` placeholder bucket was never seeded → ProgressDeadline-
+      # sklearn/iris/` placeholder bucket was never seeded, so ProgressDeadline-
       # Exceeded). The Argo app sets `ignoreDifferences` on this field so the
       # bridge can promote a newer champion without selfHeal reverting it.
       storageUri: "s3://mlflow/artifacts/1/models/m-0fbe5672a11d4f49ac957653374100e3/artifacts/"

@@ -172,7 +172,7 @@ class TestFeatureEngineeringJob:
     ) -> None:
         """Regression #500: a computed-but-UNWRITTEN all-NaN column (e.g.
         dispersion_1) must NOT wipe valid rows. The old blanket
-        df.dropna() in _process_symbol did exactly that → green-but-empty
+        df.dropna() in _process_symbol did exactly that, causing a green-but-empty
         insert. The drop is now scoped to write_cols (the sink's columns)."""
         mock_client = MagicMock()
         mock_ch.get_client.return_value = mock_client
@@ -195,7 +195,7 @@ class TestFeatureEngineeringJob:
                 "symbol": ["A", "A"],
                 "timestamp": pd.date_range("2024-01-01", periods=2, freq="1h"),
                 "close": [100.0, 101.0],
-                "rolling_mean_20": [100.0, 100.5],  # written col, present → keep rows
+                "rolling_mean_20": [100.0, 100.5],  # written col, present, so keep rows
                 "dispersion_1": [np.nan, np.nan],  # all-NaN, NOT a sink column
             }
         )

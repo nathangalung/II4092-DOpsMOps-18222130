@@ -142,7 +142,7 @@ def test_main_custom_env_vars(
     mock_time: MagicMock,
     mock_valkey_with_drift: MagicMock,
 ) -> None:
-    # Setup — patch Config class attributes directly since they're
+    # Setup - patch Config class attributes directly since they're
     # evaluated at import time (os.getenv in class body)
     batch_v1_instance = MagicMock()
     mock_k8s_client.BatchV1Api.return_value = batch_v1_instance

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# karapace/post-apply.sh — auto-roll on Strimzi cluster CA rotation
-# =============================================================================
+# karapace/post-apply.sh - auto-roll on Strimzi cluster CA rotation
 # Why this exists:
 #   Karapace (aiokafka python client) loads `KARAPACE_SSL_CAFILE` ONCE at
 #   process start, materialising an in-memory ssl.SSLContext.  When Strimzi
@@ -34,9 +32,8 @@
 #      but only rolls when the cluster CA has actually rotated).
 #
 #   Same pattern as datahub/post-apply.sh does for `datahub-frontend-secret`
-#   — k8s-native solution to "Secret rotates but consuming pod doesn't
+# - k8s-native solution to "Secret rotates but consuming pod doesn't
 #   notice" without bolting on a sidecar reloader.
-# =============================================================================
 set -euo pipefail
 
 NS=data-ingestion
@@ -62,7 +59,7 @@ fi
 ca_hash=$(kubectl -n "$NS" get secret "$SECRET" \
   -o jsonpath='{.data.ca\.crt}' | sha256sum | awk '{print $1}')
 # sha256 of empty = e3b0c44298…; guard so we never stamp the empty digest
-# (would cause a roll on the next real CA too — and any karapace pod that
+# (would cause a roll on the next real CA too - and any karapace pod that
 # started on an empty CA would 100% fail SSL).
 if [[ -z "$ca_hash" || "$ca_hash" == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]]; then
   echo "        FATAL: $NS/$SECRET .data.ca.crt empty — Strimzi cluster CA not populated" >&2

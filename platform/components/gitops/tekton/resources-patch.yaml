@@ -1,14 +1,12 @@
-# =============================================================================
-# Tekton Deployments — Kyverno require-resource-limits compliance
-# =============================================================================
+# Tekton Deployments - Kyverno require-resource-limits compliance
 # Upstream Tekton v1 release YAMLs (pipeline.yaml, triggers.yaml,
-# dashboard.yaml, interceptors.yaml — vendored from
+# dashboard.yaml, interceptors.yaml - vendored from
 # github.com/tektoncd/pipeline/releases/download/v1.4.0/release.yaml etc.)
 # ship most Deployments WITHOUT a `resources` block on their main containers.
 # Only `tekton-pipelines-webhook` got a chart-shipped requests+limits.
 #
 # Kyverno `require-resource-limits` policy (failurePolicy=Fail, mode=enforce)
-# blocks the ReplicaSet → Pod creation with:
+# blocks the ReplicaSet from creating a Pod with:
 #   Error creating: admission webhook
 #   "vpol.validate.kyverno.svc-ignore-finegrained-require-resource-limits"
 #   denied the request: Policy require-resource-limits failed: All containers
@@ -22,7 +20,6 @@
 # Sized for a single-node bootstrap: controllers are mostly idle Go binaries
 # that wake up on CR event ticks (~30-80Mi RSS, <50m CPU steady). Bump for
 # production load via overlay later.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

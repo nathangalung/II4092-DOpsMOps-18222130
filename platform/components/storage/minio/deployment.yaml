@@ -1,15 +1,12 @@
-# =============================================================================
-# MinIO — S3-compatible object storage (data lake + artifact store)
-# =============================================================================
+# MinIO - S3-compatible object storage (data lake + artifact store)
 # Community fork `pgsty/minio:RELEASE.2026-04-17T00-00-00Z` (minio/minio
 # archived Feb 2026).  Production deployments should switch to distributed
 # mode across 4+ PVCs for EC:4+2 erasure coding.
 #
 # Credentials are sourced exclusively from OpenBao via ExternalSecret
 # (ADR-008).  No hardcoded env values anywhere.  Server-side encryption at
-# rest (SSE-KMS) is enabled by pointing at OpenBao's transit engine — KNF-07
+# rest (SSE-KMS) is enabled by pointing at OpenBao's transit engine - KNF-07
 # AES-256 at rest.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -84,7 +81,7 @@ metadata:
     app.kubernetes.io/component: object-storage
     app.kubernetes.io/part-of: mlops-platform
 spec:
-  # MinIO MUST have >=1 replica during phase-base — bucket-bootstrap Job and
+  # MinIO MUST have >=1 replica during phase-base - bucket-bootstrap Job and
   # downstream consumers (velero backup target, postgres barman backups,
   # mlflow artifact store) all need a reachable S3 endpoint. Recreate
   # strategy: MinIO single-node cannot tolerate parallel writes.
@@ -108,9 +105,9 @@ spec:
         # OnRootMismatch: kubelet only recursively chowns the PVC when the
         # top-level dir GID != fsGroup. Without it, every restart walks all
         # ~70k objects in /data setting ownership (VolumePermissionChange-
-        # InProgress) — MinIO ContainerCreating-blocks for 15-20min on each
+        # InProgress) - MinIO ContainerCreating-blocks for 15-20min on each
         # cold start. Root dir was chowned to 1000 on first boot, so steady
-        # state matches and the recursive walk is skipped → seconds to Ready.
+        # state matches and the recursive walk is skipped, meaning seconds to Ready.
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
@@ -127,10 +124,9 @@ spec:
             - secretRef:
                 name: minio-root
           env:
-            # -------------------------------------------------------------
             # SSE-KMS via KES + OpenBao K/V (ADR-008).  Data flow:
             #
-            #   MinIO ──mTLS──▶ KES ──approle──▶ OpenBao (kes-kv + transit)
+            #   MinIO to KES via mTLS, then KES to OpenBao via approle (kes-kv + transit)
             #
             # MinIO mounts a cert-manager-issued client cert at /etc/kes/certs
             # and uses it for mTLS to the KES Deployment in `security` ns.
@@ -148,7 +144,6 @@ spec:
             #   mc admin kms key create platform minio-master-key
             # before auto-encryption will succeed.  See REMEDIATION_RUNBOOK.md
             # §9 for the full bring-up procedure.
-            # -------------------------------------------------------------
             - name: MINIO_KMS_AUTO_ENCRYPTION
               value: "on"
             - name: MINIO_KMS_KES_ENDPOINT
@@ -207,7 +202,7 @@ spec:
             capabilities: { drop: ["ALL"] }
           volumeMounts:
             - { name: storage,    mountPath: /data }
-            # cert-manager-issued client cert for MinIO→KES mTLS.
+            # cert-manager-issued client cert for MinIO to KES mTLS.
             # The Secret contains tls.crt + tls.key + ca.crt; MinIO reads
             # all three via the MINIO_KMS_KES_* env vars above.
             - { name: kes-client, mountPath: /etc/kes/certs, readOnly: true }
@@ -218,7 +213,7 @@ spec:
         - name: kes-client
           secret:
             secretName: minio-kes-client
-            # `optional: false` (the default) is intentional — MinIO will
+            # `optional: false` (the default) is intentional - MinIO will
             # ContainerCreating-block until cert-manager issues the cert.
             # This is the desired coupling: MinIO should NOT start SSE-KMS
             # without its client certificate available.
@@ -238,7 +233,7 @@ spec:
     requests:
       storage: 20Gi
 ---
-# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# PDB - single-node single-replica: maxUnavailable=1 permits voluntary
 # eviction; 0 would deadlock drains. PVC retains data; MinIO restarts clean.
 apiVersion: policy/v1
 kind: PodDisruptionBudget

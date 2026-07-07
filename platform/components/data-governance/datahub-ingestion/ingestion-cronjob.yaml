@@ -1,6 +1,4 @@
-# =============================================================================
-# DataHub ingestion CronJobs — one per recipe
-# =============================================================================
+# DataHub ingestion CronJobs - one per recipe
 # ADR-013.  Each source has its own CronJob schedule.  Heavy scans (CH
 # profiling, S3 path scanning) daily; fast sources (Airflow, MLflow, Feast)
 # hourly.
@@ -12,9 +10,8 @@
 # Recipe templating: acryldata/datahub-ingestion:v1.5.0.3 dropped
 # gettext/envsubst from the image; running `envsubst` returns
 # `sh: 2: envsubst: not found`. Python is bundled (datahub CLI is Python),
-# so `os.path.expandvars` is the drop-in replacement — it expands `$VAR`
+# so `os.path.expandvars` is the drop-in replacement - it expands `$VAR`
 # and `${VAR}` from os.environ identically to envsubst.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -49,16 +46,16 @@ spec:
         CLICKHOUSE_PASSWORD: "{{ .CH_PASSWORD }}"
         AWS_ACCESS_KEY_ID: "{{ .AWS_ACCESS_KEY_ID }}"
         AWS_SECRET_ACCESS_KEY: "{{ .AWS_SECRET_ACCESS_KEY }}"
-        # VALKEY_PASSWORD — Feast online_store (redis-protocol).  Required
+        # VALKEY_PASSWORD - Feast online_store (redis-protocol).  Required
         # to render the connection_string in the feast recipe's
         # feature_store.yaml at job start.
         VALKEY_PASSWORD: "{{ .VALKEY_PASSWORD }}"
   data:
     # GMS_TOKEN is a long-lived DataHub PAT JWT minted at openbao-bootstrap
     # time (mint_datahub_pat helper, signed with platform/datahub/admin/secret
-    # — the same HMAC key GMS validates with via DATAHUB_TOKEN_SERVICE_SIGNING_KEY).
+    # - the same HMAC key GMS validates with via DATAHUB_TOKEN_SERVICE_SIGNING_KEY).
     # Ingestion sinks pass it as `Authorization: Bearer ${GMS_TOKEN}`.
-    # Don't point this back at platform/datahub/admin.secret — that's the
+    # Don't point this back at platform/datahub/admin.secret - that's the
     # raw signing key; sending it as a Bearer token returns HTTP 401 from
     # StatelessTokenService.validateAccessToken (signature mismatch).
     - { secretKey: GMS_TOKEN,            remoteRef: { key: platform/datahub/system_token, property: token } }
@@ -94,7 +91,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -122,7 +119,7 @@ spec:
                 - |
                   set -e
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.
@@ -160,7 +157,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -188,7 +185,7 @@ spec:
                 - |
                   set -e
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.
@@ -226,7 +223,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -254,7 +251,7 @@ spec:
                 - |
                   set -e
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.
@@ -297,7 +294,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -325,7 +322,7 @@ spec:
                 - |
                   set -e
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.
@@ -347,11 +344,11 @@ spec:
             - { name: tmp, emptyDir: {} }
 # NOTE: a `datahub-ingest-airflow` CronJob used to live here.  Removed
 # 2026-05-11 because `source: airflow` is NOT a registered DataHub ingestion
-# source — the `acryl-datahub-airflow-plugin` package only ships
+# source - the `acryl-datahub-airflow-plugin` package only ships
 # `airflow.plugins` / `apache_airflow_provider` entry points, i.e. it is
 # loaded INSIDE the Airflow scheduler/webserver and pushes lineage events
 # on DAG runs.  Verified by entry-point diff inside
-# acryldata/datahub-ingestion:v1.5.0.3 (95 sources before install → 97
+# acryldata/datahub-ingestion:v1.5.0.3 (95 sources before install to 97
 # after, neither named airflow).  Trying to poll airflow from the CLI
 # aborts with `PipelineInitError: Did not find a registered class for
 # airflow`.  The push path is already wired in
@@ -381,7 +378,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -397,31 +394,31 @@ spec:
           # Why an init container here (feast CronJob only, see task #201):
           #   acryldata/datahub-ingestion:v1.5.0.3 ships the DataHub feast
           #   SOURCE plugin (datahub.ingestion.source.feast) but NOT the
-          #   `feast` python package itself — the [feast] extra is documented
+          #   `feast` python package itself - the [feast] extra is documented
           #   upstream but never baked into the public image. Plain runtime
           #   runtime install of feast is blocked: the main container has
           #   readOnlyRootFilesystem=true and the upstream image's venv lives
           #   on the rootfs. So we maintain a tiny deps-only sidecar image
           #   (build-resources.yaml) that bakes `feast<1` + dask + flask-openid + numpy<2
-          #   into /feast-deps via `uv sync` (#211 — strict uv mandate; no
+          #   into /feast-deps via `uv sync` (#211 - strict uv mandate; no
           #   `uv pip`) against an inline pyproject.toml, then the init
           #   below cp -a's that tree onto an emptyDir shared with the main
           #   container, and the main container picks them up via PYTHONPATH.
-          #   Order in the pod: feast-deps (regular init) → istio-proxy
-          #   (native-sidecar init, restartPolicy: Always) → ingest (main).
+          #   Order in the pod: feast-deps (regular init), then istio-proxy
+          #   (native-sidecar init, restartPolicy: Always), then ingest (main).
           initContainers:
             - name: feast-deps
               image: registry.platform-registry.svc.cluster.local:5000/datahub-feast-deps:1.5.0.1
               imagePullPolicy: IfNotPresent
-              # ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim base —
+              # ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim base -
               # bookworm ships coreutils + busybox tar, so /bin/cp + /bin/sh
               # + /bin/tar are present.
               #
               # Why tar-pipe (NOT cp -a):  K3s containerd emptyDir backs onto
-              # overlayfs; utimensat() on the lower dir is denied → cp -a
+              # overlayfs; utimensat() on the lower dir is denied, so cp -a
               # fails with `preserving times for '/shared/.': Operation not
               # permitted` and exits non-zero, blocking the Job (same class
-              # as #105 apisix seed-conf).  tar c → tar x preserves modes
+              # as #105 apisix seed-conf).  tar c to tar x preserves modes
               # (which the main container needs since it runs as UID 1000
               # and depends on the world-read bits `uv sync` sets on
               # .venv/lib/python3.10/site-packages) without touching mtimes.
@@ -434,7 +431,7 @@ spec:
               #                          dir `.` (= `/shared`, the emptyDir
               #                          mount root owned by root mode 0755),
               #                          which a non-root UID 1000 cannot do
-              #                          → EPERM. `--no-overwrite-dir` does
+              #                          so EPERM. `--no-overwrite-dir` does
               #                          NOT prevent this in GNU tar 1.34.
               #   -m                   = don't restore mtime (overlayfs utime
               #                          would also EPERM on emptyDir).
@@ -461,7 +458,7 @@ spec:
               envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
               env:
                 - { name: RECIPE_FILE, value: "feast.yml" }
-                # MinIO S3 endpoint for the file registry — boto3/fsspec
+                # MinIO S3 endpoint for the file registry - boto3/fsspec
                 # pick this up automatically (AWS_ENDPOINT_URL_S3 takes
                 # precedence over AWS_ENDPOINT_URL for s3 specifically).
                 - { name: AWS_ENDPOINT_URL_S3, value: "http://minio.storage.svc.cluster.local:9000" }
@@ -471,7 +468,7 @@ spec:
                 # site-packages, so `import feast` resolves to /shared/feast
                 # even though the acryldata venv has no `feast` package. The
                 # numpy<2 + dask<2024.7.0 pins co-installed at /shared match
-                # acryl-datahub's existing constraints — no version conflict.
+                # acryl-datahub's existing constraints - no version conflict.
                 - { name: PYTHONPATH,          value: "/shared" }
               # DataHub's feast source loads the feature_store.yaml at the
               # configured `path:` to discover registry + offline/online store
@@ -491,10 +488,10 @@ spec:
                 - |
                   set -e
                   mkdir -p /tmp/feature_repo
-                  # Inline feature_store.yaml — same registry path + online_store
+                  # Inline feature_store.yaml - same registry path + online_store
                   # as platform/components/model-lifecycle/feast/feature-repo.yaml;
                   # the offline_store intentionally diverges to the built-in `file`
-                  # store (see the offline_store note below — DataHub's feast source
+                  # store (see the offline_store note below - DataHub's feast source
                   # can't load the live ClickHouse contrib store). See comment block
                   # above for why this isn't mounted from the feast ConfigMap.
                   cat >/tmp/feature_repo/feature_store.yaml <<'YAML'
@@ -505,21 +502,21 @@ spec:
                     path: s3://feast/registry.pb
                     cache_ttl_seconds: 60
                   # DataHub's feast ingestion source only walks the registry to
-                  # catalog entities/feature-views/features — it never queries the
-                  # offline store — and its plugin rejects non-built-in offline
+                  # catalog entities/feature-views/features - it never queries the
+                  # offline store - and its plugin rejects non-built-in offline
                   # stores: the live ClickHouse contrib store aborts ingestion with
                   # `Failed to configure the source (feast): Offline Store Class
                   # 'clickhouse' should end with the string OfflineStore`. Use the
                   # dependency-free built-in `file` store so RepoConfig loads and
                   # DataHub catalogs the registry. This is the ingestion's throwaway
                   # local config (in /tmp), wholly independent of the live feast
-                  # Deployment's real ClickHouse offline store — the offline-store
+                  # Deployment's real ClickHouse offline store - the offline-store
                   # impl is irrelevant to registry-based metadata extraction.
                   offline_store:
                     type: file
                   # Same rationale as offline_store above: DataHub's feast source
-                  # only reads the registry — it never connects to the online store
-                  # — and the redis online store needs the `redis` python package,
+                  # only reads the registry - it never connects to the online store
+                  # - and the redis online store needs the `redis` python package,
                   # absent from the acryldata/datahub-ingestion image + feast-deps
                   # overlay (FeastExtrasDependencyImportError: No module named
                   # 'redis'). Use the built-in dependency-free `sqlite` store (it
@@ -534,7 +531,7 @@ spec:
                   YAML
                   # UV mandate: awk-based ${VAR} expansion in place of
                   # `python -c expandvars` (no envsubst in datahub-ingestion
-                  # v1.5.0.1 image — see #145). awk ships in the upstream
+                  # v1.5.0.1 image - see #145). awk ships in the upstream
                   # debian base; semantics match os.path.expandvars for
                   # the ${VAR} braced form (the only form recipes use).
                   awk '{ while (match($0, /\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) { v=substr($0,RSTART+2,RLENGTH-3); $0=substr($0,1,RSTART-1) ENVIRON[v] substr($0,RSTART+RLENGTH) } print }' \
@@ -587,7 +584,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -615,7 +612,7 @@ spec:
                 - |
                   set -e
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.
@@ -643,7 +640,7 @@ spec:
   # 30 min after the use-case dbt orchestration (Airflow lakehouse DAG at
   # :15) publishes fresh artifacts to MinIO.
   schedule: "45 */6 * * *"
-  # Active (was `suspend: true` while the recipe read a dbt-artifacts PVC —
+  # Active (was `suspend: true` while the recipe read a dbt-artifacts PVC -
   # a dead design: dbt builds run as Airflow pods in the use-case namespace
   # and PVCs don't cross namespaces, so the claim sat Pending
   # (WaitForFirstConsumer, no consumer) and dragged the ArgoCD app
@@ -664,7 +661,7 @@ spec:
           # Native sidecars (istiod ENABLE_NATIVE_SIDECARS=true) inject
           # `istio-proxy` as an initContainer with `restartPolicy: Always`,
           # which the kubelet terminates automatically once the main
-          # container exits — Job pods reach `Succeeded` cleanly without
+          # container exits - Job pods reach `Succeeded` cleanly without
           # opting out of the mesh. Required so ingest pods can reach
           # `datahub-gms` (mesh-wide STRICT PeerAuthentication in
           # istio-system rejects plaintext from non-sidecar peers).
@@ -679,20 +676,20 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           initContainers:
             # Graceful missing-artifact gate. `datahub ingest` hard-fails
-            # (NoSuchKey) when the dbt artifacts have never been published —
-            # true on a fresh platform-only deploy — and a 6-hourly
+            # (NoSuchKey) when the dbt artifacts have never been published -
+            # true on a fresh platform-only deploy - and a 6-hourly
             # BackoffLimitExceeded would re-degrade the app the suspend flag
             # used to protect. The gate probes MinIO with mc (UV mandate: no
             # python invocation; image matches bucket-bootstrap) and ALWAYS
-            # exits 0: artifacts present → touch /gate/present; absent →
-            # loud log, main container skips with success.
+            # exits 0: artifacts present, then touch /gate/present; absent,
+            # then loud log, main container skips with success.
             # Istio's native-sidecar proxy is injected as the FIRST
             # initContainer, so this one already has mesh networking.
             - name: artifact-gate
               image: pgsty/mc:RELEASE.2026-04-17T00-00-00Z
               imagePullPolicy: IfNotPresent
               envFrom: [{ secretRef: { name: datahub-ingestion-env } }]
-              # mc writes its config under $HOME/.mc — point HOME at the
+              # mc writes its config under $HOME/.mc - point HOME at the
               # writable gate volume (root fs is read-only).
               env: [{ name: HOME, value: "/gate" }]
               command: ["/bin/sh", "-c"]
@@ -734,7 +731,7 @@ spec:
                     exit 0
                   fi
                   # UV mandate: switched from `python -c expandvars` (no
-                  # envsubst in datahub-ingestion:v1.5.0.1 — see #145) to
+                  # envsubst in datahub-ingestion:v1.5.0.1 - see #145) to
                   # awk-based envvar interpolation. awk is in coreutils
                   # equivalent of the upstream image (gawk via debian base).
                   # Same ${VAR} regex semantics as `os.path.expandvars`.

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for RedisSink (the Valkey/RESP feature sink).
  *
- * These verify object construction and serializability only — the sink is
+ * These verify object construction and serializability only - the sink is
  * lazily connected (the RedisClient is created in createWriter, not the
  * constructor), so building a sink against an unreachable host does NOT throw.
  * Integration tests against a real Valkey would require Testcontainers.

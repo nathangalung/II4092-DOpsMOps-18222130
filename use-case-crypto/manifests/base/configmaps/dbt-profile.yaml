@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: use-case-crypto
     app.kubernetes.io/component: data-processing
 data:
-  # Runtime-mounted profile — overrides the image-baked /dbt/profiles.yml
+  # Runtime-mounted profile - overrides the image-baked /dbt/profiles.yml
   # so we can fix the `secure` field type (dbt-clickhouse requires native
   # bool, not the string 'false' returned by env_var). Mount at a separate
   # dir and pass `--profiles-dir /tmp/dbt-profiles` so the rest of /dbt

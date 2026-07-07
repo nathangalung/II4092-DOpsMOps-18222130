@@ -1,4 +1,4 @@
-# Lakekeeper warehouse bootstrap — the missing step that made lakekeeper dead
+# Lakekeeper warehouse bootstrap - the missing step that made lakekeeper dead
 # weight. The platform lakekeeper-bootstrap Job only calls POST /bootstrap (accepts
 # terms); it never creates a Warehouse, so no Iceberg table could ever be written.
 # This use-case Job registers the `warehouse` warehouse backed by the MinIO

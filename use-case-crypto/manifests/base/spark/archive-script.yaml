@@ -1,4 +1,4 @@
-# PySpark lake-archive job — mounted as a ConfigMap volume so no custom image is
+# PySpark lake-archive job - mounted as a ConfigMap volume so no custom image is
 # built (reuses the platform apache/spark:4.1.1 image). Reads raw trades from the
 # ClickHouse warehouse and appends them to an Apache Iceberg table on MinIO via the
 # Lakekeeper REST catalog: the "cold, open, immutable" lake tier that complements

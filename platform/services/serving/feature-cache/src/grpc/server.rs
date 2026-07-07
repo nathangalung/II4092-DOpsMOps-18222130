@@ -22,7 +22,7 @@ pub mod proto {
         pub value: f64,
     }
 
-    /// Dynamic feature response — features are key-value pairs,
+    /// Dynamic feature response - features are key-value pairs,
     /// not hardcoded fields. Any use-case can return its own features.
     #[derive(Clone, PartialEq, prost::Message)]
     pub struct FeatureResponse {

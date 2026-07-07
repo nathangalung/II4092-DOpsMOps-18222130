@@ -33,7 +33,7 @@ WORKDIR /app
 # cdn.azul.com (which is not reachable from this lab network). Both are
 # required: env var alone is insufficient, the build-header opt-in is what
 # stops coursier's JVM-index lookup.
-# Retry wrapper — same rationale as the assembly step below: the campus uplink
+# Retry wrapper - same rationale as the assembly step below: the campus uplink
 # resolver (167.205.22.123) drops DNS intermittently, and this pre-fetch has no
 # Coursier-level retry of its own, so a single blip here would kill the whole
 # build before any compile work starts. Five attempts with backoff.
@@ -58,7 +58,7 @@ COPY src ./src
 # Retry wrapper handles transient DNS failures from the campus uplink resolver
 # (167.205.22.123). Coursier's per-artifact retry covers 5xx but not
 # UnknownHostException, and the launcher-level mill-runner-daemon pom fetch
-# happens before any user code runs — a single DNS blip kills the whole job.
+# happens before any user code runs - a single DNS blip kills the whole job.
 # Mill's `out/` is preserved across iterations so completed work is not redone.
 # Coursier download cache (BuildKit): persists resolved Maven/Flink jars across
 # builds so a source edit no longer re-downloads ~100MB of dependencies. Mill's
@@ -73,17 +73,17 @@ RUN --mount=type=cache,id=coursier,target=/root/.cache/coursier \
     echo "[build] failed after 5 attempts" >&2; \
     exit 1
 
-# Runtime image — official Flink 2.2 distribution (Java 21 line).
+# Runtime image - official Flink 2.2 distribution (Java 21 line).
 #   - Operator application-mode: the flink-kubernetes-operator drives the
 #     standard Flink `standalone-job` entrypoint against THIS image (the
 #     FlinkDeployment `job.jarURI: local:///opt/flink/usrlib/flink-job.jar`
 #     points at the fat JAR placed below). This is the real operator-managed
-#     JobManager+TaskManager path — NOT a MiniCluster-in-a-pod (the prior
+#     JobManager+TaskManager path - NOT a MiniCluster-in-a-pod (the prior
 #     in-pod runtime was flagged as an anti-pattern; see speed-layer ADR).
 #   - One image, not two: the fat JAR still bundles Flink core, but Flink's
 #     default `classloader.parent-first-patterns` (org.apache.flink.*,
 #     org.slf4j, log4j) load the framework + logging from the base image's
-#     /opt/flink/lib, so the bundled copies are shadowed — no duplicate-class
+#     /opt/flink/lib, so the bundled copies are shadowed - no duplicate-class
 #     or SLF4J-binding conflict. Only the application + Kafka connector +
 #     Jackson/Lettuce/commons-math3 are loaded from the user jar (child-first).
 FROM flink:2.2.0-scala_2.12-java21
@@ -100,7 +100,7 @@ COPY --from=builder /app/out/flink/assembly.dest/out.jar /opt/flink/usrlib/flink
 #
 #   - WHY hadoop, not presto: the FlinkDeployment tunes the S3 client via
 #     `s3.connection.maximum` / `s3.connection.request.timeout` /
-#     `s3.socket.timeout`, which Flink forwards as `fs.s3a.*` — Hadoop-S3A
+#     `s3.socket.timeout`, which Flink forwards as `fs.s3a.*` - Hadoop-S3A
 #     semantics. The presto plugin ignores those keys, so hadoop keeps the
 #     manifest config honest. Credentials arrive via AWS_* env (S3A's default
 #     EnvironmentVariableCredentialsProvider), endpoint/path-style via the
@@ -119,5 +119,5 @@ RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop && \
 
 # The official Flink image already runs as the non-root `flink` user (uid 9999),
 # matching the FlinkDeployment podTemplate securityContext. No CMD/ENTRYPOINT
-# override — the operator supplies the standalone-job command + args at submit.
+# override - the operator supplies the standalone-job command + args at submit.
 USER flink

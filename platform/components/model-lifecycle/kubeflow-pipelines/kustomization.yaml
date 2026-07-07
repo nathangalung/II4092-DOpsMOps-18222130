@@ -7,14 +7,14 @@ resources:
   - hpa.yaml  # 7 KFP HPAs (cache-server, metadata-envoy, metadata-grpc, metadata-writer, ml-pipeline, ml-pipeline-ui, ml-pipeline-visualizationserver). Single-node bootstrap: minReplicas=maxReplicas=1; bump for prod load.
   # `minio-service-kubeflow.yaml` was moved to ../minio-service-kubeflow.yaml
   # because this kustomization forces `namespace: model-lifecycle` on every
-  # resource, but the KFP v2 launcher hardcodes `minio-service.kubeflow` —
+  # resource, but the KFP v2 launcher hardcodes `minio-service.kubeflow` -
   # the Service MUST stay in namespace `kubeflow`.
 
 patches:
   # 1. Point KFP's pipeline-install-config ConfigMap at platform MySQL + MinIO.
   #    Cannot use Postgres for MLMD (metadata-grpc-deployment): the binary uses
   #    libmysqlclient (C++) hard-bound to MySQL wire protocol; gorm-on-Postgres
-  #    works only for the KFP API server — not MLMD. Both share this ConfigMap,
+  #    works only for the KFP API server - not MLMD. Both share this ConfigMap,
   #    so the LCD is mysql. dbType=mysql is the upstream default.
   #    Service: mysql.storage.svc.cluster.local (port 3306).
   - target:
@@ -39,12 +39,12 @@ patches:
 
   # 2 / 2a intentionally removed.  The upstream `mysql-secret` and
   #   `mlpipeline-minio-artifact` Secrets were replaced with ExternalSecret
-  #   resources in pipelines.yaml (see the `-----KFP artifact-store +
-  #   metadata DB credentials (ADR-008)-----` block).  ESO pulls both
+  #   resources in pipelines.yaml (see the KFP artifact-store and
+  #   metadata DB credentials block, ADR-008).  ESO pulls both
   #   credential pairs from OpenBao (`platform/postgres/app` and
   #   `platform/minio/root`), so no in-tree stringData patching is needed.
   #   Attempting to patch a kind: Secret that no longer exists in the tree
-  #   would fail at kustomize build time — hence the removal, not a
+  #   would fail at kustomize build time - hence the removal, not a
   #   silent update.
 
   # 2b. Fix metadata-writer deployment (merged from kubeflow-metadata patches)
@@ -122,13 +122,13 @@ patches:
   # 2b5. Override KFP API server default pipeline runner SA.
   #   Upstream KFP defaults to `default-editor` (Kubeflow profile convention).
   #   We don't deploy Kubeflow profiles on this single-node setup, so the SA
-  #   doesn't exist — every ScheduledWorkflow firing dies at root-driver pod
+  #   doesn't exist - every ScheduledWorkflow firing dies at root-driver pod
   #   creation with `serviceaccount "default-editor" not found`.
   #   Point at `pipeline-runner` SA which is shipped by KFP (defined in
   #   pipelines.yaml) and has the KFP-runner ClusterRoleBinding from
   #   the use-case's manifests/base/rbac/kfp-runner.yaml.
   #   kfp.Client.create_recurring_run(service_account=) is silently ignored
-  #   by v2beta1 server — this ConfigMap is the only authoritative knob.
+  #   by v2beta1 server - this ConfigMap is the only authoritative knob.
   - target:
       kind: ConfigMap
       name: pipeline-api-server-config-dc9hkg52h6
@@ -177,7 +177,7 @@ patches:
         path: /spec/template/spec/terminationGracePeriodSeconds
         value: 30
 
-  # 3. DELETE embedded KFP minio/mysql Deployments — we use platform
+  # 3. DELETE embedded KFP minio/mysql Deployments - we use platform
   #    minio.storage and mysql.storage via ExternalName aliases (patch #9/#11).
   #    Previously patched to replicas=0; $patch: delete is cleaner and removes
   #    the associated PVCs + ServiceAccounts at Kustomize build time.
@@ -221,12 +221,12 @@ patches:
   # 4. DELETE the entire metacontroller subsystem.
   #
   # Rationale (audit AUDIT_FINAL_2026-04-20 §5.2):
-  #   * KFP v2 caching uses MutatingWebhookConfiguration — no CompositeController.
+  #   * KFP v2 caching uses MutatingWebhookConfiguration - no CompositeController.
   #   * The only CR depending on metacontroller in the upstream manifest is the
   #     `kubeflow-pipelines-profile-controller` DecoratorController, which is
   #     the multi-user profile sync webhook. This deployment targets a single
   #     `model-lifecycle` namespace (single-user pipeline), so profile
-  #     sync is dead code — the Deployment, Service, ConfigMaps, and the
+  #     sync is dead code - the Deployment, Service, ConfigMaps, and the
   #     DecoratorController CR go with it.
   #   * Removing metacontroller also removes its cluster-wide RBAC surface
   #     (wide apiGroup='*' list/watch on namespaces, deployments, etc.).
@@ -242,7 +242,7 @@ patches:
   #   - Deployment + Service + code/env ConfigMaps for profile-controller
   #
   # Verification: `grep -rn "metacontroller\.k8s\.io" .` outside this file and
-  # pipelines.yaml returns only audit docs — nothing else references the API.
+  # pipelines.yaml returns only audit docs - nothing else references the API.
   - target:
       kind: StatefulSet
       name: metacontroller
@@ -360,7 +360,7 @@ patches:
       metadata:
         name: kubeflow-pipelines-profile-controller-env-5252m69c4c
 
-  # 4a. DELETE seaweedfs — redundant with MinIO.  The canonical `minio-service`
+  # 4a. DELETE seaweedfs - redundant with MinIO.  The canonical `minio-service`
   #     (patch #9 below) already routes to `minio.storage.svc.cluster.local`.
   #     seaweedfs-service + the seaweedfs Deployment/PVC are dropped entirely.
   - target:
@@ -381,9 +381,9 @@ patches:
       kind: PersistentVolumeClaim
       metadata:
         name: seaweedfs-pvc
-  # Upstream renamed the Service `seaweedfs-service` → `seaweedfs`, and also
+  # Upstream renamed the Service `seaweedfs-service` to `seaweedfs`, and also
   # ships a ServiceAccount, NetworkPolicy, DestinationRule and
-  # AuthorizationPolicy for it. Delete the whole set — a Service with no
+  # AuthorizationPolicy for it. Delete the whole set - a Service with no
   # backing Deployment otherwise sits endpoint-less in model-lifecycle
   # forever (observed live as orphan `svc/seaweedfs`).
   - target:
@@ -643,7 +643,7 @@ patches:
               protocol: TCP
               name: http
 
-  # 10. Fix kfp-launcher ConfigMap — set defaultPipelineRoot AND providers.
+  # 10. Fix kfp-launcher ConfigMap - set defaultPipelineRoot AND providers.
   #
   # KFP v2 injects a `kfp-launcher` init container onto every executor pod and
   # that init container reads this ConfigMap + Secret `mlpipeline-minio-artifact`
@@ -659,7 +659,7 @@ patches:
   #
   # The schema is verified against KFP 2.16.0 source
   # (backend/src/v2/config/s3.go S3ProviderDefault): nested
-  # `credentials.secretRef.{secretName, accessKeyKey, secretKeyKey}` — flat
+  # `credentials.secretRef.{secretName, accessKeyKey, secretKeyKey}` - flat
   # placement under credentials would silently no-op.
   - target:
       kind: ConfigMap
@@ -759,7 +759,7 @@ patches:
       # workflow pod. Without explicit resources, Kyverno `require-resource-limits`
       # ValidatingPolicy denies the pod (every container must set requests+limits
       # for cpu+memory). The `executor` block here sets cluster-wide defaults
-      # for those injected containers — no per-Workflow podSpecPatch needed.
+      # for those injected containers - no per-Workflow podSpecPatch needed.
       #
       # securityContext: argoexec image (quay.io/argoproj/argoexec:v3.7.x)
       # is published without a USER directive, so kubelet treats it as
@@ -790,11 +790,11 @@ patches:
               cpu: 100m
               memory: 256Mi
 
-  # 12. REMOVED — kubeflow-pipelines-profile-controller Deployment is deleted
+  # 12. REMOVED - kubeflow-pipelines-profile-controller Deployment is deleted
   #     together with metacontroller (see patch #4 above). No S3 endpoint patch
   #     is needed because the controller no longer exists.
 
-  # 13. Fix AuthorizationPolicy principals (kubeflow→model-lifecycle)
+  # 13. Fix AuthorizationPolicy principals (kubeflow to model-lifecycle)
   - target:
       kind: AuthorizationPolicy
       name: ml-pipeline
@@ -851,7 +851,7 @@ patches:
         value:
           - cluster.local/ns/model-lifecycle/sa/ml-pipeline-ui
 
-  # 14. GitOps re-pull hygiene — NOT a P0.3 closure
+  # 14. GitOps re-pull hygiene - NOT a P0.3 closure
   # Two upstream KFP Deployments ship with imagePullPolicy: Always, which forces
   # a registry round-trip on every pod restart and amplifies upstream-registry
   # latency under ArgoCD self-heal / node reboots. KFP's own digests (2.15.0)

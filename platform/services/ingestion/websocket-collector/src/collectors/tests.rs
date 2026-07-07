@@ -36,7 +36,7 @@ fn test_record_serialization() {
 
 #[test]
 fn test_record_deserialization() {
-    // Flat JSON — values are top-level fields (not nested under "values")
+    // Flat JSON - values are top-level fields (not nested under "values")
     let json_str = r#"{
             "symbol": "SYM2",
             "timestamp": 1700000000,

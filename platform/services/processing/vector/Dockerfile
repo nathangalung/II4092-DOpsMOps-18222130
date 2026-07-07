@@ -18,7 +18,7 @@ RUN apt-get update \
 
 # Create non-root user BEFORE any COPY/sync so every file lands owned by
 # uid 1000. Avoids post-hoc `chown -R /app` over the multi-GB uv venv
-# (PyTorch+transformers+sentence-transformers) — recursive chown on that
+# (PyTorch+transformers+sentence-transformers) - recursive chown on that
 # tree under IO pressure stalls the build for tens of minutes.
 RUN useradd -u 1000 -m -s /usr/sbin/nologin app
 WORKDIR /app
@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/home/app/.cache/uv,uid=1000,gid=1000 \
 # from HuggingFace and, under sda write pressure, that fetch routinely
 # overran activeDeadlineSeconds and tripped the backoff loop.
 # Layered before the full source COPY so the (large) model layer is not
-# busted by ordinary code changes — only EMBEDDING_MODEL or this script
+# busted by ordinary code changes - only EMBEDDING_MODEL or this script
 # invalidate it.
 #
 # HF_HOME lives at /home/app/hf-cache (NOT under /home/app/.cache/) so it
@@ -61,7 +61,7 @@ EXPOSE 8000
 
 # UV mandate: run via `uv run --no-sync`, not bare `python`. `--no-sync`
 # uses the baked venv WITHOUT re-syncing, so it never triggers the editable
-# rebuild (hatchling from PyPI) that fails air-gapped — and the build above
+# rebuild (hatchling from PyPI) that fails air-gapped - and the build above
 # installs the project --no-editable (a real wheel), so there is nothing to
 # rebuild at runtime anyway. CronJob vector-embedding wraps this with
 # push_job_metrics.sh.

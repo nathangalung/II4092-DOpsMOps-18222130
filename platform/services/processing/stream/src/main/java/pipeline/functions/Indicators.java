@@ -5,16 +5,16 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Pure, stateless time-series indicator math — the Java counterpart of the Rust
+ * Pure, stateless time-series indicator math - the Java counterpart of the Rust
  * feature-engine {@code indicators.rs}. Every formula here is a faithful port of
  * its Rust sibling so the Flink stream processor and the (retired) Rust engine
  * are byte-for-byte interchangeable on the same input window. Kept free of any
  * Flink / Jackson types so it is unit-testable in isolation (see IndicatorsTest)
- * — those tests ARE the no-lost-service proof for the feature-engine → Flink
+ * - those tests ARE the no-lost-service proof for the feature-engine to Flink
  * cutover.
  *
  * <p>All operations are generic windowed statistics (means, EMA, momentum,
- * dispersion) applicable to any numeric series — no domain logic. The MACD-style
+ * dispersion) applicable to any numeric series - no domain logic. The MACD-style
  * <em>signal line</em> is intentionally NOT here: it requires per-key state
  * (an EMA over the convergence series itself) and therefore lives in
  * {@link FeatureFunction}.

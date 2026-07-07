@@ -11,7 +11,7 @@
   "panels": [
     {
       "datasource": "Prometheus",
-      "description": "Success flag for the crypto ML pipeline jobs (feature engineering, quality gate, embeddings, lakehouse).",
+      "description": "Success flag for the ML pipeline jobs (feature engineering, quality gate, embeddings, lakehouse).",
       "fieldConfig": {
         "defaults": {
           "color": {"mode": "palette-classic"},
@@ -41,7 +41,7 @@
       },
       "targets": [
         {
-          "expr": "crypto_job_last_success{job=~\"airflow_dag_crypto_hourly_features|airflow_dag_crypto_data_quality_gate|vector_embedding|airflow_dag_crypto_lakehouse\"}",
+          "expr": "${use_case}_job_last_success{job=~\"airflow_dag_${use_case}_hourly_features|airflow_dag_${use_case}_data_quality_gate|vector_embedding|airflow_dag_${use_case}_lakehouse\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -51,7 +51,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Pod phase for the crypto model-serving pods (predictor / ml-bridge).",
+      "description": "Pod phase for the model-serving pods (predictor / ml-bridge).",
       "fieldConfig": {
         "defaults": {
           "color": {"mode": "palette-classic"},
@@ -79,7 +79,7 @@
       },
       "targets": [
         {
-          "expr": "kube_pod_status_phase{namespace=\"use-case-crypto\",pod=~\".*predictor.*|.*ml-bridge.*\"}",
+          "expr": "kube_pod_status_phase{namespace=\"use-case-$use_case\",pod=~\".*predictor.*|.*ml-bridge.*\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -128,7 +128,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Duration of the last run of each crypto ML pipeline job.",
+      "description": "Duration of the last run of each ML pipeline job.",
       "fieldConfig": {
         "defaults": {
           "color": {"mode": "palette-classic"},
@@ -154,7 +154,7 @@
       },
       "targets": [
         {
-          "expr": "crypto_job_last_duration_seconds{job=~\"airflow_dag_crypto_hourly_features|airflow_dag_crypto_data_quality_gate|vector_embedding|airflow_dag_crypto_lakehouse\"}",
+          "expr": "${use_case}_job_last_duration_seconds{job=~\"airflow_dag_${use_case}_hourly_features|airflow_dag_${use_case}_data_quality_gate|vector_embedding|airflow_dag_${use_case}_lakehouse\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -164,7 +164,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Container restart counts for the crypto model-serving pods.",
+      "description": "Container restart counts for the model-serving pods.",
       "fieldConfig": {
         "defaults": {
           "color": {"mode": "palette-classic"},
@@ -189,7 +189,7 @@
       },
       "targets": [
         {
-          "expr": "kube_pod_container_status_restarts_total{namespace=\"use-case-crypto\",pod=~\".*predictor.*|.*ml-bridge.*\"}",
+          "expr": "kube_pod_container_status_restarts_total{namespace=\"use-case-$use_case\",pod=~\".*predictor.*|.*ml-bridge.*\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -207,7 +207,7 @@
       "id": 6,
       "options": {
         "mode": "markdown",
-        "content": "Drift PSI/KS per scale: gold.drift_multi_scale — run `make -C experiments drift`.\nPredictions + direction: gold.crypto_predictions — run `make -C experiments predict`.\nThese are batch results stored in the ClickHouse warehouse, not exported as Prometheus time-series."
+        "content": "Drift PSI/KS per scale: gold.drift_multi_scale — run `make -C experiments drift`.\nPredictions + direction: gold.${use_case}_predictions — run `make -C experiments predict`.\nThese are batch results stored in the ClickHouse warehouse, not exported as Prometheus time-series."
       },
       "title": "Drift & Predictions (in ClickHouse)",
       "type": "text"
@@ -217,7 +217,19 @@
   "schemaVersion": 36,
   "style": "dark",
   "tags": ["mlops", "models", "drift"],
-  "templating": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": false, "text": "crypto", "value": "crypto"},
+        "hide": 0,
+        "label": "Use case",
+        "name": "use_case",
+        "options": [{"selected": true, "text": "crypto", "value": "crypto"}],
+        "query": "crypto",
+        "type": "textbox"
+      }
+    ]
+  },
   "time": {"from": "now-6h", "to": "now"},
   "timepicker": {},
   "timezone": "",

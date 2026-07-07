@@ -1,6 +1,4 @@
-# =============================================================================
-# TRAINING — Weekly Model Training (Python + TF/XGBoost → ONNX)
-# =============================================================================
+# TRAINING - Weekly Model Training (Python + TF/XGBoost to ONNX)
 # Trains models on features from Feast, exports to ONNX.
 #
 # Platform tool integration:
@@ -9,7 +7,6 @@
 #   - Kubeflow Pipelines: Alternative for complex training DAGs
 #   - KServe: Auto-deploy trained models via InferenceService
 #   - Grafana: Alert on training failures
-# =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:

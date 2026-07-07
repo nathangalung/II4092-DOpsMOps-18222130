@@ -3,24 +3,24 @@ kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # --- ClickHouse (drift-detector, dbt, validator, trainer, analyzer) ---
+  # ClickHouse (drift-detector, dbt, validator, trainer, analyzer)
   # Schema-qualified tables live under bronze/silver/gold; the `features`
   # database holds VIEWs that wrap bronze sources for feature-store and
   # drift detection (see use-case-crypto/database/init_clickhouse.sql L491+).
   CLICKHOUSE_HOST: "clickhouse-platform.storage.svc.cluster.local"
   CLICKHOUSE_PORT: "8123"
   CLICKHOUSE_DB: "features"
-  # Schema-qualified — serving.yaml overrides CLICKHOUSE_DB to "default" so
+  # Schema-qualified - serving.yaml overrides CLICKHOUSE_DB to "default" so
   # unqualified table names won't resolve; consumers read bronze.* directly.
   CLICKHOUSE_TABLE: "bronze.crypto_ohlcv_features"
   DRIFT_SINK_TABLE: "gold.drift_multi_scale"
   DRIFT_SINK_SYMBOL: "BTC-USD"
-  # --- rest-collector config path (intentionally NOT set here) ---
+  # rest-collector config path (intentionally NOT set here)
   # CONFIG_PATH is rest-collector-specific: it points viper at the file-based
   # source registry mounted at /etc/rest-collector/config.yaml (per-endpoint
   # polling can't be expressed as flat env vars; see rest-collector-config.yaml).
   # It used to live in this SHARED ConfigMap, but every workload doing
-  # `envFrom: pipeline-config` inherited it — including the Python batch loader,
+  # `envFrom: pipeline-config` inherited it - including the Python batch loader,
   # whose load_config() then followed CONFIG_PATH to /etc/rest-collector/
   # config.yaml (absent in the batch image), skipped its baked
   # /app/config/config.yaml, left technical_indicators={}, and silently wrote
@@ -28,33 +28,33 @@ data:
   # per-rest-collector-workload instead: patches/rest-collector.yaml (Deployment)
   # and cronjobs/supplementary*.yaml. Do NOT re-add it to this shared ConfigMap.
 
-  # --- Symbol list (consumed by non-Go services — analyzer) ---
+  # Symbol list (consumed by non-Go services - analyzer)
   # Keep in sync with data_sources[].symbols in rest-collector-config.yaml
   # and with SYMBOLS in schema.yaml.
   COINBASE_SYMBOLS: "BTC-USD,ETH-USD"
   COINBASE_GRANULARITY: "3600"
   COINBASE_ENABLED: "true"
 
-  # --- Sentiment ---
+  # Sentiment
   SENTIMENT_CRYPTOPANIC_ENABLED: "true"
   SENTIMENT_FEARGREED_ENABLED: "true"
 
-  # --- Field mapping for generic array-of-arrays historical responses ---
+  # Field mapping for generic array-of-arrays historical responses
   # Read by rest-collector's FetchHistorical via RESPONSE_FIELD_MAPPING env.
   # Coinbase candle order: [time, low, high, open, close, volume]
   RESPONSE_FIELD_MAPPING: "timestamp,low,high,open,close,volume"
   PRIMARY_VALUE_COLUMN: "close"
 
-  # --- Intervals ---
+  # Intervals
   COLLECTION_INTERVAL: "300"
   PROCESSING_INTERVAL: "300"
   TRAINING_INTERVAL: "21600"
 
-  # --- History/backfill ---
+  # History/backfill
   # Smart backfill: on startup, checks ClickHouse for latest data timestamp.
   # If data exists, backfills from last timestamp to now (gap-fill).
   # If no data, backfills from HISTORY_START_DATE to now.
-  # HISTORY_END_DATE is ignored — always backfills to current time.
+  # HISTORY_END_DATE is ignored - always backfills to current time.
   # These are still consumed via env-var overrides (viper BindEnv).
   HISTORY_START_DATE: "2026-01-01T00:00:00Z"
   HISTORY_END_DATE: ""
@@ -67,7 +67,7 @@ data:
   # and does only the realtime fetch (backfill = one-time bootstrap, #514).
   BACKFILL_CLICKHOUSE_SUPPLEMENTARY_TABLE: "bronze.crypto_sentiment"
 
-  # --- Supplementary backfill ---
+  # Supplementary backfill
   SUPPLEMENTARY_BACKFILL_ENABLED: "true"
   SUPPLEMENTARY_BACKFILL_START_DATE: "2026-01-01T00:00:00Z"
   COINGECKO_BACKFILL_COINS: "bitcoin,ethereum"

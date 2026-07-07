@@ -1,5 +1,5 @@
 """
-Training data preparation — config-driven feature selection.
+Training data preparation - config-driven feature selection.
 
 Prepares train/validation splits from ClickHouse feature data.
 Feature columns are auto-discovered from data or set via FEATURE_COLUMNS env var.
@@ -35,7 +35,7 @@ EXPLICIT_FEATURE_COLS = (
 
 
 class Trainer:
-    """Data preparation for FLAML AutoML — config-driven feature selection."""
+    """Data preparation for FLAML AutoML - config-driven feature selection."""
 
     def __init__(self, df: pd.DataFrame) -> None:
         self.df = df
@@ -72,7 +72,7 @@ class Trainer:
         return df_clean.values
 
     def prepare_regression_data(self) -> tuple:
-        """Prepare data for regression — forecast the NEXT-period TARGET_COLUMN.
+        """Prepare data for regression - forecast the NEXT-period TARGET_COLUMN.
 
         The target is ``TARGET_COLUMN.shift(-1)`` (the value one step ahead), not
         the current-row value. Predicting the current ``close`` from features that

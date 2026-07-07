@@ -54,7 +54,7 @@ fn read_redis_password_env() -> Option<String> {
 // Merge `VALKEY_PASSWORD` (from the pipeline-secrets Secret) into the
 // connection URL. redis-rs only accepts credentials via the URL userinfo,
 // and every call site already reads `redis_url` (struct field kept on the
-// `redis_*` prefix because the wire protocol is RESP — the Rust crate is
+// `redis_*` prefix because the wire protocol is RESP - the Rust crate is
 // `redis-rs` speaking to a Valkey server). The password is seeded in
 // OpenBao as URL-safe base64 (no `+` `/` `=`), so a raw embed into the
 // userinfo is RFC-3986-compliant without pulling in a percent-encoder.

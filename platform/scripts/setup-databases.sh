@@ -1,7 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# setup-databases.sh — one-shot database bootstrap helper (operator utility)
-# =============================================================================
+# setup-databases.sh - one-shot database bootstrap helper (operator utility)
 # Idempotent: create any logical databases that CNPG's postInitApplicationSQL
 # or MySQL's init.sql didn't cover (pg_trgm/btree_gin extensions, extra MySQL
 # schemas for MLMD/KServe).
@@ -17,7 +15,6 @@
 #
 # If you need to run this before OpenBao/ESO is up, bootstrap the Secrets
 # manually (see platform/REMEDIATION_RUNBOOK.md §Bootstrap-Order).
-# =============================================================================
 set -euo pipefail
 
 KUBECTL_CMD="${KUBECTL_CMD:-kubectl}"
@@ -32,7 +29,7 @@ die() {
 # -- Postgres: CNPG publishes the app-user credential as `postgresql-app`
 #    in the same namespace as the Cluster (keys: `username`, `password`,
 #    `uri`, `jdbc-uri`, `host`, `port`, `dbname`, `pgpass`).  That is the
-#    only PG credential with working password auth — CNPG defaults
+#    only PG credential with working password auth - CNPG defaults
 #    `enableSuperuserAccess: false`, so the `postgres` role has no usable
 #    password.  The `platform` role in `postgresql-app` has CREATEROLE +
 #    CREATEDB + REPLICATION (granted by cluster.yaml's postInitApplicationSQL),
@@ -84,7 +81,7 @@ echo "Waiting for MySQL..."
 "$KUBECTL_CMD" -n "$NAMESPACE" wait --for=condition=ready pod \
     -l app=mysql --timeout=300s
 
-# One-shot psql runner (networked, not kubectl exec — the CNPG pod only
+# One-shot psql runner (networked, not kubectl exec - the CNPG pod only
 # ships the server, not a Swiss-army client).
 pg_client() {
     "$KUBECTL_CMD" -n "$NAMESPACE" run pg-client-$$-$RANDOM \
@@ -98,16 +95,14 @@ mysql_client() {
         mysql -u "$MYSQL_USER" -p"$MYSQL_PASS" -e "$1"
 }
 
-# -----------------------------------------------------------------------------
 # Align the `platform` app user's role attributes on EXISTING clusters.
 # Fresh clusters get REPLICATION + CREATEROLE + CREATEDB directly from
 # postInitApplicationSQL in cluster.yaml; pre-existing clusters provisioned
 # before that block was added need a one-time ALTER ROLE.  We run it as the
 # internal `postgres` role via local peer auth inside the CNPG primary pod:
 # `enableSuperuserAccess: false` only disables password auth for postgres,
-# peer auth over the unix socket is still available.  Idempotent — setting
+# peer auth over the unix socket is still available.  Idempotent - setting
 # an already-set role attribute is a no-op at the PG level.
-# -----------------------------------------------------------------------------
 PRIMARY_POD="$("$KUBECTL_CMD" -n "$NAMESPACE" get pod \
     -l cnpg.io/cluster=postgresql,role=primary \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"

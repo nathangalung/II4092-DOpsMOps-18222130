@@ -266,7 +266,7 @@ def main() -> None:
 
     logger.info(f"Report generation complete: {total_reports} reports")
     if total_reports == 0:
-        # Zero reports means every symbol failed or had no data — a green
+        # Zero reports means every symbol failed or had no data - a green
         # exit here would hide a broken feature pipeline from the DAG.
         raise SystemExit("No reports generated for any symbol")
 

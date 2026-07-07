@@ -1,4 +1,4 @@
-//! Generic bounds checking — columns and thresholds configured per use-case.
+//! Generic bounds checking - columns and thresholds configured per use-case.
 
 use crate::config::BoundsConfig;
 use simd_json::prelude::{ValueAsScalar, ValueObjectAccess};
@@ -161,7 +161,7 @@ mod tests {
         };
         let checker = BoundsChecker::new(&config);
 
-        // Missing value_b — just skips it (permissive)
+        // Missing value_b - just skips it (permissive)
         let value = simd_json::json!({ "value_a": 500.0 });
         assert!(checker.check(&value));
     }

@@ -1,11 +1,11 @@
-"""Domain-knob layer — single source of truth for all crypto Airflow DAGs.
+"""Domain-knob layer - single source of truth for all crypto Airflow DAGs.
 
 Every USE_CASE-derived name (namespace, image prefix, ConfigMap, Secret,
 ENV_FROM_SOURCES) and the shared k8s_pod factory live here.
 
 Clone workflow: copy a new use-case directory, set ``USE_CASE=<name>`` in
 Airflow Variables (or change the ``default_var`` below), and all DAGs that
-import from this module stay body-identical — no per-file edits required.
+import from this module stay body-identical - no per-file edits required.
 
 Setup (Airflow Variables):
     airflow variables set USE_CASE                    crypto
@@ -19,9 +19,9 @@ Setup (Airflow Variables):
 
 Naming asymmetry (deliberate, see use-case-crypto name-reference.yaml):
   - ConfigMap is produced by kustomize configMapGenerator, so ``namePrefix:
-    crypto-`` rewrites it → ``crypto-pipeline-config`` (prefixed).
-  - Secret is an ExternalSecret ``spec.target.name`` — a field value opaque to
-    kustomize namePrefix — so the rendered Secret keeps its literal,
+    crypto-`` rewrites it to ``crypto-pipeline-config`` (prefixed).
+  - Secret is an ExternalSecret ``spec.target.name`` - a field value opaque to
+    kustomize namePrefix - so the rendered Secret keeps its literal,
     unprefixed name ``pipeline-secrets``. All 37 in-cluster refs use it.
 """
 
@@ -31,14 +31,12 @@ from airflow.models import Variable
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 
-# ─────────────────────────────────────────────────────────────
-# Configuration — read from Airflow Variables (declarative, not hardcoded).
+# Configuration - read from Airflow Variables (declarative, not hardcoded).
 #
 # Single knob `USE_CASE` derives every domain-coupled name (namespace,
 # image prefix, ConfigMap, Secret). Cloning this file to a new use-case
 # means: rename the file + dag_id strings and set `USE_CASE=<name>` in
-# Airflow Variables — the rest of the body stays identical.
-# ─────────────────────────────────────────────────────────────
+# Airflow Variables - the rest of the body stays identical.
 USE_CASE = Variable.get("USE_CASE", default_var="crypto")
 NAMESPACE = Variable.get(
     "USE_CASE_NAMESPACE", default_var=f"use-case-{USE_CASE}"
@@ -50,7 +48,7 @@ PIPELINE_CONFIGMAP = Variable.get(
     "USE_CASE_PIPELINE_CONFIGMAP", default_var=f"{USE_CASE}-pipeline-config"
 )
 PIPELINE_SECRET = Variable.get(
-    # Unprefixed by design — the Secret is rendered from an ExternalSecret
+    # Unprefixed by design - the Secret is rendered from an ExternalSecret
     # `target.name` (opaque to kustomize namePrefix), unlike the ConfigMap.
     # Fix #489: was incorrectly `f"{USE_CASE}-pipeline-secrets"` (prefixed)
     # which caused all KPO child-pods to fail with MountSecretError because
@@ -62,7 +60,7 @@ FEAST_REPO_CONFIGMAP = Variable.get(
     # mounted read-only into the `feast_materialize` task so the materialization
     # image renders feature_store.yaml at pod start. It is a PLAIN ConfigMap
     # resource (not a configMapGenerator), so kustomize `namePrefix: crypto-`
-    # rewrites it to `crypto-feast-feature-repo` with NO hash suffix — this
+    # rewrites it to `crypto-feast-feature-repo` with NO hash suffix - this
     # static default matches the rendered name. Derives from USE_CASE, so a
     # cloned use-case needs no edit here.
     "USE_CASE_FEAST_REPO_CONFIGMAP", default_var=f"{USE_CASE}-feast-feature-repo"
@@ -105,17 +103,17 @@ def k8s_pod(
         env_from=ENV_FROM_SOURCES,
         # `Always` (not IfNotPresent) against the in-cluster registry
         # (localhost:5000). With `:latest` + IfNotPresent, k8s pins whatever
-        # digest the node cached at first pull FOREVER — a rebuilt+pushed image is
+        # digest the node cached at first pull FOREVER - a rebuilt+pushed image is
         # never re-pulled, so every KPO child (batch_features, drift_check,
         # scoring, sentiment, feast_materialize, dbt_run) silently runs stale
         # code. That masked the missing `clickhouse_password` field in
-        # config.py → ClickHouse Code 194 auth failures on batch-features. The
+        # config.py, so ClickHouse Code 194 auth failures on batch-features. The
         # registry is in-cluster, so re-pulling each run is cheap and
         # air-gap-safe (mirrors #301/#459/#291).
         image_pull_policy="Always",
         # Delete all pods (succeeded and failed) on finish. Post-mortem is
         # covered by get_logs=True below, which streams the full pod log into
-        # the Airflow task log BEFORE deletion — so failure output is always
+        # the Airflow task log BEFORE deletion - so failure output is always
         # visible in the Airflow UI / S3 remote log without leaving orphaned
         # Error pods on the node. Prevents accumulation of stale
         # `airflow-batch-features` Error pods (~87 observed 2026-06-28).
@@ -123,13 +121,13 @@ def k8s_pod(
         get_logs=True,
         # 600s (not 300s): on the single IO-constrained node, a cold
         # `Always`-pull of a freshly-rebuilt child image (256MB, all-new
-        # layers) measured 4m33s — past a 300s startup deadline — so KPO
+        # layers) measured 4m33s - past a 300s startup deadline - so KPO
         # marked the task up_for_retry even though the pod itself ran to
         # exit 0. Steady-state Always-pulls only re-verify cached layers
         # (seconds), so the wider deadline only adds headroom for the
         # post-rebuild cold pull; a healthy pod still starts fast. Mirrors
-        # the disk-distress timeout bumps (#203 kserve rollout 300→900s,
-        # #285 upgrade-job 1800→3600s).
+        # the disk-distress timeout bumps (#203 kserve rollout 300 to 900s,
+        # #285 upgrade-job 1800 to 3600s).
         startup_timeout_seconds=600,
         container_resources=k8s.V1ResourceRequirements(
             requests={"cpu": cpu_req, "memory": mem_req},

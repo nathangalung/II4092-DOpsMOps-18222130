@@ -1,17 +1,15 @@
-# =============================================================================
-# CRYPTO SUPERSET BOOTSTRAP — Database + Dataset registrar (REST API client)
-# =============================================================================
+# CRYPTO SUPERSET BOOTSTRAP - Database + Dataset registrar (REST API client)
 # Idempotent Python script that registers the crypto-relevant data sources
 # and datasets in the platform Superset instance.  Runs from a single-shot
 # Kubernetes Job (bootstrap-job.yaml) on every overlay apply; existing
 # Database / Dataset rows are detected by `database_name` / (database,
-# schema, table) tuple and SKIPPED — re-applies are no-ops.
+# schema, table) tuple and SKIPPED - re-applies are no-ops.
 #
 # Why a script and not a `superset import-datasources` invocation?
 #
 #   * The CLI import path requires a Superset CLI image with all driver
 #     wheels available (uv-installed alongside Superset itself), and it
-#     mutates the metastore directly — risky if the Job is racy with the
+#     mutates the metastore directly - risky if the Job is racy with the
 #     long-lived Superset Deployment running migrations.
 #   * The REST API endpoints (`/api/v1/database/`, `/api/v1/dataset/`) are
 #     stable since Superset 1.x, fully idempotent when guarded by the
@@ -19,43 +17,42 @@
 #     through Superset's own validation (encryption of SQLAlchemy URI,
 #     `test_connection` probe before the row is committed).
 #   * Pure-stdlib `urllib` (no `requests`, no `pip install` step) keeps
-#     the bootstrap image tiny — the same `astral-sh/uv:python3.14-trixie`
+#     the bootstrap image tiny - the same `astral-sh/uv:python3.14-trixie`
 #     base every other crypto bootstrap (push-helper.py, openbao bootstrap)
 #     uses.
 #
 # Datasources registered:
-#   1. clickhouse-crypto        → clickhouse-connect SQLAlchemy dialect.
+#   1. clickhouse-crypto        maps to clickhouse-connect SQLAlchemy dialect.
 #                                 The OHLCV / feature tables live in
 #                                 `bronze.*` / `silver.*` / `gold.*` schemas
-#                                 (per ClickHouse multi-schema layout —
+#                                 (per ClickHouse multi-schema layout -
 #                                 schema.yaml).  Default DB = `default` so
 #                                 chart authors fully-qualify table names.
-#   2. trino-lakehouse          → trino[sqlalchemy] dialect.  Federates
+#   2. trino-lakehouse          maps to trino[sqlalchemy] dialect.  Federates
 #                                 ClickHouse + Iceberg (lakekeeper) +
 #                                 Postgres in a single SQL surface.  Useful
 #                                 for cross-storage joins (e.g. ML
-#                                 predictions in Postgres ⋈ feature
+#                                 predictions in Postgres joined with feature
 #                                 vectors in ClickHouse).
-#   3. postgres-mlflow          → psycopg2 dialect to the CNPG `mlflow`
+#   3. postgres-mlflow          maps to psycopg2 dialect to the CNPG `mlflow`
 #                                 logical DB.  Used by the model-performance
-#                                 dashboard (experiments → runs → metrics).
+#                                 dashboard (experiments to runs to metrics).
 #
-# Datasets registered (against the ClickHouse database connection — the
+# Datasets registered (against the ClickHouse database connection - the
 # fastest path for time-series scans):
-#   * bronze.crypto_ohlcv                 — raw 1-minute OHLCV from Coinbase
-#   * bronze.crypto_ohlcv_features        — stream-computed indicators (Flink)
-#   * gold.fct_training_data              — joined feature mart (dbt-built)
-#   * gold.crypto_predictions             — ml-bridge → ClickHouse sink
-#   * gold.drift_metrics                  — drift detector → ClickHouse sink
+#   * bronze.crypto_ohlcv - raw 1-minute OHLCV from Coinbase
+#   * bronze.crypto_ohlcv_features - stream-computed indicators (Flink)
+#   * gold.fct_training_data - joined feature mart (dbt-built)
+#   * gold.crypto_predictions - ml-bridge to ClickHouse sink
+#   * gold.drift_metrics - drift detector to ClickHouse sink
 #
 # Dashboards are intentionally NOT auto-imported here.  Dashboard JSON
 # bundles drift fast (chart UUIDs are regenerated on each Superset save)
 # and the API endpoint `/api/v1/dashboard/import/` is a one-shot rather
-# than an idempotent upsert — a CI-grade dashboard bundle workflow lives
+# than an idempotent upsert - a CI-grade dashboard bundle workflow lives
 # better in `superset export-dashboards | git commit` driven by the analyst
 # than in a deploy-time Job.  The Job's purpose is to make the data
 # AVAILABLE in Superset; the analyst then builds dashboards in the UI.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -135,9 +132,7 @@ data:
     # The CNPG-bootstrapped database used by the MLflow tracking server.
     PG_DB_MLFLOW = os.environ.get("POSTGRES_DB_MLFLOW", "mlflow")
 
-    # ────────────────────────────────────────────────────────────────────────
-    # Database registry — every entry → one Superset Database row
-    # ────────────────────────────────────────────────────────────────────────
+    # Database registry - every entry maps to one Superset Database row
     # `sqlalchemy_uri` is what Superset stores (encrypted at rest by Fernet).
     # We URL-quote credentials so a `@` / `/` in a generated password does
     # not corrupt the URI grammar.
@@ -189,11 +184,9 @@ data:
         },
     ]
 
-    # ────────────────────────────────────────────────────────────────────────
-    # Dataset registry — every entry → one Superset Dataset row
-    # ────────────────────────────────────────────────────────────────────────
+    # Dataset registry - every entry maps to one Superset Dataset row
     # All datasets register against `clickhouse-crypto` because:
-    #  (a) clickhouse-connect is the fastest path for time-series scans —
+    #  (a) clickhouse-connect is the fastest path for time-series scans -
     #      no Trino coordinator hop, no Iceberg manifest read amplification.
     #  (b) ClickHouse already holds bronze + silver + gold; Trino is the
     #      ad-hoc cross-storage query surface, not the dashboard backbone.
@@ -210,9 +203,7 @@ data:
          "table_name": "drift_metrics"},
     ]
 
-    # ────────────────────────────────────────────────────────────────────────
-    # HTTP helpers — pure stdlib, session-aware (login JWT + CSRF token)
-    # ────────────────────────────────────────────────────────────────────────
+    # HTTP helpers - pure stdlib, session-aware (login JWT + CSRF token)
     class Session:
         """Minimal Superset REST client.
 
@@ -283,7 +274,7 @@ data:
             csrf = self._request("GET", "/api/v1/security/csrf_token/")
             self.csrf_token = csrf.get("result")
 
-        # --- Database CRUD -----------------------------------------------------
+        # Database CRUD
         def list_database_names(self) -> set[str]:
             names: set[str] = set()
             page = 0
@@ -303,7 +294,7 @@ data:
         def create_database(self, spec: dict[str, Any]) -> None:
             self._request("POST", "/api/v1/database/", body=spec)
 
-        # --- Dataset CRUD ------------------------------------------------------
+        # Dataset CRUD
         def get_database_id(self, name: str) -> int:
             params = {
                 "q": json.dumps({
@@ -347,9 +338,7 @@ data:
             }
             self._request("POST", "/api/v1/dataset/", body=payload)
 
-    # ────────────────────────────────────────────────────────────────────────
-    # Main — login, register databases, register datasets
-    # ────────────────────────────────────────────────────────────────────────
+    # Main - login, register databases, register datasets
     def wait_for_superset(base: str, *, attempts: int = 60) -> None:
         """Block until Superset's /health endpoint returns 200."""
         url = f"{base}/health"
@@ -377,11 +366,11 @@ data:
 
         existing_dbs = session.list_database_names()
         # Backends like Trino can be flapping in a single-node dev cluster
-        # — its registration depends on the coordinator being able to
+        # - its registration depends on the coordinator being able to
         # answer `SHOW SCHEMAS` during Superset's test_connection probe.
         # Skip+log on failure so a broken backend never blocks the whole
         # bootstrap (which is a hook Job; a failed hook blocks Argo sync
-        # of every other resource in this app — superset-bootstrap is the
+        # of every other resource in this app - superset-bootstrap is the
         # last-mile data-source registrar, not a critical-path component).
         for spec in DATABASES:
             name = spec["database_name"]

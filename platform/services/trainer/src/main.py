@@ -1,11 +1,11 @@
 """
-FLAML AutoML Trainer — automatic model selection and hyperparameter tuning.
+FLAML AutoML Trainer - automatic model selection and hyperparameter tuning.
 
 FLAML searches across LightGBM, XGBoost, CatBoost, RandomForest, ExtraTree,
 and linear models, returning the native best model. This means:
   - kserve-mlserver serves it directly via MLflow format (no custom runtime)
   - MLflow logs it with the correct flavor (lightgbm, xgboost, sklearn)
-  - Zero model-specific code needed — FLAML handles everything
+  - Zero model-specific code needed - FLAML handles everything
 
 All domain-specific configuration comes from environment variables set by
 the use-case's ConfigMap. To tune FLAML behavior, set FLAML_* env vars.
@@ -41,7 +41,7 @@ from trainer import Trainer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# Pyroscope continuous profiling - opt-in via PYROSCOPE_SERVER_ADDRESS
 # (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
 # = profiler disabled, service runs unchanged.
 if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
@@ -60,7 +60,7 @@ TRAIN_COUNTER = Counter("trainer_runs_total", "Training runs")
 TRAIN_DURATION = Histogram("trainer_duration_seconds", "Training duration")
 
 
-# ── Config from env (set by use-case ConfigMap) ─────────────────────────
+# Config from env (set by use-case ConfigMap)
 
 class Config:
     """All values overridable by use-case ConfigMap."""
@@ -98,7 +98,7 @@ class FLAMLConfig:
         return [s.strip() for s in val.split(",") if s.strip()]
 
 
-# ── FLAML estimator → MLflow flavor mapping ─────────────────────────────
+# FLAML estimator to MLflow flavor mapping
 
 _MLFLOW_FLAVOR = {
     "lgbm": "lightgbm",
@@ -134,7 +134,7 @@ def _log_model_to_mlflow(automl: AutoML) -> None:
     logger.info("Logged %s model (%s) to MLflow artifact_path='model'", best, flavor)
 
 
-# ── Data loading ────────────────────────────────────────────────────────
+# Data loading
 
 def load_data(symbol: str, start: str, end: str) -> pd.DataFrame:
     """Load training data from ClickHouse.
@@ -175,7 +175,7 @@ def load_data(symbol: str, start: str, end: str) -> pd.DataFrame:
     return df
 
 
-# ── Training ────────────────────────────────────────────────────────────
+# Training
 
 def train(symbol: str, df: pd.DataFrame) -> dict:
     """Run FLAML AutoML and log results to MLflow."""
@@ -209,7 +209,7 @@ def train(symbol: str, df: pd.DataFrame) -> dict:
         len(feature_cols),
     )
 
-    # ── Run FLAML AutoML ──────────────────────────────────────────────
+    # Run FLAML AutoML
     automl = AutoML()
 
     fit_kwargs = {
@@ -242,7 +242,7 @@ def train(symbol: str, df: pd.DataFrame) -> dict:
         automl.best_config,
     )
 
-    # ── Evaluate on validation set ────────────────────────────────────
+    # Evaluate on validation set
     y_pred = automl.predict(x_val_df)
 
     if task_type == "regression":
@@ -259,7 +259,7 @@ def train(symbol: str, df: pd.DataFrame) -> dict:
             "recall": float(recall_score(y_val, y_pred, average="weighted")),
         }
 
-    # ── Log to MLflow ─────────────────────────────────────────────────
+    # Log to MLflow
     with mlflow.start_run(run_name=f"{symbol}_flaml_{best_estimator}"):
         _log_model_to_mlflow(automl)
 
@@ -293,7 +293,7 @@ def train(symbol: str, df: pd.DataFrame) -> dict:
     return metrics
 
 
-# ── Entry point ─────────────────────────────────────────────────────────
+# Entry point
 
 def main() -> None:
     """Main entry point."""
@@ -325,7 +325,7 @@ def main() -> None:
 
     # Collect failures, then exit non-zero at the end. We avoid raising mid-loop
     # so a single bad symbol doesn't skip the rest, but we MUST surface failure
-    # to the orchestrator (KFP / Workflow) — silent exit-0 lets cached
+    # to the orchestrator (KFP / Workflow) - silent exit-0 lets cached
     # Succeeded shells block downstream "Experiment not found" diagnosis.
     failures: list[str] = []
     for symbol in symbols:

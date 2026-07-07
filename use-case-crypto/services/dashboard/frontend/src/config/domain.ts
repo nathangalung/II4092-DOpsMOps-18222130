@@ -1,4 +1,4 @@
-// Crypto-specific domain configuration — BUY/SELL/HOLD trading signals.
+// Crypto-specific domain configuration - BUY/SELL/HOLD trading signals.
 
 export const CLASS_LABELS: Record<number, string> = {
   1: "BUY",

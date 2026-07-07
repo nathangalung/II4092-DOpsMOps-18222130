@@ -1,13 +1,10 @@
-# =============================================================================
-# VECTOR EMBEDDING — Text Embedding Generation (Python + sentence-transformers)
-# =============================================================================
+# VECTOR EMBEDDING - Text Embedding Generation (Python + sentence-transformers)
 # Generates embeddings from text data and stores in Qdrant for vector search.
 #
 # Infrastructure dependencies:
 #   - Qdrant: Vector DB for embedding storage + similarity search
 #   - ClickHouse: Source for text data, archival for aggregated features
 #   - Valkey: Feature cache for online serving (Redis-RESP backend)
-# =============================================================================
 ---
 apiVersion: batch/v1
 kind: CronJob

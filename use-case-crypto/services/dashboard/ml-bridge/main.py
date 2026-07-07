@@ -102,9 +102,9 @@ def _run_batch_score() -> None:
 
     Reuses the EXACT online-serving path (``services.prediction._infer`` +
     ``_feature_order``) so a batch-scored prediction is byte-identical to what
-    ``GET /api/predictions/latest`` returns — one feature-selection rule, one
+    ``GET /api/predictions/latest`` returns - one feature-selection rule, one
     KServe V2 inference contract, no second code path to drift. (The previous
-    implementation POSTed a ``{features}`` dict to ``{predictor}/predict`` — a
+    implementation POSTed a ``{features}`` dict to ``{predictor}/predict`` - a
     legacy custom route that does not exist on the V2-only MLServer predictor,
     so every batch run 404'd and ``gold.crypto_predictions`` never advanced.)
     Reads the latest feature row per symbol from the training table (so the
@@ -149,14 +149,14 @@ def _run_batch_score() -> None:
                 log.warning("no features for %s in %s", symbol, FEATURES_TABLE)
                 continue
             row = dict(zip(res.column_names, res.result_rows[0], strict=False))
-            # Column-type feature selection + V2 inference — identical to the
+            # Column-type feature selection + V2 inference - identical to the
             # online /api/predictions/latest route (single source of truth);
-            # NULL → 0.0 mirrors the trainer's fillna(0).
+            # NULL to 0.0 mirrors the trainer's fillna(0).
             order = _feature_order(res.column_names, res.column_types)
             vector = [float(row[c]) if row.get(c) is not None else 0.0 for c in order]
             try:
                 predicted = _infer(vector)
-            except Exception as e:  # noqa: BLE001 — skip one symbol, keep the batch going
+            except Exception as e:  # noqa: BLE001 - skip one symbol, keep the batch going
                 log.error("inference failed for %s: %s", symbol, e)
                 continue
             current = float(row.get(TARGET_COLUMN) or 0.0)
@@ -171,7 +171,7 @@ def _run_batch_score() -> None:
                         now + timedelta(hours=horizon_h),
                         predicted,
                         signal,
-                        0.0,  # predicted_volatility — point regressor, no σ head
+                        0.0,  # predicted_volatility - point regressor, no σ head
                         confidence,
                         MODEL_VERSION,
                         model_type,

@@ -1,6 +1,4 @@
-# =============================================================================
 # use-case-crypto :: crypto-websocket-collector image
-# =============================================================================
 # Builds the Coinbase-specific binary that path-depends on the platform's
 # `websocket-collector` library crate. The platform crate lives at a sibling
 # path, so the build context MUST be the repository root (not this directory)
@@ -11,7 +9,6 @@
 #     -f use-case-crypto/services/websocket-collector/Dockerfile \
 #     -t crypto-websocket-collector:latest \
 #     .
-# =============================================================================
 
 FROM rust:1.95-slim-trixie AS builder
 
@@ -31,7 +28,7 @@ ENV RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold"
 
 WORKDIR /build
 
-# Copy the platform library crate first (stable layer — only rebuilds when
+# Copy the platform library crate first (stable layer - only rebuilds when
 # platform sources change).
 COPY platform/services/ingestion/websocket-collector \
      platform/services/ingestion/websocket-collector
@@ -45,7 +42,7 @@ WORKDIR /build/use-case-crypto/services/websocket-collector
 # Cargo caches (BuildKit): shared registry (dedupes crate downloads across all
 # Rust services) + a target cache so incremental compile artifacts survive
 # rebuilds even when the source COPY busts the layer. The target dir is a cache
-# mount — NOT persisted into the image layer — so the binary is copied to
+# mount - NOT persisted into the image layer - so the binary is copied to
 # /artifacts inside the SAME RUN for the runtime stage to COPY out; removing that
 # cp breaks the cross-stage copy.
 RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \

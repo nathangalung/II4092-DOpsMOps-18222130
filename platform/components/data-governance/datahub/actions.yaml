@@ -1,14 +1,11 @@
-# =============================================================================
-# datahub-actions — SASL_SSL on Kafka 9093 (ADR-008)
-# =============================================================================
+# datahub-actions - SASL_SSL on Kafka 9093 (ADR-008)
 # Kafka authorization=simple denies anonymous on plain 9092 (only `admin` is in
 # superUsers).  GMS + upgrade-job already authenticate via SASL_SSL/SCRAM-SHA-512
 # on 9093 with the `admin` SCRAM credential (mirrored via ESO into the
 # `datahub-kafka` Secret).  Actions uses a Python confluent-kafka client
 # whose connection params live in the executor YAML's `consumer_config`,
-# not env vars — so we override the bundled `executor.yaml` via a ConfigMap
+# not env vars - so we override the bundled `executor.yaml` via a ConfigMap
 # mounted with subPath, injecting the security.protocol/sasl.* keys.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -58,7 +55,7 @@ data:
       extra_headers:
         Authorization: "Basic ${DATAHUB_SYSTEM_CLIENT_ID:-__datahub_system}:${DATAHUB_SYSTEM_CLIENT_SECRET:-JohnSnowKnowsNothing}"
   # System action `doc_propagation` runs alongside `ingestion_executor` and
-  # opens its own confluent-kafka client — bundled file only sets
+  # opens its own confluent-kafka client - bundled file only sets
   # max.poll.interval.ms in consumer_config, no security.protocol, so it
   # connects plaintext to 9093 and fails APIVERSION_QUERY against the
   # SASL_SSL listener.  Mirror the upstream YAML and inject the same SASL
@@ -119,7 +116,7 @@ spec:
         app: datahub-actions
       annotations:
         # Istio sidecar terminates outbound TLS on every port and re-emits
-        # plain TCP toward the destination — it can't proxy Kafka's
+        # plain TCP toward the destination - it can't proxy Kafka's
         # broker-side TLS+SASL handshake, so the SSL handshake on 9093
         # closes mid-APIVERSION_QUERY.  Excluding 9093 lets the librdkafka
         # client speak SSL+SCRAM directly to platform-kafka while still
@@ -181,7 +178,7 @@ spec:
               value: "datahub-gms"
             - name: DATAHUB_GMS_PORT
               value: "8080"
-            # Kafka — SASL_SSL on 9093.  authorization=simple denies anonymous
+            # Kafka - SASL_SSL on 9093.  authorization=simple denies anonymous
             # on plain 9092; the `admin` SCRAM credential is fetched via ESO
             # from platform-kafka-users into the `datahub-kafka` Secret.
             - name: KAFKA_BOOTSTRAP_SERVER

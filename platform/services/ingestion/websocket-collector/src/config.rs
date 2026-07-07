@@ -17,7 +17,7 @@ pub struct KafkaConfig {
     pub topic: String,
     pub batch_size: usize,
     pub flush_interval_ms: u64,
-    /// Optional SASL/SSL — set by use-cases needing auth.
+    /// Optional SASL/SSL - set by use-cases needing auth.
     /// Platform default (None) keeps PLAINTEXT to stay domain-agnostic.
     #[serde(default)]
     pub security_protocol: Option<String>,
@@ -88,7 +88,7 @@ impl Config {
         if let Ok(v) = std::env::var("KAFKA_TOPIC") {
             cfg.kafka.topic = v;
         }
-        // SASL/SSL — use-case sets these via ConfigMap; platform default
+        // SASL/SSL - use-case sets these via ConfigMap; platform default
         // leaves them None and the producer runs PLAINTEXT.
         if let Ok(v) = std::env::var("KAFKA_SECURITY_PROTOCOL") {
             cfg.kafka.security_protocol = Some(v);

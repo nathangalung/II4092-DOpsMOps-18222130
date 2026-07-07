@@ -1,19 +1,17 @@
-# =============================================================================
-# DataHub frontend — KEDA cron scale-to-zero (idle-UI elasticity)
-# =============================================================================
+# DataHub frontend - KEDA cron scale-to-zero (idle-UI elasticity)
 # datahub-frontend is the React/Play catalog UI. It is a stateless read view
-# over datahub-gms (the metadata API) — a human browses lineage/glossary, then
+# over datahub-gms (the metadata API) - a human browses lineage/glossary, then
 # leaves. ONLY the frontend scales to zero here:
-#   - datahub-gms      stays up (HPA in hpa.yaml) — it is the metadata API that
+#   - datahub-gms      stays up (HPA in hpa.yaml) - it is the metadata API that
 #                      the ingestion CronJobs (PG/CH/MinIO/Kafka/dbt/Feast/
 #                      MLflow + inline OpenLineage emit) write to on a schedule;
 #                      zeroing it would drop governance writes.
-#   - datahub-actions  stays up (HPA in hpa.yaml) — event consumer.
-#   - opensearch       stays up (StatefulSet) — GMS search/graph backend, data-path.
+#   - datahub-actions  stays up (HPA in hpa.yaml) - event consumer.
+#   - opensearch       stays up (StatefulSet) - GMS search/graph backend, data-path.
 # Scaling the frontend to zero overnight reclaims its JVM footprint without
 # touching any pipeline-path component.
 #
-# WHY CRON, NOT HTTP-DEMAND: see superset/scaledobject.yaml — request-driven
+# WHY CRON, NOT HTTP-DEMAND: see superset/scaledobject.yaml - request-driven
 # scale-from-zero needs the always-on http-add-on interceptor (a permanent idle
 # cost on a single node), and Prometheus-on-RPS cannot wake from zero. Cron is
 # the dependency-free fit. Off-hours escape hatch:
@@ -22,7 +20,6 @@
 # COEXISTENCE: KEDA emits `keda-hpa-datahub-frontend`; the datahub-frontend
 # HorizontalPodAutoscaler is removed from datahub/hpa.yaml in the same change
 # (gms + actions HPAs are kept). Do NOT re-add a frontend HPA.
-# =============================================================================
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:

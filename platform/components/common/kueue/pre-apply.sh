@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
-# =============================================================================
-# kueue/pre-apply.sh — install upstream Kueue (CRDs + Controller + Webhooks)
-# =============================================================================
+# kueue/pre-apply.sh - install upstream Kueue (CRDs + Controller + Webhooks)
 # Strategy:
 #   1. Apply full upstream manifest bundle (CRDs + Deployment + Service +
 #      Webhook configs + RBAC, all in `kueue-system`).
-#   2. IMMEDIATELY patch Deployment resources (cpu req 500m→100m, mem 512Mi
-#      →256Mi) AND strategy (maxSurge=0, maxUnavailable=1). Upstream defaults
+#   2. IMMEDIATELY patch Deployment resources (cpu req 500m to 100m, mem 512Mi
+#      to 256Mi) AND strategy (maxSurge=0, maxUnavailable=1). Upstream defaults
 #      deadlock on >85%-saturated single-node k3s: maxSurge=25% needs new pod
 #      Ready before evicting old, but new (500m) can't fit until old (500m)
 #      dies. Done before slow waits to minimize bad-state window.
 #   3. Wait for CRDs Established.
 #   4. Patch `kueue-manager-config` Configuration to extend leader-election
-#      deadlines — k3s apiserver under load takes >10s to update Lease, and
-#      controller-runtime's default 10s renewDeadline causes self-eviction
-#      → CrashLoopBackOff. Extending lease/renew/retry to 60s/40s/5s keeps
+#      deadlines - k3s apiserver under load takes >10s to update Lease, and
+#      controller-runtime's default 10s renewDeadline causes self-eviction,
+#      leading to CrashLoopBackOff. Extending lease/renew/retry to 60s/40s/5s keeps
 #      the controller leader through transient apiserver latency.
 #   5. Soften the cluster-wide Pod / Deployment / StatefulSet webhooks:
 #        - failurePolicy=Ignore so kueue downtime never blocks unrelated
@@ -25,14 +23,13 @@
 #          the webhook only fires on workloads that have explicitly opted
 #          into kueue queue management. Other workloads bypass kueue.
 #   6. Clean up orphan ReplicaSets (desired=0) accumulated from prior
-#      rollout-restart calls — they consume listing/cache memory.
+#      rollout-restart calls - they consume listing/cache memory.
 #   7. Wait for rollout complete + webhook endpoint populated. Step 2's
 #      template change already triggered new RS rollout; new pod picks up
 #      the updated ConfigMap from step 4 on startup.
 #
 # Local kustomization.yaml only contributes queues.yaml (ResourceFlavor +
-# ClusterQueue) — runs after this hook returns.
-# =============================================================================
+# ClusterQueue) - runs after this hook returns.
 set -euo pipefail
 
 KUEUE_VERSION="${KUEUE_VERSION:-v0.17.1}"
@@ -69,7 +66,7 @@ kubectl -n kube-system rollout status deployment/coredns --timeout=120s >/dev/nu
 # one big SSA can return `rpc error: code = Unknown desc = database is locked`
 # when SQLite's busy_timeout expires before all writes serialize. Field-
 # observed 2026-05-11: phase-full hit this error after the visibility
-# APIService apply, abrupting the run. The error is transient — a fresh apply
+# APIService apply, abrupting the run. The error is transient - a fresh apply
 # 10s later succeeds because the prior writes drained. Wrap with retry.sh
 # (10 attempts × 10s) for parity with platform/scripts/apply-component.sh main SSA.
 # tail -20 dropped: retry.sh's per-attempt log already truncates noise and
@@ -83,10 +80,10 @@ bash "$REPO_ROOT/platform/scripts/retry.sh" 10 10 -- \
 # minimize the window where deployment has 500m+maxSurge=25% (deadlocks on
 # saturated single-node). Idempotent: already-100m re-patches to 100m.
 echo "    patching ${DEPLOY} resources (cpu req 500m→100m, maxSurge=0, IfNotPresent for k3s fit)"
-# imagePullPolicy: Always (upstream default) → IfNotPresent: in air-gapped
+# imagePullPolicy: Always (upstream default) to IfNotPresent: in air-gapped
 # lab the 51MB registry.k8s.io/kueue/kueue:v0.17.1 image is cached after
 # the first pull; Always forces re-pull on every restart, then DNS lookup
-# to registry.k8s.io fails → ImagePullBackOff loop even though image is
+# to registry.k8s.io fails, causing ImagePullBackOff loop even though image is
 # present locally. IfNotPresent uses cache and skips registry hit.
 kubectl -n "$NS" patch "deployment/${DEPLOY}" --type=json -p '[
   {"op":"replace","path":"/spec/template/spec/containers/0/resources/requests/cpu","value":"100m"},
@@ -116,9 +113,7 @@ for crd in "${CRDS[@]}"; do
   done
 done
 
-# ---------------------------------------------------------------------------
 # (4) Extend leader-election deadlines via kueue Configuration ConfigMap.
-# ---------------------------------------------------------------------------
 echo "    extending leader-election deadlines (lease=60s renew=40s retry=5s)"
 CUR_CFG=$(kubectl -n "$NS" get configmap "$CFGMAP" -o json \
   | jq -r --arg k "$CFG_KEY" '.data[$k]')
@@ -131,7 +126,6 @@ NEW_CFG=$(printf '%s' "$CUR_CFG" | yq '
 PATCH=$(jq -n --arg k "$CFG_KEY" --arg v "$NEW_CFG" '{data: {($k): $v}}')
 kubectl -n "$NS" patch configmap "$CFGMAP" --type=merge -p "$PATCH" >/dev/null
 
-# ---------------------------------------------------------------------------
 # (5) Soften ALL kueue workload-kind webhooks:
 #     failurePolicy=Ignore + objectSelector requires opt-in queue-name label.
 #     Workload kinds are widely created by other components (Job, CronJob, Pod,
@@ -140,8 +134,7 @@ kubectl -n "$NS" patch configmap "$CFGMAP" --type=merge -p "$PATCH" >/dev/null
 #     pod downtime blocks ALL such creates cluster-wide. Solution: opt-in only
 #     (label kueue.x-k8s.io/queue-name=<queue> on workloads that want kueue).
 #     Kueue-own kinds (clusterqueue, resourceflavor, workload, cohort) keep
-#     upstream failurePolicy=Fail — they only exist when kueue is in use.
-# ---------------------------------------------------------------------------
+#     upstream failurePolicy=Fail - they only exist when kueue is in use.
 soften_webhook() {
   local kind=$1 name=$2
   if ! kubectl get "$kind" "$name" >/dev/null 2>&1; then
@@ -153,7 +146,7 @@ soften_webhook() {
     | jq '
         .webhooks |= map(
           if (.name | test("^[mv](clusterqueue|resourceflavor|workload|cohort|multikueue|provisioningrequestconfig|topology|admissioncheck|localqueue)\\.kb\\.io$")) then
-            .  # kueue-own resource — keep failurePolicy=Fail
+            .  # kueue-own resource - keep failurePolicy=Fail
           elif (.name | test("^[mv][a-z]+\\.kb\\.io$")) then
             .failurePolicy = "Ignore" |
             .objectSelector = {
@@ -169,27 +162,23 @@ soften_webhook() {
 soften_webhook MutatingWebhookConfiguration "$MWC"
 soften_webhook ValidatingWebhookConfiguration "$VWC"
 
-# ---------------------------------------------------------------------------
 # (6) Clean up old ReplicaSets so /spec.replicas=1 doesn't leak into multiple
 #     stale RSes consuming scheduling slots after repeated rollout-restarts.
 #     `kubectl delete rs -l ... --field-selector` would be cleaner but the
 #     Deployment owner-ref cascade only triggers on RS deletion when desired=0.
-# ---------------------------------------------------------------------------
 kubectl -n "$NS" get rs -l "app.kubernetes.io/component=controller" \
   --no-headers 2>/dev/null \
   | awk '$2=="0" && $3=="0" && $4=="0" {print $1}' \
   | xargs -r kubectl -n "$NS" delete rs >/dev/null 2>&1 || true
 
-# ---------------------------------------------------------------------------
 # (7) Wait for rollout. Step 2's resource+strategy patch already triggered a
-#     new RS (template change → new pod), and that pod mounts the updated
+#     new RS (template change leads to new pod), and that pod mounts the updated
 #     ConfigMap from step 4. No explicit `rollout restart` needed (it would
 #     trigger ANOTHER new RS, doubling rollout time on saturated node).
 #     Timeout 1800s: cold pull of registry.k8s.io/kueue/kueue v0.17.1 (51 MB)
 #     on slow upstream + DNS retries + post-restart sandbox-name reservation
 #     race observed at 12-18min in real runs. 1800s leaves headroom; if CoreDNS
 #     is healthy and image cached, rollout completes in <30s and exits early.
-# ---------------------------------------------------------------------------
 echo "    waiting ${DEPLOY} rollout complete (timeout 1800s)"
 kubectl -n "$NS" rollout status "deployment/${DEPLOY}" --timeout=1800s 2>&1 | tail -5
 

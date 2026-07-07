@@ -42,7 +42,7 @@ spec:
     spec:
       # Pod-level securityContext satisfies PSS `restricted` for every container
       # (init + main) without per-container duplication. All MLflow workloads
-      # run as uid/gid 1000 — psql, uv, and busybox all tolerate non-root.
+      # run as uid/gid 1000 - psql, uv, and busybox all tolerate non-root.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -117,7 +117,7 @@ spec:
               uv add --python 3.10 pymysql psycopg2-binary && \
               cp -r .venv/lib/python*/site-packages/. /shared/packages/
               # cp -a fails with "Operation not permitted" on the shared EmptyDir
-              # when the container runs as uid 1000 — preserving owner/times
+              # when the container runs as uid 1000 - preserving owner/times
               # requires CAP_FOWNER/CAP_CHOWN which restricted PSS strips. cp -r
               # copies contents only; new uid/timestamps are fine for a venv.
           volumeMounts:

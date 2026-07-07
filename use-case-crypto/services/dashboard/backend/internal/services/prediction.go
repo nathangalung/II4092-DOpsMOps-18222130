@@ -1,4 +1,4 @@
-// Crypto-specific prediction service — uses predicted_price and signal columns.
+// Crypto-specific prediction service - uses predicted_price and signal columns.
 package services
 
 import (

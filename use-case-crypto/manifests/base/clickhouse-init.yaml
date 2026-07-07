@@ -1,11 +1,9 @@
-# =============================================================================
-# CLICKHOUSE-INIT — Apply medallion DDL to live ClickHouse (storage ns)
-# =============================================================================
+# CLICKHOUSE-INIT - Apply medallion DDL to live ClickHouse (storage ns)
 # Replaces the legacy imperative `database/init_database.sh` (which hardcoded
 # the wrong pod name `clickhouse-0`; live CHI pod is `chi-platform-main-0-0-0`).
 #
 # Declarative GitOps shape mirrors `schema-registration.yaml`:
-#   - ArgoCD PostSync hook — runs after every Sync of the use-case app.
+#   - ArgoCD PostSync hook - runs after every Sync of the use-case app.
 #   - `BeforeHookCreation,HookSucceeded` delete-policy makes re-runs idempotent
 #     at the Job-resource level (Argo deletes the prior Job before creating a
 #     new one each Sync); DDL idempotency is guaranteed at the SQL level by
@@ -16,9 +14,9 @@
 #     lines 42-43).
 #   - Kafka SASL_SSL credentials for the `kafka_crypto` NAMED COLLECTION come
 #     from `crypto-clickhouse` (ESO mirror of KafkaUser `clickhouse`'s Strimzi
-#     Secret) — KAFKA_CLICKHOUSE_USERNAME + KAFKA_CLICKHOUSE_PASSWORD.
+#     Secret) - KAFKA_CLICKHOUSE_USERNAME + KAFKA_CLICKHOUSE_PASSWORD.
 #
-# Apply order (must run in this sequence — bronze Kafka engine tables in
+# Apply order (must run in this sequence - bronze Kafka engine tables in
 # init_clickhouse.sql reference `Kafka(kafka_crypto, …)`):
 #   1. `--query "CREATE NAMED COLLECTION IF NOT EXISTS kafka_crypto AS …"`
 #      seeds broker + SASL_SSL config; expanded with env-var substitution at
@@ -26,10 +24,9 @@
 #   2. `--queries-file=/sql/init.sql` then defines all databases + tables.
 #
 # The SQL file is bound to a ConfigMap created by `configMapGenerator` in
-# kustomization.yaml (single source of truth — same file used historically by
+# kustomization.yaml (single source of truth - same file used historically by
 # init_database.sh). The hash-suffixed ConfigMap name means any SQL edit
 # triggers a new Job rollout via ArgoCD on next reconcile.
-# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -93,13 +90,13 @@ spec:
             - |
               set -euo pipefail
 
-              # Fail loudly if any credential is empty — e.g. the ESO-managed
+              # Fail loudly if any credential is empty - e.g. the ESO-managed
               # `crypto-clickhouse` Secret had not yet been populated when this
               # PostSync hook fired (envFrom mounts an empty value, not a
               # missing var, so `set -u` alone does NOT catch it). Seeding the
               # NAMED COLLECTION with a blank SASL username/password makes
               # librdkafka log "sasl.username and sasl.password must be set" and
-              # every bronze Kafka consumer stalls silently — the data path
+              # every bronze Kafka consumer stalls silently - the data path
               # dies with no error at apply time. `:?` aborts the Job instead,
               # and ArgoCD's PostSync retry re-runs it once ESO has synced.
               : "${CLICKHOUSE_USER:?empty — pipeline-secrets not populated}"
@@ -112,9 +109,7 @@ spec:
               echo "Kafka SASL user:  ${KAFKA_CLICKHOUSE_USERNAME}"
               echo "SQL bytes:        $(wc -c < /sql/init.sql)"
 
-              # ----------------------------------------------------------------
-              # Step 1 — Seed/refresh the `kafka_crypto` NAMED COLLECTION
-              # ----------------------------------------------------------------
+              # Step 1 - Seed/refresh the `kafka_crypto` NAMED COLLECTION
               # Carries the broker + SASL_SSL creds shared by all bronze Kafka
               # engine tables defined in init_clickhouse.sql below. Done as a
               # separate `--query` so the SQL ConfigMap stays password-free.
@@ -122,7 +117,7 @@ spec:
               # Idempotency + rotation via DROP IF EXISTS + CREATE in a single
               # --multiquery payload:
               #   * Context7-checked: ClickHouse 26.x docs only surface
-              #     `CREATE NAMED COLLECTION [IF NOT EXISTS]` — `CREATE OR
+              #     `CREATE NAMED COLLECTION [IF NOT EXISTS]` - `CREATE OR
               #     REPLACE NAMED COLLECTION` is NOT a documented form
               #     (although CREATE OR REPLACE works for TABLE / MASKING
               #     POLICY / temporary tables). Using IF NOT EXISTS alone
@@ -132,7 +127,7 @@ spec:
               #   * Gap between DROP and CREATE is sub-millisecond inside one
               #     --multiquery; if a bronze Kafka consumer happens to poll
               #     during that window librdkafka logs one auth error and
-              #     retries on its 500ms default cycle — no data loss because
+              #     retries on its 500ms default cycle - no data loss because
               #     ClickHouse tracks consumer offsets in ZK/Keeper, not in
               #     librdkafka memory.
               #
@@ -156,9 +151,7 @@ spec:
                            kafka_sasl_password = '${KAFKA_CLICKHOUSE_PASSWORD}',
                            kafka_ssl_ca_location = '/etc/clickhouse-server/kafka-ca/ca.crt'"
 
-              # ----------------------------------------------------------------
-              # Step 2 — Apply medallion DDL (databases + tables + MVs)
-              # ----------------------------------------------------------------
+              # Step 2 - Apply medallion DDL (databases + tables + MVs)
               # --multiquery: parse multiple statements separated by ';'
               # --queries-file: read SQL from file (cleaner than stdin redirect)
               # ClickHouse 26.x supports --queries-file natively.
@@ -200,7 +193,7 @@ spec:
               # `[HIDDEN]`) so a reviewer can confirm the keys reached CH at
               # apply time without leaking credentials to logs. NOTE: the table
               # is `system.named_collections` (name + collection Map); CH 26.x
-              # has NO `system.named_collections_columns` — referencing it
+              # has NO `system.named_collections_columns` - referencing it
               # raised UNKNOWN_TABLE which the `|| true` below silently ate.
               clickhouse-client \
                 --host=clickhouse-platform.storage.svc.cluster.local \

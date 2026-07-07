@@ -1,10 +1,10 @@
--- OHLCV technical-indicator feature mart — the BATCH counterpart of the Flink
+-- OHLCV technical-indicator feature mart - the BATCH counterpart of the Flink
 -- stream feature set (schema.yaml STREAM_FEATURES_ALL). Computes the full
 -- technical-analysis matrix with ClickHouse window functions so the training
 -- table carries momentum / trend / volatility / volume indicators (RSI, MACD,
 -- Bollinger Bands, ATR, Stochastic, Williams %R, ROC, momentum, OBV) rather
 -- than raw OHLCV + moving averages alone. Computing the same indicators here as
--- the stream path is what makes batch↔stream parity (KF-11) measurable.
+-- the stream path is what makes batch-stream parity (KF-11) measurable.
 --
 -- Layered CTEs: several indicators need a per-row delta / true-range / signed
 -- volume first (`base`), then a rolling aggregate over it (`ind`), then a final
@@ -39,7 +39,7 @@ ind AS (
         -- Moving averages
         avg(close) OVER w20 AS sma_20,
         avg(close) OVER w50 AS sma_50,
-        -- Volume SMA (20) — the batch↔stream parity anchor (KF-11/SK-F-11).
+        -- Volume SMA (20) - the batch-stream parity anchor (KF-11/SK-F-11).
         -- MUST mirror the stream side exactly: Flink's Indicators.rollingMean
         -- over the secondary (volume) field with FLINK_SECONDARY_AVG_PERIOD=20
         -- (configmaps/features.yaml) emits `secondary_avg` into
@@ -102,7 +102,7 @@ SELECT
     open, high, low, close, volume,
     sma_20, sma_50, volume_sma_20, ema_12, ema_26,
     -- MACD line + signal (signal = SMA(9) of MACD; a stable, common signal-line
-    -- form — avoids a second recursive EMA over an already-approximated EMA)
+    -- form - avoids a second recursive EMA over an already-approximated EMA)
     ema_12 - ema_26 AS macd,
     avg(ema_12 - ema_26) OVER (PARTITION BY symbol ORDER BY timestamp
         ROWS BETWEEN 8 PRECEDING AND CURRENT ROW) AS macd_signal,

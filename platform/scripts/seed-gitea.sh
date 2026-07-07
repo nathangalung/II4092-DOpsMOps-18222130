@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# =============================================================================
-# seed-gitea.sh — push the platform/ tree AND each use-case-*/ overlay to the
+# seed-gitea.sh - push the platform/ tree AND each use-case-*/ overlay to the
 # in-cluster Gitea
-# =============================================================================
 # Closes the GitOps bootstrap loop:
 #   1. install-gitea (atom-gitops-core) creates the gitea pod + the
 #      gitea-bootstrap Job, which provisions org `platform` and an empty repo
@@ -10,8 +8,8 @@
 #      (`platform/use-case-<name>`, ...). auto_init=true seeds each with a
 #      README.md so downstream consumers always find a `main` ref.
 #   2. ArgoCD has TWO source-of-truth surfaces:
-#        - `platform/platform.git` — app-of-apps + per-component ApplicationSet
-#        - `platform/<use-case>.git` — per-use-case AppProject +
+#        - `platform/platform.git` - app-of-apps + per-component ApplicationSet
+#        - `platform/<use-case>.git` - per-use-case AppProject +
 #          ApplicationSet (lives in `use-case-*/argocd/`)
 #      Both must contain the working tree by the time ArgoCD reconciles.
 #   3. This script port-forwards Gitea once, then iterates over each source
@@ -21,7 +19,7 @@
 #
 # Why force-push: the bootstrap Job auto-creates each repo with a README.md
 # initial commit that we don't share history with. A clean force-push is
-# semantically correct — operator host is the source of truth at this stage,
+# semantically correct - operator host is the source of truth at this stage,
 # pre-CI/CD wiring.
 #
 # Why a temp dir: the ta workspace is intentionally NOT a git repo (per the
@@ -31,7 +29,6 @@
 # Wire-up: invoked by `make seed-gitea`, which `phase-full` chains after
 # `atom-gitops-core` so ArgoCD has a populated repo by the time the
 # self-managed root Application begins reconciling.
-# =============================================================================
 set -euo pipefail
 
 NAMESPACE="${GITEA_NAMESPACE:-gitops}"
@@ -45,15 +42,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PLATFORM_DIR="${REPO_ROOT}/platform"
 
 # Each entry: "<repo-name>:<src-dir-rel-to-repo-root>:<top-level-name>".
-# - repo-name   → gitea repo to push to under org `platform`
-# - src-dir     → absolute path inside the operator-host checkout
-# - top-level   → directory name inside the commit (preserves
+# - repo-name   is the gitea repo to push to under org `platform`
+# - src-dir     is the absolute path inside the operator-host checkout
+# - top-level   is the directory name inside the commit (preserves
 #                 `path: platform/components/<x>` semantics so ArgoCD
 #                 source.path stays unchanged after refactor)
 SEED_TARGETS=(
   "platform:${PLATFORM_DIR}:platform"
 )
-# Auto-discover every `use-case-*/` overlay sibling — the platform seeder is
+# Auto-discover every `use-case-*/` overlay sibling - the platform seeder is
 # domain-agnostic and must not hardcode any specific use-case. Adding a new
 # use-case (e.g. `use-case-fraud/`) needs zero changes here.
 for uc_dir in "${REPO_ROOT}"/use-case-*/; do
@@ -93,7 +90,7 @@ fi
 # was SIGKILL'd or aborted before its `trap cleanup EXIT` could fire leaves an
 # orphan `kubectl port-forward` holding ${LOCAL_PORT}. Auto-skipping to the
 # next free port is safer than killing whatever owns it (could be an unrelated
-# process — a developer's local dev server, another concurrent seed-gitea run,
+# process - a developer's local dev server, another concurrent seed-gitea run,
 # etc.). 1000-port window is far larger than any realistic collision count.
 echo "==> seed-gitea: locating free local TCP port (base ${LOCAL_PORT})"
 found_port=""
@@ -172,7 +169,7 @@ for target in "${SEED_TARGETS[@]}"; do
 
   # rsync (not cp -a) so we can prune build artifacts. platform/services and
   # use-case-*/services each hold multi-GB of .venv / __pycache__ /
-  # Rust target/ / node_modules from local app builds — they're not read by
+  # Rust target/ / node_modules from local app builds - they're not read by
   # ArgoCD (which only targets manifest dirs under platform/components/<x>
   # or use-case-*/manifests/) and copying them stalls under disk pressure
   # (cp -a goes D-state on saturated I/O).
@@ -199,7 +196,7 @@ for target in "${SEED_TARGETS[@]}"; do
   # base/` subtree alongside `${top_level}/` resolves the paths
   # deterministically without bloating the use-case repo with the full
   # platform tree (~1.2k files vs ~30). This is purely a derived
-  # artefact of the seed step — the operator-host working tree never
+  # artefact of the seed step - the operator-host working tree never
   # carries a `platform/` sibling inside `use-case-*/`.
   if [[ "${repo_name}" == use-case-* ]]; then
     inherited_src="${PLATFORM_DIR}/services/base"

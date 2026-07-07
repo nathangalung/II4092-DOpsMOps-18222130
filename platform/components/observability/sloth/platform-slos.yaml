@@ -1,5 +1,4 @@
-# =============================================================================
-# Platform baseline SLOs — authored once, compiled by Sloth into ~90
+# Platform baseline SLOs - authored once, compiled by Sloth into ~90
 # recording rules and ~14 alerting rules.  Picked up by kube-prometheus-stack
 # via the `release: kube-prometheus-stack` label (set globally on Sloth's
 # generated rules through `sloth.extraLabels` in helm-release.yaml).
@@ -9,7 +8,6 @@
 #     availability, Postgres connectivity, MinIO latency).
 #   - Each USE-CASE ships its OWN SLOs in its repo (e.g. a
 #     prediction-freshness SLO).  The platform does not know use-case names.
-# =============================================================================
 apiVersion: sloth.slok.dev/v1
 kind: PrometheusServiceLevel
 metadata:

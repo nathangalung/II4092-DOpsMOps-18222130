@@ -1,8 +1,6 @@
-# =============================================================================
-# Platform-wide NetworkPolicies — default-deny + explicit allow rules
-# =============================================================================
+# Platform-wide NetworkPolicies - default-deny + explicit allow rules
 # Applied to every platform namespace.  Two policies per namespace:
-#   1. default-deny-ingress:  baseline — no inbound unless explicitly allowed.
+#   1. default-deny-ingress:  baseline - no inbound unless explicitly allowed.
 #   2. allow-within-namespace: pods in the SAME namespace can reach each other.
 #
 # Additional cross-namespace allows are appended per namespace below.
@@ -10,11 +8,8 @@
 # Kyverno GeneratingPolicy `auto-default-deny-networkpolicy` (ADR-012) emits
 # these for new namespaces at creation time; the YAML below is the static
 # baseline applied to the platform namespaces that already exist.
-# =============================================================================
 
-# ──────────────────────────────────────────────────────────────────────────
 # storage
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: storage }
@@ -51,20 +46,18 @@ spec:
         # cnpg operator + barman-cloud-plugin call postgresql-1:8000/pg/status
         # to extract instance health. Without this entry, default-deny-ingress
         # blocks the operator and Cluster.status.phase stays at "Instance Status
-        # Extraction Error: HTTP communication issue" → Application Health=Unknown.
+        # Extraction Error: HTTP communication issue", leaving Application Health=Unknown.
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }
         # Altinity clickhouse-operator polls SELECT version() against
         # chi-platform-main-0-0.storage.svc.cluster.local:8123 from the
         # clickhouse-system ns to flip pod label
-        # `clickhouse.altinity.com/ready` no→yes. Without this allow,
+        # `clickhouse.altinity.com/ready` no to yes. Without this allow,
         # default-deny-ingress drops the operator's HTTP ping with
         # "connection refused", the label stays no, the Service selector
         # never matches, and clickhouse-platform endpoints stays empty.
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: clickhouse-system } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # data-ingestion
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: data-ingestion }
@@ -95,9 +88,7 @@ spec:
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
         - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # data-processing
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: data-processing }
@@ -133,9 +124,7 @@ spec:
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: spark-operator } }
         - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # data-governance
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: data-governance }
@@ -162,9 +151,7 @@ spec:
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: model-lifecycle } }
         - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # observability
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: observability }
@@ -196,9 +183,7 @@ spec:
         - { protocol: TCP, port: 8000 }  # Evidently
         - { protocol: TCP, port: 9093 }  # Alertmanager (falcosidekick + cross-ns alert posters)
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # security
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: security }
@@ -240,7 +225,7 @@ spec:
     - from:
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
 ---
-# KES is a KMS edge — MinIO (storage) generates encryption keys against it
+# KES is a KMS edge - MinIO (storage) generates encryption keys against it
 # over mTLS on :7373. Without an explicit allow, default-deny-ingress drops
 # the cross-namespace SYN and MinIO crashloops with "connection refused".
 # Allow consumers from every platform namespace; KES still enforces its own
@@ -262,9 +247,7 @@ spec:
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
         - namespaceSelector: { matchLabels: { mlops-platform.io/use-case: "true" } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # gitops
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: gitops }
@@ -309,14 +292,12 @@ spec:
         - { protocol: TCP, port: 3000 }   # HTTP git
         - { protocol: TCP, port: 22 }     # SSH git
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # model-lifecycle
 # Kubeflow's core NetworkPolicies (see common/kubeflow-core/network-policies.yaml)
 # already restrict traffic to specific Kubeflow components, but pods that are
 # NOT selected by any of those policies would otherwise default to wide-open.
 # This baseline narrows default traffic to the namespace itself; Kubeflow's
 # per-component policies are additive.
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: model-lifecycle }
@@ -349,14 +330,12 @@ spec:
         # Istio sidecar + ingress gateway
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: istio-system } }
 ---
-# ──────────────────────────────────────────────────────────────────────────
 # model-serving
 # KServe controllers + InferenceService pods land here. Inbound must be
 # restricted to Knative (activator/autoscaler), istio-ingressgateway, the
 # controller namespace (model-lifecycle), and Prometheus scrapers. Use-case
 # gateways (e.g. <use-case>-gateway) call InferenceServices through the
 # ingress gateway, so they do NOT need a direct allow rule.
-# ──────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: { name: default-deny-ingress, namespace: model-serving }

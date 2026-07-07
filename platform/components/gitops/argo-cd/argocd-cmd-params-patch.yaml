@@ -6,25 +6,23 @@ metadata:
     app.kubernetes.io/name: argocd-cmd-params-cm
     app.kubernetes.io/part-of: argocd
 data:
-  # =========================================================================
   # SINGLE-NODE / SINGLE-HDD throttle for the ArgoCD application controller.
-  # =========================================================================
   # Root cause of the repeated IO cascades: this ConfigMap shipped EMPTY, so
-  # the controller ran ArgoCD's upstream defaults — status=20, operation=10,
-  # kubectl-parallelism=20, reposerver=10 — which are sized for multi-node
+  # the controller ran ArgoCD's upstream defaults - status=20, operation=10,
+  # kubectl-parallelism=20, reposerver=10 - which are sized for multi-node
   # clusters on fast SSDs. On THIS node (24 CPU + 63 GB RAM are abundant, but
   # ONE 500 GB spinning HDD at ~150 IOPS is the sole bottleneck) a mass-resync
   # fired up to 20 concurrent status refreshes + 10 concurrent applies = ~30
   # simultaneous kine(SQLite)-on-HDD fsync bursts. The disk pegged, applies
   # could not finish before selfHeal re-detected drift, and the controller
-  # re-applied forever → load 6 → 150+. CPU/RAM stayed idle; the disk was the
+  # re-applied forever, driving load from 6 to 150+. CPU/RAM stayed idle; the disk was the
   # wall. These caps trade reconcile LATENCY (fine for a thesis platform) for
   # disk survivability.
   #
-  #   status.processors      — concurrent app status refreshes (kine READS)
-  #   operation.processors   — concurrent app applies        (kine WRITES)
-  #   kubectl.parallelism    — parallel kubectl calls within ONE app's sync
-  #   reposerver.parallelism — concurrent kustomize/helm renders (git file IO)
+  #   status.processors - concurrent app status refreshes (kine READS)
+  #   operation.processors - concurrent app applies        (kine WRITES)
+  #   kubectl.parallelism - parallel kubectl calls within ONE app's sync
+  #   reposerver.parallelism - concurrent kustomize/helm renders (git file IO)
   controller.status.processors: "5"
   controller.operation.processors: "3"
   controller.kubectl.parallelism.limit: "5"

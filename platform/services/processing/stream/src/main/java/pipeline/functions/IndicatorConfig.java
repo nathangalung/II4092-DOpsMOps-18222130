@@ -5,7 +5,7 @@ package pipeline.functions;
  *
  * <p>Direct Java counterpart of the Rust feature-engine {@code IndicatorConfig}
  * (config.rs). Every period and flag is supplied by the use-case at deploy time
- * via {@code FLINK_*} environment variables — no domain logic is hardcoded.
+ * via {@code FLINK_*} environment variables - no domain logic is hardcoded.
  * Defaults mirror the Rust {@code IndicatorConfig::default()} so the two stream
  * processors are behaviourally interchangeable.
  */

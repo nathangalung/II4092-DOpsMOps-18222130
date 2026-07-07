@@ -1,6 +1,6 @@
 # Karapace Schema Registry (Apache 2.0 - replaces Confluent Schema Registry)
 # Drop-in Confluent API compatible, used by DataHub and Kafka Connect
-# Karapace 5.x uses Pydantic BaseSettings — config via env vars (prefix: KARAPACE_)
+# Karapace 5.x uses Pydantic BaseSettings - config via env vars (prefix: KARAPACE_)
 apiVersion: v1
 kind: Service
 metadata:
@@ -81,7 +81,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-          # Third-party image entry point — uv not available in karapace image
+          # Third-party image entry point - uv not available in karapace image
           command: ["python3", "-m", "karapace"]
           env:
             # Strimzi Kafka has authorization=simple. Anonymous clients on the
@@ -156,7 +156,7 @@ spec:
             failureThreshold: 5
       volumes:
         # Strimzi auto-generates `platform-kafka-cluster-ca-cert` Secret
-        # containing `ca.crt` — the cluster CA that signs broker server certs.
+        # containing `ca.crt` - the cluster CA that signs broker server certs.
         # Karapace needs it to verify the SASL_SSL handshake on 9093.
         - name: kafka-ca
           secret:
@@ -165,16 +165,14 @@ spec:
               - key: ca.crt
                 path: ca.crt
 ---
-# =============================================================================
-# PeerAuthentication — accept both mTLS and plaintext on the Karapace sidecar.
+# PeerAuthentication - accept both mTLS and plaintext on the Karapace sidecar.
 # Mesh-wide default (istio-system/default) enforces STRICT mTLS for every pod
 # with a sidecar. Karapace runs in data-ingestion (istio-injection=enabled), so
 # it inherits STRICT. Schema bootstrap and registration Jobs live in use-case
 # namespaces that are istio-exempt by design (mlops-platform.io/istio-exempt=
 # true). Without PERMISSIVE the inbound sidecar RSTs every plain-HTTP call from
-# those Jobs (curl exits 56 — failure receiving network data). Same pattern as
+# those Jobs (curl exits 56 - failure receiving network data). Same pattern as
 # kafka-connect (task #242) and prometheus/alertmanager (task #304).
-# =============================================================================
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:

@@ -1,6 +1,4 @@
-# =============================================================================
-# CNCF Distribution Registry v3.0.0 — in-cluster Docker registry
-# =============================================================================
+# CNCF Distribution Registry v3.0.0 - in-cluster Docker registry
 # Cluster-internal image registry for Strimzi KafkaConnect Build (kaniko)
 # pushes and other in-cluster image producers (Tekton/Argo, custom builds).
 # Plain HTTP on port 5000, namespace-scoped, never exposed off-cluster.
@@ -8,8 +6,7 @@
 # k3s containerd trusts this hostname via /etc/rancher/k3s/registries.yaml
 # at host bootstrap (insecure-skip-verify on cluster-internal address only).
 #
-# Distribution v3 GA Feb 2025 — image runs as nonroot UID 65532 by default.
-# =============================================================================
+# Distribution v3 GA Feb 2025 - image runs as nonroot UID 65532 by default.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -18,7 +15,7 @@ metadata:
     # Distribution Pod uses hostPort 5000 so the host containerd can pull
     # via `localhost:5000`; baseline PSS blocks hostPort, restricted blocks
     # everything stricter still.  Privileged unlocks hostPort while the Pod
-    # itself keeps `runAsNonRoot:true / runAsUser:65532 / drop:ALL` — same
+    # itself keeps `runAsNonRoot:true / runAsUser:65532 / drop:ALL` - same
     # hardening as before, just with the host-path escape hatch.
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: baseline
@@ -108,7 +105,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    # Single replica + RWO PVC — Recreate avoids two pods racing on volume
+    # Single replica + RWO PVC - Recreate avoids two pods racing on volume
     # during rollouts.
     type: Recreate
   selector:
@@ -137,7 +134,7 @@ spec:
               # hostPort exposes the registry on 127.0.0.1:5000 of the K3s
               # node so the host containerd can pull pushed images via the
               # registries.yaml mirror entry that maps
-              # `registry.platform-registry.svc.cluster.local:5000` →
+              # `registry.platform-registry.svc.cluster.local:5000` to
               # `http://localhost:5000`.  Without this, containerd has to
               # resolve the cluster DNS (which it can't from the host) and
               # fails with "lookup ... Try again".

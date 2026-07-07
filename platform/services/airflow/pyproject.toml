@@ -7,13 +7,13 @@ dependencies = [
     "apache-airflow[postgres]==3.2.1",
     "apache-airflow-providers-cncf-kubernetes>=4.3.0",
     "apache-airflow-providers-amazon>=9.6.0",
-    # FAB auth manager — Airflow 3.x moved users/roles/password auth out of
+    # FAB auth manager - Airflow 3.x moved users/roles/password auth out of
     # core into this provider.  Required for (a) the `airflow users create`
     # CLI used by the scheduler init-container admin-user bootstrap and
     # (b) the `basic_auth` REST API backend consumed by the DataHub
     # Airflow ingestion recipe (platform/components/data-governance/
     # datahub-ingestion/recipes.yaml).  The default SimpleAuthManager
-    # cannot satisfy either — it auto-generates passwords to an on-disk
+    # cannot satisfy either - it auto-generates passwords to an on-disk
     # file (incompatible with our Vault-sourced credential model at
     # secret/platform/airflow/admin) and only exposes JWT tokens on
     # /auth/token (no BasicAuth).  3.6.1 is the first 2026 release

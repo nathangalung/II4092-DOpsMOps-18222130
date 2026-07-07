@@ -3,7 +3,7 @@ kind: Kustomization
 
 # Data-governance layer (ADR-013):
 #   - DataHub GMS + frontend + actions (metadata catalog, lineage, classification)
-#   - OpenSearch (DataHub storage — Apache-2.0; replaces Elasticsearch 9 AGPL.
+#   - OpenSearch (DataHub storage - Apache-2.0; replaces Elasticsearch 9 AGPL.
 #     Dedicated to DataHub now that Jaeger v2 was removed 2026-04-21)
 #   - DataHub ingestion: recipes + CronJobs for PG/CH/MinIO/Kafka/Airflow/dbt/Feast/MLflow
 # OpenLineage lineage is emitted inline by producers (Airflow/Spark/Flink/dbt);

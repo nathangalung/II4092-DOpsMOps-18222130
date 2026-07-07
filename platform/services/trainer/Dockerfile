@@ -41,7 +41,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # UV mandate: run via `uv run --no-sync`, not bare `python`. `--no-sync`
 # uses the baked venv WITHOUT re-syncing, so it never triggers the editable
-# rebuild (hatchling from PyPI) that fails air-gapped — and the build now
+# rebuild (hatchling from PyPI) that fails air-gapped - and the build now
 # installs the project --no-editable (a real wheel), so there is nothing to
 # rebuild at runtime anyway. The KFP train step uses this CMD; the deploy
 # step overrides with `uv run --no-sync src/deploy_kserve.py`.

@@ -1,29 +1,26 @@
-# =============================================================================
-# GENERIC DOMAIN CONFIG — Minimal defaults for platform-only deployment
-# =============================================================================
+# GENERIC DOMAIN CONFIG - Minimal defaults for platform-only deployment
 # Strategic merge patch on pipeline-config ConfigMap.
 # Provides enough env vars for services to START with generic naming.
 # Use-case overlays (`use-case-<name>`) replace these with domain values.
-# =============================================================================
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # --- Identity ---
+  # Identity
   SYMBOL: "SAMPLE-001"
   ACTIVE_HOURS_START: "0"
   ACTIVE_HOURS_END: "23"
 
-  # --- Kafka topics (generic, no prefix) ---
+  # Kafka topics (generic, no prefix)
   KAFKA_TOPIC: "raw"
   INPUT_TOPIC: "validated"
   OUTPUT_TOPIC: "features"
   VALIDATOR_KAFKA__INPUT_TOPIC: "raw"
   VALIDATOR_KAFKA__OUTPUT_TOPIC: "validated"
 
-  # --- Data source ---
+  # Data source
   RESPONSE_FIELD_MAPPING: "timestamp,value"
   PRIMARY_VALUE_COLUMN: "value"
   COLLECTION_INTERVAL: "300"
@@ -33,7 +30,7 @@ data:
   HISTORY_END_DATE: "2026-01-01T00:00:00"
   HISTORY_BACKFILL_ON_START: "false"
 
-  # --- Features ---
+  # Features
   FEATURES_COLUMNS: "symbol,timestamp,value"
   FEAST_LATEST_FEATURES: "value"
   SIMILARITY_RETURN_FIELD: "value"
@@ -43,7 +40,7 @@ data:
   FLINK_EMA_PERIODS: "12,26"
   FLINK_RSI_PERIOD: "14"
 
-  # --- Model ---
+  # Model
   MODEL_TYPE: "lightgbm"
   TASK_TYPE: "regression"
   MLFLOW_EXPERIMENT: "generic-pipeline"
@@ -55,7 +52,7 @@ data:
   START_DATE: "2025-01-01"
   END_DATE: "2025-12-31"
 
-  # --- Quality ---
+  # Quality
   VALIDATOR__SCHEMA: '{"type":"object","required":["symbol","timestamp","value"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"value":{"type":"number"}}}'
   DATA_TABLE: "data"
   DATA_COLUMNS: "symbol,timestamp,value"

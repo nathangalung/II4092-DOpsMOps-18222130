@@ -1,24 +1,22 @@
-# =============================================================================
-# use-case-crypto :: Argo Rollout — progressive delivery for ml-bridge
-# =============================================================================
-# ADR-016 — Argo Rollouts owns progressive delivery of long-lived Deployments
+# use-case-crypto :: Argo Rollout - progressive delivery for ml-bridge
+# ADR-016 - Argo Rollouts owns progressive delivery of long-lived Deployments
 # in crypto.  KServe InferenceServices already canary via Knative Revisions
 # (`canaryTrafficPercent`), so this Rollout deliberately targets ml-bridge
-# (the MLflow proxy) — not the `crypto-predictor` InferenceService — to
+# (the MLflow proxy) - not the `crypto-predictor` InferenceService - to
 # avoid two progressive-delivery controllers racing on one resource.
 #
 # What this file does:
 #   1. OWNS the `ml-bridge` pod lifecycle. Per ADR-025 the platform base no
-#      longer ships an `ml-bridge` Deployment — only a Service (selector
+#      longer ships an `ml-bridge` Deployment - only a Service (selector
 #      `app: ml-bridge`) that this Rollout's ReplicaSets feed into. The
 #      previous scale-to-0 overlay patch (`patches/ml-bridge-disable-
 #      deployment.yaml`) was deleted along with the Deployment.
 #   2. Declares a canary strategy:
-#        20% → analyze → 50% → analyze → 100%
+#        20%, then analyze, then 50%, then analyze, then 100%
 #      Each analyze step runs the `success-rate-p99` AnalysisTemplate
 #      (platform/components/gitops/argo-rollouts/helm-release.yaml) against
 #      Prometheus to gate promotion on SLO burn.
-#   3. Points at the local Service `ml-bridge` (ClusterIP) — Rollouts
+#   3. Points at the local Service `ml-bridge` (ClusterIP) - Rollouts
 #      manipulates the Service selector to route percentage-split traffic
 #      between the stable and canary ReplicaSets.  use-case-crypto is
 #      out-of-mesh (`istio-injection: disabled`, ADR-009), so traffic
@@ -32,7 +30,6 @@
 #   side (edge traffic hitting crypto via the VirtualService), NOT from
 #   sidecars inside the namespace.  Success rate is still measurable at
 #   the edge; that is exactly the user-visible SLO we want to gate on.
-# =============================================================================
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
@@ -48,7 +45,7 @@ metadata:
 spec:
   # Single-node invariant (project policy): 1 idle replica. The Rollout's
   # canary strategy spawns ONE extra canary pod (maxSurge: 100% of 1 = 1)
-  # during step progression, peaking at 2 pods briefly — well within
+  # during step progression, peaking at 2 pods briefly - well within
   # single-node capacity. HPA can lift replicas on real load (see
   # hpa/autoscaling.yaml).
   replicas: 1
@@ -65,7 +62,7 @@ spec:
       maxSurge: "100%"
       maxUnavailable: 0
       steps:
-        # 20% canary → wait 2m → analyze SLO over the next 2.5m
+        # 20% canary, then wait 2m, then analyze SLO over the next 2.5m
         - setWeight: 20
         - pause: { duration: 2m }
         - analysis:
@@ -77,7 +74,7 @@ spec:
                 value: ml-bridge
               - name: namespace
                 value: use-case-crypto
-        # 50% canary → wait 5m → analyze again
+        # 50% canary, then wait 5m, then analyze again
         - setWeight: 50
         - pause: { duration: 5m }
         - analysis:
@@ -140,7 +137,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
       volumes:
-        # feast-feature-repo is a PLAIN ConfigMap (not a generator) — kustomize
+        # feast-feature-repo is a PLAIN ConfigMap (not a generator) - kustomize
         # `namePrefix: crypto-` rewrites this bare name to
         # `crypto-feast-feature-repo` via the Rollout volumes/configMap/name rule
         # taught in kustomize-config/name-reference.yaml.
@@ -150,7 +147,7 @@ spec:
         - name: feast-repo
           emptyDir: {}
 ---
-# Local AnalysisTemplate alias — mirrors the platform one from argo-rollouts
+# Local AnalysisTemplate alias - mirrors the platform one from argo-rollouts
 # namespace so Rollout `templateName` lookup resolves in-namespace (Argo
 # Rollouts 1.9+ prefers in-namespace templates over cluster ones by default).
 apiVersion: argoproj.io/v1alpha1
@@ -170,7 +167,7 @@ spec:
     - name: success-rate
       interval: 30s
       count: 5
-      # ml-bridge is an internal dashboard proxy — on a fresh deploy with
+      # ml-bridge is an internal dashboard proxy - on a fresh deploy with
       # zero traffic the Prometheus query returns an empty vector and
       # `result[0]` panics with `reflect: slice index out of range`, which
       # the controller treats as a consecutiveError. `len(result) == 0`
@@ -181,7 +178,7 @@ spec:
       provider:
         prometheus:
           address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
-          # Edge traffic hits crypto through the Istio ingressgateway —
+          # Edge traffic hits crypto through the Istio ingressgateway -
           # istio_requests_total is available on that side even though
           # crypto itself is out-of-mesh.
           query: |

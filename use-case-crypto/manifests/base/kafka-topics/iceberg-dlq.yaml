@@ -1,15 +1,12 @@
-# =============================================================================
 # KafkaTopic: iceberg-dlq
-# =============================================================================
 # Dead-letter queue for the Iceberg sink connector. Records that fail
 # deserialization or schema mapping land here for triage instead of
 # blocking the main connector pipeline.
 #
 # Sizing:
-#   partitions        : 1     — low volume by design
+#   partitions        : 1 - low volume by design
 #   replicas          : 1
 #   retention.ms      : 7d
-# =============================================================================
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:

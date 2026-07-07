@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# =============================================================================
-# scale-up-platform.sh — restore every Deployment + StatefulSet + KafkaNodePool
+# scale-up-platform.sh - restore every Deployment + StatefulSet + KafkaNodePool
 # in platform namespaces back to replicas=1 (single-node mandate).
-# =============================================================================
 # Inverse of scale-zero-all.sh. Single-node convention: every workload runs
 # replicas=1 idle; HPAs scale above this on load. This script restores baseline
 # after a scale-zero, without waiting for ArgoCD selfHeal.
@@ -13,8 +11,7 @@
 #
 # Also handles Strimzi KafkaNodePool (controls broker STS via operator) since
 # scaling the broker STS directly is reverted by Strimzi's operator within
-# seconds — the nodepool CR is the source of truth.
-# =============================================================================
+# seconds - the nodepool CR is the source of truth.
 set -euo pipefail
 
 REPLICAS="${REPLICAS:-1}"
@@ -62,7 +59,7 @@ kubectl get sts -A --no-headers 2>/dev/null \
       kubectl scale sts "$name" -n "$ns" --replicas="$REPLICAS" >/dev/null 2>&1 || true
     done
 
-# Strimzi KafkaNodePool — the operator owns the broker STS replicas, so scaling
+# Strimzi KafkaNodePool - the operator owns the broker STS replicas, so scaling
 # the STS is fought by the operator. Patch the CR instead.
 if kubectl api-resources --api-group=kafka.strimzi.io 2>/dev/null | grep -q kafkanodepools; then
   echo ""

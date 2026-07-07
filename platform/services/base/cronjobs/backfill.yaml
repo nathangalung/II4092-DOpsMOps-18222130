@@ -1,10 +1,7 @@
-# =============================================================================
-# BACKFILL — Daily Incremental Data Backfill (Go)
-# =============================================================================
+# BACKFILL - Daily Incremental Data Backfill (Go)
 # Catches up missing data from previous 24 hours.
 # Historical backfill is handled by rest-collector Deployment on startup.
 # Orchestrated via Airflow DAGs or K8s CronJob.
-# =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:

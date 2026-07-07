@@ -1,30 +1,27 @@
-# =============================================================================
-# KServe ClusterServingRuntime — MLServer dedicated MLflow runtime
-# =============================================================================
+# KServe ClusterServingRuntime - MLServer dedicated MLflow runtime
 # FLAML AutoML trains models (LightGBM, XGBoost, CatBoost, RF, etc.) and logs
 # them as MLflow artifacts to MinIO (s3://mlflow). KServe serves them via
 # MLServer's built-in mlflow runtime, which handles any MLflow-packaged model
 # regardless of the underlying algorithm.
 #
 # Serving path:
-#   MLflow artifact (MinIO s3://mlflow) → InferenceService modelFormat: mlflow
-#   → kserve-mlflowserver → MLServer pod (mlserver_mlflow.MLflowRuntime)
-#   → predictions over the v2 (Open Inference) protocol.
+#   MLflow artifact (MinIO s3://mlflow) to InferenceService modelFormat: mlflow
+#   to kserve-mlflowserver to MLServer pod (mlserver_mlflow.MLflowRuntime)
+#   to predictions over the v2 (Open Inference) protocol.
 #
 # Why a DEDICATED mlflow runtime rather than the generic mlserver:
 #   * autoSelect: true + modelFormat=mlflow lets KServe match this runtime
-#     without an InferenceService label (`modelClass`) — every model in
-#     this platform is MLflow-packaged (FLAML→MLflow→MinIO), so a generic
+#     without an InferenceService label (`modelClass`) - every model in
+#     this platform is MLflow-packaged (FLAML to MLflow to MinIO), so a generic
 #     `{{.Labels.modelClass}}` template was dead overhead and a footgun
 #     when omitted (pod CrashLoopBackOff with empty implementation).
-#   * MLSERVER_MODEL_IMPLEMENTATION is hardcoded — single source of truth
+#   * MLSERVER_MODEL_IMPLEMENTATION is hardcoded - single source of truth
 #     means the runtime upgrade is the only place to bump the codepath.
 #   * Native-format runtimes (lgbserver, sklearnserver, xgbserver) were
-#     removed in an earlier ADR — all models flow through MLflow; native
+#     removed in an earlier ADR - all models flow through MLflow; native
 #     formats never matched. No generic mlserver fallback: every artefact
 #     in this platform is MLflow-packaged, so a label-driven runtime would
 #     be dead code (and a footgun when modelClass is omitted).
-# =============================================================================
 ---
 apiVersion: serving.kserve.io/v1alpha1
 kind: ClusterServingRuntime
@@ -55,7 +52,7 @@ spec:
     - name: kserve-container
       # MLServer 1.7.1 (2025-06-06) is the latest upstream release; SeldonIO
       # ships roughly one minor per year. Revisit when 1.8.x lands. The image
-      # is shared by `kserve-mlserver` (generic) — single image, one pull,
+      # is shared by `kserve-mlserver` (generic) - single image, one pull,
       # cached on every node.
       image: docker.io/seldonio/mlserver:1.7.1
       # MLServer 1.7+ image has no ENTRYPOINT; CMD is empty too. KServe's

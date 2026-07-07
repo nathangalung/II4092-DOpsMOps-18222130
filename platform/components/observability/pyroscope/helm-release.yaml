@@ -1,29 +1,26 @@
-# =============================================================================
-# Grafana Pyroscope 2.0.1 — continuous profiling backend (2026-04-20)
-# =============================================================================
+# Grafana Pyroscope 2.0.1 - continuous profiling backend (2026-04-20)
 # ADR-014.  Pyroscope is the 4th Golden Signals sibling in the LGTM++ stack:
-#   L  Loki        — logs
-#   G  Grafana     — UI
-#   T  Tempo       — traces
-#   M  Prometheus  — metrics
-#   P  Pyroscope   — profiles (eBPF + pprof + Parca-compatible)
+#   L  Loki - logs
+#   G  Grafana - UI
+#   T  Tempo - traces
+#   M  Prometheus - metrics
+#   P  Pyroscope - profiles (eBPF + pprof + Parca-compatible)
 #
 # Why add it:
 #   1. Tail-based flame graphs for every platform pod without per-app
 #      instrumentation (eBPF profiler DaemonSet does it in-kernel).
-#   2. Native Grafana panel integration: click a Tempo trace span → jump
+#   2. Native Grafana panel integration: click a Tempo trace span to jump
 #      straight to the corresponding pprof sample in Pyroscope.
-#   3. Airflow/Spark/Flink/KServe profilers already speak pprof — Pyroscope
+#   3. Airflow/Spark/Flink/KServe profilers already speak pprof - Pyroscope
 #      accepts them via HTTP push on port 4040.
 #   4. Shares Tempo's MinIO bucket scheme (object-store backed, no cluster
 #      sidecar PDB to manage).
 #
-# Topology: `single-binary` chart (monolithic) — sufficient for platform
+# Topology: `single-binary` chart (monolithic) - sufficient for platform
 # scale.  Switch to `micro-services` via the same chart for >50k
 # profiles/s/tenant.
 #
-# Data retention: 14d (matches Tempo) — see `tenant.storage.retention_period`.
-# =============================================================================
+# Data retention: 14d (matches Tempo) - see `tenant.storage.retention_period`.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -41,7 +38,7 @@ spec:
   source:
     repoURL: https://grafana.github.io/helm-charts
     chart: pyroscope
-    # Chart 2.0.1 (2026-04-24) bundles Pyroscope appVersion 2.0.x — April 2026 latest.
+    # Chart 2.0.1 (2026-04-24) bundles Pyroscope appVersion 2.0.x - April 2026 latest.
     targetRevision: 2.0.1
     helm:
       releaseName: pyroscope
@@ -58,7 +55,7 @@ spec:
             enabled: true
             size: 10Gi # Single-pod bootstrap; bump for production load.
             # local-path is the only storage class on this single-node platform
-            # (ADR-031). Pod is pinned to the node holding the hostPath dir —
+            # (ADR-031). Pod is pinned to the node holding the hostPath dir -
             # acceptable on a 1-node cluster; revisit if scaled out.
             storageClassName: local-path
           extraEnvFrom:
@@ -116,7 +113,7 @@ spec:
           # which keeps advising further rightsizing for the operator to promote.
           resources:
             requests: { cpu: 250m, memory: 768Mi } # All-in-one floor; VPA Off advises, operator promotes.
-            limits:   { cpu: "1", memory: 1536Mi }  # Was 256Mi → OOMKilled 22×; 1.5Gi stops the crashloop.
+            limits:   { cpu: "1", memory: 1536Mi }  # Was 256Mi, causing OOMKilled 22×; 1.5Gi stops the crashloop.
           podSecurityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -126,7 +123,7 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
-        # eBPF DaemonSet profiler — node-level profiling without per-app changes.
+        # eBPF DaemonSet profiler - node-level profiling without per-app changes.
         # Privileged + hostPID is required to read /proc/<pid>/maps for pprof
         # symbolisation. Namespace carve-out in Kyverno `disallow-privileged` +
         # `disallow-host-path` policies is required (see observability
@@ -152,7 +149,7 @@ spec:
             release: kube-prometheus-stack
         # Grafana datasource is provisioned via ConfigMap reload in the
         # grafana sub-chart (sidecar). See grafana/helm-release.yaml for the
-        # `grafana.sidecar.datasources.searchNamespace` list — observability
+        # `grafana.sidecar.datasources.searchNamespace` list - observability
         # is already in scope.
   destination:
     server: https://kubernetes.default.svc
@@ -172,18 +169,18 @@ spec:
       # all. Respect, meanwhile, is actively harmful: combined with the global
       # argocd-cm array-wildcard ignores it back-patches live array elements
       # into desired state and silently no-ops real changes in the same
-      # element (argo-cd#25284 — proven live on a use-case app).
+      # element (argo-cd#25284 - proven live on a use-case app).
       - ApplyOutOfSyncOnly=true
     retry:
       limit: 5
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }
   # Server-default ghost drift on StatefulSet/pyroscope. Chart 2.0.1's
   # deployments-statefulsets.yaml emits ONLY `podManagementPolicy: Parallel`
-  # at top-level — leaves `revisionHistoryLimit`, `updateStrategy`, and
+  # at top-level - leaves `revisionHistoryLimit`, `updateStrategy`, and
   # `persistentVolumeClaimRetentionPolicy` unset. K8s apps/v1 server then
   # defaults them to 10 / {RollingUpdate, partition:0} / {Retain, Retain}.
   # ArgoCD re-renders the chart on every reconcile and the rendered manifest
-  # never carries these fields → permanent OutOfSync that no apply settles
+  # never carries these fields, causing permanent OutOfSync that no apply settles
   # (server-side apply re-renders without the field, K8s re-injects defaults).
   # Ignoring the paths is the only way to silence the ghost; we accept the
   # K8s 1.34 defaults verified live 2026-05-23. Re-verify against the apps/v1
@@ -199,20 +196,18 @@ spec:
         - /spec/updateStrategy
   revisionHistoryLimit: 10
 ---
-# =============================================================================
-# S3 credentials (MinIO) — sourced from OpenBao via ExternalSecret (ADR-008).
+# S3 credentials (MinIO) - sourced from OpenBao via ExternalSecret (ADR-008).
 # Reuses the platform `minio-root` credentials already provisioned by the
-# OpenBao bootstrap Job (`secret/platform/minio/root`) — same pattern that
+# OpenBao bootstrap Job (`secret/platform/minio/root`) - same pattern that
 # Tempo, Loki, Velero, and MLflow consume.  Dedicated policy-scoped MinIO
 # users per service are a future hardening step (ADR-008 §Rotation).
 #
-# Env-var shape: emits `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — the
+# Env-var shape: emits `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` - the
 # AWS SDK for Go defaults.  Pyroscope reads these at pod start via
 # `extraEnvFrom` (above) when `storage.s3.native_aws_auth_enabled: true`.
-# Do NOT rename back to the legacy `S3_ACCESS_KEY` / `S3_SECRET_KEY` — those
+# Do NOT rename back to the legacy `S3_ACCESS_KEY` / `S3_SECRET_KEY` - those
 # names require Pyroscope YAML env-var expansion, which is not available
 # (see §18.3.a root cause in AUDIT_FINAL_2026-04-21.md).
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -234,11 +229,11 @@ spec:
       remoteRef: { key: platform/minio/root, property: username }
     - secretKey: AWS_SECRET_ACCESS_KEY
       remoteRef: { key: platform/minio/root, property: password }
-# PodDisruptionBudget — NOT defined here. The Pyroscope chart 2.0.0 emits a
+# PodDisruptionBudget - NOT defined here. The Pyroscope chart 2.0.0 emits a
 # PodDisruptionBudget/pyroscope itself (templates/deployments-statefulsets.yaml,
 # `$values.podDisruptionBudget.enabled` defaulting to true, maxUnavailable=1)
 # via the standalone `pyroscope` Application above. Adding an inline PDB here
 # causes the parent `platform-observability` app-of-apps Application to claim
 # the same PodDisruptionBudget/pyroscope resource that the child `pyroscope`
-# Application owns → ArgoCD `SharedResourceWarning`. The chart's PDB has the
+# Application owns, triggering ArgoCD `SharedResourceWarning`. The chart's PDB has the
 # identical maxUnavailable=1 shape so there is no loss of intent.

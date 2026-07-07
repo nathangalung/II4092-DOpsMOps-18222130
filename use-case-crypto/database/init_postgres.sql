@@ -1,9 +1,6 @@
--- ============================================================================
--- Crypto Use Case — PostgreSQL Extensions
--- ============================================================================
+-- Crypto Use Case - PostgreSQL Extensions
 -- Extends the generic pipeline schema with crypto-specific fields.
 -- Run AFTER platform/services/base/database/init_postgres.sql.
--- ============================================================================
 
 -- Add crypto-specific columns to predictions (if not already present)
 DO $$

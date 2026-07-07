@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# =============================================================================
-# apply-namespaces.sh — create every platform namespace upfront
-# =============================================================================
+# apply-namespaces.sh - create every platform namespace upfront
 # Phases install components in series; some components reference resources in
 # adjacent namespaces (e.g. ESO ClusterSecretStore reads `storage/postgresql-app`)
 # so it's safer to declare every namespace first.
-# =============================================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -39,17 +39,13 @@ spec:
           value: 50
           periodSeconds: 120
 ---
-# -----------------------------------------------------------------------------
-# NOTE: no feature-engine HPA — the bespoke Rust feature-engine Deployment is
+# NOTE: no feature-engine HPA - the bespoke Rust feature-engine Deployment is
 # retired (the Flink `stream-processor` FlinkDeployment owns the crypto speed
 # layer). Flink elasticity is owned inside the engine (task-slot parallelism +
 # operator-managed TM scale-out keyed off the flink-features Kafka-lag SLO), so
-# no Kubernetes HPA — and no KEDA ScaledObject — is declared for it here.
-# -----------------------------------------------------------------------------
+# no Kubernetes HPA - and no KEDA ScaledObject - is declared for it here.
 ---
-# -----------------------------------------------------------------------------
 # gateway autoscaling is OWNED BY KEDA (ADR-026).
-# -----------------------------------------------------------------------------
 # Prior to ADR-026 this file shipped a gateway-hpa that combined CPU + memory
 # Resource metrics with a Pods-type custom metric `http_requests_per_second`.
 # The custom metric was served by prometheus-adapter translating
@@ -59,7 +55,6 @@ spec:
 # via scaling/scaledobjects.yaml :: gateway-http-rps (prometheus + cpu +
 # memory triggers). KEDA emits its own HPA; declaring one here would collide.
 # Do NOT re-add a gateway-hpa resource to this file.
-# -----------------------------------------------------------------------------
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -85,18 +80,15 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
 ---
-# NOTE: vector-processing is a CronJob, not a Deployment — no HPA or PDB needed.
+# NOTE: vector-processing is a CronJob, not a Deployment - no HPA or PDB needed.
 ---
-# =============================================================================
-# PodDisruptionBudgets — one per long-running Deployment inherited from
+# PodDisruptionBudgets - one per long-running Deployment inherited from
 # the platform base (namePrefix `crypto-` is applied by overlays).
-# =============================================================================
 # Convention: every Deployment that backs a Service gets `minAvailable: 1`.
 # The local overlay's `patch-pdb-relax.yaml` rewrites all PDBs to
 # `maxUnavailable: 100%` on single-node k3s so drains still succeed.
 # Use `matchExpressions: [type DoesNotExist]` anywhere a CronJob shares
 # the same `app:` label (currently rest-collector/supplementary).
-# =============================================================================
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -152,7 +144,7 @@ spec:
     matchLabels:
       app: analyzer
 ---
-# NOTE: no feature-engine PDB — the bespoke Rust feature-engine Deployment is
+# NOTE: no feature-engine PDB - the bespoke Rust feature-engine Deployment is
 # retired (the Flink `stream-processor` FlinkDeployment owns the speed layer).
 # Flink JM/TM pod disruption is managed by the Flink Kubernetes Operator, not a
 # Kubernetes PDB, so no PDB is declared for it here.

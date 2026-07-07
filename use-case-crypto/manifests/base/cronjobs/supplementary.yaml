@@ -1,13 +1,10 @@
-# =============================================================================
-# SUPPLEMENTARY DATA — Alternative & External Data Collection
-# =============================================================================
+# SUPPLEMENTARY DATA - Alternative & External Data Collection
 # Generic CronJob for collecting supplementary/alternative data from HTTP APIs.
 # Use-cases configure which APIs to poll via pipeline-config env vars.
 #
 # supplementary-source: External source polling (every 5 min, e.g. CryptoPanic)
 # Dedicated CronJobs for Fear & Greed, CoinGecko, DeFi Llama are separate files.
 # Emits run outcome to platform Pushgateway via push-helper ConfigMap.
-# =============================================================================
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -18,10 +15,10 @@ metadata:
     type: supplementary
     mlops-platform.io/use-case: crypto
 spec:
-  schedule: "0 * * * *" # Hourly. (Was */5 — on this single-HDD node a 5-min
+  schedule: "0 * * * *" # Hourly. (Was */5 - on this single-HDD node a 5-min
   # cadence created 288 Job pods/day per CronJob and was a primary IO-cascade
   # driver; supplementary source/news data does not change faster than hourly.)
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff and the app
   # stays Synced while the CronJob sleeps (#513, 14 days frozen).
   # startingDeadlineSeconds bounds missed-schedule lookback so a suspend or
@@ -33,12 +30,12 @@ spec:
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 3
   jobTemplate:
-    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    # Kueue admission: Job-level label routes to batch-queue, which maps to cluster cohort.
     metadata:
       labels:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
-      # 600→1800: in-cluster registry pulls have hit 18+ min under IO
+      # 600 to 1800: in-cluster registry pulls have hit 18+ min under IO
       # contention (#402 forensics). Combined with IfNotPresent below, only
       # the first cold-cache fire pays the cost; warm-cache reruns finish
       # in ~70s.
@@ -51,7 +48,7 @@ spec:
             type: supplementary
         spec:
           restartPolicy: OnFailure
-          # PodSecurity "restricted" baseline — paired with Dockerfile
+          # PodSecurity "restricted" baseline - paired with Dockerfile
           # USER 1000:1000. Silences Kyverno require-run-as-nonroot Audit
           # entries and matches the long-running rest-collector Deployment.
           securityContext:
@@ -74,7 +71,7 @@ spec:
               configMap:
                 name: crypto-rest-collector-config
             # Kafka SASL_SSL: producer publishes to KAFKA_SUPPLEMENTARY_TOPIC.
-            # patches/kafka-sasl.yaml only covers Deployments — CronJobs embed
+            # patches/kafka-sasl.yaml only covers Deployments - CronJobs embed
             # the broker CA directly here (key `ca.crt` of crypto-app-consumer).
             - name: kafka-ca
               secret:
@@ -85,7 +82,7 @@ spec:
           containers:
             - name: rest-collector
               image: rest-collector:latest
-              # IfNotPresent: see #167 / #402 — local-registry contention
+              # IfNotPresent: see #167 / #402 - local-registry contention
               # made Always re-pull take 18 min under IO load.
               imagePullPolicy: IfNotPresent
               securityContext:
@@ -110,7 +107,7 @@ spec:
                 # Pin viper at the mounted /etc/rest-collector/config.yaml source
                 # registry. Moved here off the shared pipeline-config ConfigMap,
                 # which leaked this rest-collector-only path into non-rest-collector
-                # envFrom consumers (the Python batch loader → sma_*/volatility_*
+                # envFrom consumers (the Python batch loader ends up with sma_*/volatility_*
                 # = 0). Explicit set also gives fail-loud SetConfigFile semantics
                 # if the config mount is ever missing. See configmaps/sources.yaml.
                 - name: CONFIG_PATH

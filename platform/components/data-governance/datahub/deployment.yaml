@@ -1,12 +1,9 @@
-# =============================================================================
-# DataHub — OpenBao-sourced credentials (ADR-008)
-# =============================================================================
+# DataHub - OpenBao-sourced credentials (ADR-008)
 # Two ExternalSecrets replace the previous hand-rolled Secrets.  The target
 # Secret names (`platform-postgresql-secret`, `datahub-frontend-secret`)
 # are preserved so downstream env `secretKeyRef` lookups keep working
-# unchanged.  OpenSearch credentials removed — security plugin disabled
+# unchanged.  OpenSearch credentials removed - security plugin disabled
 # (internal-only, defended by Istio mTLS + NetworkPolicies).
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -17,7 +14,7 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
 spec:
   # Mirror Strimzi `admin` SCRAM-SHA-512 SASL credential + cluster CA cert
-  # from data-ingestion namespace. Kafka 9093 listener requires SASL_SSL —
+  # from data-ingestion namespace. Kafka 9093 listener requires SASL_SSL -
   # anonymous on plain 9092 is denied by authorization=simple. CA cert is
   # served as PEM, consumed by Kafka client via ssl.truststore.type=PEM.
   refreshInterval: 1h
@@ -76,7 +73,7 @@ spec:
     - secretKey: DATAHUB_SECRET
       remoteRef: { key: platform/datahub/admin, property: secret }
 ---
-# --- DataHub Upgrade Job (Run on Install) ---
+# DataHub Upgrade Job (Run on Install)
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -93,22 +90,22 @@ spec:
   # bootstraps.  Empirical timing on this single-node cluster with the
   # OpenSearch IO distress field-observed 2026-05-19/20 (master logs:
   # cluster-state writes 112s, fs health checks 22s, publication 1.8 min)
-  # pushes SystemUpdate well past the previous 1800s ceiling — the Job
+  # pushes SystemUpdate well past the previous 1800s ceiling - the Job
   # was hitting DeadlineExceeded with the SystemUpdate still progressing
   # legitimately, post-apply.sh's wait then FATALed install-datahub.
   # 3600s gives Liquibase + index bootstrap real headroom on a cold IO-
-  # bound OpenSearch; healthy clusters still finish in 5–10 min.
+  # bound OpenSearch; healthy clusters still finish in 5-10 min.
   activeDeadlineSeconds: 3600
   backoffLimit: 5
   ttlSecondsAfterFinished: 3600
   template:
     metadata:
       annotations:
-        # Keep this Job inside the Istio mesh — opensearch + kafka + postgres
+        # Keep this Job inside the Istio mesh - opensearch + kafka + postgres
         # all enforce PeerAuthentication=STRICT in their namespaces, so an
         # out-of-mesh Job pod gets `connection reset by peer` from every
         # downstream istio-proxy.  Native sidecar mode is globally enabled
-        # (ENABLE_NATIVE_SIDECARS=true → istio-proxy lives in initContainers
+        # (ENABLE_NATIVE_SIDECARS=true, so istio-proxy lives in initContainers
         # with restartPolicy=Always and terminates with the app container),
         # so there is no classic-sidecar-hang to escape.
         #
@@ -117,7 +114,7 @@ spec:
         # interception, so SystemUpdate's Kafka admin steps
         # (BootstrapMCPStep, ConfigEntityRegistry) must go direct to the
         # broker.  Everything else (Postgres, OpenSearch HTTP) keeps mesh
-        # mTLS via the sidecar — no security regression.
+        # mTLS via the sidecar - no security regression.
         traffic.sidecar.istio.io/excludeOutboundPorts: "9093"
     spec:
       securityContext:
@@ -147,7 +144,7 @@ spec:
               readOnly: true
           env:
             # SystemUpdate skips SQL DDL by default. On a fresh cluster the
-            # `metadata_aspect_v2` table doesn't exist yet — gms then crashes
+            # `metadata_aspect_v2` table doesn't exist yet - gms then crashes
             # with `relation "metadata_aspect_v2" does not exist`. Enabling
             # this flag makes UpgradeCliApplication run the SqlSetup bootstrap
             # before SystemUpdate, creating the Ebean schema (Liquibase
@@ -163,7 +160,7 @@ spec:
               value: "datahub-gms"
             - name: DATAHUB_GMS_PORT
               value: "8080"
-            # Kafka Config — SASL_SSL on 9093 (see datahub-gms section).
+            # Kafka Config - SASL_SSL on 9093 (see datahub-gms section).
             - name: KAFKA_BOOTSTRAP_SERVER
               value: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
             - name: KAFKA_SCHEMAREGISTRY_URL
@@ -193,7 +190,7 @@ spec:
               value: "PEM"
             - name: GRAPH_SERVICE_IMPL
               value: "elasticsearch"
-            # OpenSearch config (security plugin disabled — no auth needed)
+            # OpenSearch config (security plugin disabled - no auth needed)
             - name: ELASTICSEARCH_HOST
               value: "opensearch"
             - name: ELASTICSEARCH_PORT
@@ -208,7 +205,7 @@ spec:
             - name: EBEAN_DATASOURCE_URL
               # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
               # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
-              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # SSL ('S' byte negotiation) which Envoy mangles, so "Connection
               # reset" on enableSSL. Mesh handles encryption at L4.
               value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
             - name: EBEAN_DATASOURCE_DRIVER
@@ -255,7 +252,7 @@ spec:
       restartPolicy: Never
 
 ---
-# --- DataHub GMS (Backend) ---
+# DataHub GMS (Backend)
 apiVersion: v1
 kind: Service
 metadata:
@@ -286,7 +283,7 @@ spec:
       labels:
         app: datahub-gms
       annotations:
-        # See actions.yaml — Istio sidecar breaks librdkafka SSL+SCRAM on
+        # See actions.yaml - Istio sidecar breaks librdkafka SSL+SCRAM on
         # 9093.  GMS's MAE/MCE Kafka admin clients need direct broker SSL;
         # PG (5432) + OpenSearch (9200 HTTP) still flow through mesh mTLS.
         traffic.sidecar.istio.io/excludeOutboundPorts: "9093"
@@ -365,7 +362,7 @@ spec:
             - name: DATAHUB_DB_URL
               # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
               # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
-              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # SSL ('S' byte negotiation) which Envoy mangles, so "Connection
               # reset" on enableSSL. Mesh handles encryption at L4.
               value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
             - name: DATAHUB_DB_DRIVER
@@ -389,7 +386,7 @@ spec:
             - name: EBEAN_DATASOURCE_URL
               # sslmode=disable: Istio sidecar mTLS already encrypts pod-to-pod
               # traffic. Without sslmode=disable JDBC tries STARTTLS-style PG
-              # SSL ('S' byte negotiation) which Envoy mangles → "Connection
+              # SSL ('S' byte negotiation) which Envoy mangles, so "Connection
               # reset" on enableSSL. Mesh handles encryption at L4.
               value: "jdbc:postgresql://postgresql-rw.storage.svc.cluster.local:5432/datahub?sslmode=disable"
             - name: EBEAN_DATASOURCE_DRIVER
@@ -409,7 +406,7 @@ spec:
               value: "true"
             - name: EBEAN_DDL_RUN
               value: "true"
-            # Kafka Config — SASL_SSL on 9093. Strimzi authorization=simple
+            # Kafka Config - SASL_SSL on 9093. Strimzi authorization=simple
             # denies anonymous on 9092; admin/SCRAM-SHA-512 SASL credential
             # mirrored from data-ingestion via platform-kafka-users CSS, CA
             # cert mounted as PEM at /etc/kafka-ca/ca.crt.
@@ -440,7 +437,7 @@ spec:
               value: "/etc/kafka-ca/ca.crt"
             - name: KAFKA_PROPERTIES_SSL_TRUSTSTORE_TYPE
               value: "PEM"
-            # OpenSearch config (security plugin disabled — no auth needed)
+            # OpenSearch config (security plugin disabled - no auth needed)
             - name: ELASTICSEARCH_HOST
               value: "opensearch"
             - name: ELASTICSEARCH_PORT
@@ -464,7 +461,7 @@ spec:
               value: "elasticsearch"
             - name: METADATA_SERVICE_AUTH_ENABLED
               value: "true"
-            # Token-service HMAC signing key + salt — required when
+            # Token-service HMAC signing key + salt - required when
             # METADATA_SERVICE_AUTH_ENABLED=true; without these GMS dies at
             # "authentication.tokenService.signingKey must be set". Reusing
             # datahub-frontend-secret means frontend Play sessions and GMS
@@ -532,7 +529,7 @@ spec:
     matchLabels:
       app: datahub-gms
 ---
-# --- DataHub Frontend (UI) ---
+# DataHub Frontend (UI)
 apiVersion: v1
 kind: Service
 metadata:
@@ -620,7 +617,7 @@ spec:
             failureThreshold: 5
 ---
 # Istio AuthorizationPolicy: complement to global-deny-all in istio-system.
-# Allow intra-namespace traffic (frontend↔gms, gms↔actions, ingest cronjobs)
+# Allow intra-namespace traffic (frontend and gms, gms and actions, ingest cronjobs)
 # plus gateway-originated requests so the UI is reachable end-to-end.
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
@@ -636,12 +633,12 @@ spec:
         - source:
             namespaces: ["data-governance", "istio-system", "data-processing", "model-lifecycle", "data-ingestion"]
 ---
-# PeerAuthentication — port-level PERMISSIVE on datahub-gms :8080.
+# PeerAuthentication - port-level PERMISSIVE on datahub-gms :8080.
 # data-governance is in the ADR-009 mesh; the istio-system default
 # PeerAuthentication is STRICT, so the GMS sidecar rejects any non-mTLS inbound
-# on :8080 with a TCP reset. Airflow's OpenLineage push — BOTH the
+# on :8080 with a TCP reset. Airflow's OpenLineage push - BOTH the
 # data-quality-gate DAG's manual `emit_openlineage` POST and the OpenLineage
-# provider's automatic per-task RunEvents — originates inside KubernetesExecutor
+# provider's automatic per-task RunEvents - originates inside KubernetesExecutor
 # worker pods, which are deliberately mesh-EXCLUDED (pod_template
 # `sidecar.istio.io/inject: false`: the sidecar keeps a finished task pod
 # Running forever and breaks the executor's pod-deletion loop). Those
@@ -656,7 +653,7 @@ spec:
 # UNCHANGED: GMS still demands `Authorization: Bearer <PAT>`
 # (METADATA_SERVICE_AUTH_ENABLED=true), supplied by the OpenLineage transport's
 # `auth.apiKey` (see platform/components/data-processing/airflow/deployment.yaml,
-# the airflow-secrets ExternalSecret) — loosening mTLS does NOT make the
+# the airflow-secrets ExternalSecret) - loosening mTLS does NOT make the
 # endpoint anonymous.
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication

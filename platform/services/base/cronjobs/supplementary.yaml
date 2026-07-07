@@ -1,12 +1,9 @@
-# =============================================================================
-# SUPPLEMENTARY DATA — Alternative & External Data Collection
-# =============================================================================
+# SUPPLEMENTARY DATA - Alternative & External Data Collection
 # Generic CronJobs for collecting supplementary/alternative data from HTTP APIs.
 # Use-cases configure which APIs to poll via pipeline-config env vars.
 #
 # CronJob 1 (supplementary-source): External source polling (every 5 min)
 # CronJob 2 (supplementary-data): Alternative data indices (hourly)
-# =============================================================================
 ---
 apiVersion: batch/v1
 kind: CronJob

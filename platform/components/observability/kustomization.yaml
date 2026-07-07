@@ -6,7 +6,7 @@ kind: Kustomization
 #   - opentelemetry:         OTel Operator + gateway Collector + agent DaemonSet + auto-instrumentation
 #   - grafana:               UI (uses the kube-prometheus-stack Prometheus)
 #   - loki:                  log aggregator (PVC + MinIO chunks)
-#   - tempo:                 OTLP trace backend on MinIO S3 (LGTM stack) —
+#   - tempo:                 OTLP trace backend on MinIO S3 (LGTM stack) -
 #                            sole trace backend for the platform (ADR-010 /
 #                            ADR-025). The former Jaeger v2 component was
 #                            removed 2026-04-21: Tempo already accepts OTLP
@@ -16,17 +16,17 @@ kind: Kustomization
 #   - evidently:             drift UI (persistent workspace)
 #   - opencost:              FinOps cost attribution
 #   - pushgateway:           batch-job metrics push (Airflow, CronJobs)
-#   - sloth:                 SLO-as-code (PrometheusServiceLevel CR → recording
+#   - sloth:                 SLO-as-code (PrometheusServiceLevel CR generates recording
 #                            rules + multi-window burn-rate alerts)
-#   - pyroscope:             continuous profiling (LGTM++) — ADR-014, 2026-04-20
+#   - pyroscope:             continuous profiling (LGTM++) - ADR-014, 2026-04-20
 #
 # Retired 2026-04-21 (ADR-026):
 #   - prometheus-adapter: custom/external metrics API for HPAs. The only live
-#     consumer (gateway HPA — `http_requests_per_second`) was migrated to a
+#     consumer (gateway HPA - `http_requests_per_second`) was migrated to a
 #     KEDA prometheus trigger in <use-case>/manifests/base/scaling/
 #     scaledobjects.yaml. Kafka-lag HPAs had already moved to KEDA kafka
 #     triggers in ADR-022. With zero HPAs consuming the adapter, running it
-#     is cost without benefit — and the upstream HEAD (v0.12.0, May 2024)
+#     is cost without benefit - and the upstream HEAD (v0.12.0, May 2024)
 #     fails the 2026-minimum-release rule in components/VERSION.MD.
 #
 # The legacy hand-rolled `prometheus/` component is replaced by kube-prometheus-stack.
@@ -47,7 +47,7 @@ resources:
   - scrape-targets
   - sloth
   # pyroscope REMOVED (single-HDD IO budget): 0 use-case references and the
-  # highest-IO NON-essential resident workload — an eBPF profiler DaemonSet
+  # highest-IO NON-essential resident workload - an eBPF profiler DaemonSet
   # that samples every pod continuously + a server doing Prometheus-style chunk
   # compaction, all writing to the one spinning disk. The observability pillar
   # (logs/metrics/traces/dashboards) is fully met by Loki + Grafana + Tempo +
@@ -55,7 +55,7 @@ resources:
   # is named in ADR-014 + ~4 chapter mentions; reframe those as "evaluated and
   # deployed in the design, excluded from the single-node production profile for
   # the IO budget" (resource-aware engineering under a documented HW constraint).
-  # VPA (Fairwinds 4.11.0) — recommender-only advisory autoscaler.
+  # VPA (Fairwinds 4.11.0) - recommender-only advisory autoscaler.
   # Owns autoscaling.k8s.io VerticalPodAutoscaler CRs across the platform.
   # See helm-release.yaml header for single-node `updateMode: Off` policy.
   - vertical-pod-autoscaler

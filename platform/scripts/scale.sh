@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# =============================================================================
-# scale.sh — scale a single component up/down across known namespaces
-# =============================================================================
+# scale.sh - scale a single component up/down across known namespaces
 # Usage:
 #   scale.sh <up|down> <component> <replicas> [namespace]
 # If namespace is omitted, searches all platform namespaces.
-# =============================================================================
 set -euo pipefail
 
 DIR="${1:-}"

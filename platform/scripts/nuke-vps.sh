@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# nuke-vps.sh — return VPS to fresh state.
-# =============================================================================
+# nuke-vps.sh - return VPS to fresh state.
 # DESTRUCTIVE. Removes:
 #   - k3s (binaries + /var/lib/rancher + /etc/rancher + /var/lib/kubelet)
 #   - Docker + containerd (packages + /var/lib/docker + /var/lib/containerd)
@@ -21,7 +19,6 @@
 #
 # Usage:
 #   FORCE=1 bash platform/scripts/nuke-vps.sh    # skip confirmation
-# =============================================================================
 set -euo pipefail
 
 if [[ "${FORCE:-0}" != "1" ]]; then

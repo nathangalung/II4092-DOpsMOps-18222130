@@ -8,7 +8,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: evidently
-  # RWO PVC (evidently-workspace) on local-path — maxReplicas:1 to avoid
+  # RWO PVC (evidently-workspace) on local-path - maxReplicas:1 to avoid
   # Pending pods. Promote to RWX storage class to horizontally scale.
   minReplicas: 1
   maxReplicas: 1

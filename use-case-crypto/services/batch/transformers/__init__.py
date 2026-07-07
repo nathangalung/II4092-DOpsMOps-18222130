@@ -1,5 +1,5 @@
 """Crypto-specific technical analysis transformers.
-Drop-in overlay for the generic transformers — exports same names.
+Drop-in overlay for the generic transformers - exports same names.
 
 Must re-export everything that the platform's features.py imports,
 plus the crypto-specific compute_volatility_features.

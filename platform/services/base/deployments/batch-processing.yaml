@@ -1,6 +1,4 @@
-# =============================================================================
-# BATCH PROCESSING — Feature Engineering (Python + pandas/ta-lib)
-# =============================================================================
+# BATCH PROCESSING - Feature Engineering (Python + pandas/ta-lib)
 # Computes rolling statistics, momentum indicators, volatility measures,
 # temporal features, and lag features from ClickHouse time-series data.
 #
@@ -8,7 +6,6 @@
 #   - Airflow: Workflow orchestration via DAGs
 #   - Great Expectations: Data quality validation on computed features
 #   - Karapace: Schema validation for feature output
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

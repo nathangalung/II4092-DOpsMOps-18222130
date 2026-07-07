@@ -2,7 +2,7 @@
 Configuration loader for batch processing service.
 Reads from config.yaml if available, falls back to environment variables.
 
-This is a GENERIC configuration loader — no domain-specific defaults.
+This is a GENERIC configuration loader - no domain-specific defaults.
 Use-cases provide their own config.yaml with domain-specific values.
 """
 
@@ -25,7 +25,7 @@ def _csv_int(env: str, default: str) -> list[int]:
 
 @dataclass
 class Config:
-    """Batch processing configuration — generic, domain-agnostic."""
+    """Batch processing configuration - generic, domain-agnostic."""
 
     # Project settings
     project_name: str = "ml-pipeline"
@@ -37,7 +37,7 @@ class Config:
     schedule: str = "0 * * * *"
     backfill_enabled: bool = True
 
-    # Feature settings — all configurable, no hardcoded indicators
+    # Feature settings - all configurable, no hardcoded indicators
     data_columns: list[str] = field(default_factory=lambda: ["value"])
     technical_indicators: dict[str, Any] = field(default_factory=dict)
     time_features_enabled: bool = True
@@ -147,13 +147,13 @@ def load_config(path: str | None = None) -> Config:
         )
 
     # Environment variable overrides (highest priority)
-    # Symbols — from VALID_SYMBOLS (quality config) or SYMBOLS
+    # Symbols - from VALID_SYMBOLS (quality config) or SYMBOLS
     if os.getenv("VALID_SYMBOLS"):
         config.symbols = _csv("VALID_SYMBOLS", "")
     elif os.getenv("SYMBOLS"):
         config.symbols = _csv("SYMBOLS", "")
 
-    # Data columns — strip symbol/timestamp (already prepended by query builder)
+    # Data columns - strip symbol/timestamp (already prepended by query builder)
     if os.getenv("DATA_COLUMNS"):
         all_cols = _csv("DATA_COLUMNS", "")
         config.data_columns = [c for c in all_cols if c not in ("symbol", "timestamp")]

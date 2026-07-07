@@ -128,7 +128,7 @@ metadata:
   name: oauth2-proxy-theme-5t624ft8b8
   namespace: common
 ---
-# oauth2-proxy credentials — OpenBao-sourced (ADR-008).  Pulls from the same
+# oauth2-proxy credentials - OpenBao-sourced (ADR-008).  Pulls from the same
 # Dex client record (`platform/dex/clients/kubeflow`) that Dex itself uses,
 # so client_id/client_secret are guaranteed to match; the cookie-signing
 # secret (oauth2-proxy-specific) is co-located on the same path for rotation
@@ -181,7 +181,7 @@ metadata:
   name: oauth2-proxy
   namespace: common
 spec:
-  # Single-replica bootstrap; HPA below scales 1→3 on CPU.
+  # Single-replica bootstrap; HPA below scales 1 to 3 on CPU.
   replicas: 1
   strategy:
     type: Recreate

@@ -1,6 +1,4 @@
-# =============================================================================
 # ArgoCD AppProject for the crypto use-case (lives in its own repo)
-# =============================================================================
 # ADR-013. The platform repo no longer knows about `use-case-crypto`. This
 # file declares the `use-case-crypto` AppProject (RBAC + repo allowlist +
 # allowed destinations). The Application that actually deploys workloads is
@@ -8,7 +6,7 @@
 #
 # Apply order (one-time bootstrap):
 #   kubectl apply -f use-case-crypto/argocd/application.yaml      # AppProject
-#   kubectl apply -f use-case-crypto/argocd/applicationset.yaml   # ApplicationSet → Application
+#   kubectl apply -f use-case-crypto/argocd/applicationset.yaml   # ApplicationSet generates Application
 #
 # Argo CD reconciles both thereafter.
 #
@@ -20,7 +18,6 @@
 #      and the overlay path inside `applicationset.yaml`.
 #   3. `kubectl apply -f use-case-<name>/argocd/application.yaml`
 #   4. `kubectl apply -f use-case-<name>/argocd/applicationset.yaml`
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -55,7 +52,7 @@ spec:
     # platform ClickHouse CHI reads it for the Kafka-engine SASL creds, #464).
     - { namespace: storage,         server: https://kubernetes.default.svc }
     # airflow-dags-source-override ConfigMap lands in `data-processing` (where
-    # the platform Airflow git-sync reads it to clone this use-case's DAGs —
+    # the platform Airflow git-sync reads it to clone this use-case's DAGs -
     # see manifests/airflow-dags-binding/ + argocd/airflow-dags-binding.yaml).
     - { namespace: data-processing, server: https://kubernetes.default.svc }
   clusterResourceWhitelist:

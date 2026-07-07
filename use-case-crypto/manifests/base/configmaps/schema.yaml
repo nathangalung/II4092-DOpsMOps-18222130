@@ -1,43 +1,34 @@
-# =============================================================================
-# SCHEMA REGISTRY — Single Source of Truth for Feature & Column Definitions
-# =============================================================================
+# SCHEMA REGISTRY - Single Source of Truth for Feature & Column Definitions
 # This ConfigMap is the CANONICAL reference for all feature names, column names,
 # table names, symbols, and data sources across the crypto use-case pipeline.
 #
 # ALL services read from this config via envFrom. If a feature name, table name,
-# or symbol list changes, update it HERE — not in individual service configs.
+# or symbol list changes, update it HERE - not in individual service configs.
 #
 # Layers:
-#   RAW     → Kafka topics (crypto.ws.raw, crypto.validated, crypto.trades.v1, crypto.supplementary)
-#   BRONZE  → ClickHouse bronze.* tables (raw ingested data)
-#   SILVER  → ClickHouse silver.* views (cleaned, deduplicated via dbt)
-#   GOLD    → ClickHouse gold.* tables (aggregated, feature-engineered via dbt)
-#   ONLINE  → Redis (Feast materialized features for real-time serving)
+#   RAW     maps to Kafka topics (crypto.ws.raw, crypto.validated, crypto.trades.v1, crypto.supplementary)
+#   BRONZE  maps to ClickHouse bronze.* tables (raw ingested data)
+#   SILVER  maps to ClickHouse silver.* views (cleaned, deduplicated via dbt)
+#   GOLD    maps to ClickHouse gold.* tables (aggregated, feature-engineered via dbt)
+#   ONLINE  maps to Redis (Feast materialized features for real-time serving)
 #
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # =========================================================================
-  # SYMBOLS — Trading pairs tracked by this use-case
-  # =========================================================================
+  # SYMBOLS - Trading pairs tracked by this use-case
   # All services that need to know which symbols to process read from here.
   # Format: comma-separated Coinbase product IDs
   SYMBOLS: "BTC-USD,ETH-USD"
   PRIMARY_SYMBOL: "BTC-USD"
 
-  # =========================================================================
-  # RAW OHLCV COLUMNS — Fields in the raw ingested data (from Coinbase REST API)
-  # =========================================================================
+  # RAW OHLCV COLUMNS - Fields in the raw ingested data (from Coinbase REST API)
   # These columns arrive from the REST/WebSocket collectors into Kafka.
   # The validator checks incoming records against this schema.
   RAW_OHLCV_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
 
-  # =========================================================================
-  # STREAM FEATURES — Computed by the Flink stream-processor (real-time, bronze)
-  # =========================================================================
+  # STREAM FEATURES - Computed by the Flink stream-processor (real-time, bronze)
   # The Flink stream-processor reads from the crypto.validated Kafka topic and
   # computes these technical indicators in real-time, writing to
   # bronze.crypto_ohlcv_features.
@@ -59,32 +50,26 @@ data:
   # Full list of ALL stream features (for FEATURES_COLUMNS env var)
   STREAM_FEATURES_ALL: "sma_20,sma_50,ema_12,ema_26,rsi_14,rsi_7,stoch_k,stoch_d,williams_r,roc_10,momentum_14,macd,macd_signal,bb_upper,bb_lower,bb_width,atr_14,adx,volatility_24h,obv,mfi_14,vwap,return_1h,return_24h,rolling_mean_7,rolling_mean_14,rolling_ema_12,rolling_ema_26,trend_convergence,trend_signal,band_upper,band_lower,dispersion,value_change,secondary_avg"
 
-  # =========================================================================
-  # GOLD FEATURES — Computed by dbt (batch, gold layer)
-  # =========================================================================
+  # GOLD FEATURES - Computed by dbt (batch, gold layer)
   # dbt transforms silver views into gold fact tables with these columns.
   # The gold layer is what the ML training pipeline reads from.
 
-  # gold.fct_ohlcv_features — OHLCV + basic technical indicators
+  # gold.fct_ohlcv_features - OHLCV + basic technical indicators
   GOLD_OHLCV_FEATURES: "open,high,low,close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
 
-  # gold.fct_sentiment_* — Windowed sentiment aggregations
+  # gold.fct_sentiment_* - Windowed sentiment aggregations
   GOLD_SENTIMENT_FEATURES: "news_count,avg_sentiment,sentiment_std,positive_ratio"
 
-  # gold.fct_training_data — Joined OHLCV + sentiment + fear/greed (ML input)
+  # gold.fct_training_data - Joined OHLCV + sentiment + fear/greed (ML input)
   GOLD_TRAINING_FEATURES: "open,high,low,close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h,news_count_1h,sentiment_1h,news_count_6h,sentiment_6h,news_count_24h,sentiment_24h,positive_ratio_24h,fear_greed_value"
 
-  # =========================================================================
-  # DRIFT MONITORING — Features monitored for data/concept drift
-  # =========================================================================
+  # DRIFT MONITORING - Features monitored for data/concept drift
   # The drift detector checks these columns in gold.fct_ohlcv_features using
   # PSI (Population Stability Index) and KS (Kolmogorov-Smirnov) tests.
   # Must be a subset of GOLD_OHLCV_FEATURES.
   DRIFT_FEATURES_TO_MONITOR: "close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
 
-  # =========================================================================
-  # ML TRAINING — Feature selection for model training
-  # =========================================================================
+  # ML TRAINING - Feature selection for model training
   # TARGET_COLUMN: what the model predicts
   # EXCLUDE_COLUMNS: metadata columns excluded from features (auto-discovery)
   # FEATURES_TABLE: which ClickHouse table the trainer reads from
@@ -97,14 +82,14 @@ data:
   # these entries silently drop them from training features. Once verified
   # absent, prune the `o.*` entries.
   #
-  # The 7 news/sentiment columns are HELD OUT of the MODEL feature set — a
+  # The 7 news/sentiment columns are HELD OUT of the MODEL feature set - a
   # model-feature decision, NOT a data-path gap. The dbt sentiment aggregation is
-  # fixed (fct_sentiment_agg no longer drops newsless windows — `HAVING
+  # fixed (fct_sentiment_agg no longer drops newsless windows - `HAVING
   # news_count > 0` removed), so fct_training_data populates sentiment_1h/6h/24h,
   # news_count_1h/6h/24h, positive_ratio_24h for every bar. The PATH is proven
-  # E2E: ingest → bronze.crypto_sentiment (44k rows) → dbt agg → 516k training
+  # E2E: ingest, then bronze.crypto_sentiment (44k rows), then dbt agg, then 516k training
   # rows. MEASURED 2026-06-29 over the built table: the per-symbol news features
-  # are HOLLOW — sentiment_24h uniqExact=1, min=max=avg=0 across all rows. Root
+  # are HOLLOW - sentiment_24h uniqExact=1, min=max=avg=0 across all rows. Root
   # cause is a SOURCE data-modelling gap, not plumbing: the supplementary feeds
   # don't key `symbol` to the tradable pair (defillama=protocol slug e.g.
   # "zyxswap" = 88% of rows; fear-greed=literal "fear-greed"; coingecko=lowercase
@@ -112,29 +97,25 @@ data:
   # -100 .. 3.6e6). So they stay EXCLUDED, keeping the trainer (26 feats) ≡ the
   # ml-bridge serving vector (26) in exact train/serve parity. NOTE: market
   # sentiment IS already a live model feature via fear_greed_value (date-joined
-  # dim_fear_greed, 0-100, real variance) — not in this list. Promoting the
-  # per-symbol news features is a DATA-SCIENCE Phase-2 (normalise source symbols →
+  # dim_fear_greed, 0-100, real variance) - not in this list. Promoting the
+  # per-symbol news features is a DATA-SCIENCE Phase-2 (normalise source symbols to
   # tradable pairs + per-source scale coherence, THEN materialise to the Feast
-  # online store + add to the ml-bridge vector for parity) — a user-decided step;
+  # online store + add to the ml-bridge vector for parity) - a user-decided step;
   # the architecture path is already demonstrated and queryable.
   EXCLUDE_COLUMNS: "symbol,timestamp,date,hour,data_type,created_at,computed_at,fear_greed_label,o.symbol,o.timestamp,o.date,news_count_1h,sentiment_1h,news_count_6h,sentiment_6h,news_count_24h,sentiment_24h,positive_ratio_24h"
   FEATURES_TABLE: "gold.fct_training_data"
   TRAINING_DB: "gold"
-  # GE analyzer query target — must list columns that exist on FEATURES_TABLE
+  # GE analyzer query target - must list columns that exist on FEATURES_TABLE
   # after the dbt aliasing fix. Default `symbol,timestamp` would fail the
   # value-set ENTITY check (BTC-USD, ETH-USD), so include `close` for the
   # range-check + non-null contract from _models.yml.
   FEATURES_COLUMNS: "symbol,timestamp,close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
 
-  # =========================================================================
-  # FEAST ONLINE FEATURES — Materialized to Redis for real-time inference
-  # =========================================================================
+  # FEAST ONLINE FEATURES - Materialized to Redis for real-time inference
   # These are the features materialized from ClickHouse offline store to Redis.
   FEAST_ONLINE_FEATURES: "close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
 
-  # =========================================================================
-  # CLICKHOUSE TABLES — Canonical table names per layer
-  # =========================================================================
+  # CLICKHOUSE TABLES - Canonical table names per layer
   # Bronze (raw ingested)
   TABLE_BRONZE_OHLCV: "bronze.crypto_ohlcv"
   TABLE_BRONZE_FEATURES: "bronze.crypto_ohlcv_features"
@@ -151,9 +132,7 @@ data:
   TABLE_GOLD_SENTIMENT_AGG: "gold.fct_sentiment_agg"
   TABLE_GOLD_FEAR_GREED: "gold.dim_fear_greed"
 
-  # =========================================================================
-  # DATA SOURCES — External APIs
-  # =========================================================================
+  # DATA SOURCES - External APIs
   # Primary data source
   DATA_SOURCE_PRIMARY: "coinbase"
   DATA_SOURCE_PRIMARY_URL: "https://api.exchange.coinbase.com"
@@ -163,9 +142,7 @@ data:
   DATA_SOURCE_DEFILLAMA_URL: "https://api.llama.fi"
   DATA_SOURCE_FEARGREED_URL: "https://api.alternative.me/fng"
 
-  # =========================================================================
-  # KAFKA TOPICS — Message bus topic names
-  # =========================================================================
+  # KAFKA TOPICS - Message bus topic names
   TOPIC_RAW: "crypto.ws.raw"
   TOPIC_VALIDATED: "crypto.validated"
   TOPIC_FEATURES: "crypto.features.v1"

@@ -60,14 +60,16 @@ Airflow, workflow orchestration, open http://localhost:8085
 Qdrant, vector store dashboard, open http://localhost:6333/dashboard
     ssh -L 6333:127.0.0.1:6333 client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments qdrant'
 
-## The data scenarios need no browser
+## The read-only steps need no browser
 
-These print results straight to the terminal. Run them over plain SSH:
+These print straight to the terminal, so run them over plain SSH. The full demo
+script is in `RUNBOOK.md`.
 
+    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments verify'
+    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments walk SHOW=1'
+    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments process'
+    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments serve'
     ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments core'
-    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments data'
-    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments drift'
-    ssh client_26_1@167.205.88.202 'cd ~/documents/ta && make -C experiments predict'
 
 ## Direct kubectl form, without the make target
 

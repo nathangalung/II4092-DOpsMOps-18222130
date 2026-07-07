@@ -1,12 +1,9 @@
-# =============================================================================
-# TEKTON CI/CD PIPELINE — Build, Test, Push images on code changes
-# =============================================================================
+# TEKTON CI/CD PIPELINE - Build, Test, Push images on code changes
 # Closes the GitOps loop:
-#   Gitea push → Tekton EventListener → Pipeline Run → Push to Registry
-#   → ArgoCD detects new images → Syncs deployment
+#   Gitea push, Tekton EventListener, Pipeline Run, Push to Registry,
+#   ArgoCD detects new images, Syncs deployment
 #
-# Pipeline steps: lint → test → build → push → notify
-# =============================================================================
+# Pipeline steps: lint, test, build, push, notify
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -53,7 +50,7 @@ spec:
 
     # Step 1b: Clone platform/ and merge it into use-case `out/<service>`
     # contexts so Kaniko has a pre-merged build directory per service.
-    # Fixes audit P1 #12 — previously build-push failed because git-clone
+    # Fixes audit P1 #12 - previously build-push failed because git-clone
     # only materialized the use-case repo.
     - name: merge-platform-overlay
       runAfter: [git-clone]
@@ -68,7 +65,7 @@ spec:
         - name: platform-git-revision
           value: "main"
 
-    # Step 2: Lint (parallel for each language) — runs against merged tree.
+    # Step 2: Lint (parallel for each language) - runs against merged tree.
     - name: lint
       runAfter: [merge-platform-overlay]
       taskRef:
@@ -108,11 +105,9 @@ spec:
         - name: phase
           value: $(params.phase)
 
-  # ---------------------------------------------------------------------------
-  # FINALLY — emit pipeline outcome to Pushgateway whether it succeeded or
+  # FINALLY - emit pipeline outcome to Pushgateway whether it succeeded or
   # failed. Surfaces build-pipeline runs in the crypto SRE dashboard without
   # needing a long-lived endpoint (PipelineRuns die before Prom scrapes).
-  # ---------------------------------------------------------------------------
   finally:
     - name: push-pipeline-metrics
       taskRef:
@@ -127,9 +122,7 @@ spec:
         - name: job-label
           value: tekton_build_pipeline
 ---
-# =============================================================================
 # TASK: Merge platform/ overlay into use-case `out/<service>` contexts
-# =============================================================================
 # Mirrors `scripts/build-images.sh`.  For every service directory under
 # `use-case-crypto/services/<group>/<svc>/`, take the platform counterpart at
 # `platform/services/<group>/<svc>/` as the base and rsync the use-case
@@ -188,9 +181,7 @@ spec:
         echo "--- Merged tree ---"
         ls -la "${OUT}"
 ---
-# =============================================================================
 # TASK: Git Clone
-# =============================================================================
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -215,9 +206,7 @@ spec:
           $(params.url) $(workspaces.output.path)/src
         echo "Cloned $(params.url) @ $(params.revision)"
 ---
-# =============================================================================
 # TASK: Lint (runs platform Makefile lint targets)
-# =============================================================================
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -261,7 +250,7 @@ spec:
           || { echo "FAIL: Shellcheck errors found"; exit 1; }
         echo "PASS: Shellcheck"
 
-        # Python lint via uvx ruff (uv tool run — ephemeral venv, no pip).
+        # Python lint via uvx ruff (uv tool run - ephemeral venv, no pip).
         echo "--- Python lint (ruff) ---"
         uvx ruff check dags/ pipelines/ services/ --select E,F,W --ignore E501 2>&1 \
           || { echo "FAIL: Python ruff lint errors"; exit 1; }
@@ -281,9 +270,7 @@ spec:
 
         echo "=== All lint checks passed ==="
 ---
-# =============================================================================
 # TASK: Test (runs platform Makefile test targets)
-# =============================================================================
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -299,7 +286,7 @@ spec:
   steps:
     - name: test
       # UV mandate: switched base from `alpine:3.23` (pulls `py3-pip`) to
-      # the astral uv image. pytest / dbt-clickhouse run via `uvx` —
+      # the astral uv image. pytest / dbt-clickhouse run via `uvx` -
       # ephemeral venv per tool, no pip.
       image: ghcr.io/astral-sh/uv:python3.14-trixie-slim
       script: |
@@ -340,9 +327,7 @@ spec:
 
         echo "=== All test checks passed ==="
 ---
-# =============================================================================
 # TASK: Build and Push images (uses Kaniko for in-cluster Docker builds)
-# =============================================================================
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -373,7 +358,7 @@ spec:
         SRC="$(workspaces.source.path)/src"
         echo "=== Build phase: ${PHASE} | Registry: ${REGISTRY} | Tag: ${TAG} ==="
 
-        # Service → Dockerfile path mapping (relative to repo root)
+        # Service to Dockerfile path mapping (relative to repo root)
         # Platform services use ../platform/services/ as base with use-case overlays
         # The build-images.sh script handles overlay merging; here Kaniko builds
         # pre-merged contexts prepared by the git-clone step.
@@ -429,9 +414,7 @@ spec:
 
         echo "=== Build and push completed ==="
 ---
-# =============================================================================
-# TASK: push-pipeline-metrics — Pushgateway emitter for Tekton `finally` hooks
-# =============================================================================
+# TASK: push-pipeline-metrics - Pushgateway emitter for Tekton `finally` hooks
 # Referenced by the `finally:` block of the crypto build-pipeline. Translates
 # Tekton's aggregate-status string into the same `crypto_job_*` metric family
 # the CronJobs publish, so SLOs over batch + pipeline outcomes share one label
@@ -440,7 +423,6 @@ spec:
 # The push-helper ConfigMap (push_metrics.py) does the actual HTTP call so we
 # never depend on `curl` being in the alpine task image and we keep one
 # canonical metric shape across cronjobs, dbt, and Tekton.
-# =============================================================================
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -475,10 +457,10 @@ spec:
       script: |
         #!/bin/sh
         set -u
-        # Tekton aggregate-status string → numeric rc:
-        #   Succeeded | Completed → 0
-        #   Failed                → 1
-        #   None                  → 2 (no tasks ran — startup-time abort)
+        # Tekton aggregate-status string becomes numeric rc:
+        #   Succeeded | Completed becomes 0
+        #   Failed                becomes 1
+        #   None                  becomes 2 (no tasks ran - startup-time abort)
         case "${AGG_STATUS}" in
           Succeeded|Completed) RC=0 ;;
           Failed)              RC=1 ;;
@@ -504,9 +486,7 @@ spec:
         name: push-helper
         defaultMode: 0555
 ---
-# =============================================================================
-# TRIGGER: Gitea webhook → Pipeline Run
-# =============================================================================
+# TRIGGER: Gitea webhook to Pipeline Run
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
@@ -517,7 +497,7 @@ spec:
   # The Triggers controller generates the `el-*` Deployment from this spec.
   # Without an explicit resources block the generated container has none and
   # the platform Kyverno policy `require-resource-limits` rejects every pod
-  # (ReplicaSet FailedCreate) — the listener then sits 0/1 forever.
+  # (ReplicaSet FailedCreate) - the listener then sits 0/1 forever.
   resources:
     kubernetesResource:
       spec:
@@ -628,7 +608,7 @@ roleRef:
   kind: ClusterRole
   name: tekton-triggers-eventlistener-clusterroles
 subjects:
-  # CRB is cluster-scoped → kustomize's namespace transformer doesn't fill
+  # CRB is cluster-scoped, so kustomize's namespace transformer doesn't fill
   # subjects[].namespace (only namespaced kinds get implicit propagation).
   # The api-server enforces subjects[*].namespace as Required for SA refs in
   # CRBs, so it must be hardcoded. use-case-crypto is the SA's canonical

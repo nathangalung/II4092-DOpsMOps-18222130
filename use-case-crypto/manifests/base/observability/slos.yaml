@@ -1,13 +1,11 @@
-# =============================================================================
 # use-case-crypto :: Service-Level Objectives (Sloth v1 CRs)
-# =============================================================================
-# DOMAIN-SPECIFIC SLOs — ownership boundary per ADR-013.
+# DOMAIN-SPECIFIC SLOs - ownership boundary per ADR-013.
 #
 #   - platform/ ships infra SLOs only (Kafka broker availability, Postgres
 #     connection success, MinIO p99 latency). See
 #     platform/components/observability/sloth/platform-slos.yaml.
 #   - This file ships the CRYPTO SLOs. Each USE-CASE ships its OWN SLOs in
-#     its own repo — the platform does not know the service semantics.
+#     its own repo - the platform does not know the service semantics.
 #
 # Sloth compiles each `PrometheusServiceLevel` CR into:
 #   - ~6 recording rules per SLO (multi-window, multi-burn-rate)
@@ -18,10 +16,9 @@
 #
 # The three SLOs here cover the three user-visible promises the platform makes
 # in its thesis (§4.3 Performance Evaluation):
-#   1. prediction-freshness — "the model serves fresh predictions"
-#   2. pipeline-lag         — "the feature pipeline keeps up with the market"
-#   3. model-freshness      — "retrain-on-drift is timely"
-# =============================================================================
+#   1. prediction-freshness - "the model serves fresh predictions"
+#   2. pipeline-lag - "the feature pipeline keeps up with the market"
+#   3. model-freshness - "retrain-on-drift is timely"
 ---
 apiVersion: sloth.slok.dev/v1
 kind: PrometheusServiceLevel

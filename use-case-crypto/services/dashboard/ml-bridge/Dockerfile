@@ -31,7 +31,7 @@ EXPOSE 8000
 
 # UV mandate: run via `uv run --no-sync`, not bare `python`. `--no-sync`
 # uses the baked venv WITHOUT re-syncing, so it never triggers the editable
-# rebuild (hatchling from PyPI) that fails air-gapped — and the build now
+# rebuild (hatchling from PyPI) that fails air-gapped - and the build now
 # installs the project --no-editable (a real wheel), so there is nothing to
 # rebuild at runtime. The ml-bridge Rollout + Airflow scoring task override
 # this CMD with the same `uv run --no-sync main.py`.

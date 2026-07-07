@@ -1,10 +1,7 @@
-# =============================================================================
-# VALIDATOR — Data Quality (Rust, <50us/record)
-# =============================================================================
+# VALIDATOR - Data Quality (Rust, <50us/record)
 # Schema validation using Karapace (Confluent-compatible schema registry).
 # Business logic (dedup via Bloom filter, bounds checking) is domain-specific
 # and performance-critical.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

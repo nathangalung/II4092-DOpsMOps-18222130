@@ -1,6 +1,4 @@
-# =============================================================================
-# OpenBao 2.5.3 — HA with Integrated Storage (Raft)
-# =============================================================================
+# OpenBao 2.5.3 - HA with Integrated Storage (Raft)
 # Linux Foundation fork of HashiCorp Vault (MPL-2.0 licensed). API-compatible
 # replacement that speaks the original Vault HTTP API; the image still ships a
 # `/bin/vault` CLI symlink for backward compatibility with tooling, but every
@@ -14,9 +12,8 @@
 #
 # ADR-008, ADR-009.  Migrated from HashiCorp Vault 1.21.5 (BSL-1.1) to
 # OpenBao 2.5.3 (MPL-2.0) for thesis open-source compliance, then renamed
-# all platform identifiers from `vault` → `openbao` to match the upstream
+# all platform identifiers from `vault` to `openbao` to match the upstream
 # project name end-to-end.
-# =============================================================================
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -91,11 +88,11 @@ data:
     listener "tcp" {
       address       = "0.0.0.0:8200"
       cluster_address = "0.0.0.0:8201"
-      # TLS terminates at the Istio sidecar — OpenBao speaks HTTP on localhost.
+      # TLS terminates at the Istio sidecar - OpenBao speaks HTTP on localhost.
       tls_disable   = 1
     }
 
-    # Raft integrated storage — each replica has its own /openbao/data PVC.
+    # Raft integrated storage - each replica has its own /openbao/data PVC.
     # `node_id` is overridden at runtime by the `BAO_RAFT_NODE_ID` env var.
     storage "raft" {
       path    = "/openbao/data"
@@ -163,7 +160,7 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
 spec:
   serviceName: openbao
-  # Single-node bootstrap; Raft quorum needs odd N — scale to 3 (or 5) for HA.
+  # Single-node bootstrap; Raft quorum needs odd N - scale to 3 (or 5) for HA.
   replicas: 1
   # Server-defaults made explicit so ArgoCD diff stays clean. The K8s
   # StatefulSet controller writes these on create whenever the manifest omits
@@ -250,14 +247,14 @@ spec:
               port: 8200
             initialDelaySeconds: 10
             periodSeconds: 5
-            # timeoutSeconds 10 + failureThreshold 3 — re-widened 2026-06-06.
-            # The 2026-05-20 bump (1→5s, threshold 2) proved empirically
+            # timeoutSeconds 10 + failureThreshold 3 - re-widened 2026-06-06.
+            # The 2026-05-20 bump (1 to 5s, threshold 2) proved empirically
             # insufficient: `kubectl describe` still shows `Readiness probe
-            # failed: context deadline exceeded` ×1785 over 5d18h — the same
+            # failed: context deadline exceeded` ×1785 over 5d18h - the same
             # kine/sqlite IO pressure pushes `/v1/sys/health` past 5s too.
             # For a single-replica trust root there is NO failover, so a
             # NotReady flap only drops openbao-0 from the headless Service
-            # endpoints (→ ESO ClusterSecretStore queries fail → cascade, per
+            # endpoints (so ESO ClusterSecretStore queries fail, cascading, per
             # the StatefulSet rationale) with zero upside. Laxer readiness is
             # strictly better here: 10s covers a slow health check; threshold 3
             # (15s) rides out a 2-period IO burst before declaring NotReady.
@@ -273,20 +270,20 @@ spec:
               port: 8200
             initialDelaySeconds: 60
             periodSeconds: 30
-            # failureThreshold 6 + timeoutSeconds 20 — relaxed 2026-06-06.
+            # failureThreshold 6 + timeoutSeconds 20 - relaxed 2026-06-06.
             # The same single-node kine/sqlite IO pressure that hardened the
             # readiness probe above also stalls `/v1/sys/health` past the
             # default 1s and briefly drops the listener (connection refused).
             # The prior window (default failureThreshold 3 × periodSeconds 30
             # = 90s, timeout 10s) tripped a kubelet liveness SIGKILL (exit
-            # 137, NOT OOM — the pod sits at ~52Mi/1Gi) ×100s. Each restart
+            # 137, NOT OOM - the pod sits at ~52Mi/1Gi) ×100s. Each restart
             # re-seals OpenBao; during the unsealer's re-unseal window KES
-            # transit data-key ops fail → MinIO SSE-KMS PUT errors with
-            # `failed to generate data key with KMS key` → the measure-drift
+            # transit data-key ops fail, so MinIO SSE-KMS PUT errors with
+            # `failed to generate data key with KMS key`, so the measure-drift
             # Argo workflow is marked Failed. Widened to a 180s window
             # (6 × 30s); timeout 20s covers a slow `/v1/sys/health` under IO.
             # NOT a fix to disable SSE-KMS (KNF-07 encryption-at-rest) or bump
-            # memory (no OOM) — the probe is the false positive.
+            # memory (no OOM) - the probe is the false positive.
             timeoutSeconds: 20
             failureThreshold: 6
           securityContext:

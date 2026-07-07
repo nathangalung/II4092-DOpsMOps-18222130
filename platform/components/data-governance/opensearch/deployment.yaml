@@ -29,7 +29,6 @@ metadata:
 spec:
   serviceName: opensearch
   replicas: 1
-  # ---------------------------------------------------------------------------
   # Server-defaults made explicit so ArgoCD diff stays clean. The Kubernetes
   # StatefulSet controller writes these on create whenever the manifest omits
   # them; without them in Git the parent platform-data-governance Application
@@ -64,7 +63,7 @@ spec:
       # vm.max_map_count=1048576 (cat /proc/sys/vm/max_map_count). Adding
       # the init container would violate PodSecurity baseline:latest. Set
       # the sysctl in /etc/sysctl.d/99-opensearch.conf on every node when
-      # provisioning new VPS — value persists across reboot.
+      # provisioning new VPS - value persists across reboot.
       containers:
         - name: opensearch
           image: opensearchproject/opensearch:2.19.4
@@ -111,11 +110,11 @@ spec:
             failureThreshold: 3
           # Single-node local-path disk: post-restart translog replay +
           # cluster-state publication can stall for tens of seconds under IO
-          # contention (observed 20–43s cluster-state writes in logs). The
+          # contention (observed 20-43s cluster-state writes in logs). The
           # default probe (timeoutSeconds=1, failureThreshold=3) then SIGTERMs
-          # (exit 143) a recovering node into a self-amplifying crash loop —
-          # each restart replays the translog → more IO → slower writes →
-          # liveness fails again. A startupProbe gates liveness so the first
+          # (exit 143) a recovering node into a self-amplifying crash loop -
+          # each restart replays the translog, so more IO, so slower writes,
+          # so liveness fails again. A startupProbe gates liveness so the first
           # slow recovery is never killed; liveness then tolerates a ~43s
           # write spike (6 × 30s) before acting. See IO-cascade theme (#160/#307).
           startupProbe:

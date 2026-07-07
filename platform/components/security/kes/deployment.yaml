@@ -1,30 +1,27 @@
-# =============================================================================
-# KES — Deployment + Service + ServiceAccount + cross-ns RBAC
-# =============================================================================
+# KES - Deployment + Service + ServiceAccount + cross-ns RBAC
 # Rendering pipeline (every pod start):
 #
 #   initContainer 1 `wait-for-openbao`
-#     ── polls http://openbao.security:8200/v1/sys/health until 200.
-#     ── survives OpenBao restart/re-seal mid-cluster-life: pod replace will
+#     - polls http://openbao.security:8200/v1/sys/health until 200.
+#     - survives OpenBao restart/re-seal mid-cluster-life: pod replace will
 #        wait here until OpenBao is unsealed again.
 #
 #   initContainer 2 `render-config`
-#     ── reads the OpenBao approle Secret from this ns (envFrom kes-openbao-auth).
-#     ── reads the MinIO client cert from the `storage` ns via the cross-ns
+#     - reads the OpenBao approle Secret from this ns (envFrom kes-openbao-auth).
+#     - reads the MinIO client cert from the `storage` ns via the cross-ns
 #        RoleBinding below and computes the SHA-256 of the SubjectPublicKeyInfo
-#        (hex-encoded) — this matches `kes identity of <cert>`.
-#     ── runs `envsubst` on /etc/kes/template/kes.yaml.tpl → /etc/kes/rendered/kes.yaml.
+#        (hex-encoded) - this matches `kes identity of <cert>`.
+#     - runs `envsubst` on /etc/kes/template/kes.yaml.tpl to /etc/kes/rendered/kes.yaml.
 #
 #   container `kes`
-#     ── reads /etc/kes/rendered/kes.yaml (fully substituted, no KES-native
+#     - reads /etc/kes/rendered/kes.yaml (fully substituted, no KES-native
 #        env expansion needed).
-#     ── holds no persistent state; horizontally scalable when OpenBao transit
-#        is available — default `replicas: 1` is a single-node thesis budget,
+#     - holds no persistent state; horizontally scalable when OpenBao transit
+#        is available - default `replicas: 1` is a single-node thesis budget,
 #        raise to 3+ for HA.
 #
 # Only the `kes` container serves traffic; the initContainers exit once
 # rendering is complete.
-# =============================================================================
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -35,7 +32,7 @@ metadata:
 ---
 # Cross-namespace read: KES SA needs to fetch the MinIO client cert
 # Secret from `storage` ns at pod start to compute the identity hash.
-# This is a single-Secret, read-only grant — the least-privilege read
+# This is a single-Secret, read-only grant - the least-privilege read
 # required for mTLS identity auth.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -111,7 +108,7 @@ spec:
         # Opt-out of Istio sidecar injection: KES terminates its own TLS
         # (server cert + mTLS client auth via certificate identity hashing).
         # The Istio sidecar would intercept the connection, terminate the
-        # peer's TLS, and re-originate with mesh mTLS — which collides with
+        # peer's TLS, and re-originate with mesh mTLS - which collides with
         # KES's identity-based auth (client cert SHA-256 of SPKI). Both
         # MinIO and KES therefore stay out of the mesh on the KES path.
         sidecar.istio.io/inject: "false"
@@ -127,11 +124,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # -----------------------------------------------------------------
         # 1) Block until OpenBao is unsealed and reachable. curl exit 0 ==
         #    HTTP 200 from /v1/sys/health, which OpenBao returns only when
         #    unsealed + active (or standby, which we accept).
-        # -----------------------------------------------------------------
         - name: wait-for-openbao
           image: curlimages/curl:8.20.0
           command:
@@ -159,7 +154,6 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-        # -----------------------------------------------------------------
         # 2) Compute MinIO client identity, substitute into config template.
         #    bitnami/kubectl ships kubectl + openssl 3.5.6 + envsubst + sed
         #    pre-baked, runs as non-root UID 1001 by default, and tolerates
@@ -170,11 +164,10 @@ spec:
         #    Pin policy: bitnami/kubectl publishes only a `latest` tag stream
         #    on Docker Hub (numeric tags are deprecated as of bitnami's 2025
         #    repository overhaul). The image is treated as a transient init
-        #    sidecar — it does not run application code, never accepts traffic,
+        #    sidecar - it does not run application code, never accepts traffic,
         #    and is rebuilt on every pod restart. ImagePullPolicy IfNotPresent
         #    keeps the cached digest stable on a single VPS; on bootstrap into
         #    a new cluster the latest available digest is fetched once.
-        # -----------------------------------------------------------------
         - name: render-config
           image: bitnami/kubectl:latest
           imagePullPolicy: IfNotPresent
@@ -184,7 +177,7 @@ spec:
             - |
               set -euo pipefail
 
-              # --- 2a. Wait for the MinIO client cert Secret to exist ---
+              # 2a. Wait for the MinIO client cert Secret to exist
               # Bounded retry: 60 attempts × 5s = 5 min ceiling
               for i in $(seq 1 60); do
                 if kubectl -n storage get secret minio-kes-client \
@@ -200,7 +193,7 @@ spec:
                 fi
               done
 
-              # --- 2b. Extract tls.crt + compute identity (SPKI SHA-256) ---
+              # 2b. Extract tls.crt + compute identity (SPKI SHA-256)
               kubectl -n storage get secret minio-kes-client \
                 -o jsonpath='{.data.tls\.crt}' \
                 | base64 -d \
@@ -209,7 +202,7 @@ spec:
               # `kes identity of <cert>` algorithm: SHA-256 of the DER-encoded
               # SubjectPublicKeyInfo field, hex-lowercase.  Reproduce with
               # openssl so we don't need the kes binary in this initContainer
-              # (the upstream KES image is FROM scratch — no shell, no way to
+              # (the upstream KES image is FROM scratch - no shell, no way to
               # capture stdout into a sed substitution).
               MINIO_CLIENT_IDENTITY=$(
                 openssl x509 -in /tmp/minio-client.crt -pubkey -noout \
@@ -220,18 +213,18 @@ spec:
               export MINIO_CLIENT_IDENTITY
               echo "minio identity: ${MINIO_CLIENT_IDENTITY}"
 
-              # --- 2c. Render the final config ---
+              # 2c. Render the final config
               # `envsubst` is preferred when available (it's a simple,
               # well-tested gettext util shipped by the bitnami image).
               # `|` would be safe with sed but envsubst escapes nothing so
-              # only ${VAR} placeholders are substituted — reducing the
+              # only ${VAR} placeholders are substituted - reducing the
               # chance of accidental injection if a value were ever to
               # contain shell metacharacters.
               envsubst < /etc/kes/template/kes.yaml.tpl \
                 > /etc/kes/rendered/kes.yaml
 
               echo "rendered config:"
-              # Echo everything EXCEPT the approle secret lines — keep the
+              # Echo everything EXCEPT the approle secret lines - keep the
               # secret out of pod logs.  `id:` and `secret:` lines are
               # redacted; everything else is printed for diagnostics.
               grep -vE '^\s*(id|secret):' /etc/kes/rendered/kes.yaml || true
@@ -257,7 +250,7 @@ spec:
       containers:
         - name: kes
           # Upstream minio/kes is archived (2025-06-19) with 2025-03-12 as the
-          # final release — no 2026+ tag exists. The API is feature-complete
+          # final release - no 2026+ tag exists. The API is feature-complete
           # and it remains MinIO's documented SSE-KMS frontend to OpenBao, so
           # we pin the final stable tag. Revisit if a maintained fork emerges
           # or MinIO ships a native OpenBao integration that bypasses KES.
@@ -284,7 +277,7 @@ spec:
             failureThreshold: 30
             periodSeconds: 5
           readinessProbe:
-            # TCP probe — the KES 2025-03 container is built FROM scratch
+            # TCP probe - the KES 2025-03 container is built FROM scratch
             # (no shell, no wget, no busybox), so `exec` probes are not
             # viable.  `httpGet` won't work either: the /v1/ready endpoint
             # requires a client cert because every API is auth-required

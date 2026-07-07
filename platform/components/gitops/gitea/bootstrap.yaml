@@ -1,6 +1,4 @@
-# =============================================================================
-# Gitea bootstrap — admin user + `platform` org + `platform/platform` repo
-# =============================================================================
+# Gitea bootstrap - admin user + `platform` org + `platform/platform` repo
 # ADR-005 (GitOps activation) sequence:
 #   1. `kubectl apply -k platform/components/gitops/gitea`
 #        creates Service + Deployment + PVC + this Secret + this Job.
@@ -15,7 +13,7 @@
 #        git push -u origin main
 #   4. `kubectl apply -f platform/components/gitops/argo-cd/app-of-apps.yaml`
 #      activates ArgoCD reconciliation.  From this point onwards, ArgoCD
-#      self-manages — including this gitea/ kustomization, so the Job stops
+#      self-manages - including this gitea/ kustomization, so the Job stops
 #      running on next sync (job.spec.ttlSecondsAfterFinished cleans the pod).
 #
 # This Job is idempotent: install POST returns 200 the first time and 404 on
@@ -30,7 +28,6 @@
 #     Secret consumed by `argocd-repo-server`).
 #   - Add a `gitea-runner-token` Secret + a Tekton EventListener so pushes
 #     into `platform/platform` trigger the build-image+sign+pin pipeline.
-# =============================================================================
 apiVersion: v1
 kind: Secret
 metadata:
@@ -45,20 +42,18 @@ type: Opaque
 stringData:
   username: "platform-admin"
   email:    "admin@platform.local"
-  # ---------------------------------------------------------------------------
-  # DEVELOPMENT-ONLY password — committed in plain text only because OpenBao is
+  # DEVELOPMENT-ONLY password - committed in plain text only because OpenBao is
   # not yet bootstrapped at the moment this Secret is first applied (chicken-
   # and-egg with ExternalSecret).  Rotation pathway:
-  #   • Once OpenBao is bootstrapped (platform/components/security/openbao),
+  #   - Once OpenBao is bootstrapped (platform/components/security/openbao),
   #     replace this Secret with an ExternalSecret pointing at
   #     `secret/data/platform/gitea/admin`.
-  #   • Trigger admin password change via Gitea API:
+  #   - Trigger admin password change via Gitea API:
   #       curl -u platform-admin:<old> -X PATCH \
   #         http://gitea.gitops.svc.cluster.local:3000/api/v1/admin/users/platform-admin \
   #         -H 'Content-Type: application/json' \
   #         -d '{"password":"<new>","must_change_password":false}'
-  #   • Update ArgoCD repo-creds Secret to the new PAT and revoke the old one.
-  # ---------------------------------------------------------------------------
+  #   - Update ArgoCD repo-creds Secret to the new PAT and revoke the old one.
   password: "p8YhBdEfNz3VsKlT2WqXmGc7LpRuDvJa"
 ---
 apiVersion: v1
@@ -154,7 +149,7 @@ data:
       # against SQLite, then `CreateAuthTokenForUserID` which hashes the admin
       # password with pbkdf2_hi (~hundreds of ms per attempt). Field-observed
       # 2026-05-11: curl exited 28 at 03:46:44 right after gitea logged
-      # "CreateAuthTokenForUserID: context canceled" — server-side install
+      # "CreateAuthTokenForUserID: context canceled" - server-side install
       # was in flight but client closed. With 600s the install completes and
       # subsequent /api/v1/version flips to 200, letting the script proceed.
       install_code=$(curl -sS -o /tmp/install.html -w '%{http_code}' \
@@ -189,7 +184,7 @@ data:
       # Force gitea pod restart via Kubernetes API so the new process loads
       # the freshly-written app.ini from disk. Background: SubmitInstall
       # writes app.ini AND signals an in-process reload, but on a cold
-      # single-node k3s with a fresh PVC, that internal reload is racy —
+      # single-node k3s with a fresh PVC, that internal reload is racy -
       # CreateAuthTokenForUserID can be canceled mid-flight when the in-
       # process restart fires (field-observed 2026-05-11 against gitea
       # 1.25.4: pod left with app.ini=INSTALL_LOCK=true SECRET_KEY=empty,
@@ -222,7 +217,7 @@ data:
       }
 
       # Extended j-loop (300s instead of 120s): pod restart adds image-pull
-      # latency on top of gitea boot. Probe /api/v1/version=200 — Service
+      # latency on top of gitea boot. Probe /api/v1/version=200 - Service
       # routes to whichever pod (old or new) is currently Ready; the new
       # pod boots in normal mode (INSTALL_LOCK=true), so once it's Ready
       # the API serves 200 deterministically. Old pod is terminated by
@@ -312,7 +307,7 @@ data:
 
     # Per ADR-013 the platform repo MUST NOT know about specific use-cases.
     # Use-case overlay repos (`platform/<use-case>`) are provisioned by
-    # platform/scripts/seed-gitea.sh — an operator-host-scope script (runs from
+    # platform/scripts/seed-gitea.sh - an operator-host-scope script (runs from
     # the operator host, not in-cluster) that is allowed to enumerate
     # use-cases. seed-gitea.sh creates each repo
     # idempotently right before it force-pushes the working tree.
@@ -328,7 +323,7 @@ metadata:
   # Service `gitea` (deployment.yaml) selects on that label, and if the
   # Job pod carries it, the Service round-robins traffic to the Job pod
   # (which does not bind port 3000), causing the bootstrap script's own
-  # curl to receive ECONNREFUSED on every other request — a non-obvious
+  # curl to receive ECONNREFUSED on every other request - a non-obvious
   # self-DoS.  Use `app: gitea-bootstrap` to keep the bootstrap workload
   # discoverable through label-selectors but distinct from the Service.
   labels:

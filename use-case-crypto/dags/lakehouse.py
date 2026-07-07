@@ -30,7 +30,7 @@ from airflow.providers.standard.operators.python import PythonOperator
 # Pushgateway DAG-outcome callbacks (shared module).
 # DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
 # not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
-# directory on sys.path — `from _observability import …` then raises
+# directory on sys.path - `from _observability import …` then raises
 # ModuleNotFoundError at parse time. Register this file's own directory first
 # so the shared sibling module resolves regardless of where DAGS_FOLDER points.
 import sys  # noqa: E402
@@ -43,19 +43,17 @@ from _config import USE_CASE, _image, k8s_pod  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────────
-# OpenLineage — emit dataset-level lineage to DataHub GMS
-# ─────────────────────────────────────────────────────────────
+# OpenLineage - emit dataset-level lineage to DataHub GMS
 # The Flink OpenLineage plugin (platform/components/data-processing/flink/
 # deployment.yaml :: OPENLINEAGE_URL) covers stream-processing lineage.  The
 # Airflow side emits lineage for every Python task by POSTing an
 # OpenLineage RunEvent JSON to the same GMS endpoint. We do NOT rely on
 # the `openlineage-airflow` auto-extractor here because KubernetesPodOperator
 # runs dbt in a pod whose lineage is emitted by dbt's own OpenLineage
-# provider — duplicating on the Airflow side would double-count datasets.
+# provider - duplicating on the Airflow side would double-count datasets.
 # PythonOperator tasks (LakeFS branch management, Trino QC) do NOT auto-
 # emit; we add explicit events below.
-from airflow.models import Variable  # noqa: E402 — after logger for readability
+from airflow.models import Variable  # noqa: E402 - after logger for readability
 
 # USE_CASE master-knob (resolved early so OpenLineage defaults can template it).
 # Body uses the longer USE_CASE block below; this lifts only the value needed
@@ -123,7 +121,7 @@ def _ol_event(
 
 
 def _ol_emit(payload: dict) -> None:
-    """POST an OpenLineage RunEvent.  Best-effort — failures are logged
+    """POST an OpenLineage RunEvent.  Best-effort - failures are logged
     but do NOT fail the Airflow task (lineage is observability, not
     correctness).  Matches the platform convention for observability
     emission (§ADR-014)."""
@@ -158,31 +156,29 @@ def _ol_run_id(context: dict) -> str:
     seed = f"{dag_id}|{run_id}|{task_id}"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
 
-# ─────────────────────────────────────────────────────────────
-# Configuration — USE_CASE-derived names come from _config.py (single source).
+# Configuration - USE_CASE-derived names come from _config.py (single source).
 # See _config.py for the full Variable contract; this DAG uses the same
 # `USE_CASE`-derived knobs so a clone needs no body edits.
-# ─────────────────────────────────────────────────────────────
 
-# LakeFS configuration — reads from Airflow Variables with ConfigMap-aligned defaults
+# LakeFS configuration - reads from Airflow Variables with ConfigMap-aligned defaults
 LAKEFS_ENDPOINT = Variable.get("LAKEFS_URL", default_var="http://lakefs.storage.svc.cluster.local:8000")
 LAKEFS_REPO = Variable.get("LAKEFS_REPO", default_var="crypto-lakehouse")
 LAKEFS_MAIN_BRANCH = "main"
-# LakeFS credentials — sourced from the scheduler process environment, which
+# LakeFS credentials - sourced from the scheduler process environment, which
 # is populated by `envFrom: secretRef: airflow-secrets` on the scheduler
 # container.  The airflow-secrets ExternalSecret fetches LAKEFS_ACCESS_KEY_ID /
-# LAKEFS_SECRET_ACCESS_KEY from Vault at secret/platform/lakefs/admin — the
+# LAKEFS_SECRET_ACCESS_KEY from Vault at secret/platform/lakefs/admin - the
 # same path that bootstraps the LakeFS server's admin account, so scheduler
 # and server stay in lock-step.  See:
 #   platform/components/data-processing/airflow/deployment.yaml (airflow-secrets)
 #   platform/components/storage/lakefs/deployment.yaml (lakefs-secrets)
 # Airflow Variable lookups are intentionally NOT used here so the Vault path
-# remains the single source of truth — no second place to rotate on key change.
+# remains the single source of truth - no second place to rotate on key change.
 # Credentials are read lazily at task time (see `_lakefs_auth`). Reading at
 # module level freezes the value into the scheduler's parsed-DAG cache, so a
 # Vault rotation would not propagate until the scheduler restarts.
 
-# Trino configuration — reads from Airflow Variables with ConfigMap-aligned defaults
+# Trino configuration - reads from Airflow Variables with ConfigMap-aligned defaults
 TRINO_HOST = Variable.get("TRINO_HOST", default_var="trino.data-processing.svc.cluster.local")
 TRINO_PORT = int(Variable.get("TRINO_PORT", default_var="8085"))
 TRINO_USER = Variable.get("TRINO_USER", default_var="airflow")
@@ -196,9 +192,7 @@ DEFAULT_ARGS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────
 # LakeFS helper functions
-# ─────────────────────────────────────────────────────────────
 def _lakefs_auth() -> tuple[str, str] | None:
     """Return (user, password) tuple for LakeFS Basic Auth, or None if unconfigured.
 
@@ -225,11 +219,11 @@ def _branch_name(run_id: str) -> str:
     [letters, digits, underscore, dash] (HTTP 400: "branch id must consist of
     letters, digits, underscores and dashes, and cannot start with a dash").
     Scheduled run_ids (``scheduled__2026-06-02T18:15:00+00:00``) sanitised
-    cleanly under the old ``:``/``+`` → ``_`` replace, but manual/backfill
+    cleanly under the old ``:``/``+`` to ``_`` replace, but manual/backfill
     run_ids carry a microsecond component (``manual__…T09:59:27.812605+00:00``)
     whose ``.`` survived and made every manual trigger fail at
-    create_lakefs_branch. Replace every disallowed character so ANY run_id —
-    scheduled, manual, or backfill — yields a valid id; the constant
+    create_lakefs_branch. Replace every disallowed character so ANY run_id -
+    scheduled, manual, or backfill - yields a valid id; the constant
     ``dbt-run-`` prefix guarantees it never starts with a dash.
     """
     sanitized = re.sub(r"[^A-Za-z0-9_-]", "_", run_id)
@@ -242,7 +236,7 @@ def ensure_lakefs_repo_fn(**context) -> None:
     This DAG owns the full LakeFS lifecycle (repo -> branch -> dbt -> merge),
     so it provisions its own repository on first run rather than depending on a
     separate bootstrap Job plus a duplicated lakefs-admin ExternalSecret in this
-    namespace — the scheduler already carries the admin credentials via
+    namespace - the scheduler already carries the admin credentials via
     `airflow-secrets` (see `_lakefs_auth`). Keeping repo provisioning here is
     cohesive, self-healing (recreates the repo if it is ever lost), and avoids
     redundant infrastructure.
@@ -252,7 +246,7 @@ def ensure_lakefs_repo_fn(**context) -> None:
     which is treated as success.
 
     `storage_namespace` is one prefix per repo under the platform MinIO `lakefs`
-    bucket (created by platform/components/storage/minio/bucket-bootstrap.yaml) —
+    bucket (created by platform/components/storage/minio/bucket-bootstrap.yaml) -
     the standard LakeFS S3 blockstore layout.
     """
     repo_url = f"{LAKEFS_ENDPOINT}/api/v1/repositories/{LAKEFS_REPO}"
@@ -419,15 +413,13 @@ def delete_lakefs_branch_fn(**context) -> None:
     logger.info("Branch '%s' deleted (rollback complete)", branch)
 
 
-# ─────────────────────────────────────────────────────────────
 # Trino federated quality check
-# ─────────────────────────────────────────────────────────────
 def _trino_query(sql: str) -> list[list]:
     """Run one SQL statement via Trino's REST protocol; return all rows.
 
     The Airflow worker image ships no Trino client library, and the official
-    client protocol is just an HTTP loop — POST /v1/statement, then GET each
-    `nextUri` until the terminal page — so plain `requests` keeps this task
+    client protocol is just an HTTP loop - POST /v1/statement, then GET each
+    `nextUri` until the terminal page - so plain `requests` keeps this task
     dependency-free. Trino paces the polling server-side (each GET long-polls
     up to ~1s), matching what the official clients do.
     """
@@ -445,7 +437,7 @@ def _trino_query(sql: str) -> list[list]:
     payload = resp.json()
     rows: list[list] = []
     # Bounded loop as a belt to the task-level execution_timeout: these are
-    # aggregate probes, not long scans — 600 pages is far beyond any of them.
+    # aggregate probes, not long scans - 600 pages is far beyond any of them.
     for _ in range(600):
         if payload.get("error"):
             raise RuntimeError(
@@ -482,21 +474,21 @@ def trino_quality_check_fn(**context) -> None:
         inputs=[ch_input, pg_input],
     ))
 
-    # ── Check 1: Gold layer row count (ClickHouse) ──────────
+    # Check 1: Gold layer row count (ClickHouse)
     rows = _trino_query(
         "SELECT count(*) AS gold_count FROM clickhouse.gold.fct_ohlcv_features"
     )
     gold_count = rows[0][0] if rows else 0
     logger.info("[Trino QC] ClickHouse gold.fct_ohlcv_features rows: %d", gold_count)
 
-    # ── Check 2: Predictions row count (PostgreSQL) ─────────
+    # Check 2: Predictions row count (PostgreSQL)
     rows = _trino_query(
         "SELECT count(*) AS pred_count FROM postgresql.pipeline.predictions"
     )
     pred_count = rows[0][0] if rows else 0
     logger.info("[Trino QC] PostgreSQL pipeline.predictions rows: %d", pred_count)
 
-    # ── Check 3: Coverage ratio ─────────────────────────────
+    # Check 3: Coverage ratio
     if gold_count > 0:
         coverage = pred_count / gold_count
         logger.info("[Trino QC] Prediction coverage ratio: %.4f", coverage)
@@ -504,7 +496,7 @@ def trino_quality_check_fn(**context) -> None:
         coverage = 0.0
         logger.warning("[Trino QC] Gold layer is empty — coverage ratio undefined")
 
-    # ── Check 4: Recent gold data freshness ─────────────────
+    # Check 4: Recent gold data freshness
     rows = _trino_query(
         "SELECT max(timestamp) AS latest_ts FROM clickhouse.gold.fct_ohlcv_features"
     )
@@ -538,19 +530,17 @@ def trino_quality_check_fn(**context) -> None:
     ))
 
 
-# ─────────────────────────────────────────────────────────────
-# dbt_run pod script — build, then publish dbt artifacts to MinIO.
+# dbt_run pod script - build, then publish dbt artifacts to MinIO.
 #
 # Module-level (column-0) so the <<'PY' heredoc terminator stays at the
-# start of line. No Jinja markers ({{ }}) — Airflow templates KPO
+# start of line. No Jinja markers ({{ }}) - Airflow templates KPO
 # `arguments`, so the script must stay Jinja-inert. All values resolve
 # at RUNTIME inside the pod from envFrom:
-#   S3_ENDPOINT / AWS_DEFAULT_REGION   — pipeline-config (platform CM)
-#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — pipeline-secrets (ESO)
-#   DBT_ARTIFACTS_BUCKET / DBT_ARTIFACTS_PREFIX — optional overrides;
+#   S3_ENDPOINT / AWS_DEFAULT_REGION - pipeline-config (platform CM)
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY - pipeline-secrets (ESO)
+#   DBT_ARTIFACTS_BUCKET / DBT_ARTIFACTS_PREFIX - optional overrides;
 #     defaults are the platform convention the datahub-ingest-dbt recipe
 #     reads (recipes.yaml in platform/components/data-governance).
-# ─────────────────────────────────────────────────────────────
 _DBT_BUILD_AND_PUBLISH = """\
 set -e
 dbt build --profiles-dir /dbt --project-dir /dbt
@@ -594,16 +584,13 @@ exit 0
 """
 
 
-# ═════════════════════════════════════════════════════════════
 # DAG: Crypto Lakehouse Pipeline
-# ═════════════════════════════════════════════════════════════
 # Flow:
-#   create_lakefs_branch → dbt_run → [trino_quality_check,
-#                                      merge_lakefs_branch → trigger_evidently]
-#   dbt_run (on failure) → delete_lakefs_branch (cleanup/rollback)
+#   create_lakefs_branch then dbt_run then [trino_quality_check,
+#                                      merge_lakefs_branch then trigger_evidently]
+#   dbt_run (on failure) then delete_lakefs_branch (cleanup/rollback)
 #   dbt_run also publishes manifest/catalog/run_results to MinIO for
 #   the platform datahub-ingest-dbt CronJob (best-effort, never fatal)
-# ═════════════════════════════════════════════════════════════
 with DAG(
     dag_id=f"{USE_CASE}_lakehouse",
     default_args=DEFAULT_ARGS,
@@ -618,7 +605,7 @@ with DAG(
     # gold-building dbt run would sit paused forever and gold would never
     # populate on schedule. Safe here because catchup=False (no backfill
     # storm). The daily_backfill DAG (catchup=True) is intentionally left
-    # paused — operators trigger backfills manually.
+    # paused - operators trigger backfills manually.
     is_paused_upon_creation=False,
     tags=["crypto", "dbt", "lakefs", "trino", "quality", "6h"],
     max_active_runs=1,
@@ -626,33 +613,33 @@ with DAG(
     on_failure_callback=push_on_failure,
 ) as dag:
 
-    # ── Step 0: Ensure the LakeFS repository exists (idempotent) ──
+    # Step 0: Ensure the LakeFS repository exists (idempotent)
     ensure_lakefs_repo = PythonOperator(
         task_id="ensure_lakefs_repo",
         python_callable=ensure_lakefs_repo_fn,
     )
 
-    # ── Step 1: Create LakeFS branch ───────────────────────
+    # Step 1: Create LakeFS branch
     create_lakefs_branch = PythonOperator(
         task_id="create_lakefs_branch",
         python_callable=create_lakefs_branch_fn,
     )
 
-    # ── Step 2: Run dbt on the LakeFS branch ───────────────
+    # Step 2: Run dbt on the LakeFS branch
     # Beyond `dbt build`, this task publishes the dbt artifacts
     # (manifest/catalog/run_results JSON) to MinIO at the platform
-    # convention path s3://pipeline-artifacts/dbt/target/ — the
+    # convention path s3://pipeline-artifacts/dbt/target/ - the
     # datahub-ingest-dbt CronJob (platform data-governance) reads them
     # from there. The artifacts live only in this pod's filesystem, so
     # the upload MUST happen in-pod; a PVC handoff is impossible (the
     # CronJob runs in data-governance, this pod in the use-case
-    # namespace — PVCs don't cross namespaces).
+    # namespace - PVCs don't cross namespaces).
     #
     # Failure semantics are deliberate:
-    #   * `dbt build` failure  → task fails (set -e) → delete_lakefs_branch
+    #   * `dbt build` failure, so task fails (set -e), so delete_lakefs_branch
     #     rolls the branch back, exactly as before.
-    #   * `dbt docs generate` / upload failure → loud WARN, exit 0. Metadata
-    #     publication is secondary to the data publish — a MinIO blip must
+    #   * `dbt docs generate` / upload failure, so loud WARN, exit 0. Metadata
+    #     publication is secondary to the data publish - a MinIO blip must
     #     not roll back a successful gold build; DataHub just re-ingests
     #     the previous artifacts until the next run.
     # Endpoint/creds come from envFrom (pipeline-config S3_ENDPOINT +
@@ -671,19 +658,19 @@ with DAG(
         mem_lim="1Gi",
     )
 
-    # ── Step 3a: Trino federated quality checks ────────────
+    # Step 3a: Trino federated quality checks
     trino_quality_check = PythonOperator(
         task_id="trino_quality_check",
         python_callable=trino_quality_check_fn,
     )
 
-    # ── Step 3b: Merge branch to main ──────────────────────
+    # Step 3b: Merge branch to main
     merge_lakefs_branch = PythonOperator(
         task_id="merge_lakefs_branch",
         python_callable=merge_lakefs_branch_fn,
     )
 
-    # ── Step 4: Run Evidently data quality report after merge ───────
+    # Step 4: Run Evidently data quality report after merge
     evidently_report = k8s_pod(
         "evidently_report",
         image=_image("drift-reporter"),
@@ -692,14 +679,14 @@ with DAG(
         mem_req="256Mi",
     )
 
-    # ── Cleanup: Delete branch on failure (rollback) ───────
+    # Cleanup: Delete branch on failure (rollback)
     delete_lakefs_branch = PythonOperator(
         task_id="delete_lakefs_branch",
         python_callable=delete_lakefs_branch_fn,
         trigger_rule="one_failed",
     )
 
-    # ── Dependency wiring ──────────────────────────────────
+    # Dependency wiring
     ensure_lakefs_repo >> create_lakefs_branch >> dbt_run >> [trino_quality_check, merge_lakefs_branch]
     merge_lakefs_branch >> evidently_report
     dbt_run >> delete_lakefs_branch

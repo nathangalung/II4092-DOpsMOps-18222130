@@ -83,7 +83,7 @@ def test_render_repo_substitutes_and_copies(
 
     monkeypatch.setenv("FEAST_TEMPLATE_DIR", str(template_dir))
     monkeypatch.setenv("CLICKHOUSE_USER", "ch_user")
-    # Password with /, +, =, and a literal \1 — a function replacement must NOT
+    # Password with /, +, =, and a literal \1 - a function replacement must NOT
     # treat \1 as a regex backreference (the whole reason _sub is a callable).
     monkeypatch.setenv("CLICKHOUSE_PASSWORD", "s3cr3t/+=\\1")
 
@@ -136,6 +136,6 @@ def test_main_raises_on_apply_failure(mock_feast_feature_store: MagicMock) -> No
         with pytest.raises(RuntimeError, match="feast apply failed"):
             main()
 
-    # materialize must NOT run when apply failed — a stale/empty registry
+    # materialize must NOT run when apply failed - a stale/empty registry
     # would otherwise silently materialize nothing.
     mock_feast_feature_store.return_value.materialize.assert_not_called()

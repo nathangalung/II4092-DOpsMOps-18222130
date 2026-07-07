@@ -1,15 +1,13 @@
-# =============================================================================
-# Argo Rollouts 1.9.0 — progressive delivery controller (2026-03-20)
-# =============================================================================
+# Argo Rollouts 1.9.0 - progressive delivery controller (2026-03-20)
 # ADR-016.  Argo Rollouts replaces the earlier Flagger candidate for canary /
 # blue-green delivery:
-#   1. Native `Rollout` CRD — drop-in replacement for `Deployment` that adds
+#   1. Native `Rollout` CRD - drop-in replacement for `Deployment` that adds
 #      `.spec.strategy.canary.steps` / `.spec.strategy.blueGreen` control
 #      without re-templating the workload.
 #   2. First-class Istio support via `trafficRouting.istio.virtualService`:
 #      the controller rewrites VS weights; no sidecar-on-sidecar penalty
 #      (matches our ADR-009 mesh-wide STRICT mTLS posture).
-#   3. AnalysisTemplate + Kayenta integration — progressive promotion gated
+#   3. AnalysisTemplate + Kayenta integration - progressive promotion gated
 #      by Prometheus queries (SLO violations revert automatically).
 #   4. KServe InferenceService shipping: Knative Revisions already do
 #      traffic splitting, but long-lived Deployments (ml-bridge, quality
@@ -17,12 +15,11 @@
 #      flipping 100%.
 #   5. Single Application; no CRD conflict with KFP's Argo Workflows
 #      controller (see `gitops/kustomization.yaml` note about lease
-#      contention — Rollouts uses `rollouts.argoproj.io`, not `workflows.*`).
+#      contention - Rollouts uses `rollouts.argoproj.io`, not `workflows.*`).
 #
 # 2026 provenance:
 #   - App version v1.9.0 released 2026-03-20 (argoproj/argo-rollouts).
 #   - Chart version 2.40.9 on `argoproj/argo-helm` tracks app v1.9.0.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -47,7 +44,7 @@ spec:
       values: |
         controller:
           replicas: 1
-          # Cluster-wide watch — Rollouts in any namespace are reconciled.
+          # Cluster-wide watch - Rollouts in any namespace are reconciled.
           # Use-case overlays own their own Rollout CRs; platform stays
           # domain-agnostic.
           args: []
@@ -79,7 +76,7 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
-        # Dashboard — read-only UI, mTLS-gated via Istio AuthorizationPolicy
+        # Dashboard - read-only UI, mTLS-gated via Istio AuthorizationPolicy
         # in the platform AuthPolicy bundle.
         dashboard:
           enabled: true
@@ -91,17 +88,17 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
-        # Traffic provider defaults — Istio is our primary provider
+        # Traffic provider defaults - Istio is our primary provider
         # (ADR-009).  Rollouts also recognises nginx + ambassador + plugins
         # if a use-case ever needs them; no extra config required here.
         providers:
           istio: { enabled: true }
-        # Notifications — integrates with Alertmanager through the platform
+        # Notifications - integrates with Alertmanager through the platform
         # notifications-engine.  Configure receivers in the use-case overlay.
         notifications:
           enabled: true
           notifiers: {}
-        # CRD install — let the chart install CRDs (idempotent), disable
+        # CRD install - let the chart install CRDs (idempotent), disable
         # ONLY if CRDs are managed by a separate ApplicationSet.
         crds:
           install: true
@@ -120,12 +117,10 @@ spec:
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }
   revisionHistoryLimit: 10
 ---
-# =============================================================================
-# Reference AnalysisTemplate — use-cases copy this shape and point
+# Reference AnalysisTemplate - use-cases copy this shape and point
 # `.spec.metrics[].provider.prometheus.query` at their own SLO PromQL.
 # The controller evaluates each step of `.spec.strategy.canary.steps` against
 # this template; a failing `successCondition` rolls back automatically.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -172,7 +167,7 @@ spec:
                 destination_service_namespace="{{args.namespace}}"
               }[1m])) by (le))
 ---
-# PodDisruptionBudget — single-node single-replica: maxUnavailable=1 permits
+# PodDisruptionBudget - single-node single-replica: maxUnavailable=1 permits
 # voluntary eviction. maxUnavailable=0 would deadlock drains.
 apiVersion: policy/v1
 kind: PodDisruptionBudget

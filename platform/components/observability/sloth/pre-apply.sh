@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# =============================================================================
 # sloth pre-apply: bootstrap ArgoCD Application + block on CRD Established.
-# =============================================================================
 # Race condition (without this hook):
-#   `make install-sloth` → kustomize emits two manifests in one render:
-#     1. helm-release.yaml — ArgoCD Application that installs the sloth chart
+#   `make install-sloth`, so kustomize emits two manifests in one render:
+#     1. helm-release.yaml - ArgoCD Application that installs the sloth chart
 #        (chart provides `prometheusservicelevels.sloth.slok.dev` CRD).
-#     2. platform-slos.yaml — `PrometheusServiceLevel` CRs.
+#     2. platform-slos.yaml - `PrometheusServiceLevel` CRs.
 #   ArgoCD reconciles the Application asynchronously. A single-shot apply
 #   lands the CRs too early and crashes with:
 #     `no matches for kind "PrometheusServiceLevel" in version "sloth.slok.dev/v1"`
@@ -16,7 +14,6 @@
 # discovery cache so the next apply sees the new CRD, then exit.
 # Main apply re-applies the Application (idempotent under SSA) plus the
 # now-resolvable PrometheusServiceLevel CRs.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -30,7 +27,7 @@ echo "    pre-apply: applying sloth ArgoCD Application (kicks chart install)"
 awk '/^---$/{exit} {print}' "$SCRIPT_DIR/helm-release.yaml" \
   | kubectl apply --server-side --force-conflicts -f - >/dev/null 2>&1 || true
 
-# Trigger immediate ArgoCD refresh — skip default 3-min poll.
+# Trigger immediate ArgoCD refresh - skip default 3-min poll.
 kubectl annotate -n "$APP_NS" "application/${APP_NAME}" \
   argocd.argoproj.io/refresh=hard --overwrite >/dev/null 2>&1 || true
 

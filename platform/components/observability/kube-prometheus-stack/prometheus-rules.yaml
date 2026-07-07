@@ -1,6 +1,4 @@
-# =============================================================================
 # Platform SLO recording + alerting rules
-# =============================================================================
 # Every rule traces back to a requirement in the thesis (Proposal.tex /
 # chapters/, tables/kebutuhan_{fungsional,nonfungsional}.tex). Tags:
 #   KNF-01 latency p50<5ms p95<8ms p99<10ms
@@ -10,7 +8,6 @@
 #   KNF-05 zero temporal leakage
 #   KNF-10 compression >5:1, CPU util >70%
 #   KNF-12 coverage >80% (handled in CI, not runtime)
-# =============================================================================
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -22,9 +19,7 @@ metadata:
     role: alert-rules
 spec:
   groups:
-    # =========================================================================
-    # Recording rules — aggregate SLIs at 5m resolution (cheap for dashboards).
-    # =========================================================================
+    # Recording rules - aggregate SLIs at 5m resolution (cheap for dashboards).
     - name: platform.slo.recording
       interval: 30s
       rules:
@@ -91,10 +86,8 @@ spec:
               increase(great_expectations_expectation_suite_failed_count{suite=~".*temporal.*"}[5m])
             ) or vector(0)
 
-    # =========================================================================
-    # Alerts — thesis KNF SLOs.  Severity=critical pages PagerDuty; warning
+    # Alerts - thesis KNF SLOs.  Severity=critical pages PagerDuty; warning
     # goes to platform-team-slack.
-    # =========================================================================
     - name: platform.slo.alerts
       rules:
         - alert: FeatureServingLatencyP99High
@@ -150,7 +143,7 @@ spec:
             summary: "ClickHouse compression {{ $value | humanize }}:1 below KNF-10 target 5:1"
 
         - alert: TemporalLeakageDetected
-          # KNF-05: ZERO tolerance — page immediately.
+          # KNF-05: ZERO tolerance - page immediately.
           expr: slo:temporal_leakage_violations > 0
           for: 0m
           labels: { severity: critical, team: ml, slo: temporal_leakage }
@@ -186,9 +179,7 @@ spec:
           annotations:
             summary: "Cluster CPU utilisation {{ $value | humanizePercentage }}; consider right-sizing."
 
-    # =========================================================================
     # Drift / model-lifecycle alerts
-    # =========================================================================
     - name: platform.ml.alerts
       rules:
         - alert: ModelDriftDetected
@@ -208,9 +199,7 @@ spec:
           annotations:
             summary: "KServe InferenceService {{ $labels.isvc }} in {{ $labels.namespace }} not ready"
 
-    # =========================================================================
     # Backup / replication health  (ADR-014, KNF-04)
-    # =========================================================================
     - name: platform.backup.alerts
       rules:
         - alert: CNPGWALArchiveFailing
@@ -246,13 +235,11 @@ spec:
           annotations:
             summary: "ClickHouse backup is {{ $value | humanizeDuration }} old (> 26h)"
 
-    # =========================================================================
     # Security posture (ADR-008, ADR-012)
-    # =========================================================================
     - name: platform.security.alerts
       rules:
         - alert: OpenBaoSealed
-          # ExternalSecret reconciliation blocked until OpenBao is unsealed — all
+          # ExternalSecret reconciliation blocked until OpenBao is unsealed - all
           # rotations stall, which eventually breaks apps with short TTL creds.
           # Metric prefix `vault_*` is OpenBao's upstream-compat metric naming.
           expr: vault_core_unsealed == 0
@@ -297,9 +284,7 @@ spec:
           annotations:
             summary: "Unsigned / tampered image admission denied: {{ $labels.resource_name }}"
 
-    # =========================================================================
     # Data ingestion (ADR-011, ADR-013)
-    # =========================================================================
     - name: platform.data.ingestion.alerts
       rules:
         - alert: KafkaConsumerLagHigh
@@ -312,7 +297,7 @@ spec:
             summary: "Consumer group {{ $labels.consumergroup }} on {{ $labels.topic }} lagging {{ $value | humanize }} msgs"
 
         - alert: KafkaBrokerUnderReplicated
-          # RF=3, min.insync=2 (ADR-011) — any under-replicated partition threatens RPO.
+          # RF=3, min.insync=2 (ADR-011) - any under-replicated partition threatens RPO.
           expr: |
             kafka_server_replicamanager_underreplicatedpartitions > 0
           for: 5m
@@ -329,9 +314,7 @@ spec:
           annotations:
             summary: "DataHub ingestion job {{ $labels.job_name }} failed"
 
-    # =========================================================================
     # Model lifecycle (ADR-003, ADR-005)
-    # =========================================================================
     - name: platform.model.lifecycle.alerts
       rules:
         - alert: MLflowTrainingRunFailed
@@ -371,17 +354,15 @@ spec:
             summary: "Severe drift: {{ $value }} Evidently alerts in last hour"
             description: "Trigger immediate retraining; consider serving rollback until new model is validated."
 
-    # =========================================================================
     # Infra / cluster (ADR-007, ADR-010, ADR-014)
-    # =========================================================================
     - name: platform.infra.alerts
       rules:
         # prometheus-adapter retired 2026-04-21 (ADR-026). The equivalent
-        # watchdog for custom-metric HPAs is now KEDA's own health — any
+        # watchdog for custom-metric HPAs is now KEDA's own health - any
         # `keda-operator-metrics-apiserver` outage is caught by the stock
         # `KubeAPIServerErrors` alert (the APIService is registered via
         # kubernetes.default.svc), so no custom alert is needed here.
-        # local-path-provisioner exports no per-volume health metric — the SC
+        # local-path-provisioner exports no per-volume health metric - the SC
         # uses hostPath bind-mounts with no engine, so the only relevant signal
         # is kubelet's stock VolumeMount / FilesystemAvailable alerts shipped
         # by kube-prometheus-stack's default rules. No custom replacement for

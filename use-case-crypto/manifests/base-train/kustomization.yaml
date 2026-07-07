@@ -1,51 +1,48 @@
-# =============================================================================
-# PHASE 2 BASE — Training + Drift Detection ONLY
-# =============================================================================
+# PHASE 2 BASE - Training + Drift Detection ONLY
 # Deploys only Train resources (training CronJobs, drift detection).
 # Does NOT include Data services (ingestion, quality, processing).
 # Requires Data data already in ClickHouse bronze/gold layers.
 #
 # Shares the same ConfigMap (pipeline-config) and secrets.
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
+  # Infrastructure (platform base ConfigMap + crypto namespace/secrets)
   - ../../../platform/services/base/pipeline-infrastructure-configmap.yaml
   - ../base/namespace.yaml
   - ../base/configmaps/feast.yaml
   - ../base/external-secrets.yaml
 
-  # --- Train: Training (weekly scheduled via KFP) ---
+  # Train: Training (weekly scheduled via KFP)
   # Training is handled by KFP recurring runs (submit_recurring.py).
-  # No CronJob needed — KFP schedules the pipeline directly.
+  # No CronJob needed - KFP schedules the pipeline directly.
   # To trigger manually: uv run pipelines/submit_recurring.py
 
-  # --- Train: Drift Detection ---
-  # REMOVED from scheduled CronJobs — drift detection is now INLINE
+  # Train: Drift Detection
+  # REMOVED from scheduled CronJobs - drift detection is now INLINE
   # in the hourly features Airflow DAG (crypto_hourly_features):
-  #   batch_features → feast_materialize → drift_check → trigger_retrain
+  #   batch_features, then feast_materialize, then drift_check, then trigger_retrain
   # This makes drift detection EVENT-DRIVEN (after new data),
   # not scheduled (arbitrary intervals).
   # - ../base/cronjobs/drift-multi-scale.yaml
 
-  # --- Train: Auto-Retraining ---
-  # REMOVED — retraining is triggered BY drift detection in the DAG,
+  # Train: Auto-Retraining
+  # REMOVED - retraining is triggered BY drift detection in the DAG,
   # not on a fixed schedule. See dags/data_pipeline.py.
   # - ../base/cronjobs/retraining.yaml
 
-  # --- Train: Feature Materialization (Feast: ClickHouse → Redis) ---
-  # REMOVED — materialization is now a step in the Airflow DAG
-  # (crypto_hourly_features: batch_features → feast_materialize)
+  # Train: Feature Materialization (Feast: ClickHouse to Redis)
+  # REMOVED - materialization is now a step in the Airflow DAG
+  # (crypto_hourly_features: batch_features, then feast_materialize)
   # - ../base/cronjobs/materialization.yaml
 
-  # --- Train: Hyperparameter Optimization (Katib) ---
+  # Train: Hyperparameter Optimization (Katib)
   # Apply manually: kubectl apply -f manifests/base/katib/experiment-lightgbm.yaml -n use-case-crypto
-  # Not auto-deployed — experiments are one-shot, not continuous
+  # Not auto-deployed - experiments are one-shot, not continuous
 
-  # --- RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount) ---
+  # RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount)
   - ../../../platform/services/base/rbac/roles.yaml
   - ../../../platform/services/base/rbac/bindings.yaml
   - ../base/rbac/service-account.yaml

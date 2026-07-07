@@ -12,9 +12,9 @@ import java.util.Map;
  * Parity oracle for {@link Indicators}.
  *
  * <p>Each assertion encodes the Rust feature-engine {@code indicators.rs}
- * semantics. Green here ⇒ the Flink stream processor reproduces the established
- * feature-engine behaviour exactly — the no-lost-service proof for the
- * feature-engine → Flink cutover.
+ * semantics. Green here means the Flink stream processor reproduces the established
+ * feature-engine behaviour exactly - the no-lost-service proof for the
+ * feature-engine to Flink cutover.
  */
 public class IndicatorsTest {
 
@@ -24,7 +24,7 @@ public class IndicatorsTest {
         return l;
     }
 
-    // --- rolling mean ---------------------------------------------------------
+    // rolling mean
 
     @Test
     @DisplayName("rolling mean over full window")
@@ -44,12 +44,12 @@ public class IndicatorsTest {
         assertEquals(0.0, Indicators.rollingMean(list(1, 2), 5), 1e-9);
     }
 
-    // --- exponential average --------------------------------------------------
+    // exponential average
 
     @Test
     @DisplayName("exp avg smooths from the first element")
     public void expAvgBasic() {
-        // k=0.5: 10 → 10.5 → 11.25
+        // k=0.5: 10 then 10.5 then 11.25
         assertEquals(11.25, Indicators.expAvg(list(10, 11, 12), 3), 1e-9);
     }
 
@@ -71,7 +71,7 @@ public class IndicatorsTest {
         assertTrue(Indicators.expAvg(list(10, 11, 12), 5) > 0.0);
     }
 
-    // --- momentum -------------------------------------------------------------
+    // momentum
 
     @Test
     @DisplayName("momentum saturates high for all gains")
@@ -91,7 +91,7 @@ public class IndicatorsTest {
         assertEquals(50.0, Indicators.momentum(list(10, 11), 14), 1e-9);
     }
 
-    // --- deviation bands (population sigma) ------------------------------------
+    // deviation bands (population sigma)
 
     @Test
     @DisplayName("deviation bands collapse to the mean for constant input")
@@ -113,7 +113,7 @@ public class IndicatorsTest {
         assertEquals(10.0 - 2 * std, b[2], 1e-9);
     }
 
-    // --- dispersion (population std over last period) -------------------------
+    // dispersion (population std over last period)
 
     @Test
     @DisplayName("dispersion is population std over the period window")
@@ -135,7 +135,7 @@ public class IndicatorsTest {
         assertEquals(0.0, Indicators.dispersion(list(1, 2, 3), 8), 1e-9);
     }
 
-    // --- value change (percent) -----------------------------------------------
+    // value change (percent)
 
     @Test
     @DisplayName("value change is a PERCENT (x100)")
@@ -151,7 +151,7 @@ public class IndicatorsTest {
         assertEquals(0.0, Indicators.valueChange(list(0, 5)), 1e-9);
     }
 
-    // --- computeAll integration ----------------------------------------------
+    // computeAll integration
 
     @Test
     @DisplayName("computeAll emits exactly the configured stateless feature set")

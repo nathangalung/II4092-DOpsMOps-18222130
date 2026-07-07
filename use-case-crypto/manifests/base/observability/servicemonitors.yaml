@@ -1,6 +1,4 @@
-# =============================================================================
 # Crypto use-case ServiceMonitors
-# =============================================================================
 # ServiceMonitor CRs (Prometheus Operator) are discovered by the platform
 # Prometheus because its `serviceMonitorSelector: {}` +
 # `serviceMonitorNamespaceSelector: {}` match everything.
@@ -18,11 +16,8 @@
 #   kubectl get servicemonitors -n use-case-crypto
 #   kubectl -n observability port-forward svc/kube-prometheus-stack-prometheus 9090 \
 #     && open http://localhost:9090/targets
-# =============================================================================
 ---
-# -----------------------------------------------------------------------------
 # Ingestion (KNF-01, ingest-lag alert feed)
-# -----------------------------------------------------------------------------
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -57,9 +52,7 @@ spec:
       interval: 30s
       scrapeTimeout: 10s
 ---
-# -----------------------------------------------------------------------------
 # Quality (validator error-rate alert feed)
-# -----------------------------------------------------------------------------
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -77,12 +70,10 @@ spec:
       interval: 30s
       scrapeTimeout: 10s
 ---
-# -----------------------------------------------------------------------------
-# Processing — Flink stream-processor (speed layer)
-# -----------------------------------------------------------------------------
+# Processing - Flink stream-processor (speed layer)
 # A PodMonitor (not a ServiceMonitor): the Flink Prometheus reporter (port 9249)
 # runs on BOTH the JobManager and every TaskManager pod, but the operator only
-# fronts the JM REST (8081) with a Service — TM metrics have no Service. The
+# fronts the JM REST (8081) with a Service - TM metrics have no Service. The
 # PodMonitor scrapes pods directly by the `metrics: flink` label set on the
 # FlinkDeployment podTemplate (flink/stream-processor.yaml), which the operator
 # propagates to JM + TM pods. Replaces the retired feature-engine ServiceMonitor.
@@ -103,9 +94,7 @@ spec:
       interval: 30s
       scrapeTimeout: 10s
 ---
-# -----------------------------------------------------------------------------
 # Serving + cache
-# -----------------------------------------------------------------------------
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -120,12 +109,10 @@ spec:
   endpoints:
     - port: http
       path: /metrics
-      interval: 15s  # gateway is on the hot path — scrape often
+      interval: 15s  # gateway is on the hot path - scrape often
       scrapeTimeout: 10s
 ---
-# -----------------------------------------------------------------------------
 # ML bridge (ml-bridge latency alert feed)
-# -----------------------------------------------------------------------------
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

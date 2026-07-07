@@ -213,14 +213,12 @@ subjects:
 apiVersion: v1
 data:
   spawner_ui_config.yaml: |
-    # --------------------------------------------------------------
     # Configuration file for the Kubeflow Notebooks UI.
     #
     # About the `readOnly` configs:
     #  - when `readOnly` is set to "true", the respective option
     #    will be disabled for users and only set by the admin
     #  - when 'readOnly' is missing, it defaults to 'false'
-    # --------------------------------------------------------------
 
     spawnerFormDefaults:
       ################################################################

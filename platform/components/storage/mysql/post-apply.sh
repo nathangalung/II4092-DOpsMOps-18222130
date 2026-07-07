@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# mysql/post-apply.sh — heal root password drift between PVC and ESO secret
-# =============================================================================
+# mysql/post-apply.sh - heal root password drift between PVC and ESO secret
 # Why this exists:
 #   The mysql:8.4 image only initialises root@'%' / root@localhost from
 #   MYSQL_ROOT_PASSWORD on the FIRST start (empty data dir). On every
@@ -22,13 +20,12 @@
 #   2. Use the env-baked password (`MYSQL_ROOT_PASSWORD`, sourced from
 #      `mysql-root-secret` envFrom) to ALTER root@'%' and root@localhost
 #      to the same value with `mysql_native_password`. If the password
-#      already matches, this is a no-op rewrite — safe and idempotent.
+#      already matches, this is a no-op rewrite - safe and idempotent.
 #   3. Bounce KFP metadata-grpc + Katib db-manager so they pick up the
 #      restored credential immediately (otherwise they keep retrying
 #      stale env-cached connections for several minutes).
 #
 # Idempotent: on a healthy cluster every step is a no-op rewrite.
-# =============================================================================
 set -euo pipefail
 
 NS=storage

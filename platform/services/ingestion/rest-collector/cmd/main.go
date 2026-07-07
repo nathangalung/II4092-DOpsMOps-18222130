@@ -55,7 +55,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	// In one-shot mode, skip the health server and polling loop —
+	// In one-shot mode, skip the health server and polling loop -
 	// just run supplementary/backfill fetches and exit.
 	if *once {
 		logger.Info("One-shot mode: running supplementary/backfill fetch")
@@ -93,7 +93,7 @@ func main() {
 		return
 	}
 
-	// --- Long-running server mode ---
+	// Long-running server mode
 
 	// Start health server
 	healthServer := health.NewServer()
@@ -220,7 +220,7 @@ func backfillHistorical(
 		return
 	}
 
-	// End date is always "now" — ignore HISTORY_END_DATE if empty
+	// End date is always "now" - ignore HISTORY_END_DATE if empty
 	endDate := time.Now().UTC()
 	if cfg.History.EndDate != "" {
 		if parsed, err := time.Parse(time.RFC3339, cfg.History.EndDate); err == nil {
@@ -258,7 +258,7 @@ func backfillHistorical(
 				logger,
 			)
 			if !lastTS.IsZero() {
-				// Data exists — backfill from last timestamp (with 1 record overlap for safety)
+				// Data exists - backfill from last timestamp (with 1 record overlap for safety)
 				gapStart := lastTS.Add(-time.Duration(src.Granularity) * time.Second)
 				if gapStart.After(defaultStart) {
 					startDate = gapStart
@@ -333,7 +333,7 @@ func backfillHistorical(
 //      own ticker (endpoint.PollInterval), cursor state, and target
 //      Kafka topic, so endpoint cadences remain independent.
 //
-// No endpoint-specific logic lives in this function — every remote
+// No endpoint-specific logic lives in this function - every remote
 // API shape is expressed via EndpointConfig.
 func runPollingLoop(
 	ctx context.Context,

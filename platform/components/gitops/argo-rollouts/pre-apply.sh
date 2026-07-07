@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# =============================================================================
 # argo-rollouts pre-apply: bootstrap ArgoCD Application + block on CRD/NS.
-# =============================================================================
 # Race condition (without this hook):
-#   `make install-argo-rollouts` → kustomize emits 3 docs in one render:
+#   `make install-argo-rollouts` leads to kustomize emitting 3 docs in one render:
 #     1. ArgoCD `Application` (CR for argoproj.io ArgoCD)
 #     2. `AnalysisTemplate` (CR for argoproj.io argo-rollouts CRD)
 #     3. `PodDisruptionBudget` in `argo-rollouts` namespace
@@ -20,7 +18,6 @@
 #
 # Note: cold image pull + helm install on a fresh cluster takes minutes; the
 # wait window is sized for slow registry / single-node clusters.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

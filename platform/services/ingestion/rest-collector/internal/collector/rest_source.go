@@ -3,7 +3,7 @@
 //   - FetchHistorical/fetchChunk: array-of-arrays historical series
 //     (configurable field mapping via RESPONSE_FIELD_MAPPING).
 //   - FetchEndpoint: declarative single-endpoint polling driven by
-//     config.EndpointConfig — covers object responses (e.g. snapshot
+//     config.EndpointConfig - covers object responses (e.g. snapshot
 //     quotes), array-of-objects with cursor pagination (e.g. incremental
 //     event streams), and arbitrary field/timestamp/transform mappings.
 //
@@ -220,16 +220,14 @@ func (c *RESTSourceCollector) Source() string {
 	return c.cfg.Name
 }
 
-// ---------------------------------------------------------------------------
 // Generic endpoint polling
-// ---------------------------------------------------------------------------
 //
 // The three response kinds below cover every HTTP-JSON REST API we've
 // encountered for market-data / telemetry-style feeds:
 //
-//   "object"            — { "price": "...", "bid": "...", "time": "..." }
-//   "array_of_objects"  — [ { "id": 1, "price": "...", "time": "..." }, ... ]
-//   "array_of_arrays"   — [ [ts, v1, v2, ...], ... ]  (use FetchHistorical)
+//   "object" - { "price": "...", "bid": "...", "time": "..." }
+//   "array_of_objects" - [ { "id": 1, "price": "...", "time": "..." }, ... ]
+//   "array_of_arrays" - [ [ts, v1, v2, ...], ... ]  (use FetchHistorical)
 //
 // For array_of_objects we support cursor pagination where the upstream
 // API returns only records after an opaque cursor (e.g. numeric id).
@@ -237,7 +235,7 @@ func (c *RESTSourceCollector) Source() string {
 // sends it back as a query parameter on the next request.
 
 // EndpointState carries cursor/timestamp state between polling calls for
-// a single (endpoint, symbol) tuple. Opaque to callers — just persist it.
+// a single (endpoint, symbol) tuple. Opaque to callers - just persist it.
 type EndpointState struct {
 	// Cursor is the string form of the last-seen cursor value. For a
 	// numeric id cursor (CursorConfig.Type == "after_id") this is the
@@ -507,7 +505,7 @@ func (c *RESTSourceCollector) objectToRecord(
 	}
 
 	// Cursor field is promoted into Values as a float even when not
-	// explicitly listed in field_mapping — so downstream consumers can
+	// explicitly listed in field_mapping - so downstream consumers can
 	// correlate records with the upstream cursor identifier.
 	if ep.Cursor.Field != "" {
 		if raw, ok := obj[ep.Cursor.Field]; ok {
@@ -561,8 +559,8 @@ func cursorUpdate(raw json.RawMessage, state EndpointState) (skip bool, newState
 // according to a named transform. Unknown transforms return ok=false.
 //
 // Supported transforms:
-//   "buy_sell_binary"  — "buy" → +1.0, anything else → -1.0
-//   "boolean"          — true → 1.0, false → 0.0
+//   "buy_sell_binary" - "buy" maps to +1.0, anything else maps to -1.0
+//   "boolean" - true maps to 1.0, false maps to 0.0
 func applyValueTransform(name string, raw json.RawMessage) (float64, bool) {
 	switch strings.ToLower(name) {
 	case "buy_sell_binary":

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# clickhouse-operator/post-apply.sh — wait Argo sync + clear stale CHI/CHK
-# =============================================================================
+# clickhouse-operator/post-apply.sh - wait Argo sync + clear stale CHI/CHK
 # Why this exists (two distinct concerns folded into one hook):
 #
 # A) ArgoCD-Application sync race
@@ -22,16 +20,16 @@
 #   (`(*ClickHouseKeeperInstallation).GetRootServiceTemplates` nil-deref) when
 #   a CHK CR has `deletionTimestamp` set but its
 #   `finalizer.clickhousekeeperinstallation.altinity.com` finalizer is still
-#   present and `.spec.templates.serviceTemplates` is omitted (our case — we
+#   present and `.spec.templates.serviceTemplates` is omitted (our case - we
 #   only set podTemplates + volumeClaimTemplates). Same path exists for CHI.
 #
 #   How a stale CR is born:
 #     1. `make nuke` tears down ns/storage; K8s sets deletionTimestamp on
 #        CHI/CHK; finalizer chain expects operator to clear it.
-#     2. nuke deletes ns/clickhouse-system → operator pod gone before it can
+#     2. nuke deletes ns/clickhouse-system, so operator pod gone before it can
 #        finalize the CR.
 #     3. CRD GC stalls because CR with finalizer is alive; CRD lingers.
-#     4. `make phase-full` re-applies CRDs → old CR resurrected with
+#     4. `make phase-full` re-applies CRDs, so old CR resurrected with
 #        deletionTimestamp still set.
 #     5. New operator boots, hits nil-deref on the resurrected CR, CrashLoops.
 #        Every downstream component that depends on ClickHouse (feast,
@@ -42,14 +40,13 @@
 #      Application so ArgoCD does NOT wait for its 3-minute reconcile poll
 #      before doing the initial sync.
 #   2. Block until the operator Deployment exists in the apiserver (Argo sync
-#      created it). Deadline 600s — generous for slow chart pulls on a fresh
+#      created it). Deadline 600s - generous for slow chart pulls on a fresh
 #      boot, instant on re-apply.
 #   3. For every namespace, force-clear CHI/CHK with deletionTimestamp set
 #      and non-empty finalizers (B above). Idempotent: no-op on a clean
 #      cluster.
-#   4. Wait Deployment Available. Now safe — Deployment is guaranteed to
+#   4. Wait Deployment Available. Now safe - Deployment is guaranteed to
 #      exist by step 2.
-# =============================================================================
 set -euo pipefail
 
 NS=clickhouse-system
@@ -108,7 +105,7 @@ if kubectl get crd clickhousekeeperinstallations.clickhouse-keeper.altinity.com 
   clear_stale chk
 fi
 
-# Step 4: Now safe to wait for the operator pod to roll out — Deployment
+# Step 4: Now safe to wait for the operator pod to roll out - Deployment
 # object is guaranteed to exist.
 echo "    [post-apply] waiting Deployment/${DEPLOY} Available (timeout 300s)"
 kubectl -n "$NS" rollout status "deployment/${DEPLOY}" --timeout=300s

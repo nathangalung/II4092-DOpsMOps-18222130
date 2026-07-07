@@ -3,12 +3,12 @@ kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # --- Kafka security (use-case-crypto override on platform default) ---
+  # Kafka security (use-case-crypto override on platform default)
   # Platform default in pipeline-infrastructure.yaml points at the plain
   # listener (:9092). cycle-3 §3.1: the broker enforces ACLs even on the
   # plain listener and rejects anonymous KEDA scalers, so this use case
   # flips ALL Kafka traffic onto the SCRAM listener (:9093).  When stocks
-  # migrates, it sets the same keys in its own pipeline-config patch — the
+  # migrates, it sets the same keys in its own pipeline-config patch - the
   # platform default stays on :9092 until every use case is on SCRAM.
   KAFKA_BROKERS: "platform-kafka-kafka-bootstrap.data-ingestion.svc.cluster.local:9093"
   KAFKA_SECURITY_PROTOCOL: "SASL_SSL"
@@ -17,14 +17,14 @@ data:
   # patch mounts the broker CA there from the crypto-app-consumer Secret.
   KAFKA_SSL_CA_LOCATION: "/etc/kafka/ca/ca.crt"
 
-  # --- Kafka topics ---
+  # Kafka topics
   # KAFKA_TOPIC is the *producer* default for any collector that falls back
   # to pipeline-config (e.g. websocket-collector overlay also pins it via
-  # patch — see manifests/base/patches/websocket-collector.yaml). The
+  # patch - see manifests/base/patches/websocket-collector.yaml). The
   # rest-collector overlay sets KAFKA_TOPIC=crypto.rest.raw on its own
   # container so REST output lands on its dedicated topic (independent
   # KEDA lag trigger). Consumers/validators read VALIDATOR_INPUT_TOPICS
-  # below, NOT this KAFKA_TOPIC — separating producer-default from
+  # below, NOT this KAFKA_TOPIC - separating producer-default from
   # consumer-fan-in avoids the "comma in a topic name" producer corruption.
   KAFKA_TOPIC: "crypto.ws.raw"
   KAFKA_OUTPUT_TOPIC: "crypto.validated"
@@ -38,29 +38,29 @@ data:
   # platform/services/quality/validator (src/main.rs splits on comma).
   VALIDATOR_INPUT_TOPICS: "crypto.ws.raw,crypto.rest.raw"
 
-  # --- Service topic aliases ---
+  # Service topic aliases
   INPUT_TOPIC: "crypto.validated"
   OUTPUT_TOPIC: "crypto.features.v1"
 
-  # --- Validator (flat env vars — config crate has no separator set) ---
+  # Validator (flat env vars - config crate has no separator set)
   # Uses oneOf to accept both OHLCV candles and ticker data (price/bid/ask)
   VALIDATOR_SCHEMA: '{"type":"object","required":["symbol","timestamp"],"oneOf":[{"required":["open","high","low","close","volume"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"open":{"type":"number"},"high":{"type":"number"},"low":{"type":"number"},"close":{"type":"number"},"volume":{"type":"number"}}},{"required":["price"],"properties":{"symbol":{"type":"string"},"timestamp":{"type":"string"},"price":{"type":"number"},"bid":{"type":"number"},"ask":{"type":"number"},"volume":{"type":"number"},"spread":{"type":"number"}}}]}'
 
-  # --- ClickHouse sink (writable — points to actual tables, not views) ---
+  # ClickHouse sink (writable - points to actual tables, not views)
   CLICKHOUSE_SINK_TABLE: "bronze.crypto_ohlcv_features"
   DATA_TABLE: "bronze.crypto_ohlcv"
   # NOTE: FEATURES_TABLE is defined in schema.yaml (single source of truth)
   # as gold.fct_training_data. Do NOT redefine it here.
 
-  # --- Supplementary topics (consumed by batch jobs) ---
+  # Supplementary topics (consumed by batch jobs)
   KAFKA_SUPPLEMENTARY_TOPIC: "crypto.supplementary"
   # The trades topic name is declared on the consumer that needs it
   # (crypto-websocket-collector sets COINBASE_TRADES_TOPIC via the deployment
   # patch; crypto.trades.v1 is consumed by the ClickHouse
   # bronze.crypto_trades_kafka engine). No shared KAFKA_TRADES_TOPIC env
-  # is needed — the convention is per-consumer.
+  # is needed - the convention is per-consumer.
 
-  # --- Sentiment batch processing (writable targets → gold layer) ---
+  # Sentiment batch processing (writable targets mapping to gold layer)
   SENTIMENT_RAW_TABLE: "bronze.crypto_sentiment"
   # Table names aligned with dbt mart models (gold schema)
   SENTIMENT_FEATURES_TABLE: "gold.fct_sentiment_agg"

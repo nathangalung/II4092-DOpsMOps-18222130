@@ -1,17 +1,14 @@
-# =============================================================================
-# FEATURE CACHE — Online Feature Serving (Rust + Valkey)
-# =============================================================================
+# FEATURE CACHE - Online Feature Serving (Rust + Valkey)
 # Low-latency feature retrieval for inference. The Rust binary reads its
 # configuration from FCACHE_-prefixed env vars (see services/serving/
 # feature-cache/src/config.rs) and exposes:
-#   - HTTP 8080  — health/metrics (/health, /metrics)
-#   - gRPC 50053 — feature serving RPC
+#   - HTTP 8080 - health/metrics (/health, /metrics)
+#   - gRPC 50053 - feature serving RPC
 #
 # Infrastructure dependencies:
 #   - Valkey: Feature storage backend (valkey.storage.svc.cluster.local:6379,
-#     Redis-RESP wire-compatible — Rust binary uses redis-rs URL scheme).
+#     Redis-RESP wire-compatible - Rust binary uses redis-rs URL scheme).
 #   - Prometheus: Cache hit/miss metrics
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +17,7 @@ metadata:
     app: feature-cache
     component: serving
 spec:
-  # Single-node k3s platform mandate — replicas=1 everywhere.
+  # Single-node k3s platform mandate - replicas=1 everywhere.
   replicas: 1
   selector:
     matchLabels:
@@ -58,9 +55,9 @@ spec:
             # The config crate (Environment::with_prefix("FCACHE").separator("__"))
             # maps onto the flat struct fields (redis_url/health_port/grpc_port)
             # ONLY via the double-underscore FCACHE__ separator. Single FCACHE_
-            # was silently ignored → redis_url fell back to its localhost:6379
-            # default → ECONNREFUSED against Valkey. (FCACHE_SYMBOLS below stays
-            # single — it is read via std::env::var directly, not the config crate.)
+            # was silently ignored, so redis_url fell back to its localhost:6379
+            # default, so ECONNREFUSED against Valkey. (FCACHE_SYMBOLS below stays
+            # single - it is read via std::env::var directly, not the config crate.)
             - name: FCACHE__REDIS_URL
               value: "redis://valkey.storage.svc.cluster.local:6379"
             - name: FCACHE__HEALTH_PORT

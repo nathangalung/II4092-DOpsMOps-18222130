@@ -26,7 +26,7 @@ from prometheus_client import Counter, Gauge, start_http_server
 from ks_test import ks_test
 from psi import calculate_psi
 
-# Pyroscope continuous profiling — opt-in via PYROSCOPE_SERVER_ADDRESS
+# Pyroscope continuous profiling - opt-in via PYROSCOPE_SERVER_ADDRESS
 # (set by platform pipeline-config ConfigMap). Unset (tests / local dev)
 # = profiler disabled, service runs unchanged.
 if os.environ.get("PYROSCOPE_SERVER_ADDRESS"):
@@ -64,10 +64,10 @@ class Config:
         "CLICKHOUSE_TABLE", "data_features"
     )
     # Sink table receiving per-scale drift metrics. Argo CronWorkflow
-    # `retrain-on-drift` polls this table — keep the name aligned with
+    # `retrain-on-drift` polls this table - keep the name aligned with
     # the use-case `init_clickhouse.sql` gold layer DDL.
     DRIFT_SINK_TABLE = os.getenv("DRIFT_SINK_TABLE", "gold.drift_multi_scale")
-    # Symbol dimension is multi-asset/aggregate by design — drift detector
+    # Symbol dimension is multi-asset/aggregate by design - drift detector
     # iterates feature columns not symbols. ALL means "aggregate across all
     # symbols observed in the comparison window".
     DRIFT_SINK_SYMBOL = os.getenv("DRIFT_SINK_SYMBOL", "ALL")
@@ -272,7 +272,7 @@ def check_scale(
             )
 
             # Persist EVERY result (drift or not) so the retrain workflow's
-            # 6h window query has signal even during calm periods — and so
+            # 6h window query has signal even during calm periods - and so
             # `severity='OK'` rows are visible for SLO denominators.
             try:
                 insert_drift_metrics(

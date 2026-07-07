@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# retry.sh — generic command retry wrapper
-# =============================================================================
+# retry.sh - generic command retry wrapper
 # Wraps any command in an attempt loop. Used by:
 #   - apply-component.sh (single component apply)
 #   - Makefile install-ns-* (per-namespace bulk apply)
@@ -13,7 +11,6 @@
 # Exit codes:
 #   0  command succeeded within max-attempts
 #   2  command failed every attempt
-# =============================================================================
 set -euo pipefail
 
 MAX="${1:?max-attempts required (e.g. 10)}"

@@ -1,19 +1,16 @@
-# =============================================================================
-# SpiceDB schema loader — Zanzibar-style policy for MLOps platform
-# =============================================================================
+# SpiceDB schema loader - Zanzibar-style policy for MLOps platform
 # One-shot Job that writes the platform's authorization schema once SpiceDB
 # is ready.  Idempotent: zed schema write is a no-op when identical.
 #
 # Schema model:
-#   user          — subjects (humans, service accounts)
-#   team          — group of users (data-engineering, ml-engineering, …)
-#   project       — top-level tenant (e.g. a use-case namespace)
-#   dataset       — data asset under a project, with reader/editor relations
-#   model         — ML model (MLflow run_id / KServe InferenceService)
-#   pipeline      — Airflow/KFP pipeline run
+#   user - subjects (humans, service accounts)
+#   team - group of users (data-engineering, ml-engineering, …)
+#   project - top-level tenant (e.g. a use-case namespace)
+#   dataset - data asset under a project, with reader/editor relations
+#   model - ML model (MLflow run_id / KServe InferenceService)
+#   pipeline - Airflow/KFP pipeline run
 #
 # Example check:  can user:alice read dataset:<project>/bronze/<table> ?
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -116,7 +113,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
       containers:
         - name: zed
-          # authzed/zed is distroless — no shell, no busybox. Drive zed
+          # authzed/zed is distroless - no shell, no busybox. Drive zed
           # purely via flags + env vars (ZED_ENDPOINT/ZED_TOKEN/ZED_INSECURE)
           # so we don't depend on `sh -c`. The previous `sh -c` wrapper
           # caused StartError "exec: 'sh': executable file not found in

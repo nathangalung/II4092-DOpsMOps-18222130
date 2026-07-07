@@ -1,6 +1,4 @@
-# =============================================================================
 # LOCAL OVERRIDES — DO NOT LOSE ON RE-VENDOR FROM UPSTREAM
-# =============================================================================
 # This file is a vendored copy of the upstream Knative Serving release manifest
 # with local single-node patches applied in-place. If re-vendoring from
 # knative/serving releases, reapply these overrides afterward:
@@ -18,7 +16,6 @@
 #
 # Both overrides are commented inline at their PDB definitions. Single-node
 # project context: K3s, replicas=1 enforced everywhere.
-# =============================================================================
 # Copyright 2020 The Knative Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -8125,9 +8122,7 @@ data:
     # this example block and unindented to be in the data block
     # to actually change the configuration.
 
-    # ---------------------------------------
     # Garbage Collector Settings
-    # ---------------------------------------
     #
     # Active
     #   * Revisions which are referenced by a Route are considered active.

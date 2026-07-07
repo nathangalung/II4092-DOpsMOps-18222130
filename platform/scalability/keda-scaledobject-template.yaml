@@ -1,6 +1,4 @@
-# =============================================================================
-# KEDA ScaledObject — event-driven scale-to-zero for any workload
-# =============================================================================
+# KEDA ScaledObject - event-driven scale-to-zero for any workload
 # KEDA scales 0..N based on external metrics (Kafka lag, CRON, Prometheus,
 # Redis queue, etc.). Use when HPA's resource metrics aren't enough.
 #
@@ -17,7 +15,6 @@
 #   - Kafka consumer lag scaler: TRIGGER=kafka with bootstrap+topic+lagThreshold
 #   - Cron scaler:               schedule + timezone + desiredReplicas
 #   - Prometheus scaler:         serverAddress + metricName + threshold
-# =============================================================================
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:

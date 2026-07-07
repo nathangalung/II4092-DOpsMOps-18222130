@@ -16,9 +16,7 @@ class FeatureDefinition:
     asset_type: str  # 'common', 'stock', 'crypto'
 
 
-# =============================================================================
 # COMMON FEATURES (OHLCV-based)
-# =============================================================================
 COMMON_FEATURES: Dict[str, List[FeatureDefinition]] = {
     "price_volume": [
         FeatureDefinition("open", "price_volume", "Opening price", "Raw", "common"),
@@ -171,9 +169,7 @@ COMMON_FEATURES: Dict[str, List[FeatureDefinition]] = {
 }
 
 
-# =============================================================================
 # STOCK-SPECIFIC FEATURES
-# =============================================================================
 STOCK_FEATURES: Dict[str, List[FeatureDefinition]] = {
     "adjusted": [
         FeatureDefinition(
@@ -262,9 +258,7 @@ STOCK_FEATURES: Dict[str, List[FeatureDefinition]] = {
 }
 
 
-# =============================================================================
 # CRYPTO-SPECIFIC FEATURES
-# =============================================================================
 CRYPTO_FEATURES: Dict[str, List[FeatureDefinition]] = {
     "market_structure": [
         FeatureDefinition(
@@ -377,9 +371,7 @@ CRYPTO_FEATURES: Dict[str, List[FeatureDefinition]] = {
 }
 
 
-# =============================================================================
 # TIME-BASED FEATURES
-# =============================================================================
 TIME_FEATURES: Dict[str, List[FeatureDefinition]] = {
     "cyclical": [
         FeatureDefinition(
@@ -418,9 +410,7 @@ TIME_FEATURES: Dict[str, List[FeatureDefinition]] = {
 }
 
 
-# =============================================================================
 # CANDLESTICK PATTERNS
-# =============================================================================
 CANDLESTICK_PATTERNS: List[FeatureDefinition] = [
     FeatureDefinition(
         "is_doji", "candlestick", "Doji pattern", "body < 10% range", "common"

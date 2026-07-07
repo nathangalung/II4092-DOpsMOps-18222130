@@ -11,7 +11,7 @@ import (
 // stored in the Values map, keyed by configurable field names.
 // This allows any use-case to define its own schema (sensor readings, metrics, etc.).
 //
-// JSON wire format is FLAT — Values are promoted to top-level fields:
+// JSON wire format is FLAT - Values are promoted to top-level fields:
 //
 //	{"symbol":"X","timestamp":"...","source":"s","value":100,"volume":50}
 //

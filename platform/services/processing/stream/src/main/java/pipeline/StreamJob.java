@@ -29,7 +29,7 @@ import java.util.Properties;
  * projections of each record: its <em>main</em> output (the full feature record)
  * goes to a Kafka topic for the durable bronze path; its
  * {@link Tags#CACHE_TAG} side output (the indicator-only projection) goes to the
- * Valkey online-serving cache. Either sink is optional per stream — configure
+ * Valkey online-serving cache. Either sink is optional per stream - configure
  * whichever the use-case needs.
  *
  * <p>Env contract
@@ -114,7 +114,7 @@ public class StreamJob {
 
             boolean sinkWired = false;
 
-            // --- Durable Kafka sink (main output → bronze contract) ---
+            // Durable Kafka sink (main output to bronze contract)
             final String sinkTopic = env("STREAM_" + up + "_SINK_TOPIC", System.getenv("OUTPUT_TOPIC"));
             if (sinkTopic != null && !sinkTopic.isEmpty()) {
                 final String txnPrefix = env(
@@ -135,7 +135,7 @@ public class StreamJob {
                 sinkWired = true;
             }
 
-            // --- Valkey online-cache sink (CACHE_TAG side output) ---
+            // Valkey online-cache sink (CACHE_TAG side output)
             final String keyPrefix = System.getenv("STREAM_" + up + "_KEY_PREFIX");
             if (keyPrefix != null && !keyPrefix.isEmpty()) {
                 processed.getSideOutput(Tags.CACHE_TAG)
@@ -203,7 +203,7 @@ public class StreamJob {
      * used by single-node dev clusters without auth). Shared by the source
      * (consumer) and the sink (producer).
      *
-     * <p>SSL truststore uses PEM type — Kafka 3.0+ loads the Strimzi-emitted
+     * <p>SSL truststore uses PEM type - Kafka 3.0+ loads the Strimzi-emitted
      * ca.crt directly without a JKS conversion step.
      */
     private static Properties kafkaSecurityProperties() {

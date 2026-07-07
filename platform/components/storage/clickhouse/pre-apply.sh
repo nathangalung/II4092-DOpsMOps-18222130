@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
 # ClickHouse pre-apply: wait for Altinity operator CRDs before applying the CHI.
-# =============================================================================
 # Race condition (without this hook):
 #   `kubectl apply -k components/storage/clickhouse/` ships
 #   ClickHouseInstallation + ClickHouseKeeperInstallation CRs. The CRDs that
@@ -14,7 +12,6 @@
 #
 # Fix: block until both CRDs are Established. Caller (apply-component.sh)
 # applies the CR documents on next attempt against ready CRDs.
-# =============================================================================
 set -euo pipefail
 
 WAIT_SECS=600
@@ -25,7 +22,7 @@ REQUIRED_CRDS=(
 )
 
 # The platform CHI <kafka> block references secret `clickhouse-kafka-sasl` for
-# librdkafka SASL creds — the only place ClickHouse honours them. The real creds
+# librdkafka SASL creds - the only place ClickHouse honours them. The real creds
 # are owned by a use-case ExternalSecret (creationPolicy: Merge). On a
 # platform-only install (or before that ES syncs) the secret is absent, and the
 # Altinity operator drops `optional` when turning settings into pod env, so the

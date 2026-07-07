@@ -1,13 +1,10 @@
-# =============================================================================
-# Airflow DAGs-binding — standalone (non-prefixed) kustomization
-# =============================================================================
+# Airflow DAGs-binding - standalone (non-prefixed) kustomization
 # Deliberately NOT included by manifests/overlays/local (which applies
 # `namePrefix: crypto-` + `namespace: use-case-crypto`). This binding ships a
 # single fixed-name ConfigMap into the platform's `data-processing` namespace,
-# so it must escape BOTH transformers — hence its own kustomization with no
+# so it must escape BOTH transformers - hence its own kustomization with no
 # namePrefix and no namespace setter, surfaced by its own ArgoCD Application
 # (argocd/airflow-dags-binding.yaml).
-# =============================================================================
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 

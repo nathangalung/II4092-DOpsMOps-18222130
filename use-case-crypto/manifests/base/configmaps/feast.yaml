@@ -1,6 +1,4 @@
-# =============================================================================
-# Feast feature repository — crypto use-case (Feast project `crypto`)
-# =============================================================================
+# Feast feature repository - crypto use-case (Feast project `crypto`)
 # Domain-specific Feast repo. Mirrors the platform's post-#124 store topology
 # (ADR-011/013): S3 file registry on MinIO, ClickHouse offline store, Valkey
 # online store, no_auth. The platform layer ships a feature-view-less stub;
@@ -8,9 +6,9 @@
 #
 # RENDER (no envsubst, no Postgres):
 #   `feature_store.yaml.tmpl` carries ${CLICKHOUSE_USER} / ${CLICKHOUSE_PASSWORD}
-#   (offline) and ${VALKEY_PASSWORD} (online) placeholders. Both consumers —
+#   (offline) and ${VALKEY_PASSWORD} (online) placeholders. Both consumers -
 #   the Airflow `feast_materialize` task (writer; platform materialization
-#   image) and the ml-bridge Rollout (reader) — render it at start by a
+#   image) and the ml-bridge Rollout (reader) - render it at start by a
 #   single-pass ${VAR} substitution from the pod env (creds arrive via the
 #   `pipeline-secrets` envFrom), writing the real feature_store.yaml into a
 #   writable emptyDir. Registry creds (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
@@ -18,15 +16,14 @@
 #   the `s3://` registry path needs no interpolation.
 #
 # Stores:
-#   - Registry     : file on MinIO S3 — s3://feast/crypto/registry.pb (its own
+#   - Registry     : file on MinIO S3 - s3://feast/crypto/registry.pb (its own
 #                    object under the versioned `feast` bucket; distinct from
 #                    the platform stub's s3://feast/registry.pb).
 #   - Offline store: ClickHouse (clickhouse-platform.storage, HTTP 8123, DB
 #                    `bronze`). Feast's clickhouse contrib uses clickhouse-connect
-#                    (HTTP) — port 8123, NOT native 9000.
-#   - Online store : Valkey (Redis RESP, 6379) — password substituted into the
+#                    (HTTP) - port 8123, NOT native 9000.
+#   - Online store : Valkey (Redis RESP, 6379) - password substituted into the
 #                    connection_string at pod start.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -50,7 +47,7 @@ data:
     offline_store:
       type: clickhouse
       host: clickhouse-platform.storage.svc.cluster.local
-      # Feast clickhouse contrib = clickhouse-connect (HTTP) → 8123, not 9000.
+      # Feast clickhouse contrib = clickhouse-connect (HTTP) maps to 8123, not 9000.
       port: 8123
       database: bronze
       user: ${CLICKHOUSE_USER}
@@ -207,7 +204,7 @@ data:
                 Field(name="sentiment_momentum", dtype=Float64),
             ],
             source=sentiment_source,
-            # Offline/training only — gold.fct_sentiment_agg is a cross-DB dbt
+            # Offline/training only - gold.fct_sentiment_agg is a cross-DB dbt
             # mart. online=False excludes these from `feast materialize`, so the
             # online-serving proof stays on the proven bronze technical views.
             online=False,

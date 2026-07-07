@@ -1,11 +1,8 @@
-# =============================================================================
-# Loki 3.7 — log aggregation with persistent storage
-# =============================================================================
+# Loki 3.7 - log aggregation with persistent storage
 # Monolithic single-replica deployment (adequate for target load).
-#   /loki/wal  — PVC (local-path, ADR-031) for write-ahead log
-#   s3://loki-data/chunks — MinIO object store for chunks (long retention)
+#   /loki/wal - PVC (local-path, ADR-031) for write-ahead log
+#   s3://loki-data/chunks - MinIO object store for chunks (long retention)
 # Retention: 30 days via compactor.  Cardinality caps prevent label explosion.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,7 +18,7 @@ data:
       # The OTel gateway-collector batches logs and pushes via OTLP/HTTP to
       # :3100/otlp; Loki's distributor then fans the batch out to ingesters over
       # gRPC. The default 4MB gRPC message cap rejected the collector's 6.9-7MB
-      # batches with ResourceExhausted → its export retry queue grew until the
+      # batches with ResourceExhausted, so its export retry queue grew until the
       # MemoryLimiter OOM-killed it (73 restarts in 9h, ~7-min telemetry gaps,
       # 2026-06-30). Raise both directions to 32MiB (matches loki/alloy.yaml's
       # max_recv_msg_size) so a full batch lands in one message. This is the
@@ -220,7 +217,7 @@ spec:
     requests:
       storage: 5Gi # Single-pod bootstrap; bump for production load.
 ---
-# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# PDB - single-node single-replica: maxUnavailable=1 permits voluntary
 # eviction. minAvailable=1 with replicas=1 deadlocks drains.
 apiVersion: policy/v1
 kind: PodDisruptionBudget

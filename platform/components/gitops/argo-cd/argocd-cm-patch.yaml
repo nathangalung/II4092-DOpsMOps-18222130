@@ -1,6 +1,4 @@
-# =============================================================================
-# argocd-cm patch — kustomize build flags + per-resource ignoreDifferences
-# =============================================================================
+# argocd-cm patch - kustomize build flags + per-resource ignoreDifferences
 # platform-common / platform-security / platform-storage all use kustomize
 # `helmCharts:` to inflate KEDA / external-secrets / Longhorn.  The repo-server
 # default `kustomize build` rejects this with `must specify --enable-helm`,
@@ -18,7 +16,6 @@
 #   spans multiple top-level dirs (platform-tree + use-case-tree sibling).
 #   See ADR-013 for the source-of-truth model and seed-gitea.sh for the
 #   mirror that backs this.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -28,7 +25,7 @@ metadata:
     app.kubernetes.io/part-of: argocd
 data:
   kustomize.buildOptions: --enable-helm --load-restrictor LoadRestrictionsNone
-  # Default app reconcile interval is 180s — on this single-node, IO-bound
+  # Default app reconcile interval is 180s - on this single-node, IO-bound
   # VPS the application-controller's 3-min full-tree refresh of ~40 apps is
   # a top kine/SQLite write source (status updates) and held the controller
   # at ~38% CPU. 600s + jitter cuts datastore fsync pressure ~3× while
@@ -36,7 +33,6 @@ data:
   # unaffected). Requires application-controller restart to take effect.
   timeout.reconciliation: 600s
   timeout.reconciliation.jitter: 60s
-  # ---------------------------------------------------------------------------
   # external-secrets.io/v1 ExternalSecret webhook injects defaults on apply:
   #   spec.data[*].remoteRef.conversionStrategy:  Default
   #   spec.data[*].remoteRef.decodingStrategy:    None
@@ -44,7 +40,7 @@ data:
   #   spec.data[*].remoteRef.nullBytePolicy:      Ignore
   #   spec.target.deletionPolicy:                 Retain
   # The platform repo authors ESes in their canonical short form (no defaults
-  # spelled out) — every parent Application then reports OutOfSync forever
+  # spelled out) - every parent Application then reports OutOfSync forever
   # despite the resource being functionally correct (`status.conditions:
   # Ready - SecretSynced`). This cluster-wide `resource.customizations.
   # ignoreDifferences` entry hides the webhook-injected defaults so ArgoCD's
@@ -59,7 +55,6 @@ data:
       - '.spec.data[]?.remoteRef.decodingStrategy'
       - '.spec.data[]?.remoteRef.metadataPolicy'
       - '.spec.data[]?.remoteRef.nullBytePolicy'
-  # ---------------------------------------------------------------------------
   # Admission webhook caBundle is rotated by cert-manager's cainjector via the
   # `cert-manager.io/inject-ca-from` annotation. Git ships an empty/placeholder
   # caBundle; the live caBundle is the cluster-trust-anchored cert. Without
@@ -68,7 +63,7 @@ data:
   # would report OutOfSync immediately after cainjector populates the bundle.
   # Knative webhook controllers (webhook.serving.knative.dev,
   # validation.webhook.serving.knative.dev) reconcile their own `.webhooks[].rules`
-  # at runtime — discovering CRDs registered via the knative-serving operator and
+  # at runtime - discovering CRDs registered via the knative-serving operator and
   # rewriting the rule list. Source Helm chart ships a static rule list; live state
   # is collapsed/expanded by the controller. Masking `.webhooks[].rules` for
   # exactly those two webhooks (by name) lets the controller own that subtree
@@ -89,7 +84,6 @@ data:
       - '.webhooks[]?.clientConfig.caBundle'
       - 'select(.metadata.name == "validation.webhook.serving.knative.dev") | .webhooks[]?.rules'
       - 'select(.metadata.name == "istio-validator-istio-system") | .webhooks[]?.failurePolicy'
-  # ---------------------------------------------------------------------------
   # CRDs: apiextensions.k8s.io/v1 server defaults whenever the manifest omits:
   #   spec.conversion.strategy: None     (server adds when absent)
   #   spec.preserveUnknownFields: false  (server strips when explicitly false
@@ -112,8 +106,7 @@ data:
       - '.spec.conversion.webhook.clientConfig.caBundle'
       - '.spec.names.listKind'
       - '.spec.versions[]?.additionalPrinterColumns[]?.priority'
-  # ---------------------------------------------------------------------------
-  # Aggregated ClusterRole `.rules` is owned by kube-controller-manager — it
+  # Aggregated ClusterRole `.rules` is owned by kube-controller-manager - it
   # walks `aggregationRule.clusterRoleSelectors` and unions matching child
   # rule sets back into the parent. Git authors aggregated parents with
   # `rules: []` (empty); the controller rewrites them at runtime. Only ignore
@@ -122,14 +115,12 @@ data:
   resource.customizations.ignoreDifferences.rbac.authorization.k8s.io_ClusterRole: |
     jqPathExpressions:
       - 'select(.aggregationRule != null) | .rules'
-  # ---------------------------------------------------------------------------
   # HPA-managed Deployment.spec.replicas: ArgoCD's `managedFieldsManagers`
   # carve-out tells the diff engine to drop fields whose SSA fieldOwner is
   # `kube-controller-manager` (the HPA reconciler). Without this every
   # auto-scaled Deployment (istio-ingressgateway, cluster-local-gateway,
   # kube-prometheus-stack-operator HA replicas, etc.) flaps OutOfSync each
   # time the HPA decision changes replica count.
-  # ---------------------------------------------------------------------------
   # Istio operator post-apply label injection: when an IstioOperator CR or the
   # sail-operator reconciles, it stamps gateway / istiod Deployments with
   # operator-ownership labels that the source manifests never declare. Source
@@ -149,13 +140,14 @@ data:
       # Server-default fields K8s apps/v1 writes on create when the manifest
       # omits them. Helm charts that don't render these (altinity-clickhouse-
       # operator, istio gateways, knative-serving, alloy, others) end up with
-      # permanent OutOfSync ghost diff: rendered manifest omits → server
-      # injects default → ArgoCD diffs live-vs-rendered → OutOfSync. Masking
+      # permanent OutOfSync ghost diff: rendered manifest omits it, the
+      # server injects default, then ArgoCD diffs live-vs-rendered as
+      # OutOfSync. Masking
       # the paths globally is safe because (a) K8s never writes anything but
       # the documented default into a never-set field, (b) any source that
       # DOES set the field to the same default already matches live, and
       # (c) a source that sets a non-default value still mismatches live
-      # only on first apply (which Argo applies successfully) — the mask
+      # only on first apply (which Argo applies successfully) - the mask
       # silences the ghost only after live converges to source. Values are
       # the K8s 1.34 defaults verified live 2026-05-23.
       - /spec/revisionHistoryLimit       # default 10
@@ -170,7 +162,7 @@ data:
       # needed. Source authors single-node mandate replicas: 1 per #302 but
       # HPA maxReplicas: 3-5 lets workload scale on real load.
       # Field-verified 2026-05-23: metadata-envoy-deployment HPA scaled
-      # 1→3 on cpu 110%, manager=k3s, managedFields stripped on Deployment.
+      # 1 to 3 on cpu 110%, manager=k3s, managedFields stripped on Deployment.
       - /spec/replicas
     jqPathExpressions:
       - '.metadata.labels."install.operator.istio.io/owning-resource"'
@@ -185,7 +177,7 @@ data:
       - '.spec.template.metadata.labels."istio.io/dataplane-mode"'
       - '.spec.template.metadata.labels."istio.io/rev"'
       # Altinity ClickHouse operator stamps these on the clickhouse-operator
-      # Deployment post-apply (chop version + commit + build date) — source
+      # Deployment post-apply (chop version + commit + build date) - source
       # chart 0.26.3 doesn't ship them, operator patches at runtime.
       - '.metadata.labels."clickhouse.altinity.com/app"'
       - '.metadata.labels."clickhouse.altinity.com/chop"'
@@ -196,13 +188,13 @@ data:
       # altinity-clickhouse-operator 0.26.3 Deployment via ArgoCD REST API
       # /api/v1/applications/altinity-clickhouse-operator/managed-resources:
       # normalizedLiveState had 8 occurrences of `"divisor": "0"`, source
-      # render (helm template) had 0 → 112-char ghost drift = perma-OutOfSync.
+      # render (helm template) had 0, so a 112-char ghost drift = perma-OutOfSync.
       # k8s api-server defaults `divisor` to Quantity("0") when omitted in
       # any resourceFieldRef; chart-rendered manifests almost always omit it
       # because the literal Quantity "0" is the documented default. Masking
       # globally is safe because every conformant manifest that *does* set
       # divisor sets it to a non-zero value that still mismatches "0" if the
-      # source author wanted a different divisor — ArgoCD apply lands the
+      # source author wanted a different divisor - ArgoCD apply lands the
       # source-declared value, live converges, ghost vanishes.
       - '.spec.template.spec.containers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor'
       - '.spec.template.spec.initContainers[]?.env[]?.valueFrom?.resourceFieldRef?.divisor'
@@ -211,13 +203,12 @@ data:
       # a Deployment rollout. Chaos-mesh 2.8.2 + several other charts use this
       # to roll pods on cert-manager Secret rotation (the chart re-renders with
       # a new random string when its source Secret data changes). ArgoCD diff
-      # sees old rollme in source vs new in live → permanent OutOfSync on every
+      # sees old rollme in source vs new in live, so permanent OutOfSync on every
       # cert rotation. Masking is safe: rollme has no functional effect beyond
       # forcing a rollout, and the cert-manager-managed Secret itself is the
       # source of truth for the actual cert material. Apps that intentionally
       # use rollme to gate rollout still apply it via source-driven sync.
       - '.spec.template.metadata.annotations.rollme'
-  # ---------------------------------------------------------------------------
   # external-secrets.io/v1alpha1 PushSecret webhook injects defaults on apply
   # symmetric to ExternalSecret above:
   #   spec.deletionPolicy:          None
@@ -236,11 +227,10 @@ data:
       - /spec/updatePolicy
     jqPathExpressions:
       - '.spec.data[]?.conversionStrategy'
-  # ---------------------------------------------------------------------------
-  # CNPG Cluster — two distinct drift sources, both masked here:
+  # CNPG Cluster - two distinct drift sources, both masked here:
   #
   # 1. `.spec.bootstrap` is consumed exactly once at initdb on the first
-  #    reconcile of a fresh cluster — once `cnpg.io/clusterStatus` has
+  #    reconcile of a fresh cluster - once `cnpg.io/clusterStatus` has
   #    progressed past Bootstrap, the bootstrap fields are immutable (the
   #    CNPG admission webhook rejects PATCH on them with
   #    `spec.bootstrap.initdb: forbidden field is immutable after cluster
@@ -314,7 +304,6 @@ data:
       - '.spec.postgresql.parameters.wal_log_hints'
       - '.spec.postgresql.parameters.wal_receiver_timeout'
       - '.spec.postgresql.parameters.wal_sender_timeout'
-  # ---------------------------------------------------------------------------
   # KEDA admission webhook (keda-operator-webhook) defaults ~12 advanced
   # fields on every ScaledObject apply. Use-cases declare ScaledObjects
   # under use-case-*/manifests/base/scaling/scaledobjects.yaml. After
@@ -340,7 +329,6 @@ data:
       - /spec/scalingStrategy
     jqPathExpressions:
       - '.spec.triggers[]?.metricType'
-  # ---------------------------------------------------------------------------
   # Flink Kubernetes Operator webhook defaults ~15 fields on FlinkDeployment
   # spec (jobManager/taskManager replicas defaults, restart-strategy
   # full config block, ingress class, podTemplate defaults). Without this
@@ -354,7 +342,6 @@ data:
     jqPathExpressions:
       - '.spec.flinkConfiguration."kubernetes.operator.user-artifacts.base.dir"'
       - '.spec.flinkConfiguration."kubernetes.internal.jobmanager.entrypoint.args"'
-  # ---------------------------------------------------------------------------
   # Argo Rollouts webhook defaults strategy.canary/blueGreen sub-fields.
   # Use-case Rollouts using `strategy.canary` with explicit steps trip this
   # because the operator pads scale-down/abort-defaults that Git omits.
@@ -376,7 +363,6 @@ data:
       - '.spec.template.spec.restartPolicy'
       - '.spec.template.spec.schedulerName'
       - '.spec.template.spec.terminationGracePeriodSeconds'
-  # ---------------------------------------------------------------------------
   # Katib Experiment webhook defaults trial budget + parallelism + algorithm
   # settings. Our flaml-automl-hpo Experiment authors objective + parameters
   # + algorithm name only.
@@ -391,7 +377,6 @@ data:
       - '.spec.algorithm.algorithmSettings'
       - '.spec.objective.metricStrategies'
       - '.spec.earlyStopping'
-  # ---------------------------------------------------------------------------
   # Strimzi cluster-operator webhook defaults config blocks on every KafkaTopic
   # and KafkaUser. Use-cases typically declare KafkaTopics + KafkaUser via
   # cross-namespace (kafka-topics/, kafka-users/). Strimzi enriches each with
@@ -407,7 +392,6 @@ data:
     jqPathExpressions:
       - '.spec.template.secret.metadata.labels'
       - '.spec.authorization.acls[]?.operations'
-  # ---------------------------------------------------------------------------
   # Sloth operator (sloth.slok.dev) writes back compiled PrometheusRule
   # references + status. Source PrometheusServiceLevel authors SLOs in raw
   # form; operator-generated annotations + labels drift.
@@ -417,8 +401,7 @@ data:
     jqPathExpressions:
       - '.spec.slos[]?.alerting.annotations'
       - '.spec.slos[]?.alerting.labels'
-  # ---------------------------------------------------------------------------
-  # ClickHouseInstallation (Altinity CHI operator) — the operator rewrites
+  # ClickHouseInstallation (Altinity CHI operator) - the operator rewrites
   # `.spec.configuration.clusters[*].layout` to expand zk + shard topology,
   # and adds operator-version annotations to .metadata. The source
   # platform/components/storage/clickhouse/installation.yaml declares the
@@ -431,7 +414,6 @@ data:
       - '.metadata.annotations["clickhouse-operator/version"]'
       - '.spec.configuration.clusters[]?.zookeeper'
       - '.spec.configuration.clusters[]?.layout.replicas'
-  # ---------------------------------------------------------------------------
   # Tekton mutating admission webhook injects `computeResources: {}` into
   # every step + sidecar of every Task (and every embedded taskSpec inside
   # Pipeline.spec.tasks/finally). Source Tasks/Pipelines omit the empty
@@ -474,7 +456,6 @@ data:
       - /spec/timeout
     jqPathExpressions:
       - '.spec.computeResources'
-  # ---------------------------------------------------------------------------
   # Tekton Triggers EventListener controller pads `.spec.resources` with
   # default deployment+service shape (replicas, serviceType, kubernetesResource
   # container defaults). Source declares triggers/interceptors only.
@@ -485,31 +466,30 @@ data:
     jqPathExpressions:
       - '.spec.triggers[]?.bindings[]?.kind'
       - '.spec.triggers[]?.interceptors[]?.ref.kind'
-  # ---------------------------------------------------------------------------
-  # StatefulSet — server-default ghost drift, symmetric to apps_Deployment.
+  # StatefulSet - server-default ghost drift, symmetric to apps_Deployment.
   # apps/v1 StatefulSetSpec defaults whenever the source omits:
   #   spec.persistentVolumeClaimRetentionPolicy: {Retain, Retain}
   #   spec.revisionHistoryLimit:                 10
   #   spec.updateStrategy.rollingUpdate.partition: 0
   #   spec.podManagementPolicy:                  OrderedReady (chart may set Parallel)
   # Most charts (pyroscope 2.0.1, openbao 0.18.x, opensearch 3.x) leave at least
-  # one of these unset → server injects → ArgoCD diff engine flags forever even
+  # one of these unset, then server injects, then ArgoCD diff engine flags forever even
   # with ServerSideDiff=true. Field-verified 2026-05-23 against K8s 1.34.
   # /spec/replicas is HPA-managed when a HorizontalPodAutoscaler targets the
-  # STS — kube-controller-manager owns the field via SSA; the
+  # STS - kube-controller-manager owns the field via SSA; the
   # `managedFieldsManagers` carve-out drops it from the diff. k3s' embedded
-  # controller-manager also takes ownership transiently during reconcile —
+  # controller-manager also takes ownership transiently during reconcile -
   # adding `k3s` mirrors the apps_Deployment block above. Re-verify the
   # default table when bumping K8s minor.
   #
   # volumeClaimTemplates server-injected fields (verified live 2026-05-23 on
   # pyroscope-2.0.1, openbao-0.18, opensearch-3.x):
-  #   .apiVersion           → "v1"                  (TypeMeta injected on persist)
-  #   .kind                 → "PersistentVolumeClaim" (TypeMeta injected on persist)
-  #   .spec.volumeMode      → "Filesystem"          (PVC default when omitted)
-  #   .status               → {phase: Pending|Bound} (controller-managed)
-  #   .metadata.creationTimestamp  → set on first apply
-  #   .metadata.annotations: {}    → server strips empty maps
+  #   .apiVersion           becomes "v1"                  (TypeMeta injected on persist)
+  #   .kind                 becomes "PersistentVolumeClaim" (TypeMeta injected on persist)
+  #   .spec.volumeMode      becomes "Filesystem"          (PVC default when omitted)
+  #   .status               becomes {phase: Pending|Bound} (controller-managed)
+  #   .metadata.creationTimestamp  gets set on first apply
+  #   .metadata.annotations: {}    so server strips empty maps
   # Source helm charts ship VCTs in canonical short form (metadata.name + spec
   # only); without these carve-outs every chart-backed STS reports OutOfSync
   # forever. Cannot use managedFieldsManagers carve-out for VCT subfields
@@ -531,8 +511,7 @@ data:
       - '.spec.volumeClaimTemplates[]?.status'
       - '.spec.volumeClaimTemplates[]?.metadata.creationTimestamp'
       - '.spec.volumeClaimTemplates[]?.metadata.annotations | select(. == {})'
-  # ---------------------------------------------------------------------------
-  # DaemonSet — server-default ghost drift, symmetric to apps_Deployment.
+  # DaemonSet - server-default ghost drift, symmetric to apps_Deployment.
   # apps/v1 DaemonSetSpec defaults whenever the source omits:
   #   spec.revisionHistoryLimit:                 10
   #   spec.updateStrategy: {RollingUpdate, maxUnavailable: 1}
@@ -545,19 +524,18 @@ data:
       - /spec/updateStrategy
       - /spec/minReadySeconds
     jqPathExpressions:
-      # `rollme` pod-template annotation — same helm-chart pattern as the
+      # `rollme` pod-template annotation - same helm-chart pattern as the
       # apps_Deployment rollme mask above. Chaos-mesh chaos-daemon DaemonSet
       # gets a fresh random rollme each chart render, triggering OutOfSync on
       # every cert-manager rotation of chaos-mesh-chaosd-client-certs Secret.
       - '.spec.template.metadata.annotations.rollme'
-  # ---------------------------------------------------------------------------
-  # Secret — cert-manager + external-secrets + Strimzi + helm-hook charts that
+  # Secret - cert-manager + external-secrets + Strimzi + helm-hook charts that
   # rotate `.data` at runtime. The source ships an empty secret or no secret at
   # all (chart-template seed); the runtime owner (cert-manager Certificate /
   # ExternalSecret / Strimzi cluster-operator) populates `.data` post-apply.
   # Without this carve-out every rotation flaps the parent Application
   # OutOfSync until the next manual sync. The carve-out is namespace-agnostic
-  # — Secrets that are statically declared in Git (e.g. config-only secrets
+  # - Secrets that are statically declared in Git (e.g. config-only secrets
   # without a managing controller) are still diff-checked on every other field
   # (metadata, type, immutable, stringData). field-verified 2026-05-23 against
   # chaos-mesh-chaosd-client-certs (cert-manager-managed) and the openbao

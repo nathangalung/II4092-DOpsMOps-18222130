@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# use-case template configure — single source-of-truth propagation
-# =============================================================================
+# use-case template configure - single source-of-truth propagation
 # Reads the desired use-case prefix from `config/project.yaml` (the field
 # `project.namespace`, which has the canonical form `use-case-<NAME>`), detects
 # the current prefix from `manifests/overlays/local/kustomization.yaml`
@@ -33,7 +31,6 @@
 #   cd use-case-crypto
 #   $EDITOR config/project.yaml   # change namespace: use-case-<new>
 #   make -C ../ usecase-configure
-# =============================================================================
 
 set -euo pipefail
 
@@ -49,9 +46,7 @@ NC='\033[0m'
 
 cd "$USECASE_DIR"
 
-# ---------------------------------------------------------------------------
-# Detect NEW from config/project.yaml — the canonical source of truth
-# ---------------------------------------------------------------------------
+# Detect NEW from config/project.yaml - the canonical source of truth
 # `project.namespace` always has form `use-case-<NAME>` (enforced by readme +
 # CLAUDE.md domain-isolation rule); strip the prefix to derive the bare name.
 CONFIG="$USECASE_DIR/config/project.yaml"
@@ -70,10 +65,8 @@ if [[ -z "${NEW:-}" ]]; then
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Detect OLD from manifests/overlays/local/kustomization.yaml — the place
+# Detect OLD from manifests/overlays/local/kustomization.yaml - the place
 # previous configure runs imprint the prefix
-# ---------------------------------------------------------------------------
 OVERLAY="$USECASE_DIR/manifests/overlays/local/kustomization.yaml"
 if [[ ! -f "$OVERLAY" ]]; then
     printf "${RED}ERROR: %s not found${NC}\n" "$OVERLAY" >&2
@@ -95,11 +88,9 @@ printf "${BLUE}═════════════════════�
 printf "${BLUE}  Reconfiguring use case: ${YELLOW}%s${BLUE} → ${GREEN}%s${NC}\n" "$OLD" "$NEW"
 printf "${BLUE}═══════════════════════════════════════════════════════════════${NC}\n"
 
-# ---------------------------------------------------------------------------
-# Vendor names to preserve — substrings that contain OLD but are not the
+# Vendor names to preserve - substrings that contain OLD but are not the
 # use-case identity (e.g. third-party APIs that happen to embed "crypto").
 # These get masked before rewrite and unmasked after.
-# ---------------------------------------------------------------------------
 declare -a VENDOR_KEEP=(
     "cryptopanic"   # third-party news/sentiment API
     "Cryptopanic"
@@ -110,10 +101,8 @@ declare -a VENDOR_KEEP=(
 # any code/YAML/config/markdown across the repo (verified via `grep -rl $'\x01'`).
 SENTINEL=$'\x01'
 
-# ---------------------------------------------------------------------------
-# Files to rewrite — explicit extension allowlist keeps `find` deterministic
+# Files to rewrite - explicit extension allowlist keeps `find` deterministic
 # and avoids touching binaries.
-# ---------------------------------------------------------------------------
 mapfile -d '' FILES < <(
     find . \
         -path ./.git -prune -o \
@@ -134,10 +123,8 @@ mapfile -d '' FILES < <(
         \) -print0
 )
 
-# ---------------------------------------------------------------------------
-# Helper: rewrite a single file (mask vendor names → swap OLD→NEW → unmask).
+# Helper: rewrite a single file (mask vendor names then swap OLD to NEW then unmask).
 # Uses GNU sed in-place; on macOS `gsed` if available.
-# ---------------------------------------------------------------------------
 if sed --version >/dev/null 2>&1; then
     SED_INPLACE=(sed -i)
 else
@@ -150,17 +137,17 @@ rewrite_file() {
     for v in "${VENDOR_KEEP[@]}"; do
         "${SED_INPLACE[@]}" "s|${v}|${SENTINEL}${v}${SENTINEL}|g" "$f"
     done
-    # 2. Swap OLD → NEW with GNU-sed word boundaries.
+    # 2. Swap OLD to NEW with GNU-sed word boundaries.
     #
-    #    `\<X\>` matches X as a whole word — i.e., where both sides are at the
+    #    `\<X\>` matches X as a whole word - i.e., where both sides are at the
     #    boundary of a word char run ([A-Za-z0-9_]). That catches `crypto-foo`,
     #    `use-case-crypto`, `"crypto"`, `crypto.x`, ` crypto;`, etc. without
     #    touching `cryptopanic` or `cryptography` (no boundary inside a word).
     #
     #    `_` counts as a word char, so for snake_case we need explicit handling:
-    #      crypto_x         — leading token of an identifier
-    #      x_crypto         — trailing token
-    #      x_crypto_y       — middle token
+    #      crypto_x - leading token of an identifier
+    #      x_crypto - trailing token
+    #      x_crypto_y - middle token
     #    These three patterns plus `\<X\>` cover identifier rewrites cleanly.
     "${SED_INPLACE[@]}" \
         -e "s|\\<${OLD}\\>|${NEW}|g"             `# whole word; covers prefix/suffix/dotted/quoted/colon-bounded` \
@@ -174,21 +161,17 @@ rewrite_file() {
     done
 }
 
-# ---------------------------------------------------------------------------
 # Content rewrite pass
-# ---------------------------------------------------------------------------
 printf "${YELLOW}Rewriting content in %d files...${NC}\n" "${#FILES[@]}"
 for f in "${FILES[@]}"; do
     rewrite_file "$f"
 done
 
-# ---------------------------------------------------------------------------
-# Filename rename pass — process deepest paths first so parent renames don't
+# Filename rename pass - process deepest paths first so parent renames don't
 # invalidate child paths mid-loop.
-# ---------------------------------------------------------------------------
 printf "${YELLOW}Renaming files containing '%s' in the basename...${NC}\n" "$OLD"
 renamed=0
-# Sort by depth descending — `awk '{print gsub(/\//,"&")"\t"$0}'` counts slashes.
+# Sort by depth descending - `awk '{print gsub(/\//,"&")"\t"$0}'` counts slashes.
 while IFS= read -r -d '' path; do
     dir="$(dirname "$path")"
     base="$(basename "$path")"
@@ -220,10 +203,8 @@ done < <(
     | cut -z -f2-
 )
 
-# ---------------------------------------------------------------------------
-# Validation — surface anything still referencing OLD (excluding vendor words,
+# Validation - surface anything still referencing OLD (excluding vendor words,
 # git internals, and the script itself which documents OLD names in comments).
-# ---------------------------------------------------------------------------
 printf "\n${BLUE}Validating...${NC}\n"
 SCRIPT_REL="${BASH_SOURCE[0]#"$USECASE_DIR/"}"
 remaining_raw="$(grep -rln \

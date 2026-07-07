@@ -1,6 +1,4 @@
-# =============================================================================
-# PLATFORM OVERLAY — Platform-only deployment (no domain use-case)
-# =============================================================================
+# PLATFORM OVERLAY - Platform-only deployment (no domain use-case)
 # Deploys all 18 services with GENERIC naming to ml-pipeline namespace.
 # Services get infrastructure endpoints from pipeline-config ConfigMap
 # plus minimal domain defaults from configmap-domain.yaml.
@@ -10,7 +8,6 @@
 #
 # To add a domain use-case on top, use the use-case overlay instead:
 #   cd ../use-case-<domain> && make deploy
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -103,5 +100,5 @@ replicas:
   - name: dashboard-frontend
     count: 1
   # ADR-025: ml-bridge has no Deployment/StatefulSet in the generic overlay
-  # (no Rollout either — Rollouts ship per use case). Kustomize `replicas:`
+  # (no Rollout either - Rollouts ship per use case). Kustomize `replicas:`
   # only targets Deployment/StatefulSet/ReplicaSet/ReplicationController.

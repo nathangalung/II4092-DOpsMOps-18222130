@@ -12,7 +12,7 @@ metadata:
     # Istio sidecar (istio-validation/istio-proxy init containers) violates
     # PodSecurity "restricted" because the upstream istio-proxy image does not
     # set seccompProfile, which is required at the pod level here. Keep ESO
-    # out of the mesh — the operator talks to OpenBao and the kube-apiserver,
+    # out of the mesh - the operator talks to OpenBao and the kube-apiserver,
     # both of which already use TLS. Re-enable per-pod via annotation if a
     # specific ExternalSecret needs mesh-mediated egress.
     istio-injection: disabled

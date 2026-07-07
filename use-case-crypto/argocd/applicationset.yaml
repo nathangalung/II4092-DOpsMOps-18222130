@@ -1,6 +1,4 @@
-# =============================================================================
-# ArgoCD ApplicationSet — crypto use-case overlay generator
-# =============================================================================
+# ArgoCD ApplicationSet - crypto use-case overlay generator
 # ADR-013 + audit §5.1 / §9.3 (P0-2). The platform repo's `app-of-apps.yaml`
 # carries the platform-side ApplicationSet (`platform-components`); this file
 # is the use-case-side counterpart. Together they satisfy the audit's "≥ 2
@@ -29,7 +27,6 @@
 # Apply order (one-time bootstrap):
 #   kubectl apply -f use-case-crypto/argocd/application.yaml      # AppProject
 #   kubectl apply -f use-case-crypto/argocd/applicationset.yaml   # ApplicationSet
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -49,7 +46,7 @@ spec:
             # Path inside the gitea repo `platform/use-case-crypto.git`.
             # seed-gitea.sh preserves the working-tree top-level dir name
             # (`use-case-crypto/`) so paths remain `<top>/manifests/...`
-            # — same convention as `platform/components/<x>`.
+            # - same convention as `platform/components/<x>`.
             overlay: use-case-crypto/manifests/overlays/local
             wave: "0"
   template:
@@ -88,11 +85,11 @@ spec:
           # LIVE array elements into the desired state at sync time, so a real
           # change inside the same array element becomes a silent no-op apply:
           # the app reports "serverside-applied" yet stays OutOfSync forever
-          # (argo-cd#25284, #11876 — proven live on this app's KafkaUsers,
+          # (argo-cd#25284, #11876 - proven live on this app's KafkaUsers,
           # Tekton Tasks and PrometheusServiceLevel after the feature-engine
           # scrub). The ignoreDifferences entries below still work without it:
           # they suppress the diff, and with ApplyOutOfSyncOnly a resource
-          # whose only drift is in ignored paths never enters the apply set —
+          # whose only drift is in ignored paths never enters the apply set -
           # which is what actually preserves the runtime-mutated storageUri.
           - ApplyOutOfSyncOnly=true
           - PruneLast=true

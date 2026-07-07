@@ -1,6 +1,4 @@
-# =============================================================================
-# SERVICE CONFIGURATION — Enable/Disable Pipeline Services
-# =============================================================================
+# SERVICE CONFIGURATION - Enable/Disable Pipeline Services
 # Controls which microservices are built, deployed, and tested.
 # Set enabled: false to disable a service entirely.
 #
@@ -10,12 +8,9 @@
 # DEPENDENCY KEY:
 #   depends_on     = required components (from components.yaml)
 #   optional_deps  = optional components (service works without them)
-# =============================================================================
 
 services:
-  # ---------------------------------------------------------------------------
-  # INGESTION — Data collection from external sources
-  # ---------------------------------------------------------------------------
+  # INGESTION - Data collection from external sources
   ingestion:
     rest_collector:
       enabled: true
@@ -45,9 +40,7 @@ services:
       description: "Supplementary/alternative data collection"
       depends_on: [kafka]
 
-  # ---------------------------------------------------------------------------
-  # QUALITY — Data validation and analysis
-  # ---------------------------------------------------------------------------
+  # QUALITY - Data validation and analysis
   quality:
     validator:
       enabled: true
@@ -61,9 +54,7 @@ services:
       depends_on: [kafka, clickhouse]
       # Alternatives: Soda Core, dbt tests
 
-  # ---------------------------------------------------------------------------
-  # PROCESSING — Feature engineering
-  # ---------------------------------------------------------------------------
+  # PROCESSING - Feature engineering
   processing:
     batch:
       enabled: true # Disable if only real-time features needed
@@ -73,7 +64,7 @@ services:
       optional_deps: [spark] # Runs without Spark for small datasets
       # If disabled: no historical feature computation
       # Alternatives: dbt, Apache Beam
-    # feature_engine: RETIRED — real-time feature computation is owned by the
+    # feature_engine: RETIRED - real-time feature computation is owned by the
     # Flink stream job (flink_job below); use-case overlays ship the
     # FlinkDeployment. Keeping one speed-layer owner avoids dual writers.
     flink_job:
@@ -94,9 +85,7 @@ services:
         # - "sentence-transformers/all-MiniLM-L6-v2"  # Faster, lighter
         # - "BAAI/bge-large-en-v1.5"                  # Higher quality
 
-  # ---------------------------------------------------------------------------
-  # TRAINING — Model training and drift detection
-  # ---------------------------------------------------------------------------
+  # TRAINING - Model training and drift detection
   training:
     trainer:
       enabled: true
@@ -114,9 +103,7 @@ services:
       description: "Multi-scale drift detection (PSI, K-S tests)"
       depends_on: [kafka, clickhouse, prometheus]
 
-  # ---------------------------------------------------------------------------
-  # SERVING — Model inference API
-  # ---------------------------------------------------------------------------
+  # SERVING - Model inference API
   serving:
     gateway:
       enabled: true
@@ -138,9 +125,7 @@ services:
         # triton: false     # NVIDIA Triton (multi-framework, batching)
         # torchserve: false # PyTorch-native serving
 
-  # ---------------------------------------------------------------------------
-  # AUTOMATION — Pipeline orchestration
-  # ---------------------------------------------------------------------------
+  # AUTOMATION - Pipeline orchestration
   automation:
     materialization:
       enabled: true
@@ -153,9 +138,7 @@ services:
       description: "Automatic model retraining orchestration"
       depends_on: [airflow, mlflow]
 
-  # ---------------------------------------------------------------------------
-  # DASHBOARD — Web UI for monitoring
-  # ---------------------------------------------------------------------------
+  # DASHBOARD - Web UI for monitoring
   dashboard:
     backend:
       enabled: true

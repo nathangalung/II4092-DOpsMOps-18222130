@@ -20,7 +20,7 @@ GROUP BY symbol, timestamp, window_hours
 -- bars that happen to have news in the window. The LEFT JOIN to stg_sentiment
 -- already yields news_count=0 / avg_sentiment=0 (neutral) for newsless windows;
 -- dropping those rows is what left the downstream exact-timestamp join in
--- fct_training_data unmatched → NULL → fillna(0) → the 7 sentiment features were
+-- fct_training_data unmatched becomes NULL, then fillna(0), so the 7 sentiment features were
 -- dead-zero for every row. Dense output makes the join hit every bar: sparse
 -- windows carry a real neutral signal (count=0), news-bearing windows carry the
 -- true trailing aggregate. FLAML drops any window that stays near-constant.

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# openbao/post-apply.sh — wait for openbao-bootstrap Job to seed KV
-# =============================================================================
+# openbao/post-apply.sh - wait for openbao-bootstrap Job to seed KV
 # Why this exists:
 #   The openbao-bootstrap Job runs once per cluster lifecycle and seeds every
 #   secret/platform/* KV path that ExternalSecrets downstream consume (Airflow,
@@ -12,7 +10,7 @@
 #   into pods stuck in CreateContainerConfigError waiting on those Secrets.
 #
 # What this does:
-#   1. Wait openbao-0 Pod Ready (StatefulSet rollout — covers fresh install
+#   1. Wait openbao-0 Pod Ready (StatefulSet rollout - covers fresh install
 #      image pull + raft init + initial seal handshake).
 #   2. Wait until openbao-0 reports Sealed=false (the openbao-unsealer
 #      Deployment in the same namespace re-runs the unseal cycle every loop;
@@ -20,20 +18,19 @@
 #      readiness, not the Job's exit status).
 #   3. Wait for the openbao-bootstrap Job's Complete condition. If the Job
 #      hits BackoffLimitExceeded BEFORE the wait timeout (the Job ran while
-#      openbao-0 was still racing through init/unseal — the failure mode
+#      openbao-0 was still racing through init/unseal - the failure mode
 #      that motivated this hook), delete + re-apply the Job from the
 #      rendered manifest and resume waiting. Job spec.template is immutable
 #      so a delete-recreate cycle is the only K8s-native re-trigger.
 #
 # Idempotency: post-apply.sh re-running on a healthy cluster:
-#   - openbao-0 already Ready    → step 1 returns instantly.
-#   - openbao-0 already unsealed → step 2 returns instantly.
-#   - bootstrap Job Complete     → step 3 returns instantly.
-#   - bootstrap Job Failed       → delete-recreate + wait Complete.
+#   - openbao-0 already Ready, so step 1 returns instantly.
+#   - openbao-0 already unsealed, so step 2 returns instantly.
+#   - bootstrap Job Complete, so step 3 returns instantly.
+#   - bootstrap Job Failed, so delete-recreate + wait Complete.
 #
 # This hook is the bridge between OpenBao install and every downstream
 # ESO-consuming component; phase-full reproducibility depends on it.
-# =============================================================================
 set -euo pipefail
 
 NS=security
@@ -83,7 +80,7 @@ while (( $(date +%s) < deadline )); do
   fi
   # K8s 1.31+ adds `SuccessCriteriaMet` condition (KEP-3998 JobSuccessPolicy)
   # which lands BEFORE `Complete` on a successful Job. Both have status=True,
-  # so we cannot use `head -1` on True-only conditions — that grabs whichever
+  # so we cannot use `head -1` on True-only conditions - that grabs whichever
   # comes first in `.status.conditions[]` and silently misses the terminal
   # state we actually want.  Test for Complete + Failed/FailureTarget
   # explicitly with jq `any()`.

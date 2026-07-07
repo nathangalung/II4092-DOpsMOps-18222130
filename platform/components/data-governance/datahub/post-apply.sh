@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# =============================================================================
-# datahub/post-apply.sh — heal the ESO-source race that wedges the upgrade Job
-# =============================================================================
+# datahub/post-apply.sh - heal the ESO-source race that wedges the upgrade Job
 # Why this exists:
 #   datahub-upgrade-job is created by the same `kubectl apply --server-side`
 #   that lays down the three ExternalSecret CRs it depends on
 #   (platform-postgresql-secret, datahub-kafka, datahub-frontend-secret).
 #   Order of materialisation under SSA:
-#     1. SSA accepts every doc and exits 0 — both Job and ExternalSecret CRs
+#     1. SSA accepts every doc and exits 0 - both Job and ExternalSecret CRs
 #        are admitted simultaneously.
 #     2. kube-scheduler immediately schedules the Job pod.
 #     3. kubelet pulls the image, starts the sandbox, then resolves env-from
-#        secrets — one of platform-postgresql-secret / datahub-kafka /
+#        secrets - one of platform-postgresql-secret / datahub-kafka /
 #        datahub-frontend-secret may not yet exist as a real `Secret` because
 #        ESO hasn't completed its first reconcile against the upstream
 #        ClusterSecretStore.
@@ -19,10 +17,10 @@
 #        `CreateContainerConfigError: secret "X" not found`. This counts
 #        toward Job.spec.backoffLimit (5).
 #     5. ESO's first fetch may fail if the upstream source secret is itself
-#        not yet present — e.g. CNPG `postgresql-app` is generated only AFTER
+#        not yet present - e.g. CNPG `postgresql-app` is generated only AFTER
 #        the storage/postgresql component finishes initdb. After a failed
 #        fetch ESO retries on `refreshInterval` (1h here), so the second
-#        attempt is an hour away — long after the Job has burned through its
+#        attempt is an hour away - long after the Job has burned through its
 #        backoffLimit and entered terminal Failed state.
 #     6. Once Failed (BackoffLimitExceeded), the Job will not retry on its
 #        own; ttlSecondsAfterFinished=3600 GCs it. Without SystemUpdate ever
@@ -39,7 +37,7 @@
 #
 # What this hook does (idempotent, runs after the main apply succeeds):
 #   1. Wait for the upstream CNPG `postgresql-app` Secret in `storage` to
-#      exist — that's the source of truth for the platform-postgresql-secret
+#      exist - that's the source of truth for the platform-postgresql-secret
 #      ExternalSecret. CNPG generates it post-initdb on the first replica.
 #   2. Wait for the upstream Strimzi `admin` SCRAM Secret + cluster-CA Secret
 #      in `data-ingestion` to exist (datahub-kafka source). These come from
@@ -52,11 +50,10 @@
 #      consumed during the race window), delete it and re-create from the
 #      rendered manifest so SystemUpdate actually runs.
 #   6. Wait for the Job to reach Complete (SystemUpdate runs Liquibase DDL +
-#      OpenSearch index bootstraps; 5–15 min on a cold cluster).
+#      OpenSearch index bootstraps; 5-15 min on a cold cluster).
 #
 #   On a healthy cluster every wait returns instantly and step 5/6 short-
 #   circuits because the Job already Completed once.
-# =============================================================================
 set -euo pipefail
 
 NS=data-governance
@@ -119,27 +116,24 @@ if [[ -n "$missing" ]]; then
   exit 2
 fi
 
-# -----------------------------------------------------------------------------
 # Auto-roll datahub-gms + datahub-frontend on DATAHUB_SECRET rotation.
-# -----------------------------------------------------------------------------
 # Why: DATAHUB_TOKEN_SERVICE_SIGNING_KEY is the HMAC key both GMS (validates)
 # and frontend (mints) use against the same PAT.  When `make nuke` wipes
 # OpenBao, openbao-bootstrap regenerates `platform/datahub/admin.secret` with
 # a fresh value.  ESO's `datahub-frontend-secret` ExternalSecret picks that up
 # on next refresh (1h refreshInterval, or via force-sync above).  But neither
-# Deployment auto-rolls on Secret mutation — kubelet only re-reads env vars
+# Deployment auto-rolls on Secret mutation - kubelet only re-reads env vars
 # on container start.  Result: in-pod env stays on the pre-nuke key for the
 # lifetime of the pod (days).  Every PAT minted by frontend with the new key
-# is rejected by GMS validating with the old key → all datahub-ingest jobs
+# is rejected by GMS validating with the old key, so all datahub-ingest jobs
 # fail with 401 Unauthorized.  Symptom field-observed 2026-05-17 (3-day window
 # of silent 401s after a nuke cycle).
 #
 # Fix: hash the live DATAHUB_SECRET value, stamp it as a pod-template
 # annotation on both Deployments.  If the hash differs from what's already
-# there, the pod template spec changes → K8s rolls the Deployment, new pod
-# reads fresh env.  If the hash matches, patch is a no-op (idempotent — every
+# there, the pod template spec changes, so K8s rolls the Deployment, new pod
+# reads fresh env.  If the hash matches, patch is a no-op (idempotent - every
 # `make phase-full` re-checks but only rolls when needed).
-# -----------------------------------------------------------------------------
 echo "    [post-apply] checksum-stamping datahub-gms + datahub-frontend for auto-roll on secret rotation"
 secret_hash=$(kubectl -n "$NS" get secret datahub-frontend-secret \
   -o jsonpath='{.data.DATAHUB_SECRET}' | sha256sum | awk '{print $1}')
@@ -193,7 +187,7 @@ elif [[ "$job_complete" == "True" ]]; then
 fi
 
 # Job sets activeDeadlineSeconds=1800. Wait must exceed that, plus headroom
-# for backoff between retries — 2400s gives ~10 min slack so we don't FATAL
+# for backoff between retries - 2400s gives ~10 min slack so we don't FATAL
 # while the Job is still legitimately running.
 echo "    [post-apply] waiting datahub-upgrade-job Complete (timeout 2400s — SystemUpdate runs DDL + index bootstrap)"
 if ! kubectl -n "$NS" wait --for=condition=Complete job/datahub-upgrade-job --timeout=2400s; then

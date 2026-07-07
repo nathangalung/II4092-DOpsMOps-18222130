@@ -1,26 +1,26 @@
-"""Prediction service — KServe V2 inference proxy.
+"""Prediction service - KServe V2 inference proxy.
 
 The serving plane is a KServe ``InferenceService`` (``crypto-predictor``) running
-MLServer with an MLflow model. MLServer exposes ONLY the V2 inference protocol —
-``POST /v2/models/{name}/infer`` — so the previous custom routes
+MLServer with an MLflow model. MLServer exposes ONLY the V2 inference protocol -
+``POST /v2/models/{name}/infer`` - so the previous custom routes
 (``/predict``, ``/predictions/latest``) 404'd against it.
 
 This module bridges the use-case API to that protocol:
 
-  * ``POST /predict`` — caller supplies a ``{name: value}`` feature dict; we order
+  * ``POST /predict`` - caller supplies a ``{name: value}`` feature dict; we order
     it into the model's training feature vector and run one V2 inference.
-  * ``GET  /latest``  — pull the newest row from the gold training table
+  * ``GET  /latest`` - pull the newest row from the gold training table
     (ClickHouse), build the same vector, infer, and derive a trading signal.
 
-Feature-vector contract (train/serve parity — see platform trainer
+Feature-vector contract (train/serve parity - see platform trainer
 ``trainer.py::_get_feature_columns``):
-  The model was trained on ``df[feature_cols].values`` — a positional NumPy
-  matrix with NO column names and NO MLflow signature — so MLServer expects a
+  The model was trained on ``df[feature_cols].values`` - a positional NumPy
+  matrix with NO column names and NO MLflow signature - so MLServer expects a
   positional tensor whose column order matches training exactly. ``feature_cols``
   is "every NUMERIC column of the gold table, minus EXCLUDE_COLUMNS, minus the
   TARGET_COLUMN, in table order". We reproduce that selection here from the same
   env vars the trainer reads, so the served vector can never silently skew from
-  the trained one. Critically the TARGET column (crypto: ``close``) is EXCLUDED —
+  the trained one. Critically the TARGET column (crypto: ``close``) is EXCLUDED -
   it is the label, not a feature.
 """
 
@@ -46,7 +46,7 @@ MODEL_VERSION = os.getenv("MODEL_VERSION", "latest")
 
 FEATURES_TABLE = os.getenv("FEATURES_TABLE", "gold.fct_training_data")
 TARGET_COLUMN = os.getenv("TARGET_COLUMN", "close")
-# Identifier / metadata columns that are not model inputs — must mirror the
+# Identifier / metadata columns that are not model inputs - must mirror the
 # trainer's EXCLUDE_COLUMNS. The TARGET_COLUMN is unioned in below.
 _EXCLUDE = {
     c.strip()
@@ -69,7 +69,7 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    """Prediction response — next-period close forecast + derived signal."""
+    """Prediction response - next-period close forecast + derived signal."""
 
     symbol: str
     predicted_price: float
@@ -97,7 +97,7 @@ def _feature_order(column_names: list[str], column_types: list[Any]) -> list[str
     Selection is by column *type* (mirroring the trainer's
     ``pd.api.types.is_numeric_dtype`` over the same ``SELECT *`` projection), NOT
     by the sampled row's value type. A NULL in the newest row must never silently
-    drop a column and shrink the served vector below the trained width — the
+    drop a column and shrink the served vector below the trained width - the
     positional, no-signature model would then receive a misaligned tensor. NULLs
     are zero-filled at vector-build time, matching the trainer's ``fillna(0)``.
     """
@@ -114,7 +114,7 @@ def _feature_order(column_names: list[str], column_types: list[Any]) -> list[str
 def _infer(vector: list[float]) -> float:
     """One KServe V2 inference; returns the scalar model output."""
     # Request-level content_type=np: MLServer's mlflow runtime reshapes the flat
-    # data per `shape` into a 2D ndarray [1, N] before calling model.predict —
+    # data per `shape` into a 2D ndarray [1, N] before calling model.predict -
     # without it the runtime hands lightgbm a 1D/scalar array and 500s
     # ("Expected 2D array"). Verified against mlserver 1.7.1 + the mlflow-lightgbm
     # flavor (single positional tensor; the model has no column-named signature).
@@ -156,7 +156,7 @@ def _signal(predicted: float, current: float) -> tuple[str, float]:
         sig = "SELL"
     else:
         sig = "HOLD"
-    # Confidence: magnitude of the move, saturating at 1.0 (~10% move ⇒ ~1.0).
+    # Confidence: magnitude of the move, saturating at 1.0 (~10% move maps to ~1.0).
     confidence = min(1.0, abs(move) * 10.0)
     return sig, round(confidence, 4)
 
@@ -190,7 +190,7 @@ def predict(request: PredictionRequest) -> PredictionResponse:
 
 @router.get("/latest")
 def get_latest(symbol: str = "BTC-USD") -> dict[str, Any]:
-    """Latest live prediction: newest gold row → inference → signal."""
+    """Latest live prediction: newest gold row then inference then signal."""
     client = _ch_client()
     try:
         res = client.query(

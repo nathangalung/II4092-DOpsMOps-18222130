@@ -1,14 +1,11 @@
-# =============================================================================
-# MinIO Bucket Bootstrap — idempotent creation of platform-required buckets
-# =============================================================================
+# MinIO Bucket Bootstrap - idempotent creation of platform-required buckets
 # Runs once after MinIO is ready.  Creates every bucket the platform depends
 # on, so operators (CNPG, Loki, MLflow, Flink, Velero, …) never start
 # against a missing bucket and silently fail archiving.
 #
-# ADR-008 — credentials come from the OpenBao-populated `minio-root` secret.
+# ADR-008 - credentials come from the OpenBao-populated `minio-root` secret.
 # The Job uses `mc` from the official minio client image and is safe to
 # re-run: `mc mb --ignore-existing` is a no-op when the bucket exists.
-# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -18,7 +15,7 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
     app.kubernetes.io/component: storage-bootstrap
   annotations:
-    # ArgoCD PostSync hook — see lakekeeper-bootstrap pattern. As a regular
+    # ArgoCD PostSync hook - see lakekeeper-bootstrap pattern. As a regular
     # sync-wave resource, the Job's `ttlSecondsAfterFinished` auto-deletes it
     # after completion, then Argo permanently reports the parent app
     # OutOfSync/Missing on a phantom Job that's "supposed to" exist live.
@@ -31,7 +28,7 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     # HookFailed included so a failed bootstrap hook self-deletes immediately
     # instead of lingering Terminating with the argocd hook-finalizer until the
-    # next sync (which, on a long-Synced app, may be hours away — observed a
+    # next sync (which, on a long-Synced app, may be hours away - observed a
     # 14h stuck-Terminating Job that blocked re-seeding).
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
 spec:
@@ -51,8 +48,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # ---------------------------------------------------------------------
-        # create-buckets — runs FIRST, before the disk-heavy iris-train inits.
+        # create-buckets - runs FIRST, before the disk-heavy iris-train inits.
         # Bucket creation is the platform-critical, fast, dependency-free step
         # that loki/tempo/mlflow/feast/velero/CNPG need to start. Previously it
         # lived in the main `mc` container, which only runs AFTER the FLAML
@@ -62,7 +58,6 @@ spec:
         # 470+ restarts over 44h). Hoisting bucket creation into the first init
         # container decouples it: the buckets always exist regardless of the
         # smoke-model outcome. Idempotent (`mc mb --ignore-existing`).
-        # ---------------------------------------------------------------------
         - name: create-buckets
           image: pgsty/mc:RELEASE.2026-04-17T00-00-00Z
           imagePullPolicy: IfNotPresent
@@ -137,7 +132,7 @@ spec:
         # lightgbm (transitively pulled by `flaml.automl` at import time)
         # is a C++ wheel that dlopen's `libgomp.so.1` (GNU OpenMP runtime).
         # The `ghcr.io/astral-sh/uv:python3.12-trixie-slim` base ships the
-        # Python interpreter only — no system OpenMP runtime — so the
+        # Python interpreter only - no system OpenMP runtime - so the
         # train-iris-model init container hits:
         #   OSError: libgomp.so.1: cannot open shared object file
         # when `flaml.automl.model` does `from lightgbm import LGBM…`.
@@ -146,11 +141,11 @@ spec:
         # non-root train container to pick up via LD_LIBRARY_PATH.  The
         # storage namespace is PSA-baseline, so container-level
         # runAsUser:0 + runAsNonRoot:false override the pod-level
-        # restricted defaults — no namespace label change required.
+        # restricted defaults - no namespace label change required.
         - name: install-libgomp
           # Reuse the uv image (Debian trixie-slim base, ships apt) so the
           # node only ever pulls one layer for this Job.  We don't use uv
-          # here — just `apt-get install libgomp1` — but air-gapped k3s
+          # here - just `apt-get install libgomp1` - but air-gapped k3s
           # already has this image cached from the train container.
           image: ghcr.io/astral-sh/uv:python3.12-trixie-slim
           imagePullPolicy: IfNotPresent
@@ -162,7 +157,7 @@ spec:
             # DAC_OVERRIDE/CHOWN/FOWNER (to chmod its /var/cache/apt and
             # /var/lib/apt dirs) and SETUID/SETGID (to drop privs to `_apt`
             # during downloads).  Dropping ALL caps leaves root unable to
-            # bypass file perms — apt fails with EPERM.  We drop ALL then
+            # bypass file perms - apt fails with EPERM.  We drop ALL then
             # add back only what apt needs; no NET_ADMIN, no SYS_ADMIN.
             capabilities:
               drop: ["ALL"]
@@ -193,18 +188,18 @@ spec:
         # to upload to `s3://platform-models/sklearn/iris/`.  MLflow flavor
         # (not raw joblib) so the platform smoke test exercises the same
         # `kserve-mlflowserver` ClusterServingRuntime use-case models flow
-        # through (ADR-027) — single runtime, single code path under test.
+        # through (ADR-027) - single runtime, single code path under test.
         # Air-gap-friendly: no outbound HTTP to gs://kfserving-examples.
         #
-        # AutoML choice: FLAML (Microsoft Research) — CFO + BlendSearch over
+        # AutoML choice: FLAML (Microsoft Research) - CFO + BlendSearch over
         # an explicit estimator family.  Winning estimator is a plain
-        # sklearn object → `mlflow.sklearn.save_model` writes a vanilla
-        # bundle → MLServer `mlflow` runtime serves it without any FLAML
+        # sklearn object, so `mlflow.sklearn.save_model` writes a vanilla
+        # bundle that MLServer `mlflow` runtime serves without any FLAML
         # dep at serve-time (ADR-027 single-runtime stays intact).
         #
         # GPU avoidance: the `flaml[automl]` extra normally pulls the
         # default `xgboost` wheel which embeds CUDA NCCL (~500 MB
-        # nvidia-nccl-cu12 + xgboost) — useless on this CPU-only K3s and
+        # nvidia-nccl-cu12 + xgboost) - useless on this CPU-only K3s and
         # ~15 min disk-bound link.  We bypass the extra and install its
         # transitives manually with the CPU-only `xgboost-cpu` wheel
         # (drop-in replacement that owns the `xgboost` import namespace,
@@ -213,10 +208,10 @@ spec:
         # lrl2) so neither xgboost nor lightgbm is instantiated at runtime;
         # they are present only to satisfy `flaml.automl` import-time
         # registration.  Rejected alternatives:
-        #   • H2O AutoML: JVM ~500 MB, MOJO save format needs h2o runtime
-        #     to deserialize → breaks ADR-027 single-runtime.
-        #   • AutoGluon: >1 GB install, needs autogluon runtime at serve
-        #     → breaks ADR-027.
+        #   - H2O AutoML: JVM ~500 MB, MOJO save format needs h2o runtime
+        #     to deserialize, which breaks ADR-027 single-runtime.
+        #   - AutoGluon: >1 GB install, needs autogluon runtime at serve,
+        #     which breaks ADR-027.
         - name: train-iris-model
           image: ghcr.io/astral-sh/uv:python3.12-trixie-slim
           imagePullPolicy: IfNotPresent
@@ -224,7 +219,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
           # uv writes its cache to $HOME/.cache and falls back to /.cache
-          # for nonroot UIDs without a home — pin both to /tmp where
+          # for nonroot UIDs without a home - pin both to /tmp where
           # fsGroup=1000 owns the empty dir. HOME=/tmp also keeps any uv
           # config lookup off the readonly rootfs.
           env:
@@ -247,19 +242,19 @@ spec:
               cd /tmp && uv init --no-readme iris && cd iris
               # Smoke-test deps only: scikit-learn (the model) + mlflow-skinny
               # (bundle writer) + numpy (float32 cast). FLAML / xgboost-cpu /
-              # lightgbm were REMOVED — a 150-row / 4-feature iris classifier
+              # lightgbm were REMOVED - a 150-row / 4-feature iris classifier
               # needs no AutoML, and those wheels (~90, incl. xgboost CUDA NCCL
               # libs unless pinned) stalled this init 6-15 min on the disk-bound
               # single-node link and left the bootstrap Job in Failed (which is
               # exactly why the health-check predictor had no model to serve).
               # FLAML's winning estimator on iris was always a pure-sklearn
-              # learner anyway — the booster libs were registered-but-never-
-              # instantiated — so this is strictly less code for the identical
+              # learner anyway - the booster libs were registered-but-never-
+              # instantiated - so this is strictly less code for the identical
               # served artifact. `mlflow-skinny` drops the UI server stack
               # (alembic/gunicorn/matplotlib/sqlalchemy); its
               # `mlflow.sklearn.save_model` flavor ships in the core wheel.
-              # pandas is REQUIRED: mlflow.sklearn imports mlflow.types.utils →
-              # pandas at module load (even under mlflow-skinny), so omitting it
+              # pandas is REQUIRED: mlflow.sklearn imports mlflow.types.utils,
+              # which imports pandas at module load (even under mlflow-skinny), so omitting it
               # fails the train with ModuleNotFoundError before it can save.
               uv add --python 3.12 \
                 scikit-learn \
@@ -267,7 +262,7 @@ spec:
                 pandas \
                 numpy
               # UV mandate (project policy): no `uv run python`, no `python -c`.
-              # Write the trainer to a .py file and call `uv run train.py` —
+              # Write the trainer to a .py file and call `uv run train.py` -
               # uv resolves the entry inside the project venv (uv add'd above).
               #
               # MLServer 1.7.x mlflow runtime expects MLmodel + model.pkl in
@@ -275,7 +270,7 @@ spec:
               # full bundle (MLmodel manifest, conda.yaml, requirements.txt,
               # python_env.yaml, model.pkl). MLServer's mlserver_mlflow
               # adapter reads MLmodel to dispatch to the python_function
-              # flavor and uses its bundled sklearn — no conda install at
+              # flavor and uses its bundled sklearn - no conda install at
               # serving time, so no outbound install required.
               cat > train.py <<'PYEOF'
               import numpy as np
@@ -291,7 +286,7 @@ spec:
               # 'dtype of input float32 does not match expected dtype float64'.
               # Field-validated against mlflow + mlserver 1.7.1.
               X = X.astype(np.float32)
-              # Plain multinomial LogisticRegression — deterministic (seed
+              # Plain multinomial LogisticRegression - deterministic (seed
               # pinned) so the smoke-test artifact is reproducible across
               # `make nuke` + `make phase-full`. The lbfgs solver is
               # single-threaded; 150 rows / 4 features converge in <1 s.
@@ -349,7 +344,7 @@ spec:
             - |
               set -euo pipefail
               # Wait for the MinIO API to respond (`mc alias set` retries
-              # but only at the network layer — we also need Ready).
+              # but only at the network layer - we also need Ready).
               # Bounded retry: 60 attempts × 3s = 3 min ceiling
               for i in $(seq 1 60); do
                 if mc alias set platform \
@@ -367,11 +362,11 @@ spec:
               done
 
               # Buckets + versioning + lifecycle are created by the
-              # `create-buckets` init container above — decoupled from this
+              # `create-buckets` init container above - decoupled from this
               # best-effort iris upload so a slow/failed FLAML train never
               # leaves the platform's 18 buckets uncreated.
 
-              # KServe MLflow iris smoke-test model — written by the
+              # KServe MLflow iris smoke-test model - written by the
               # `train-iris-model` initContainer as an MLflow bundle in
               # /shared/iris-mlflow/ (MLmodel + model.pkl + conda.yaml +
               # requirements.txt + python_env.yaml).  Recursive upload so

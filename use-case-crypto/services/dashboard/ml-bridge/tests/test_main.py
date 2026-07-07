@@ -9,7 +9,7 @@ from services import prediction as prediction_module
 
 client = TestClient(app)
 
-# --- Fixtures ---
+# Fixtures
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def _mock_view(name: str, feature_names: list[str]) -> MagicMock:
     return view
 
 
-# --- Health Check Tests ---
+# Health Check Tests
 
 
 def test_health_check() -> None:
@@ -53,7 +53,7 @@ def test_health_check() -> None:
     assert "latency_us" in data
 
 
-# --- Feature Service Tests ---
+# Feature Service Tests
 
 
 def test_get_online_features(mock_feast_feature_store: MagicMock) -> None:
@@ -61,7 +61,7 @@ def test_get_online_features(mock_feast_feature_store: MagicMock) -> None:
     store_instance = MagicMock()
     mock_feast_feature_store.return_value = store_instance
 
-    # _resolve_refs scans online views to map bare names → "<view>:<name>",
+    # _resolve_refs scans online views to map bare names to "<view>:<name>",
     # so expose a view "features" owning value_1/value_2.
     store_instance.list_feature_views.return_value = [
         _mock_view("features", ["value_1", "value_2"])
@@ -138,7 +138,7 @@ def test_get_latest_features(
     store_instance = MagicMock()
     mock_feast_feature_store.return_value = store_instance
 
-    # FEAST_LATEST_FEATURES names are bare → _resolve_refs needs the owning view.
+    # FEAST_LATEST_FEATURES names are bare, so _resolve_refs needs the owning view.
     store_instance.list_feature_views.return_value = [
         _mock_view("features", ["value_a", "value_b", "indicator_x", "indicator_y"])
     ]
@@ -163,7 +163,7 @@ def test_get_latest_features(
     assert data["features"]["features:value_a"] == 3000.0
 
 
-# --- Metrics Service Tests ---
+# Metrics Service Tests
 
 
 @patch("services.metrics.httpx.AsyncClient")
@@ -229,7 +229,7 @@ def test_get_model_metrics(mock_client_cls: MagicMock) -> None:
     assert data["f1_score"] == 0.94
 
 
-# --- Prediction Service Tests ---
+# Prediction Service Tests
 
 
 @patch("services.prediction.httpx.AsyncClient")

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# wait-component.sh — wait for all pods labelled app=<component> to be Ready
-# =============================================================================
+# wait-component.sh - wait for all pods labelled app=<component> to be Ready
 # Usage:
 #   wait-component.sh <component-name> [timeout-seconds]
 #
@@ -10,7 +8,6 @@
 # (#160 / #166 / #169 / #209), then retries the wait once. The prune is
 # scoped to the single namespace already known to be stuck, so blast-radius
 # stays bounded.
-# =============================================================================
 set -euo pipefail
 
 NAME="${1:-}"

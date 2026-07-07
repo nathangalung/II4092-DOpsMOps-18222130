@@ -1,17 +1,12 @@
-# =============================================================================
-# SERVICE CONFIGURATION — Enable/Disable Pipeline Services
-# =============================================================================
+# SERVICE CONFIGURATION - Enable/Disable Pipeline Services
 # Controls which microservices are built, deployed, and tested.
 # Set enabled: false to disable a service entirely.
 #
 # Full pipeline: ingestion -> quality -> processing -> training -> serving -> dashboard
 # All services enabled by default. Disable what you don't need.
-# =============================================================================
 
 services:
-  # ---------------------------------------------------------------------------
-  # INGESTION — Data collection from external sources
-  # ---------------------------------------------------------------------------
+  # INGESTION - Data collection from external sources
   ingestion:
     rest_collector:
       enabled: true
@@ -28,9 +23,7 @@ services:
       enabled: true
       description: "Supplementary/alternative data collection"
 
-  # ---------------------------------------------------------------------------
-  # QUALITY — Data validation and analysis
-  # ---------------------------------------------------------------------------
+  # QUALITY - Data validation and analysis
   quality:
     validator:
       enabled: true
@@ -41,9 +34,7 @@ services:
       language: python
       description: "Data quality checks"
 
-  # ---------------------------------------------------------------------------
-  # PROCESSING — Feature engineering
-  # ---------------------------------------------------------------------------
+  # PROCESSING - Feature engineering
   processing:
     batch:
       enabled: true
@@ -61,9 +52,7 @@ services:
       enabled: true
       description: "No-code Kafka-to-ClickHouse sink (gotocompany/firehose)"
 
-  # ---------------------------------------------------------------------------
-  # TRAINING — Model training and drift detection
-  # ---------------------------------------------------------------------------
+  # TRAINING - Model training and drift detection
   training:
     trainer:
       enabled: true
@@ -74,16 +63,14 @@ services:
       language: python
       description: "Multi-scale drift detection (PSI, K-S tests)"
 
-  # ---------------------------------------------------------------------------
-  # SERVING — Model inference API
-  # ---------------------------------------------------------------------------
+  # SERVING - Model inference API
   serving:
     gateway:
       enabled: true
       language: rust
       description: "REST/gRPC API gateway"
     feature_cache:
-      # Crypto serves online features via Feast materialize → Valkey → ml-bridge
+      # Crypto serves online features via Feast materialize to Valkey to ml-bridge
       # (Feast online read); the feature-cache Rust gRPC online writer is
       # redundant and its gRPC has zero consumers, so it is disabled here.
       # The platform still offers this component for use-cases that want a
@@ -100,21 +87,17 @@ services:
       language: cpp
       description: "ONNX Runtime inference (<5ms p99)"
 
-  # ---------------------------------------------------------------------------
-  # AUTOMATION — Pipeline orchestration
-  # ---------------------------------------------------------------------------
+  # AUTOMATION - Pipeline orchestration
   automation:
     materialization:
       enabled: true
       language: python
       description: "Feast feature materialization"
     # Retrain-on-drift orchestration lives in the Argo CronWorkflow
-    # `retrain-on-drift` (manifests/base/workflows/), not a Python service —
+    # `retrain-on-drift` (manifests/base/workflows/), not a Python service -
     # ClickHouse `gold.drift_metrics` polling + KFP API submit is shell-only.
 
-  # ---------------------------------------------------------------------------
-  # DASHBOARD — Web UI for monitoring
-  # ---------------------------------------------------------------------------
+  # DASHBOARD - Web UI for monitoring
   dashboard:
     backend:
       enabled: true

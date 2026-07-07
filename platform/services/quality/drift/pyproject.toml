@@ -11,7 +11,7 @@ dependencies = [
     "redis>=7.3.0",
     "pyyaml>=6.0.3",
     "prometheus-client>=0.24.1",
-    # Continuous profiling — emits pprof samples to Pyroscope when
+    # Continuous profiling - emits pprof samples to Pyroscope when
     # PYROSCOPE_SERVER_ADDRESS env is set (see main.py init block).
     "pyroscope-io>=0.8.7",
 ]

@@ -1,36 +1,33 @@
-# =============================================================================
-# LAKEKEEPER — Iceberg REST Catalog (Rust, Apache Licensed)
-# =============================================================================
+# LAKEKEEPER - Iceberg REST Catalog (Rust, Apache Licensed)
 # High-performance, lightweight Iceberg REST catalog built in Rust.
 # Implements the Apache Iceberg REST Catalog specification.
-# Uses remote signing for S3-compatible storage (MinIO) — no STS required.
+# Uses remote signing for S3-compatible storage (MinIO) - no STS required.
 #
 # Remote signing is the pre-0.11.0 Lakekeeper default.  Lakekeeper 0.11.0
 # (2026-01-01) flips the S3 default credential-vending from `remote-signing`
-# → `vended-credentials` when clients omit the `access-delegation` header.
+# to `vended-credentials` when clients omit the `access-delegation` header.
 # Crossing the 0.11.0 minor boundary therefore requires a client-side audit
 # (Trino / Spark / dbt / kafka-connect iceberg-sink) plus persisting the
 # `sts-enabled=false` + `remote-signing-enabled=true` storage-profile flags
-# (upstream PR #1518) on every warehouse — deferred as Task #25, rationale
+# (upstream PR #1518) on every warehouse - deferred as Task #25, rationale
 # in AUDIT_FINAL_2026-04-21.md §25.5 (corrected in §34) and VERSION.MD.
 #
 # Dependencies: PostgreSQL (metadata), MinIO (warehouse storage)
 #
 # Startup flow:
-#   1. wait-for-db  → wait for PostgreSQL
-#   2. migrate      → run database migrations (schema creation)
-#   3. lakekeeper   → start the REST catalog server
+#   1. wait-for-db  maps to wait for PostgreSQL
+#   2. migrate      maps to run database migrations (schema creation)
+#   3. lakekeeper   maps to start the REST catalog server
 #
 # Warehouse/namespace setup is done by the use-case init Job
 # (see <use-case>/manifests/base/connectors/iceberg-sink.yaml)
 #
 # Secrets (ADR-008):
-#   platform/postgres/app           → CNPG `platform` app user (DB owner of
+#   platform/postgres/app           maps to CNPG `platform` app user (DB owner of
 #                                     `lakekeeper`; the `postgres` superuser
 #                                     is off-limits because CNPG defaults
 #                                     `enableSuperuserAccess: false`).
-#   platform/lakekeeper/encryption  → AES key used to encrypt stored S3 creds
-# =============================================================================
+#   platform/lakekeeper/encryption  maps to AES key used to encrypt stored S3 creds
 apiVersion: v1
 kind: Service
 metadata:
@@ -211,9 +208,7 @@ spec:
     matchLabels:
       app: lakekeeper
 ---
-# =============================================================================
-# LAKEKEEPER BOOTSTRAP — one-time server init
-# =============================================================================
+# LAKEKEEPER BOOTSTRAP - one-time server init
 # Lakekeeper requires a one-time POST /management/v1/bootstrap call to
 # initialize the default project (00000000-0000-0000-0000-000000000000) and
 # accept the terms of use. Without this, every subsequent /management/v1/
@@ -223,7 +218,6 @@ spec:
 # Idempotent: a second bootstrap call returns HTTP 400/409, which we accept.
 # The Job is platform-level (server init) and domain-agnostic, so it lives
 # next to the Lakekeeper Deployment rather than in any use-case overlay.
-# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -242,8 +236,8 @@ metadata:
     # `ttlSecondsAfterFinished: 900` deletes it after 15min and Argo then
     # reports the parent Application as Missing forever (the Job is both
     # required by Sync AND auto-deleted out from under Argo). The bootstrap
-    # call is idempotent — second invocation returns HTTP 400/409 which the
-    # script treats as success — so re-running on each Sync is safe.
+    # call is idempotent - second invocation returns HTTP 400/409 which the
+    # script treats as success - so re-running on each Sync is safe.
     # Field-validated 2026-05-21.
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded

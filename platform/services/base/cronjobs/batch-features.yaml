@@ -1,6 +1,4 @@
-# =============================================================================
-# BATCH FEATURES — Hourly Feature Computation (Python)
-# =============================================================================
+# BATCH FEATURES - Hourly Feature Computation (Python)
 # Computes rolling statistics, momentum, and volatility features
 # from time-series data in ClickHouse and writes to features table.
 #
@@ -8,7 +6,6 @@
 #   - Airflow: Workflow orchestration via DAGs
 #   - ClickHouse: SQL-based feature computation (window functions can
 #     replace Python pandas transformations for simpler indicators)
-# =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -53,10 +50,10 @@ spec:
               # its feature config at /app/config/config.yaml (the Python loader's
               # default path when CONFIG_PATH is unset). A full-dir mount of the
               # flat pipeline-config ConfigMap here (no subPath, keys are
-              # KEY=VALUE not a config.yaml) would clobber that dir → loader finds
-              # no config.yaml → technical_indicators stays {} → sma_*/
+              # KEY=VALUE not a config.yaml) would clobber that dir, so loader finds
+              # no config.yaml, so technical_indicators stays {}, so sma_*/
               # volatility_* write as ClickHouse DEFAULT 0. Every pipeline-config
               # value already reaches the container via envFrom above. This base
               # CronJob runs the no-bake platform image so the mount was inert,
-              # but it is the exact reintroduction vector for an overlay image —
+              # but it is the exact reintroduction vector for an overlay image -
               # removed here too. See the use-case CONFIG_PATH fix.

@@ -1,16 +1,13 @@
-# =============================================================================
-# VerticalPodAutoscaler — Feast (advisory, updateMode: Off)
-# =============================================================================
+# VerticalPodAutoscaler - Feast (advisory, updateMode: Off)
 # Per platform/scalability/README.md per-component table: Feast is HPA +
 # VPA(Off). Online serving scales horizontally on request volume (hpa.yaml);
 # offline materialization (Spark/Flink jobs invoked by Feast SDK) loads the
 # pod's memory in irregular bursts. VPA recommends safe memory headroom so
 # the HPA's memory target stays meaningful.
 #
-# updateMode: Off — recommendation surfaces on CR status; operator promotes
+# updateMode: Off - recommendation surfaces on CR status; operator promotes
 # values into deployment.yaml manually. Auto mode would conflict with HPA
 # memory metric (both fight over memory requests).
-# =============================================================================
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:

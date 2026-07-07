@@ -1,6 +1,4 @@
-# =============================================================================
-# AIRFLOW — Production image built with uv sync
-# =============================================================================
+# AIRFLOW - Production image built with uv sync
 # Installs Apache Airflow (open source) + all required providers via uv sync
 # with a locked pyproject.toml for reproducible builds.
 #
@@ -11,7 +9,7 @@
 #   - cncf-kubernetes: KubernetesPodOperator for DAG task execution on K8s
 #   - postgres: PostgreSQL hook/operator + psycopg2 for metadata DB
 #   - amazon: S3 support for remote logging + MinIO artifact storage
-#   - fab: FabAuthManager — DB-backed users/roles + BasicAuth REST API
+#   - fab: FabAuthManager - DB-backed users/roles + BasicAuth REST API
 #     backend.  Required by Airflow 3.x (SimpleAuthManager default is
 #     incompatible with our Vault-sourced admin credential and DataHub's
 #     BasicAuth ingestion recipe).
@@ -19,10 +17,9 @@
 # Build: `uv lock` first if pyproject.toml was edited, then
 #        `docker build -t localhost:5000/platform-airflow:latest .`
 #        (the builder stage runs `uv sync --locked`, which fails if
-#        uv.lock is out of date — this is a loud failure by design).
-# =============================================================================
+#        uv.lock is out of date - this is a loud failure by design).
 
-# --- Stage 1: Build dependencies ---
+# Stage 1: Build dependencies
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
 WORKDIR /app
@@ -38,7 +35,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project
 
 
-# --- Stage 2: Production runtime (minimal, no uv/build tools) ---
+# Stage 2: Production runtime (minimal, no uv/build tools)
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
 # Copy the virtual environment from builder

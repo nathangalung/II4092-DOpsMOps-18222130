@@ -1,13 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Model lifecycle tier — feature store + experiment tracking + notebooks +
+# Model lifecycle tier - feature store + experiment tracking + notebooks +
 # pipelines + hyper-parameter tuning + training controller.
 #
-# R12–R15 audit (2026-04-18):
-#   - Removed `kuberay/`       — unused; our workloads are traditional (FLAML
+# R12-R15 audit (2026-04-18):
+#   - Removed `kuberay/` - unused; our workloads are traditional (FLAML
 #                                 lgbm/xgboost/catboost/rf); no Ray dependency.
-#   - Removed `label-studio/`  — unused; label generation is fully deterministic
+#   - Removed `label-studio/` - unused; label generation is fully deterministic
 #                                 via `compute_target_features` from future bars
 #                                 (see <use-case>/pipelines/compute_target_features.py);
 #                                 no manual labeling workflow required.
@@ -22,7 +22,7 @@ resources:
   - kubeflow-pipelines
   - kubeflow-trainer
   - mlflow
-  # ExternalName alias `minio-service.kubeflow` — required by KFP v2
+  # ExternalName alias `minio-service.kubeflow` - required by KFP v2
   # launcher's hardcoded minio:// URL scheme.  Lives in namespace `kubeflow`.
   - minio-service-kubeflow.yaml
 

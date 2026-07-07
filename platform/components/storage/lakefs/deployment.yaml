@@ -1,23 +1,20 @@
-# =============================================================================
-# LakeFS — Git-like data lake (Iceberg/S3 branching) — OpenBao-sourced secrets
-# =============================================================================
+# LakeFS - Git-like data lake (Iceberg/S3 branching) - OpenBao-sourced secrets
 # ADR-008.  Four OpenBao paths contribute to lakefs-secrets:
-#   - Postgres `platform` app user → platform/postgres/app (CNPG-mirrored;
-#     the DB owner with full rights on the `lakefs` database — the
+#   - Postgres `platform` app user maps to platform/postgres/app (CNPG-mirrored;
+#     the DB owner with full rights on the `lakefs` database - the
 #     `postgres` superuser is unusable because CNPG defaults
 #     `enableSuperuserAccess: false`).
-#   - MinIO root access key/secret → platform/minio/root
+#   - MinIO root access key/secret maps to platform/minio/root
 #   - LAKEFS_AUTH_ENCRYPT_SECRET_KEY (server-side AES key derivation)
-#                                   → platform/lakefs/encryption
-#   - LakeFS admin API credentials → platform/lakefs/admin
+#                                   maps to platform/lakefs/encryption
+#   - LakeFS admin API credentials maps to platform/lakefs/admin
 #     Consumed by the lakefs-bootstrap Job below (POSTs to the LakeFS
 #     setup API on fresh-cluster first-boot) and by the Airflow
-#     scheduler for DAG LakeFS API calls — see platform/components/
+#     scheduler for DAG LakeFS API calls - see platform/components/
 #     data-processing/airflow/deployment.yaml.  The LakeFS server itself
 #     does NOT read admin creds from env (LAKEFS_INSTALLATION_* env vars
 #     only work when database.type=local, and this deployment runs
 #     database.type=postgres).
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -42,7 +39,7 @@ spec:
         LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID: "{{ .s3_access_key }}"
         LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY: "{{ .s3_secret_key }}"
         LAKEFS_AUTH_ENCRYPT_SECRET_KEY: "{{ .encryption_key }}"
-        # LAKEFS_SETUP_* — consumed ONLY by the lakefs-bootstrap Job below,
+        # LAKEFS_SETUP_* - consumed ONLY by the lakefs-bootstrap Job below,
         # which POSTs these to /api/v1/setup_lakefs to seed the admin
         # account on fresh-cluster first-boot.  The Job tolerates HTTP 409
         # ("setup was already called") so re-apply is idempotent.  The
@@ -169,8 +166,7 @@ spec:
         - name: lakefs-cache
           emptyDir: {}
 ---
-# =============================================================================
-# LakeFS bootstrap — runs once on first cluster boot to create the admin
+# LakeFS bootstrap - runs once on first cluster boot to create the admin
 # account.  LakeFS v1.80 with database.type=postgres cannot self-bootstrap
 # from env vars (LAKEFS_INSTALLATION_* is local-backend-only), so we POST
 # to /api/v1/setup_lakefs ourselves with OpenBao-seeded credentials.
@@ -180,7 +176,6 @@ spec:
 # safe.  backoffLimit+restartPolicy: OnFailure gives the Job a handful of
 # retries for transient Service-unavailable windows, and
 # ttlSecondsAfterFinished cleans up the pod after completion.
-# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -190,7 +185,7 @@ metadata:
     app: lakefs
     app.kubernetes.io/component: bootstrap
     app.kubernetes.io/part-of: mlops-platform
-  # Argo CD PostSync hook — runs after the LakeFS Deployment is synced.
+  # Argo CD PostSync hook - runs after the LakeFS Deployment is synced.
   # hook-delete-policy removes the previous Job before creating a new one
   # (Job specs are immutable, so plain re-apply would otherwise fail) and
   # deletes on success to keep the namespace clean.  Pattern matches
@@ -270,8 +265,8 @@ spec:
           args:
             # POST to /api/v1/setup_lakefs.  Body schema (per LakeFS v1.80
             # swagger): { username, key: { access_key_id, secret_access_key } }.
-            # No `password` field — LakeFS admin auth is access-key-based.
-            # HTTP 200 → fresh install; 409 → already set up (idempotent
+            # No `password` field - LakeFS admin auth is access-key-based.
+            # HTTP 200 means fresh install; 409 means already set up (idempotent
             # re-run); anything else is a hard failure.
             - |
               set -eu

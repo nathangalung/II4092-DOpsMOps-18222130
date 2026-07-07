@@ -2,10 +2,10 @@
 Airflow DAG: Data Quality Gate
 
 Validates data quality using three layers:
-  1. Great Expectations (via quality-analyzer service) — statistical validation
+  1. Great Expectations (via quality-analyzer service) - statistical validation
      against ClickHouse feature tables with expectations stored in MinIO
-  2. SQL checks — freshness, ranges, duplicates, completeness
-  3. OpenLineage emission — data quality metadata to DataHub
+  2. SQL checks - freshness, ranges, duplicates, completeness
+  3. OpenLineage emission - data quality metadata to DataHub
 
 Architecture:
   - Great Expectations runs in a KubernetesPodOperator (quality-analyzer image)
@@ -14,7 +14,7 @@ Architecture:
 
 Components used:
   - Great Expectations (data quality validation library in quality-analyzer)
-  - ClickHouse (data source — features database)
+  - ClickHouse (data source - features database)
   - MinIO (GE expectation/validation results storage)
   - DataHub/OpenLineage (lineage + quality metadata)
 """
@@ -42,7 +42,7 @@ from kubernetes.client import models as k8s
 # Pushgateway DAG-outcome callbacks (shared module).
 # DAGS_FOLDER is the git-sync worktree ROOT (domain-agnostic recursive scan),
 # not this dags/ dir, so Airflow 3.x's subprocess parser does not put this
-# directory on sys.path — `from _observability import …` then raises
+# directory on sys.path - `from _observability import …` then raises
 # ModuleNotFoundError at parse time. Register this file's own directory first
 # so the shared sibling module resolves regardless of where DAGS_FOLDER points.
 import sys  # noqa: E402
@@ -57,10 +57,8 @@ from _config import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────────
-# Configuration — USE_CASE-derived names come from _config.py (single source).
+# Configuration - USE_CASE-derived names come from _config.py (single source).
 # DAG-local additions: OpenLineage namespace/producer for this quality gate.
-# ─────────────────────────────────────────────────────────────
 OPENLINEAGE_NAMESPACE = Variable.get(
     "OPENLINEAGE_NAMESPACE", default_var=f"{USE_CASE}-pipeline"
 )
@@ -69,7 +67,7 @@ OPENLINEAGE_PRODUCER = Variable.get(
     default_var=f"airflow-{USE_CASE}-quality-gate",
 )
 
-# Runtime config — resolved lazily inside task callables. Reading os.getenv
+# Runtime config - resolved lazily inside task callables. Reading os.getenv
 # at module level freezes the values into the scheduler's parsed-DAG cache;
 # rolling the pipeline-config ConfigMap would not propagate until the
 # DagFileProcessor evicts its cache (~30 s) or the scheduler restarts.
@@ -251,7 +249,7 @@ with DAG(
     start_date=datetime(2026, 4, 1),
     catchup=False,
     # Auto-activate on first git-sync load (platform pauses new DAGs by
-    # default via DAGS_ARE_PAUSED_AT_CREATION=True). Safe — catchup=False.
+    # default via DAGS_ARE_PAUSED_AT_CREATION=True). Safe - catchup=False.
     is_paused_upon_creation=False,
     tags=["crypto", "quality", "great-expectations", "openlineage"],
     max_active_runs=1,
@@ -271,19 +269,19 @@ with DAG(
         env_from=ENV_FROM_SOURCES,
         # The analyzer builds GE ExpectationSuites in code (gx.get_context() +
         # suite.add_expectation), parameterised entirely by env vars from the
-        # pipeline ConfigMap/Secret — it never reads a great_expectations.yaml
+        # pipeline ConfigMap/Secret - it never reads a great_expectations.yaml
         # file. The prior `great-expectations-config` ConfigMap volume +
         # GE_CONFIG_PATH were vestigial: the ConfigMap was never created, so the
-        # mount failed every run. Removed — no file to mount.
+        # mount failed every run. Removed - no file to mount.
         env_vars={"ANALYSIS_MODE": "expectations"},
         # Always-pull off the in-cluster registry: `:latest` + IfNotPresent pins a
         # stale node-cached digest forever, silently running old analyzer code
-        # after a rebuild. In-cluster registry → cheap re-pull, air-gap-safe
+        # after a rebuild. In-cluster registry means cheap re-pull, air-gap-safe
         # (mirrors #301/#459/#291).
         image_pull_policy="Always",
         on_finish_action="delete_pod",
         get_logs=True,
-        # 600 (not 300) to match dags/_config.py:k8s_pod() — a cold pull of a
+        # 600 (not 300) to match dags/_config.py:k8s_pod() - a cold pull of a
         # freshly-rebuilt platform-analyzer:latest measured 4m33s on the single
         # spinning HDD; 300s marked the task up_for_retry even when the child
         # pod itself succeeded. The KPO child keeps image_pull_policy=Always

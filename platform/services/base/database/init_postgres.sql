@@ -1,6 +1,4 @@
--- ============================================================================
 -- Pipeline OLTP Schema (PostgreSQL)
--- ============================================================================
 -- TEMPLATE: Domain-agnostic pipeline metadata tables.
 -- All use-cases share this schema for pipeline run tracking, data quality
 -- results, and prediction state management.
@@ -9,13 +7,10 @@
 -- database/init_postgres.sql (e.g., domain-specific prediction fields).
 --
 -- Synced to ClickHouse via Debezium CDC for analytical queries.
--- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS pipeline;
 
--- ============================================================================
 -- Pipeline Run Metadata
--- ============================================================================
 -- Tracks every pipeline execution (ingestion, validation, feature, training).
 -- Provides auditability and SLA monitoring.
 CREATE TABLE IF NOT EXISTS pipeline.runs (
@@ -32,9 +27,7 @@ CREATE TABLE IF NOT EXISTS pipeline.runs (
 CREATE INDEX IF NOT EXISTS idx_runs_type_status ON pipeline.runs(run_type, status);
 CREATE INDEX IF NOT EXISTS idx_runs_started ON pipeline.runs(started_at DESC);
 
--- ============================================================================
 -- Data Quality Check Results
--- ============================================================================
 -- Stores results from Great Expectations, dbt tests, and custom validators.
 -- Each check references a pipeline run for traceability.
 CREATE TABLE IF NOT EXISTS pipeline.quality_checks (
@@ -53,9 +46,7 @@ CREATE TABLE IF NOT EXISTS pipeline.quality_checks (
 CREATE INDEX IF NOT EXISTS idx_quality_checks_run ON pipeline.quality_checks(run_id);
 CREATE INDEX IF NOT EXISTS idx_quality_checks_table ON pipeline.quality_checks(table_name, checked_at DESC);
 
--- ============================================================================
--- Prediction Results (mutable — supports user feedback, actuals backfill)
--- ============================================================================
+-- Prediction Results (mutable - supports user feedback, actuals backfill)
 -- Predictions are stored here (OLTP) for CRUD operations, then synced to
 -- ClickHouse (OLAP) via Debezium CDC for dashboard analytics.
 CREATE TABLE IF NOT EXISTS pipeline.predictions (
@@ -73,9 +64,7 @@ CREATE TABLE IF NOT EXISTS pipeline.predictions (
 
 CREATE INDEX IF NOT EXISTS idx_predictions_symbol_time ON pipeline.predictions(symbol, predicted_at DESC);
 
--- ============================================================================
 -- Publication for Debezium CDC
--- ============================================================================
 -- All tables in pipeline schema are published for CDC replication.
 -- Debezium captures INSERT/UPDATE/DELETE and streams to Kafka.
 DO $$

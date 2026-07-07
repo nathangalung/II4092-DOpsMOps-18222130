@@ -1,10 +1,7 @@
-# =============================================================================
 # Custom pg_exporter queries for CNPG Cluster/postgresql
-# =============================================================================
 # Referenced by Cluster.spec.monitoring.customQueriesConfigMap. Focus on
 # the platform's hot metrics: replication lag, WAL churn, slow queries,
 # connection pool saturation. Default CNPG queries cover general health.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:

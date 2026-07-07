@@ -1,12 +1,12 @@
 //! Health check server.
 //!
 //! Exposes `/health` (process alive), `/ready` (accepting work), `/live`
-//! (liveness — delivery-gated) and `/metrics` (Prometheus).
+//! (liveness - delivery-gated) and `/metrics` (Prometheus).
 //!
 //! The `/live` endpoint reports the *delivery* health of the Kafka producer,
 //! not merely process liveness. librdkafka can wedge after a broker
 //! disruption (e.g. failing to re-resolve partition leaders) in a state where
-//! it still accepts enqueues but never delivers — every message then expires at
+//! it still accepts enqueues but never delivers - every message then expires at
 //! `message.timeout.ms` as `MessageTimedOut`. That failure is invisible to a
 //! plain process-liveness probe, so the producer stalls indefinitely until
 //! something restarts it. Gating `/live` on *successful delivery* lets the
@@ -52,8 +52,8 @@ static LAST_ATTEMPT_MS: AtomicI64 = AtomicI64::new(0);
 /// Throttle gate for delivery-error logging (epoch-millis of last emission).
 static LAST_ERROR_LOG_MS: AtomicI64 = AtomicI64::new(0);
 
-/// How long the producer may go without a *successful* delivery — while it is
-/// still attempting sends — before `/live` reports unhealthy. Override via
+/// How long the producer may go without a *successful* delivery - while it is
+/// still attempting sends - before `/live` reports unhealthy. Override via
 /// `KAFKA_DELIVERY_STALENESS_MS`; defaults to 300000ms.
 static STALENESS_MS: LazyLock<i64> = LazyLock::new(|| {
     std::env::var("KAFKA_DELIVERY_STALENESS_MS")
@@ -142,9 +142,7 @@ pub fn spawn_server_thread(port: u16) -> std::thread::JoinHandle<()> {
     })
 }
 
-// ---------------------------------------------------------------------------
-// Delivery-health hooks — called by the producer at runtime.
-// ---------------------------------------------------------------------------
+// Delivery-health hooks - called by the producer at runtime.
 
 /// Seed the delivery clock at startup so a freshly-started, not-yet-producing
 /// collector is reported healthy until it actually attempts (and fails) sends.
@@ -221,7 +219,7 @@ mod tests {
     #[test]
     fn stale_and_attempting_is_wedged() {
         let now = 1_000_000;
-        // 301s since last success, with a more recent attempt → wedged.
+        // 301s since last success, with a more recent attempt, so wedged.
         assert!(liveness_wedged(now, now - 301_000, now - 1_000, STALE));
     }
 

@@ -472,9 +472,9 @@ func (c *HTTPSourceCollector) backfillHistorical() {
 	}
 
 	// Idempotency: if the sink already holds rows for this source, the
-	// historical load is done — skip the (potentially large) backfill
+	// historical load is done - skip the (potentially large) backfill
 	// fetch and let the regular realtime fetch carry the source forward.
-	// Mirrors the OHLCV history path's "data already up to date, skipping
+	// Mirrors the primary history path's "data already up to date, skipping
 	// backfill" gate; backfill is a one-time bootstrap, not a per-run
 	// re-fetch (#514). Fail-open: if the check cannot run, backfill runs.
 	if c.sourceHasData() {
@@ -538,7 +538,7 @@ func (c *HTTPSourceCollector) sourceHasData() bool {
 	if err != nil {
 		return false
 	}
-	// ClickHouse HTTP basic auth — the same credentials the rest of the
+	// ClickHouse HTTP basic auth - the same credentials the rest of the
 	// pipeline uses (pipeline-secrets CLICKHOUSE_USER/PASSWORD). When unset
 	// the request is unauthenticated (no-password ClickHouse deployments).
 	if chUser := os.Getenv("CLICKHOUSE_USER"); chUser != "" {

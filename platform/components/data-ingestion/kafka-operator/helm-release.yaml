@@ -1,19 +1,16 @@
-# =============================================================================
 # Strimzi Kafka Operator v1.0.0 (2026-04-28, Kafka 4.2.0, v1 CRD API only)
-# =============================================================================
 # ADR-011.  Replaces the handwritten single-broker StatefulSet.  Provides CRDs:
-#   Kafka                — cluster (brokers + controllers)
-#   KafkaTopic           — declarative topic creation
-#   KafkaUser            — ACLs via SCRAM or mTLS
-#   KafkaConnect         — Connect cluster via CRD
-#   KafkaConnector       — declarative connectors
-#   KafkaNodePool        — per-role scaling (broker / controller)
-#   KafkaRebalance       — Cruise Control integration
-#   KafkaMirrorMaker2    — cross-cluster replication
+#   Kafka - cluster (brokers + controllers)
+#   KafkaTopic - declarative topic creation
+#   KafkaUser - ACLs via SCRAM or mTLS
+#   KafkaConnect - Connect cluster via CRD
+#   KafkaConnector - declarative connectors
+#   KafkaNodePool - per-role scaling (broker / controller)
+#   KafkaRebalance - Cruise Control integration
+#   KafkaMirrorMaker2 - cross-cluster replication
 #
 # Installed via Argo CD.  Watches namespace `data-ingestion` (+ fn crossnamespace
 # when STRIMZI_NAMESPACE=* is set on the operator SA role).
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -80,7 +77,7 @@ spec:
         # kube-apiserver (kubernetes.default.svc:443) for every Strimzi CR.
         # When the Istio sidecar wraps that connection it eventually
         # terminates the watch and the fabric8 client throws
-        # `InterruptedIOException` → liveness probe fails → kubelet
+        # `InterruptedIOException`, so liveness probe fails, so kubelet
         # `Killing: Container failed liveness probe`.  Field-verified
         # restartCount=6 in 12h with `Caused by: java.lang.
         # InterruptedException` at io.fabric8.kubernetes.client.dsl.

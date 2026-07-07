@@ -1,12 +1,10 @@
-# =============================================================================
-# BATCH FEATURE-ENGINEERING CONFIG — domain-specific instantiation
-# =============================================================================
+# BATCH FEATURE-ENGINEERING CONFIG - domain-specific instantiation
 # This file is OVERLAID into the batch-processing image at build time (the
 # Makefile copies use-case-crypto/services/processing/batch/* over the platform
 # batch service, and the Dockerfile `COPY . /app` lands this at the loader's
 # default CONFIG_PATH = /app/config/config.yaml). It travels with the same
 # overlay bundle as transformers/technical.py (the crypto TA functions) and
-# requirements-extra.txt (the `ta` dep) — config + code + deps version together.
+# requirements-extra.txt (the `ta` dep) - config + code + deps version together.
 #
 # Scope is deliberately MINIMAL: only `features.technical_indicators`. The
 # platform loader (config.py) reads this block to populate
@@ -14,7 +12,7 @@
 # override (nested config comes from config.yaml by design). Every other knob
 # (symbols, data_columns, target/return column, ClickHouse host/creds, table
 # names) keeps arriving via the pipeline-config ConfigMap + pipeline-secrets
-# envFrom — and those env overrides are applied AFTER this file, so they still
+# envFrom - and those env overrides are applied AFTER this file, so they still
 # win. Do NOT add return_periods / dispersion_windows / lag_* here: they have no
 # env override, so listing them would silently pin them away from their runtime
 # defaults.
@@ -22,33 +20,32 @@
 # Why these indicators: they are the batch-computable subset of schema.yaml's
 # STREAM_FEATURES_ALL (the bronze.crypto_ohlcv_features contract) and cover all
 # of FEAST_ONLINE_FEATURES (close, volume, sma_20, sma_50, return_1h, return_24h,
-# volatility_24h) so the batch → Feast online-serving path lands non-zero values.
+# volatility_24h) so the batch to Feast online-serving path lands non-zero values.
 # Without this block technical_indicators stays {} and ~30 indicator columns
 # (including the 5 non-OHLCV Feast features) write as ClickHouse DEFAULT 0.
-# =============================================================================
 features:
   technical_indicators:
     # Primary price column the crypto TA overlay computes against.
     value_column: close
 
     moving_averages:
-      sma: [20, 50]   # → sma_20, sma_50
-      ema: [12, 26]   # → ema_12, ema_26
+      sma: [20, 50]   # maps to sma_20, sma_50
+      ema: [12, 26]   # maps to ema_12, ema_26
 
     momentum:
-      rsi: [7, 14]                            # → rsi_7, rsi_14
-      macd: {fast: 12, slow: 26, signal: 9}   # → macd, macd_signal
-      stochastic: {k: 14, d: 3}               # → stoch_k, stoch_d
-      williams_r: 14                          # → williams_r
-      adx: 14                                 # → adx
+      rsi: [7, 14]                            # maps to rsi_7, rsi_14
+      macd: {fast: 12, slow: 26, signal: 9}   # maps to macd, macd_signal
+      stochastic: {k: 14, d: 3}               # maps to stoch_k, stoch_d
+      williams_r: 14                          # maps to williams_r
+      adx: 14                                 # maps to adx
     # macd / stochastic / williams_r / adx / roc_10 / return_1h / return_24h /
     # volatility_24h are emitted unconditionally by the overlay when OHLCV is
     # present; the periods above just make the contract explicit.
 
     volatility:
-      bollinger: {period: 20, std: 2}   # → bb_upper, bb_lower, bb_width
-      atr: 14                           # → atr_14
+      bollinger: {period: 20, std: 2}   # maps to bb_upper, bb_lower, bb_width
+      atr: 14                           # maps to atr_14
 
     volume:
-      obv: true   # → obv
-      mfi: 14     # → mfi_14
+      obv: true   # maps to obv
+      mfi: 14     # maps to mfi_14

@@ -379,7 +379,7 @@ atom-storage-lake: install-lakefs install-lakekeeper ## LakeFS + Iceberg REST ca
 
 atom-obs-stack: install-kube-prometheus-stack install-grafana install-loki install-tempo install-opentelemetry install-pushgateway ## Core LGTM observability
 
-atom-obs-extra: install-pyroscope install-opencost install-evidently install-sloth ## Pyroscope + OpenCost + Evidently + SLO
+atom-obs-extra: install-opencost install-evidently install-sloth ## OpenCost + Evidently + SLO (pyroscope opt-in via install-pyroscope)
 
 atom-ingest-stream: install-registry install-kafka-operator install-kafka install-karapace install-kafka-ui install-kafka-connect ## Kafka streaming stack (Strimzi). install-registry must precede install-kafka-connect: KafkaConnect.spec.image points at the pre-built Debezium+Iceberg image in registry.platform-registry.svc.cluster.local:5000 (built by `make build-kafka-connect`, bundled into platform-build-services) — without the registry + image the KafkaConnect pod ImagePullBackOffs and never reaches Ready. The old in-cluster `.spec.build` (buildah) path is gone: buildah's unshare(CLONE_NEWUSER) is blocked by the hardened kernel.
 
@@ -403,7 +403,7 @@ atom-gitops-core: install-argo-cd install-argo-rollouts install-gitea install-te
 
 atom-rbac: install-rbac ## Cluster-wide RBAC bindings (data-engineer/scientist/admin roles)
 
-atom-auth: install-auth install-spicedb ## Dex OIDC + oauth2-proxy + SpiceDB authz (depends on phase-base for ESO+CNPG)
+atom-auth: install-auth ## Dex OIDC + oauth2-proxy (SpiceDB authz not implemented; add manifests to enable)
 
 atom-kubeflow-base: install-kubeflow-core ## Kubeflow gateway + network-policies + roles (depends on atom-cert-istio)
 

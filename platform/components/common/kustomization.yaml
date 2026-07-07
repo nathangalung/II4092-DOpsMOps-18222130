@@ -12,7 +12,7 @@ kind: Kustomization
 #                     TLS so 30+ HPAs across the platform get CPU/mem metrics
 #   - rbac:           ClusterRoles + bindings (data-engineer, data-scientist,
 #                                               ml-engineer, business-user)
-#   - registry:       CNCF Distribution v3 in-cluster image registry — push
+#   - registry:       CNCF Distribution v3 in-cluster image registry - push
 #                     target for Strimzi KafkaConnect Build (kaniko) and any
 #                     in-cluster image producers
 #   - network-policies: platform-wide default-deny + explicit allow rules

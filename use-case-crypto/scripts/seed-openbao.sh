@@ -1,7 +1,5 @@
 #!/bin/bash
-# =============================================================================
 # seed-openbao.sh
-# =============================================================================
 # Reads a crypto `.env` file and creates a K8s Secret `openbao-crypto-seed` in
 # namespace `security`. The crypto bootstrap Job
 # (use-case-crypto/manifests/base/openbao/bootstrap.yaml) consumes
@@ -30,7 +28,6 @@
 #   CRYPTO_DASHBOARD_DATASCI_PASS  -> SEED_CRYPTO_DASHBOARD_DATASCI_PASS  -> usecases/crypto/dashboard#datasci_password
 #   CRYPTO_DASHBOARD_MLENG_PASS    -> SEED_CRYPTO_DASHBOARD_MLENG_PASS    -> usecases/crypto/dashboard#mleng_password
 #   CRYPTO_DASHBOARD_BUSUSER_PASS  -> SEED_CRYPTO_DASHBOARD_BUSUSER_PASS  -> usecases/crypto/dashboard#bususer_password
-# =============================================================================
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

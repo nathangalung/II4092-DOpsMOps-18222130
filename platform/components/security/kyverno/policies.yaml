@@ -1,11 +1,9 @@
-# =============================================================================
 # Kyverno ValidatingPolicies / ImageValidatingPolicy / GeneratingPolicy
-# (CEL-based, Kyverno 1.17 — policies.kyverno.io/v1 GA schema)
-# =============================================================================
+# (CEL-based, Kyverno 1.17 - policies.kyverno.io/v1 GA schema)
 # Scope: every namespace tagged `app.kubernetes.io/part-of=mlops-platform`
 # plus use-case namespaces.
 #
-# v1alpha1 → v1 schema notes (for future contributors):
+# v1alpha1 to v1 schema notes (for future contributors):
 #   - `matchConstraints.excludeResourceRules[].namespaces` DOES NOT exist in
 #     v1; namespace filtering moved to `matchConditions` CEL expressions
 #     (`!(object.metadata.namespace in [...])`).
@@ -17,7 +15,6 @@
 #     in `generate[].expression` returning a list of resource objects;
 #     `synchronize: true` moved to `spec.evaluation.synchronize.enabled`.
 #   - CEL: use `'k' in m` instead of the invalid `has(m['k'])` form.
-# =============================================================================
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -30,7 +27,7 @@ spec:
   # CronJob) is disabled: Kyverno 1.17's autogen rewriter translates the
   # pod-level `object.metadata.namespace` matchCondition into
   # `object.spec.template.metadata.namespace` on the controller, which is
-  # optional and unset on every Deployment we ship — evaluating a missing
+  # optional and unset on every Deployment we ship - evaluating a missing
   # CEL key throws `no such key: namespace` and denies every Deployment
   # patch (not just the ones that would violate the policy). Pod-level
   # admission already catches the actual violation; we don't need to
@@ -46,14 +43,14 @@ spec:
         apiVersions: ["v1"]
         resources: ["pods"]
         operations: [CREATE, UPDATE]
-  # ADR-019 — cnpg-system is excluded across all pod-scoped ValidatingPolicies
+  # ADR-019 - cnpg-system is excluded across all pod-scoped ValidatingPolicies
   # because CloudNativePG v1.27 spawns short-lived backup/recovery pods (via
   # the Cluster controller) that lack full resources/securityContext shape.
   # Enforcement-mode policies were the root cause of cnpg-op's 46 restarts
   # (AUDIT_FINAL_2026-04-20.md §2.1). Keep exclusion scope as narrow as
   # possible: add cnpg-system here and nowhere else.
   # clickhouse-system: Altinity chart ships a helm pre-install Job
-  # (`*-crd-install`) whose pod template has no resources block — chart values
+  # (`*-crd-install`) whose pod template has no resources block - chart values
   # don't expose it. Same rationale as cnpg-system: short-lived chart-managed
   # helper pod we don't author.
   matchConditions:
@@ -68,7 +65,7 @@ spec:
       message: "All containers must set resources.requests AND resources.limits for cpu and memory."
 ---
 # TODO(audit-2026-04-21): Currently [Audit] because two in-use images still
-# carry :latest — `localhost:5000/platform-airflow:latest` and
+# carry :latest - `localhost:5000/platform-airflow:latest` and
 # `quay.io/lakekeeper/catalog:latest`. Flip back to [Deny, Audit] after both
 # are pinned to digest (Tekton sign+pin pipeline, see ADR-020). Policy also
 # excludes cnpg-system for backup-pod tolerance (ADR-019).
@@ -118,7 +115,7 @@ spec:
         apiVersions: ["v1"]
         resources: ["pods"]
         operations: [CREATE, UPDATE]
-  # See ADR-019 — cnpg-system exempt from pod-scoped policies.
+  # See ADR-019 - cnpg-system exempt from pod-scoped policies.
   matchConditions:
     - name: exclude-system-namespaces
       expression: "!(object.metadata.namespace in ['kube-system', 'istio-system', 'cnpg-system'])"
@@ -173,7 +170,7 @@ spec:
         apiVersions: ["v1"]
         resources: ["pods"]
         operations: [CREATE, UPDATE]
-  # See ADR-019 — cnpg-system exempt from pod-scoped policies.
+  # See ADR-019 - cnpg-system exempt from pod-scoped policies.
   matchConditions:
     - name: exclude-system-namespaces
       expression: "!(object.metadata.namespace in ['kube-system', 'istio-system', 'observability', 'cnpg-system'])"
@@ -189,7 +186,7 @@ spec:
 # host PID/IPC/network namespaces.  The only legitimate privileged workload
 # in this platform is the Istio CNI init container which lives in
 # `istio-system` (bootstrap-order carve-out). Local-path-provisioner (ADR-031)
-# is non-privileged — no storage-driver carve-out needed.
+# is non-privileged - no storage-driver carve-out needed.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -209,12 +206,12 @@ spec:
         apiVersions: ["v1"]
         resources: ["pods"]
         operations: [CREATE, UPDATE]
-  # See ADR-019 — cnpg-system exempt from pod-scoped policies.
+  # See ADR-019 - cnpg-system exempt from pod-scoped policies.
   # Falco DaemonSet + Chaos Mesh chaos-daemon exclusions are expressed here
   # (pod-label scoped) rather than via a separate PolicyException CR because
   # Kyverno 1.17's new ValidatingPolicy engine runs with an empty
   # `--exceptionNamespace` flag (chart default) and therefore does NOT wire
-  # PolicyException objects into VP admission evaluation — the VP status
+  # PolicyException objects into VP admission evaluation - the VP status
   # reports `skip generating ValidatingAdmissionPolicy: not enabled.` and the
   # policies.kyverno.io/v1 PolicyException CR silently has no effect.
   # ADR-019 narrow-scope guidance is preserved: exclusion matches ONLY pods
@@ -246,7 +243,7 @@ spec:
     # trivy-operator's infraAssessmentScanner spawns a node-collector Job that
     # mounts host /var/lib/etcd, /var/lib/kubelet, /etc/kubernetes etc. and
     # sets hostPID=true (kube-bench reads host files for the CIS Kubernetes
-    # benchmark — KNF-09 posture). The trivy-system namespace already
+    # benchmark - KNF-09 posture). The trivy-system namespace already
     # enforces PSA `privileged` (see security/trivy-operator/helm-release.yaml
     # namespace block), but Kyverno still denies the pod here unless explicitly
     # excluded. Scoped narrowly to label `app=node-collector` so any other
@@ -279,7 +276,7 @@ spec:
 ---
 # Reject pods that mount `hostPath` volumes. Legitimate exceptions are
 # system-level DaemonSets (Falco event source, OTel/Alloy log tailers) that
-# MUST read the node filesystem directly — they live in their own
+# MUST read the node filesystem directly - they live in their own
 # namespaces and are excluded. local-path-provisioner (kube-system, ADR-031)
 # is already excluded via the kube-system entry. Start in Audit so we
 # surface any unexpected hostPath before flipping to Deny.
@@ -316,12 +313,10 @@ spec:
         Pods must not mount hostPath volumes. Node-level collectors in
         kube-system/istio-system/observability/falco are exempt.
 ---
-# =============================================================================
 # Auto-generate a default-deny + allow-within-namespace NetworkPolicy pair
 # in every new namespace that doesn't already have one.  Admins can override
 # by deleting the generated policies (synchronize reconciles back unless
 # PolicyException is set).
-# =============================================================================
 apiVersion: policies.kyverno.io/v1
 kind: GeneratingPolicy
 metadata:
@@ -368,7 +363,6 @@ spec:
           }
         ])
 ---
-# =============================================================================
 # Enforce ADR-009 Istio opt-out allowlist.
 # Only the eight documented namespaces may set `istio-injection=disabled`.
 # Any other Namespace carrying that label is denied at admission. Adding a
@@ -387,7 +381,6 @@ spec:
 # (`sidecar.istio.io/inject: "false"` on pod templates) are intentionally
 # not Kyverno-gated; they are enumerated in ADR-009's "Per-pod opt-out
 # taxonomy" subsection and reviewed quarterly by a tree-wide grep.
-# =============================================================================
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -431,7 +424,6 @@ spec:
         opt out. Adding a new opt-out requires amending ADR-009 in
         platform/DECISIONS.md and this policy in the same change.
 ---
-# =============================================================================
 # DEFERRED until internal signing infra is live (Task #77 follow-up).
 # Needs ALL three to be ready before this can flip to Audit in-cluster:
 #   - Gitea OCI registry publishing `gitea.gitops.svc.cluster.local/platform/*`
@@ -445,8 +437,7 @@ spec:
 #     image-pull issue).
 # Keep this block as the target spec so the refactor is traceable. Uncomment
 # once all three prerequisites are met; do NOT remove the SCOPE comment when
-# re-enabling — a cluster-wide verify would reject every public chart image.
-# -----------------------------------------------------------------------------
+# re-enabling - a cluster-wide verify would reject every public chart image.
 # apiVersion: policies.kyverno.io/v1
 # kind: ImageValidatingPolicy
 # metadata:
@@ -469,7 +460,7 @@ spec:
 #     # ONLY registry Tekton writes to, and the ONLY one Cosign signs into.
 #     - glob: "gitea.gitops.svc.cluster.local/platform/*"
 #     - glob: "gitea.gitops.svc.cluster.local/use-case-*/*"
-#     # Legacy dev registry — kept until all pipelines migrate to Gitea OCI.
+#     # Legacy dev registry - kept until all pipelines migrate to Gitea OCI.
 #     - glob: "localhost:5000/*"
 #   # Keyless signing: Tekton's cosign-sign task uses the Fulcio instance
 #   # bundled with sigstore/policy-controller. Identity is the Tekton
@@ -492,9 +483,7 @@ spec:
 #   validations:
 #     - expression: "true"
 #       message: "Signed by platform-keyless attestor."
-# =============================================================================
 # Removed: ValidatingPolicy `deny-trivy-vuln-scan-jobs` (admission-layer storm).
-# =============================================================================
 # Previously this file held a Kyverno deny on `scan-vulnerabilityreport-*` Jobs
 # to work around the trivy-operator 0.30.1 / chart 0.32.1 bug where
 # `operator.vulnerabilityScannerEnabled: false` is written to the operator CM
@@ -502,22 +491,22 @@ spec:
 # Jobs on every reconcile. The deny worked at the admission layer BUT each
 # rejection caused controller-runtime to re-queue the workload immediately, so
 # every Pod/RS/SS event in the cluster fired a denied-Job-creation request
-# against kube-apiserver — at >50 req/s on a busy cluster. That admission
+# against kube-apiserver - at >50 req/s on a busy cluster. That admission
 # retry storm hammered the API server, throttling unrelated reconcilers
 # (CSI sidecars, ArgoCD, ESO) and reproducing the recurring IO cascade
-# (#160/166/169/214/249/256 — all pre-ADR-031 era).
+# (#160/166/169/214/249/256 - all pre-ADR-031 era).
 #
 # New strategy (no admission denial): let the vuln scan Jobs be CREATED but
 # bound their cost so they self-clean. The trivy-operator helm-release sets
 # `scanJobsRetryDelay: 1h` and `scanJobTimeout: 2m`. Each scan Pod fails fast
 # on `ghcr.io/aquasecurity/trivy-db` ImagePullBackOff (air-gapped lab), the
 # Job hits its 2-minute deadline, the operator records a failed
-# VulnerabilityReport, then re-queues no sooner than 1h later — yielding at
+# VulnerabilityReport, then re-queues no sooner than 1h later - yielding at
 # most ~2 active scan Jobs at any time (concurrent limit) and ~24 reconcile
 # attempts per workload per day, instead of >50/s. The `configAuditReport`,
 # `rbacAssessmentReport`, `exposedSecretReport`, and `infraAssessmentReport`
 # scanners use Trivy's offline Rego bundle (no DB pull) and still complete
-# successfully — KNF-09 posture coverage stays >80%.
+# successfully - KNF-09 posture coverage stays >80%.
 #
 # Re-enable CVE scanning after mirroring `ghcr.io/aquasecurity/trivy-db` to
 # the in-cluster Gitea-OCI / Zot registry and pointing `trivy.dbRegistry`

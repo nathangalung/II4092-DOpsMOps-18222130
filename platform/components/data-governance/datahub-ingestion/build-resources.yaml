@@ -1,10 +1,8 @@
-# =============================================================================
 # datahub-feast-deps image build (ADR-013 / task #201).
-# =============================================================================
 # Problem: `acryldata/datahub-ingestion:v1.5.0.3` (the upstream image used by
 # every datahub-ingest-* CronJob) ships the DataHub `feast` source plugin
 # (`datahub.ingestion.source.feast`) but NOT the `feast` python package itself
-# — i.e. the `[feast]` extra is documented but never installed in the public
+# - i.e. the `[feast]` extra is documented but never installed in the public
 # image. Running `datahub ingest -c feast.yml` aborts with
 #   PipelineInitError: Did not find a registered class for feast
 # because `from feast import ...` raises ModuleNotFoundError.
@@ -27,7 +25,7 @@
 # FROM alpine:3.21 failed DNS lookup of r2.cloudflarestorage.com; FROM
 # ghcr.io/astral-sh/uv:... succeeded.)
 #
-# The destination — `registry.platform-registry.svc.cluster.local:5000` —
+# The destination - `registry.platform-registry.svc.cluster.local:5000` -
 # is the in-cluster CNCF Distribution v3 registry (platform/components/
 # common/registry). k3s containerd is bootstrap-configured via
 # /etc/rancher/k3s/registries.yaml to trust this hostname over plain HTTP,
@@ -40,7 +38,6 @@
 # (registry-data lives on `local-path` per ADR-031; hostPath dir is removed
 # by the SC reclaimPolicy=Delete), the tag is gone and the build re-runs
 # cleanly. ~5 min wall-clock per build.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -62,9 +59,9 @@ data:
   Dockerfile: |
     FROM ghcr.io/astral-sh/uv:0.9.30-python3.10-bookworm-slim
     WORKDIR /build
-    # UV_HTTP_TIMEOUT bumped from default 30s → 180s: this build runs inside a
-    # kaniko Job whose only network egress is via CoreDNS → host systemd-resolved
-    # → upstream. Field-observed (#211, 2026-05-12): transient EAI_AGAIN on
+    # UV_HTTP_TIMEOUT bumped from default 30s to 180s: this build runs inside a
+    # kaniko Job whose only network egress is via CoreDNS to host systemd-resolved
+    # to upstream. Field-observed (#211, 2026-05-12): transient EAI_AGAIN on
     # pypi.org under cluster startup load failed the build deterministically
     # within kaniko's 30s read window. 180s tolerates a 3-retry DNS backoff
     # cycle while staying well below pre-apply.sh's 900s overall deadline.
@@ -109,8 +106,8 @@ data:
     package = false
 ---
 # Kaniko build Job. Single-shot; pre-apply.sh deletes any prior Job (TTL or
-# failed-and-stuck) before applying so re-runs converge. backoffLimit:3 →
-# tolerates transient DNS / pypi-mirror hiccups during phase-full cluster
+# failed-and-stuck) before applying so re-runs converge. backoffLimit:3 to
+# tolerate transient DNS / pypi-mirror hiccups during phase-full cluster
 # bring-up (CoreDNS + host resolved both warming concurrently). Deterministic
 # kaniko failures (syntax error, OOM, hard registry 4xx) still surface within
 # ~3 attempts × ~5min each ≈ 15 min, well under pre-apply.sh 900s deadline
@@ -146,7 +143,7 @@ spec:
       # additions below are interpreted as ADDITIONS to /etc/resolv.conf, not
       # replacements. options ndots:2/attempts:5/timeout:5 makes glibc's
       # resolver retry up to 5x with 5s per try before raising EAI_AGAIN
-      # — the failure mode field-observed in #211 where pypi.org resolution
+      # - the failure mode field-observed in #211 where pypi.org resolution
       # gave up after one transient miss. ndots:2 keeps short-name lookups
       # cheap (no search-domain expansion for names with one dot already).
       dnsPolicy: ClusterFirst
@@ -191,7 +188,7 @@ spec:
             - { name: workspace, mountPath: /workspace }
       containers:
         - name: kaniko
-          # Quay's strimzi/kaniko-executor mirror — already cached on node
+          # Quay's strimzi/kaniko-executor mirror - already cached on node
           # from kafka-connect's KafkaConnect Build (Strimzi uses the same
           # image internally). Saves an extra pull from gcr.io/kaniko-project.
           image: quay.io/strimzi/kaniko-executor:0.51.0
@@ -215,7 +212,7 @@ spec:
             # enough that caching isn't worth the cache-coherency risk.
             - --cache=false
           securityContext:
-            # Kaniko chowns /kaniko/Dockerfile during init — needs UID 0.
+            # Kaniko chowns /kaniko/Dockerfile during init - needs UID 0.
             # PSA enforce=baseline on data-governance permits root; the
             # audit/warn=restricted label produces warnings only (non-blocking).
             runAsUser: 0

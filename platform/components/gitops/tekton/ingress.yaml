@@ -1,11 +1,9 @@
-# =============================================================================
-# Tekton Dashboard ingress — Istio VirtualService (cluster uses Istio mesh, no
+# Tekton Dashboard ingress - Istio VirtualService (cluster uses Istio mesh, no
 # nginx-ingress is deployed). Bound to `istio-system/istio-ingressgateway`
 # which already listens :80 host *. A `Kind: Ingress` resource with
 # `ingressClassName: nginx` would stay status.loadBalancer.ingress empty
-# (no nginx-ingress controller exists → ArgoCD health.lua sticks at
+# (no nginx-ingress controller exists, so ArgoCD health.lua sticks at
 # Progressing forever, dragging the parent platform-gitops aggregate).
-# =============================================================================
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:

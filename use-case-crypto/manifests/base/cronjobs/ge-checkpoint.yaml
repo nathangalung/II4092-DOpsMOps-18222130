@@ -1,6 +1,4 @@
-# =============================================================================
-# GE CHECKPOINT — Periodic Data Quality Validation (Great Expectations)
-# =============================================================================
+# GE CHECKPOINT - Periodic Data Quality Validation (Great Expectations)
 # Runs a Great Expectations suite against ClickHouse silver tables every 6h
 # (offset :15 so it lands after retrain-on-drift fires at :00).  Pushes
 # validation results to the platform MinIO `great-expectations` bucket
@@ -10,7 +8,7 @@
 # Design intent (per platform/components/data-processing/great-expectations
 # configmap header): Great Expectations is a Python LIBRARY, not a server.
 # Use-cases import it in their workloads.  This CronJob is the use-case's
-# concrete exec path — the platform layer ships only the config template.
+# concrete exec path - the platform layer ships only the config template.
 #
 # Suite shape: smoke-grade invariants on silver.stg_ohlcv (the foundational
 # staging view rendered by dbt).  Catches obvious ingestion regressions
@@ -25,7 +23,6 @@
 #   - Pushgateway `pushgateway.observability.svc:9091`.
 #   - Secret `pipeline-secrets` (ExternalSecret from OpenBao) supplies
 #     CLICKHOUSE_USER / CLICKHOUSE_PASSWORD + S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY.
-# =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -35,10 +32,10 @@ metadata:
     component: data-quality
     mlops-platform.io/use-case: crypto
 spec:
-  # :48 every 6h — staggered off :15 (was "15 */6") so it no longer collides with
+  # :48 every 6h - staggered off :15 (was "15 */6") so it no longer collides with
   # supplementary-coingecko's hourly :15 on the single HDD (same-tick job storm, 2026-06-30).
   schedule: "48 */6 * * *"
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
   # controller stops scheduling permanently).
@@ -48,7 +45,7 @@ spec:
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
-    # Kueue admission: Job-level label routes through batch-queue → cluster
+    # Kueue admission: Job-level label routes through batch-queue, which maps to cluster
     # cohort.  ge-checkpoint is short-lived and lightweight, but routing it
     # through Kueue keeps the data-quality probe visible in the same admission
     # budget as the rest of the use-case's batch surface.
@@ -57,7 +54,7 @@ spec:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 1
-      # 600→1800: uv resolves great-expectations[clickhouse,s3] +
+      # 600 to 1800: uv resolves great-expectations[clickhouse,s3] +
       # boto3 + clickhouse-connect on cold cache; first fire pays
       # ~5-10 min for the resolver alone on IO-saturated sda.
       activeDeadlineSeconds: 1800
@@ -83,7 +80,7 @@ spec:
               emptyDir: {}
           containers:
             - name: ge-checkpoint
-              # UV image — same pattern as retrain-on-drift workflow.  Driver
+              # UV image - same pattern as retrain-on-drift workflow.  Driver
               # script is a PEP 723 inline-metadata file in /tmp; uv resolves
               # great_expectations + clickhouse-connect into an ephemeral venv
               # cached under /tmp/.uv-cache. No pip ever runs.
@@ -159,14 +156,14 @@ spec:
                   suite_name = os.environ["GE_SUITE_NAME"]
 
                   # Use the clickhouse-connect SQLAlchemy dialect that the
-                  # platform GE configmap also points at — keeps connection
+                  # platform GE configmap also points at - keeps connection
                   # strings interchangeable across use-cases.
                   conn = (
                       f"clickhousedb+connect://{ch_user}:{ch_pw}"
                       f"@{ch_host}:{ch_port}/{ch_db}"
                   )
 
-                  # Ephemeral GE context — the CronJob does not persist a
+                  # Ephemeral GE context - the CronJob does not persist a
                   # project dir between runs, and the platform configmap is
                   # cross-namespace anyway. Validation results are pushed to
                   # MinIO via boto3 directly below; the in-process result is
@@ -205,7 +202,7 @@ spec:
                       f"({successful}/{evaluated} expectations passed)"
                   )
 
-                  # Per-expectation summary — surfaces which expectation
+                  # Per-expectation summary - surfaces which expectation
                   # tripped when success=False so the SRE / Pushgateway
                   # consumer can drill in without re-fetching the JSON.
                   for r in getattr(result, "results", []) or []:
@@ -241,7 +238,7 @@ spec:
                   )
                   print(f"validation result uploaded: s3://{os.environ['MINIO_BUCKET']}/{key}")
 
-                  # Pushgateway gauge — one point per probe, success bit and
+                  # Pushgateway gauge - one point per probe, success bit and
                   # ratio of passed expectations. SRE dashboard reads
                   # `crypto_ge_checkpoint_success` and alerts on sustained 0.
                   metric = (

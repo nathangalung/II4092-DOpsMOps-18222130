@@ -1,15 +1,13 @@
-# =============================================================================
-# Argo CD App-of-Apps — platform bootstrap
-# =============================================================================
+# Argo CD App-of-Apps - platform bootstrap
 # ADR-005 (GitOps activation).  Once ArgoCD is bootstrapped, a single
 # `kubectl apply -f app-of-apps.yaml` creates:
-#   1. The `platform` AppProject          — RBAC + repo allowlist.
-#   2. A self-managed root `Application`  — reconciles THIS directory, so any
+#   1. The `platform` AppProject - RBAC + repo allowlist.
+#   2. A self-managed root `Application` - reconciles THIS directory, so any
 #      future change to `platform/components/gitops/argo-cd/` (new
 #      ApplicationSet, new AppProject, sync-wave tweak) is picked up by
 #      ArgoCD itself without a fresh manual `kubectl apply`. This closes the
 #      GitOps "bootstrap bootstrap" loop.
-#   3. The `platform-components` ApplicationSet — fans out to every
+#   3. The `platform-components` ApplicationSet - fans out to every
 #      `platform/components/*` directory with explicit sync waves:
 #        wave -10 : common + storage + security              (deps for everything)
 #        wave   0 : data-ingestion + data-processing + model-lifecycle
@@ -19,10 +17,9 @@
 #   http://gitea.gitops.svc.cluster.local:3000/platform/platform.git
 #
 # Use-case AppProjects + Applications live in their OWN repos (ADR-013):
-#   use-case-<name>/argocd/application.yaml      — contains both AppProject +
+#   use-case-<name>/argocd/application.yaml - contains both AppProject +
 #                                                  Application for that use-case.
 # Platform repo does not reference `use-case-*` to preserve domain agnosticism.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -45,7 +42,7 @@ spec:
     - "https://kyverno.github.io/kyverno/"
     - "https://vmware-tanzu.github.io/helm-charts"
     # Raw CRDs come from the velero git repo (separate Application installs
-    # `config/crd/v1/bases` ahead of the helm chart, sync-wave=-10) — the
+    # `config/crd/v1/bases` ahead of the helm chart, sync-wave=-10) - the
     # chart's pre-upgrade CRD job is disabled. Without this allowlist entry
     # ArgoCD rejects the velero-crds Application:
     #   "application repo https://github.com/vmware-tanzu/velero.git is not
@@ -59,7 +56,7 @@ spec:
     - "https://argoproj.github.io/argo-helm"
     - "https://downloads.apache.org/flink/flink-kubernetes-operator-1.14.0/"
     - "https://kubeflow.github.io/spark-operator"
-    # Fairwinds VPA recommender chart (4.11.0) — advisory-only, single-node
+    # Fairwinds VPA recommender chart (4.11.0) - advisory-only, single-node
     # uses updateMode=Off to avoid restart-storm IO cascade (#160/166/169).
     - "https://charts.fairwinds.com/stable"
   destinations:
@@ -69,7 +66,7 @@ spec:
   namespaceResourceWhitelist:
     - { group: "*", kind: "*" }
   orphanedResources:
-    # warn: false — orphaned resources still appear in the ArgoCD UI for
+    # warn: false - orphaned resources still appear in the ArgoCD UI for
     # visibility, but no `OrphanedResourceWarning` condition is emitted.
     # With warn=true the condition flips Application.status.health to
     # "Degraded" even though the orphan is informational (e.g. Helm hook
@@ -90,14 +87,11 @@ spec:
         - "p, proj:platform:viewer, applications, get, platform/*, allow"
       groups: ["platform-viewers"]
 ---
-# -----------------------------------------------------------------------------
 # Self-managed root Application
-# -----------------------------------------------------------------------------
 # Reconciles `platform/components/gitops/argo-cd/` itself. Any edit to THIS
-# file (or any sibling) is applied by ArgoCD on next sync — no more
+# file (or any sibling) is applied by ArgoCD on next sync - no more
 # "out-of-band" kubectl apply. sync-wave=-20 ensures it wins the ordering
 # race against the ApplicationSet it manages.
-# -----------------------------------------------------------------------------
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -154,15 +148,15 @@ spec:
           # cmd-params throttle (operation.processors=3) this caps the disk to
           # one heavy stateful app applying at a time. Ordered by dependency.
           - { name: common,          path: platform/components/common,          wave: "-10" }  # CRDs/operators: cert-manager, ESO, KEDA, gateway-api
-          - { name: storage,         path: platform/components/storage,         wave:  "-8" }  # CNPG/MinIO/ClickHouse/Valkey — needs common CRDs
+          - { name: storage,         path: platform/components/storage,         wave:  "-8" }  # CNPG/MinIO/ClickHouse/Valkey - needs common CRDs
           - { name: security,        path: platform/components/security,        wave:  "-6" }  # Kyverno/OpenBao/Istio/Falco
-          - { name: data-ingestion,  path: platform/components/data-ingestion,  wave:   "0" }  # Kafka — first consumer of storage
-          - { name: data-processing, path: platform/components/data-processing, wave:   "2" }  # Airflow/Spark/Flink — need Kafka + storage
+          - { name: data-ingestion,  path: platform/components/data-ingestion,  wave:   "0" }  # Kafka - first consumer of storage
+          - { name: data-processing, path: platform/components/data-processing, wave:   "2" }  # Airflow/Spark/Flink - need Kafka + storage
           - { name: model-lifecycle, path: platform/components/model-lifecycle, wave:   "4" }  # MLflow/Feast/Kubeflow
-          - { name: data-governance, path: platform/components/data-governance, wave:  "10" }  # DataHub — reads Kafka + upstream
-          - { name: model-serving,   path: platform/components/model-serving,   wave:  "12" }  # KServe — needs MLflow registry
+          - { name: data-governance, path: platform/components/data-governance, wave:  "10" }  # DataHub - reads Kafka + upstream
+          - { name: model-serving,   path: platform/components/model-serving,   wave:  "12" }  # KServe - needs MLflow registry
           - { name: observability,   path: platform/components/observability,   wave:  "14" }  # Grafana/Loki/OTel/Pyroscope
-          - { name: gitops,          path: platform/components/gitops,          wave:  "16" }  # Tekton/Argo Rollouts — CI/CD on top
+          - { name: gitops,          path: platform/components/gitops,          wave:  "16" }  # Tekton/Argo Rollouts - CI/CD on top
   template:
     metadata:
       name: "platform-{{name}}"
@@ -181,14 +175,13 @@ spec:
         targetRevision: main
       destination:
         server: https://kubernetes.default.svc
-        namespace: gitops     # ignored — resources carry their own namespace
+        namespace: gitops     # ignored - resources carry their own namespace
       syncPolicy:
         # PRUNE INTENTIONALLY DISABLED ON AppSet TEMPLATE
-        # ================================================
         # `prune: true` here triggers cascading self-prune of the platform's
         # own control plane.  The AppSet emits an Application for every
         # `platform/components/*` path including `platform/components/gitops/`
-        # which itself renders `argo-cd/install.yaml` + patches — i.e.
+        # which itself renders `argo-cd/install.yaml` + patches - i.e.
         # platform-gitops co-owns ArgoCD's own Deployments/StatefulSets.
         # Any transient render flutter (kustomize build failure, gitea
         # network hiccup, stale repo cache, ApplicationSet re-evaluation
@@ -211,7 +204,7 @@ spec:
           # RespectIgnoreDifferences=true was removed 2026-06-10. The argocd-cm
           # ignore rules are global and several use array wildcards (e.g.
           # apps_Deployment .spec.template.spec.containers[]?.env[]?..divisor,
-          # Tekton .spec.steps[]?.*) — with Respect enabled, Argo back-patches
+          # Tekton .spec.steps[]?.*) - with Respect enabled, Argo back-patches
           # the LIVE array element into the desired state at sync time, so any
           # real change in the same element (an image bump next to an ignored
           # env var) becomes a silent no-op apply and the app sticks OutOfSync
@@ -219,7 +212,7 @@ spec:
           # use-case KafkaUsers/Tasks/PrometheusServiceLevel).
           # Diff-side ignoreDifferences still work without it, and with
           # ApplyOutOfSyncOnly a resource whose only drift is ignored never
-          # enters the apply set — runtime-mutated fields stay preserved.
+          # enters the apply set - runtime-mutated fields stay preserved.
           - ApplyOutOfSyncOnly=true
           - PruneLast=true
           # Section apps render sub-Applications (sloth, chaos-mesh, falco, velero,
@@ -228,8 +221,8 @@ spec:
           # the whole sync ("server could not find requested resource
           # sloth.slok.dev/v1") before the sub-Application can install the CRD,
           # leaving the parent app stuck Missing/OutOfSync. Skipping dry-run on
-          # missing CRDs lets the apply proceed: sub-App lands → chart installs
-          # CRD → next reconcile retries the CR successfully.
+          # missing CRDs lets the apply proceed: sub-App lands, then chart installs
+          # CRD, then next reconcile retries the CR successfully.
           - SkipDryRunOnMissingResource=true
         retry:
           limit: 5

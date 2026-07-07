@@ -11,7 +11,7 @@ Flow:
   1. Query MLflow for the latest FINISHED run in the given experiment.
   2. Build the s3:// artifact URI for that run's model subdir.
   3. Send a JSON Merge Patch to the InferenceService containing only
-     the storageUri change — so the rest of the spec stays under the
+     the storageUri change - so the rest of the spec stays under the
      sole ownership of the GitOps-applied manifest.
 
 If the InferenceService does not exist yet the script fails loudly
@@ -44,7 +44,7 @@ def resolve_latest_model_uri(experiment_name: str) -> str:
     """Resolve the S3 artifact URI of the latest logged model in an experiment.
 
     MLflow 3.x stores model artifacts under
-    ``{artifact_root}/{experiment_id}/models/{model_id}/artifacts`` — NOT the
+    ``{artifact_root}/{experiment_id}/models/{model_id}/artifacts`` - NOT the
     2.x ``{run_id}/artifacts/{path}`` layout the previous version constructed
     (that path simply does not exist in MinIO under MLflow 3.x, so the
     storage-initializer would find nothing and the InferenceService never went

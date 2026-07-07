@@ -48,7 +48,7 @@
       },
       "targets": [
         {
-          "expr": "crypto_job_last_success{use_case=\"crypto\"}",
+          "expr": "${use_case}_job_last_success{use_case=\"$use_case\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -58,7 +58,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Seconds since each crypto batch job last reported to the pushgateway.",
+      "description": "Seconds since each pipeline batch job last reported to the pushgateway.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -89,7 +89,7 @@
       },
       "targets": [
         {
-          "expr": "time() - crypto_job_last_run_timestamp{use_case=\"crypto\"}",
+          "expr": "time() - ${use_case}_job_last_run_timestamp{use_case=\"$use_case\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -99,7 +99,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Count of crypto batch jobs whose last exit code was non-zero.",
+      "description": "Count of pipeline batch jobs whose last exit code was non-zero.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -128,7 +128,7 @@
       },
       "targets": [
         {
-          "expr": "count(crypto_job_last_exit_code{use_case=\"crypto\"} != 0)",
+          "expr": "count(${use_case}_job_last_exit_code{use_case=\"$use_case\"} != 0)",
           "legendFormat": "Failed Jobs",
           "refId": "A"
         }
@@ -178,7 +178,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Duration of the last run of each crypto batch job.",
+      "description": "Duration of the last run of each pipeline batch job.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -204,7 +204,7 @@
       },
       "targets": [
         {
-          "expr": "crypto_job_last_duration_seconds{use_case=\"crypto\"}",
+          "expr": "${use_case}_job_last_duration_seconds{use_case=\"$use_case\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -253,7 +253,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Container restart counts for pods in the use-case-crypto namespace.",
+      "description": "Container restart counts for pods in the use-case namespace.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -282,7 +282,7 @@
       },
       "targets": [
         {
-          "expr": "kube_pod_container_status_restarts_total{namespace=\"use-case-crypto\"}",
+          "expr": "kube_pod_container_status_restarts_total{namespace=\"use-case-$use_case\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -292,7 +292,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Available replica count per deployment in use-case-crypto.",
+      "description": "Available replica count per deployment in the use-case namespace.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -321,7 +321,7 @@
       },
       "targets": [
         {
-          "expr": "kube_deployment_status_replicas_available{namespace=\"use-case-crypto\"}",
+          "expr": "kube_deployment_status_replicas_available{namespace=\"use-case-$use_case\"}",
           "legendFormat": "{{deployment}}",
           "refId": "A"
         }
@@ -334,7 +334,19 @@
   "schemaVersion": 36,
   "style": "dark",
   "tags": ["dataops", "etl", "pipeline"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "crypto", "value": "crypto" },
+        "hide": 0,
+        "label": "Use case",
+        "name": "use_case",
+        "options": [ { "selected": true, "text": "crypto", "value": "crypto" } ],
+        "query": "crypto",
+        "type": "textbox"
+      }
+    ]
+  },
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "",

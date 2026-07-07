@@ -25596,7 +25596,7 @@ data:
     enabled: "true"
     #
     # API endpoint to send the traces to
-    # (optional): The default value is given below — points at the platform's
+    # (optional): The default value is given below - points at the platform's
     # OTel Collector gateway (ADR-025); the gateway fans out to Tempo.
     endpoint: "http://gateway-collector.observability.svc.cluster.local:4318/v1/traces"
     # (optional) Name of the k8s secret which contains basic auth credentials

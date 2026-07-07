@@ -1,8 +1,6 @@
-# =============================================================================
-# Kueue LocalQueues — use-case-crypto scope
-# =============================================================================
+# Kueue LocalQueues - use-case-crypto scope
 # Cluster-scoped Kueue resources (ResourceFlavor + ClusterQueue) live at the
-# platform layer — see `platform/components/common/kueue/queues.yaml`.
+# platform layer - see `platform/components/common/kueue/queues.yaml`.
 # Authoring those CRs in two places would break GitOps reconciliation with
 # duplicate cluster-scoped objects.
 #
@@ -28,7 +26,7 @@
 #   1. The owning namespace MUST carry `kueue.mlops/use-case: "true"` so the
 #      ClusterQueue namespaceSelector admits its LocalQueues.
 #   2. Each workload sets the queue-name label on the Job-level metadata
-#      (NOT on the pod template — Kueue's Job integration reads Job labels):
+#      (NOT on the pod template - Kueue's Job integration reads Job labels):
 #
 #         apiVersion: batch/v1
 #         kind: CronJob
@@ -43,9 +41,8 @@
 #      For a bare Job, the label sits on the Job's own metadata.labels.
 #   3. Bootstrap / one-shot Jobs (openbao bootstrap, schema-registration,
 #      superset bootstrap) intentionally stay unlabeled so they bypass
-#      Kueue admission entirely — routing them through a queue can deadlock
+#      Kueue admission entirely - routing them through a queue can deadlock
 #      install when the ClusterQueue budget is saturated.
-# =============================================================================
 
 ---
 apiVersion: kueue.x-k8s.io/v1beta2

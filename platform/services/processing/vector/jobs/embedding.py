@@ -91,7 +91,7 @@ class TextEmbeddingJob:
         logger.info("Connected to ClickHouse: %s", self.config.clickhouse_host)
 
         # Qdrant for vector storage and search. api_key may be empty in
-        # dev (no auth) but must be passed through when set — Qdrant's
+        # dev (no auth) but must be passed through when set - Qdrant's
         # Python client treats empty string the same as missing.
         self.qdrant = QdrantClient(
             url=self.config.qdrant_url,

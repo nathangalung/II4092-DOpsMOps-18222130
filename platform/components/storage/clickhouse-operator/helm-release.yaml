@@ -1,19 +1,16 @@
-# =============================================================================
 # Altinity ClickHouse Operator 0.26.3 (latest as of 2026-05)
-# =============================================================================
 # ADR-011.  Provides CRDs:
-#   ClickHouseInstallation          (CHI)       — the cluster
-#   ClickHouseInstallationTemplate  (CHIT)      — reusable template
-#   ClickHouseOperatorConfiguration (CHOpConf)  — operator config
+#   ClickHouseInstallation          (CHI) - the cluster
+#   ClickHouseInstallationTemplate  (CHIT) - reusable template
+#   ClickHouseOperatorConfiguration (CHOpConf) - operator config
 #
-# Pinned 0.26.3 — 0.26.2 panicked with nil ptr in GetRootServiceTemplates
+# Pinned 0.26.3 - 0.26.2 panicked with nil ptr in GetRootServiceTemplates
 # during CHK finalizer cleanup when the user CR omits .spec.templates.
 # serviceTemplates (our case; we only set podTemplates + volumeClaimTemplates).
 # Stuck CHI/CHK finalizers are force-cleared by post-apply.sh; new resources
 # created after the upgrade will not trip the same path because the steady-
-# state reconcile loop tolerates the omission — only the delete/finalizer
+# state reconcile loop tolerates the omission - only the delete/finalizer
 # path was nil-unsafe in 0.26.2.
-# =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -64,21 +61,21 @@ spec:
         crdHook:
           enabled: false
         # Operator config lives inside the chart's embedded YAML at
-        # `configs.files."config.yaml".*` — chart deep-merges these values
+        # `configs.files."config.yaml".*` - chart deep-merges these values
         # into the rendered ConfigMap; everything else stays default.
         configs:
           files:
             config.yaml:
               # klog v-level. v=1 (default) emits NO per-CR traces in the
               # custom workqueue reconcile path: a stuck CHI sits with
-              # empty `.status` and no STS materializes — operator looks
+              # empty `.status` and no STS materializes - operator looks
               # healthy (2/2 Running) but is silent. v=3 surfaces every
               # reconcile attempt + the informer cache snapshot; required
               # to debug non-materialization. Field-validated 2026-05-04
               # against operator 0.26.2 with CHI `platform` stuck.
               logger:
                 v: "3"
-              # Cluster-wide watch via regex. Empty `[]` is NOT "all" — the
+              # Cluster-wide watch via regex. Empty `[]` is NOT "all" - the
               # Altinity operator falls back to OPERATOR_POD_NAMESPACE
               # (clickhouse-system) when the list is empty, leaving CHIs
               # in other namespaces orphaned. The chart values.yaml comment
@@ -86,7 +83,7 @@ spec:
               # every namespace. Field-validated 2026-05-04: CHI `platform`
               # in `storage` ns sat with empty `.status` for 40+ minutes
               # until this regex was applied. There is no `watchAllNamespaces`
-              # chart value (silently ignored prior — chart README does
+              # chart value (silently ignored prior - chart README does
               # not document such a key).
               watch:
                 namespaces:

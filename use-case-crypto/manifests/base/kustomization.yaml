@@ -1,9 +1,7 @@
-# =============================================================================
-# CRYPTO USE-CASE — Kustomize Base (inherits from platform/services/base)
-# =============================================================================
+# CRYPTO USE-CASE - Kustomize Base (inherits from platform/services/base)
 # Use-case manifests. Generic K8s Deployments, RBAC, and the base pipeline
 # ConfigMap are INHERITED from platform/services/base via the
-# `../../../platform/services/base/...` paths below — nothing is duplicated.
+# `../../../platform/services/base/...` paths below - nothing is duplicated.
 # Crypto-specific shape (domain config patches, ISVC, Kafka topics, Vault
 # bootstrap, supplementary CronJobs, etc.) is declared locally.
 #
@@ -25,14 +23,11 @@
 #   resources:     files inherited from platform + local use-case CRs
 #   patches:       strategic-merge patches on pipeline-config + services
 #   overlays/      environment-specific tweaks (local, cloud)
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# =============================================================================
 # NAMESPACE SETTER
-# =============================================================================
 # Pins every namespaced resource declared below into `use-case-crypto`. This
 # replaces the overlay's prior `namespace: use-case-crypto` setter, which
 # clobbered explicit `namespace:` fields on cross-namespace resources (Kafka
@@ -43,9 +38,7 @@ kind: Kustomization
 namespace: use-case-crypto
 
 resources:
-  # ===========================================================================
-  # INHERITED FROM PLATFORM — infrastructure endpoints, base RBAC, Deployments
-  # ===========================================================================
+  # INHERITED FROM PLATFORM - infrastructure endpoints, base RBAC, Deployments
   # Base ConfigMap `pipeline-config` with platform service endpoints. Crypto
   # patches it below (configmaps/*.yaml) to add domain-specific keys and to
   # override CLICKHOUSE_DB / set KSERVE_INFERENCE_URL (configmaps/serving.yaml).
@@ -56,21 +49,21 @@ resources:
   - ../../../platform/services/base/rbac/roles.yaml
   - ../../../platform/services/base/rbac/bindings.yaml
 
-  # --- Ingestion (generic Deployments from platform) ---
+  # Ingestion (generic Deployments from platform)
   - ../../../platform/services/base/deployments/rest-collector.yaml
   - ../../../platform/services/base/deployments/websocket-collector.yaml
 
-  # --- Quality (generic Deployments from platform) ---
+  # Quality (generic Deployments from platform)
   - ../../../platform/services/base/deployments/validator.yaml
   - ../../../platform/services/base/deployments/analyzer.yaml
 
-  # --- Processing — Flink stream-processor (the crypto speed layer) ---
+  # Processing - Flink stream-processor (the crypto speed layer)
   # An application-mode FlinkDeployment running the platform `flink-job` image
   # owns the entire streaming feature path: consumes crypto.validated, computes
   # the OHLCV indicator set, and DUAL-sinks to (1) Kafka crypto.features.v1
-  # (EXACTLY_ONCE → ClickHouse bronze) and (2) the Valkey online cache
+  # (EXACTLY_ONCE to ClickHouse bronze) and (2) the Valkey online cache
   # `features:{symbol}`. This RETIRES the bespoke Rust feature-engine Deployment
-  # (atomic swap — see flink/stream-processor.yaml header): one engine, replayable
+  # (atomic swap - see flink/stream-processor.yaml header): one engine, replayable
   # checkpointed state, operator-managed lifecycle. The platform StreamJob stays
   # domain-agnostic; all crypto wiring is env on the FlinkDeployment podTemplate.
   # NOTE the apply ordering: the `crypto-flink-job` image must exist in the
@@ -78,23 +71,21 @@ resources:
   # speed layer is down until it does.
   - flink/stream-processor.yaml
 
-  # --- Serving (generic Deployments from platform) ---
+  # Serving (generic Deployments from platform)
   - ../../../platform/services/base/deployments/gateway.yaml
 
-  # --- Dashboard (generic Deployments from platform) ---
+  # Dashboard (generic Deployments from platform)
   - ../../../platform/services/base/deployments/dashboard-backend.yaml
   - ../../../platform/services/base/deployments/dashboard-frontend.yaml
   - ../../../platform/services/base/deployments/ml-bridge.yaml
 
-  # ===========================================================================
-  # USE-CASE — Domain-specific resources (stay here, NOT promoted to platform)
-  # ===========================================================================
+  # USE-CASE - Domain-specific resources (stay here, NOT promoted to platform)
   - namespace.yaml
   - configmaps/feast.yaml
-  # Runtime override for the image-baked /dbt/profiles.yml — fixes `secure`
+  # Runtime override for the image-baked /dbt/profiles.yml - fixes `secure`
   # type (bool not env_var string). Mounted into dbt Pods at /tmp/dbt-profiles.
   - configmaps/dbt-profile.yaml
-  # Declarative rest-collector config — defines Coinbase data source and
+  # Declarative rest-collector config - defines Coinbase data source and
   # per-endpoint polling (ticker, trades, ...). Mounted by the rest-collector
   # patch at /etc/rest-collector/config.yaml.
   - configmaps/rest-collector-config.yaml
@@ -106,47 +97,47 @@ resources:
   # which hardcoded the wrong CHI pod name `clickhouse-0`). PostSync hook +
   # BeforeHookCreation makes re-runs idempotent at the Job-resource level; the
   # SQL itself is idempotent via `CREATE … IF NOT EXISTS`. SQL bytes live in
-  # `clickhouse-init-sql` ConfigMap (configMapGenerator below) — same source
+  # `clickhouse-init-sql` ConfigMap (configMapGenerator below) - same source
   # file used historically (use-case-crypto/database/init_clickhouse.sql).
   - clickhouse-init.yaml
   # Kafka Connect connectors are intentionally NOT wired by this use case
   # (the platform keeps Kafka Connect / Debezium / Iceberg-sink as domain-
   # agnostic capabilities for a future use case that needs them):
-  #   • Debezium CDC taps a relational WAL (Postgres/MySQL); the crypto source is
-  #     the Coinbase WebSocket/REST API, which has no transaction log — CDC is the
+  #   - Debezium CDC taps a relational WAL (Postgres/MySQL); the crypto source is
+  #     the Coinbase WebSocket/REST API, which has no transaction log - CDC is the
   #     wrong tool. Market data is produced to Kafka directly by the rest- and
   #     websocket-collectors.
-  #   • The Kafka-Connect Iceberg sink is superseded by Flink as the best-proper
+  #   - The Kafka-Connect Iceberg sink is superseded by Flink as the best-proper
   #     Iceberg writer (exactly-once, stateful, reuses the running Flink cluster;
   #     Kafka Connect adds a separate cluster + ~5-min commit latency).
   # Removing them here also eliminates the in-cluster KafkaConnect build that
   # repeatedly IO-cascaded this single-node node.
 
-  # --- Kafka topics + KafkaUsers (cycle-3 §3.1) ---
+  # Kafka topics + KafkaUsers (cycle-3 §3.1)
   # Cross-namespace CRs live in `../cross-namespace/`; the TriggerAuthentication
   # below DOES live in `use-case-crypto` (KEDA reads it from the workload
   # namespace) so it stays in base.
   - kafka-users/triggerauth.yaml
 
-  # --- Supplementary data CronJobs (domain-specific sources) ---
+  # Supplementary data CronJobs (domain-specific sources)
   - cronjobs/supplementary.yaml
   - cronjobs/supplementary-feargreed.yaml
   - cronjobs/supplementary-coingecko.yaml
   - cronjobs/supplementary-defillama.yaml
 
-  # --- Vector embedding (CryptoPanic → Qdrant) ---
+  # Vector embedding (CryptoPanic to Qdrant)
   - cronjobs/vector-embedding.yaml
 
-  # --- GE checkpoint (data quality smoke on silver.stg_ohlcv every 6h) ---
+  # GE checkpoint (data quality smoke on silver.stg_ohlcv every 6h)
   # Periodic Great Expectations probe. GE is a Python library, not a server
   # (see platform/components/data-processing/great-expectations configmap
-  # header) — this CronJob is the use-case's concrete exec path. Pushes a
+  # header) - this CronJob is the use-case's concrete exec path. Pushes a
   # success bit + pass ratio to Pushgateway and uploads the validation
   # result JSON to the platform `great-expectations` MinIO bucket under
   # `validations/<use_case>/<suite>/<unix-ts>.json`.
   - cronjobs/ge-checkpoint.yaml
 
-  # --- Drift detection CronJobs (platform-provided, domain-agnostic) ---
+  # Drift detection CronJobs (platform-provided, domain-agnostic)
   # Multi-scale: minute (1m), hourly (15m), daily (6h), weekly (12h),
   # monthly (1d). Each compares the current window vs the prior equal window.
   # Each Job runs `drift-detector main.py --scale <s> --once`, reads silver
@@ -157,38 +148,36 @@ resources:
   # images: stanza (see ../overlays/local/kustomization.yaml).
   - ../../../platform/services/base/cronjobs/drift-multi-scale.yaml
 
-  # --- Serving (domain-specific InferenceService) ---
+  # Serving (domain-specific InferenceService)
   - inferenceservices/inference.yaml
 
-  # --- HPO (Katib) ---
-  # Declarative Experiment CR (flaml-automl-hpo) — a STANDALONE demonstration of
+  # HPO (Katib)
+  # Declarative Experiment CR (flaml-automl-hpo) - a STANDALONE demonstration of
   # the platform's HPO capability. It tunes FLAML's meta-parameters (time_budget,
   # n_splits) via Bayesian optimization; its Trial Pods are admitted through
   # `crypto-training-queue` (see kueue/queues.yaml).
   # IMPORTANT (was wrong before): the production retrain path does NOT use Katib.
   # The KFP `retraining_pipeline` uses fixed env-sourced params and FLAML's own
   # internal HPO; `retrain-on-drift.yaml` queries gold.drift_multi_scale and POSTs
-  # directly to the KFP /runs API — it never calls the Katib SDK. Katib is a
+  # directly to the KFP /runs API - it never calls the Katib SDK. Katib is a
   # demonstrated capability, not on the production hot path.
   - katib/experiment-lightgbm.yaml
 
-  # =========================================================================
   # ORCHESTRATED BY AIRFLOW + KFP + ARGO WORKFLOWS (not CronJobs):
-  #   - Batch features, sentiment, materialization → Airflow: crypto_hourly_features
-  #   - Drift detection → platform CronJobs drift-check-{minute,hourly,daily,weekly,monthly}
+  #   - Batch features, sentiment, materialization maps to Airflow: crypto_hourly_features
+  #   - Drift detection maps to platform CronJobs drift-check-{minute,hourly,daily,weekly,monthly}
   #     (writes `gold.drift_multi_scale`; pulled in above from
   #     ../../../platform/services/base/cronjobs/drift-multi-scale.yaml)
-  #   - Retrain-on-drift → Argo CronWorkflow `retrain-on-drift` (model-lifecycle ns,
+  #   - Retrain-on-drift maps to Argo CronWorkflow `retrain-on-drift` (model-lifecycle ns,
   #     polls gold.drift_multi_scale every 6h, calls KFP API on threshold breach;
   #     see workflows/retrain-on-drift.yaml in ../cross-namespace/)
-  #   - dbt transforms, Evidently reports → Airflow: crypto_lakehouse
-  #   - Daily backfill → Airflow: crypto_daily_backfill
-  #   - Data quality gates → Airflow: crypto_data_quality_gate
-  #   - Scoring → Airflow: crypto_hourly_features (after features computed)
-  #   - Weekly training → KFP recurring run (launches Katib Experiment above)
-  # =========================================================================
+  #   - dbt transforms, Evidently reports maps to Airflow: crypto_lakehouse
+  #   - Daily backfill maps to Airflow: crypto_daily_backfill
+  #   - Data quality gates maps to Airflow: crypto_data_quality_gate
+  #   - Scoring maps to Airflow: crypto_hourly_features (after features computed)
+  #   - Weekly training maps to KFP recurring run (launches Katib Experiment above)
 
-  # --- RBAC (use-case-scoped ServiceAccount) ---
+  # RBAC (use-case-scoped ServiceAccount)
   # OpenBao binds `crypto-pipeline-sa` (= `pipeline-sa` + namePrefix `crypto-`)
   # to the `crypto-runtime` K8s auth role in openbao/bootstrap.yaml.
   # The `kfp-kserve-deployer-binding` ClusterRoleBinding lives in
@@ -196,32 +185,32 @@ resources:
   # rewritten to `use-case-crypto` by the namespace setter above.
   - rbac/service-account.yaml
 
-  # --- OpenBao (secrets management) ---
+  # OpenBao (secrets management)
   # Crypto-specific bootstrap MOVED to `../cross-namespace/kustomization.yaml`.
   # The Job, ServiceAccount, Role, and RoleBinding ALL live in `security`
-  # namespace (where OpenBao lives) — bootstrap reads `openbao-unseal`
+  # namespace (where OpenBao lives) - bootstrap reads `openbao-unseal`
   # Secret there and talks to `openbao.security.svc.cluster.local:8200`.
   # The base namespace setter (`use-case-crypto`) would clobber those
   # explicit `metadata.namespace: security` values; cross-namespace has
   # no setter so the explicit namespace survives. See ADR-013 split.
 
-  # --- Kueue (job queuing) ---
+  # Kueue (job queuing)
   - kueue/queues.yaml
 
-  # --- Tekton (CI/CD pipeline) ---
-  # build-pipeline (Gitea push → EventListener → git-clone → merge-overlay →
-  # lint → test → build-push via Kaniko → finally push-metrics) is the wired
-  # CI/CD path. Gold-layer dbt is NOT built here — the Airflow `crypto_lakehouse`
+  # Tekton (CI/CD pipeline)
+  # build-pipeline (Gitea push, EventListener, git-clone, merge-overlay,
+  # lint, test, build-push via Kaniko, finally push-metrics) is the wired
+  # CI/CD path. Gold-layer dbt is NOT built here - the Airflow `crypto_lakehouse`
   # DAG is the single canonical gold producer (`dbt build`, all models).
   - tekton/pipeline.yaml
 
-  # --- Autoscaling ---
+  # Autoscaling
   - hpa/autoscaling.yaml
 
-  # --- Network Policies (zero-trust) ---
+  # Network Policies (zero-trust)
   - network-policies.yaml
 
-  # --- Observability (alerting routes + SLO PrometheusRules + ServiceMonitors) ---
+  # Observability (alerting routes + SLO PrometheusRules + ServiceMonitors)
   - observability/alertmanagerconfig.yaml
   - observability/servicemonitors.yaml
   # Sloth PrometheusServiceLevel CRs (prediction-freshness, pipeline-lag,
@@ -229,36 +218,34 @@ resources:
   # by the Sloth operator (see ADR-021).
   - observability/slos.yaml
   # Push-helper ConfigMap (sh + py emitters) mounted by every short-lived
-  # crypto batch surface — CronJobs (supplementary-*, vector-embedding),
+  # crypto batch surface - CronJobs (supplementary-*, vector-embedding),
   # Tekton finally tasks (build-pipeline), Airflow DAG
   # callbacks. Single canonical `crypto_job_*` metric family so SLOs over
   # batch outcomes share one label key (use_case=crypto).
   - observability/push-helper-configmap.yaml
 
-  # --- BI / Self-service analytics (Superset crypto bootstrap) ---
+  # BI / Self-service analytics (Superset crypto bootstrap)
   # Domain-agnostic Superset Deployment lives in platform/. Crypto owns the
   # bootstrap Job that registers the 3 crypto-relevant databases (ClickHouse
   # bronze/silver, Trino federated, Postgres feast registry) and the key
-  # crypto datasets via Superset REST API. Idempotent — re-runs are no-ops.
+  # crypto datasets via Superset REST API. Idempotent - re-runs are no-ops.
   - superset/externalsecret.yaml
   - superset/bootstrap-configmap.yaml
   - superset/bootstrap-job.yaml
 
-  # --- Autoscaling (KEDA Kafka-lag + HTTP-RPS ScaledObjects) ---
+  # Autoscaling (KEDA Kafka-lag + HTTP-RPS ScaledObjects)
   # KEDA owns event-driven scaling here (ADR-022/-026): validator + analyzer
   # scale on Kafka lag, gateway scales on prometheus HTTP-RPS + cpu + memory.
   # rest-collector + dashboard-backend keep plain CPU HPAs in hpa/autoscaling.yaml.
   - scaling/scaledobjects.yaml
 
-  # --- Progressive delivery (Argo Rollout on ml-bridge, ADR-016/025) ---
+  # Progressive delivery (Argo Rollout on ml-bridge, ADR-016/025)
   # Rollout owns ml-bridge pod lifecycle. The inherited platform file
   # ml-bridge.yaml now ships only the Service (ADR-025); no Deployment
   # exists to race the Rollout for pods.
   - rollouts/ml-bridge-rollout.yaml
 
-  # ---------------------------------------------------------------------------
-  # CROSS-NAMESPACE RESOURCES — see `../cross-namespace/kustomization.yaml`
-  # ---------------------------------------------------------------------------
+  # CROSS-NAMESPACE RESOURCES - see `../cross-namespace/kustomization.yaml`
   # The following used to live here but were moved to a sibling kustomization
   # with NO `namespace:` setter, so each manifest's explicit
   # `metadata.namespace` survives the build:
@@ -269,11 +256,8 @@ resources:
   #   * workflows/retrain-on-drift.yaml (model-lifecycle)
   #   * rbac/kfp-runner.yaml            (cluster-scoped + subjects ref model-lifecycle)
   # The overlay loads BOTH `../../base` and `../../cross-namespace`.
-  # ---------------------------------------------------------------------------
 
-# =============================================================================
-# GENERATORS — ConfigMaps materialized from on-disk source files
-# =============================================================================
+# GENERATORS - ConfigMaps materialized from on-disk source files
 # Keeping the SQL on disk (not inline YAML) means the file is editable by hand
 # (650+ lines), diff-friendly in git, and re-usable by the local dev tooling.
 # `disableNameSuffixHash: false` (default) means kustomize appends a content
@@ -286,15 +270,13 @@ configMapGenerator:
     files:
       - init.sql=../../database/init_clickhouse.sql
 
-# =============================================================================
-# PATCHES — Crypto-specific shape applied on top of platform resources
-# =============================================================================
+# PATCHES - Crypto-specific shape applied on top of platform resources
 # Strategic-merge patches layer crypto semantics onto generic platform
 # resources (Deployments + pipeline-config ConfigMap). Patches are applied in
 # file-order, and the `schema.yaml` patch MUST come first because subsequent
 # ConfigMap patches may reference symbols/tables defined there.
 patches:
-  # --- Domain config (merges into the pipeline-config ConfigMap) ---
+  # Domain config (merges into the pipeline-config ConfigMap)
   - path: configmaps/schema.yaml
   - path: configmaps/identity.yaml
   - path: configmaps/topics.yaml
@@ -306,25 +288,25 @@ patches:
   # and adds KSERVE_INFERENCE_URL pointing at the crypto InferenceService.
   - path: configmaps/serving.yaml
 
-  # --- Service patches (layer domain behavior onto inherited Deployments) ---
+  # Service patches (layer domain behavior onto inherited Deployments)
   - path: patches/rest-collector.yaml
   - path: patches/supplementary-source.yaml
   - path: patches/websocket-collector.yaml
   # Wires SCRAM-SHA-512 / TLS Kafka credentials into validator, analyzer,
-  # rest-collector, websocket-collector — adds the `crypto-app-consumer` Secret
+  # rest-collector, websocket-collector - adds the `crypto-app-consumer` Secret
   # as envFrom and mounts the broker CA at `/etc/kafka/ca/ca.crt` (matches
   # KAFKA_SSL_CA_LOCATION in topics.yaml). The Flink stream-processor carries
   # the same credential surface inline in its FlinkDeployment podTemplate.
   - path: patches/kafka-sasl.yaml
 
-  # --- Tekton Task step resources (Kyverno require-resource-limits) ---
+  # Tekton Task step resources (Kyverno require-resource-limits)
   # Each Tekton step is a regular pod `container`, which the platform Kyverno
   # `require-resource-limits` ValidatingPolicy gates: a container missing cpu+
   # memory requests AND limits is denied at pod creation, so a Task with no
   # resources can never run its TaskRun pod (a build-pipeline step would fail
   # `PodCreationFailed` at admission for exactly this). One stepTemplate applied
   # to every Task gives all step containers a small idle request + a burst limit
-  # — satisfies the policy and honours the single-node idle budget. Tekton's own
+  # - satisfies the policy and honours the single-node idle budget. Tekton's own
   # init containers are exempt (the policy inspects only spec.containers).
   # Targets kind=Task so any Task added later inherits it (no per-task drift).
   - target:
@@ -344,22 +326,18 @@ patches:
               cpu: "1"
               memory: "1Gi"
 
-# =============================================================================
 # KUSTOMIZE TRANSFORMER CONFIG
-# =============================================================================
 # Teaches kustomize about KEDA ScaledObject / ScaledJob scaleTargetRef so
 # namePrefix rewrites the Deployment name inside those CRs the same way it
 # already does for the built-in HorizontalPodAutoscaler. Without this, our
 # three ScaledObjects (validator, analyzer, gateway) would render with
-# `scaleTargetRef.name: validator` etc. — targeting a non-existent Deployment
+# `scaleTargetRef.name: validator` etc. - targeting a non-existent Deployment
 # after the `crypto-` prefix is applied.
 # See kustomize-config/name-reference.yaml for the transformer contract.
 configurations:
   - kustomize-config/name-reference.yaml
 
-# =============================================================================
 # COMMON LABELS
-# =============================================================================
 labels:
   - pairs:
       app.kubernetes.io/component: ml-pipeline
@@ -368,7 +346,7 @@ labels:
     includeSelectors: true
     # includeSelectors only covers kinds kustomize knows (Deployment,
     # Service, …). Argo Rollouts is a CRD, so its pod template must be
-    # listed explicitly — otherwise Service selectors gain these labels
+    # listed explicitly - otherwise Service selectors gain these labels
     # while Rollout-managed pods don't, and the Service matches nothing
     # (ml-bridge had zero endpoints because of exactly this).
     fields:

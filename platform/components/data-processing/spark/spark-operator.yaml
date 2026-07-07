@@ -1,6 +1,4 @@
-# =============================================================================
-# Kubeflow Spark Operator — declarative SparkApplication lifecycle
-# =============================================================================
+# Kubeflow Spark Operator - declarative SparkApplication lifecycle
 # Provides the `SparkApplication` / `ScheduledSparkApplication` CRDs. The
 # operator watches the data-processing namespace (and use-case namespaces)
 # and orchestrates `spark-submit` through a dedicated controller pod.
@@ -8,7 +6,6 @@
 # ADR-012.  Coexists with the current `spark-submit`-from-Airflow pattern
 # (via `deployment.yaml` RBAC + spark-defaults ConfigMap) until every job
 # is migrated to a SparkApplication CR.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -31,7 +28,7 @@ spec:
         # Cluster-wide watch: SparkApplication / ScheduledSparkApplication CRs
         # in any namespace are reconciled. Chart 2.5.0 reads the watch list
         # from `spark.jobNamespaces` (not `controller.namespaces`, which the
-        # chart silently ignores and falls back to `default` — leaving CRs in
+        # chart silently ignores and falls back to `default` - leaving CRs in
         # data-processing un-reconciled, applicationState empty, and ArgoCD
         # health.lua stuck at Progressing on the parent app).
         # `[""]` (empty string in the list) is the canonical cluster-wide
@@ -42,7 +39,7 @@ spec:
           workers: 5
           labelSelectorFilter: ""
           # Chart defaults (15s / 10s / 2s) drop the leader lease under
-          # kine-bound apiserver latency on single-node k3s — observed 121
+          # kine-bound apiserver latency on single-node k3s - observed 121
           # restarts/40h with `failed to renew lease ... context deadline
           # exceeded` followed by `Failed to start manager: leader election
           # lost`. 60s / 40s / 8s gives the renew loop room when kine stalls
@@ -66,12 +63,12 @@ spec:
           certManager:
             enable: true
           # Chart 2.5.0 exposes only the LE boolean for the webhook block
-          # (lease/renew/retry durations are hardcoded — see controller block
+          # (lease/renew/retry durations are hardcoded - see controller block
           # comment). Webhook runs single-replica on kine-backed k3s; the
           # controller-runtime 5s default lease-renew context timeout collapses
           # under kine INSERT spikes (1-3s/op against 185MB SQLite state.db),
           # churning ~222 `leader election lost` restarts. With replicas=1 LE
-          # adds zero safety — flip to false. Bump back to true only when
+          # adds zero safety - flip to false. Bump back to true only when
           # replicas > 1 AND a chart release exposes the lease timing knobs.
           leaderElection:
             enable: false
@@ -125,10 +122,10 @@ spec:
 # domain-agnostic: no reference-batch SparkApplication is shipped here.
 # A SparkApplication with empty `.status.applicationState.state` triggers
 # the ArgoCD health.lua "SparkApplication was added, enqueuing it for
-# submission" branch → Progressing forever on the parent app (since this
+# submission" branch, leaving the parent app Progressing forever (since this
 # repo doesn't allow auto-submit + auto-delete cycles for a sample). Use
 # cases declare their own SparkApplication / ScheduledSparkApplication in
-# `use-case-*/` overlays — see apache/spark examples or the spark-operator
+# `use-case-*/` overlays - see apache/spark examples or the spark-operator
 # README for the shape.
 ---
 # Same mTLS PERMISSIVE bridge as Flink (see flink/flink-cluster.yaml).

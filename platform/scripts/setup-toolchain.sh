@@ -1,7 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# DataOps/MLOps Platform — Toolchain Setup
-# =============================================================================
+# DataOps/MLOps Platform - Toolchain Setup
 # Installs build tools + system deps to deploy the platform.
 # Run once on a fresh VPS/VM.
 #
@@ -17,11 +15,10 @@
 #   SKIP_REGISTRY=1      Skip local registry:5000 (auto-on when SKIP_DOCKER=1)
 #   SKIP_BUILD_TOOLS=1   Skip Go/Rust/Python/Bun/Java/Mill/xmake
 #   SKIP_K3S=1           Skip k3s install (use existing cluster)
-# =============================================================================
 
 set -euo pipefail
 
-# --- Env gates ---------------------------------------------------------------
+# Env gates
 SKIP_DOCKER="${SKIP_DOCKER:-0}"
 SKIP_REGISTRY="${SKIP_REGISTRY:-0}"
 SKIP_BUILD_TOOLS="${SKIP_BUILD_TOOLS:-0}"
@@ -29,7 +26,7 @@ SKIP_K3S="${SKIP_K3S:-0}"
 # Auto-disable registry if no Docker
 [[ "$SKIP_DOCKER" == "1" ]] && SKIP_REGISTRY=1
 
-# --- Versions (pinned to stable releases) ------------------------------------
+# Versions (pinned to stable releases)
 GO_VERSION="1.26.1"
 RUST_VERSION="1.94.1"
 PYTHON_VERSION="3.13"
@@ -48,12 +45,10 @@ info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
-# --- Helper: check if command exists at minimum version ----------------------
+# Version check helper.
 has() { command -v "$1" &>/dev/null; }
 
-# =============================================================================
 # 1. SYSTEM PACKAGES (apt)
-# =============================================================================
 install_system_packages() {
     info "Installing system packages..."
     sudo apt-get update -qq
@@ -79,9 +74,7 @@ install_system_packages() {
     ok "System packages installed"
 }
 
-# =============================================================================
 # 2. DOCKER
-# =============================================================================
 install_docker() {
     if has docker; then
         ok "Docker already installed: $(docker --version)"
@@ -115,7 +108,7 @@ DOCKER_EOF
     fi
 
     # In-cluster Distribution v3 registry (platform/components/common/registry)
-    # listens on hostPort 5000 of the node — no host-side `registry:2` daemon
+    # listens on hostPort 5000 of the node - no host-side `registry:2` daemon
     # is needed any more.  Stale containers from previous bootstraps are
     # removed so they don't fight for :5000.
     if docker ps -a --format '{{.Names}}' | grep -q "^registry$"; then
@@ -125,18 +118,16 @@ DOCKER_EOF
     fi
 }
 
-# =============================================================================
 # 3. k3s
-# =============================================================================
 install_k3s() {
     # k3s install flags:
-    #   --disable=traefik:             platform uses Istio IngressGateway + APISIX for L7
+    # disable=traefik:             platform uses Istio IngressGateway + APISIX for L7
     #                                  (dual-controller traffic routing is ambiguous).
-    #   --disable=servicelb:           we use Istio IngressGateway's LoadBalancer directly;
+    # disable=servicelb:           we use Istio IngressGateway's LoadBalancer directly;
     #                                  klipper-lb adds an extra hop.
-    #   --disable=metrics-server:      replaced by kube-prometheus-stack's kube-state-metrics
+    # disable=metrics-server:      replaced by kube-prometheus-stack's kube-state-metrics
     #                                  + node-exporter + Prometheus Adapter for HPA.
-    #   --write-kubeconfig-mode 644:   readable by user without sudo.
+    # write-kubeconfig-mode 644:   readable by user without sudo.
     local K3S_INSTALL_FLAGS="--write-kubeconfig-mode 644 --disable=traefik --disable=servicelb --disable=metrics-server"
 
     if has k3s; then
@@ -176,11 +167,11 @@ disable:
 
 # local-path-provisioner is the ONLY storage class on this single-node
 # platform (ADR-031). PVCs land as hostPath bind-mounts under
-# /var/lib/rancher/k3s/storage/ — no CSI driver, no engine pod, no replica
+# /var/lib/rancher/k3s/storage/ - no CSI driver, no engine pod, no replica
 # pod overhead.
 kubelet-arg:
   - max-pods=250
-  # IO-cascade tolerance (#214 — original Longhorn-era cause now mitigated by
+  # IO-cascade tolerance (#214 - original Longhorn-era cause now mitigated by
   # ADR-031, but kine + containerd still share /dev/sda1). Under sustained
   # PSI IO full>50% the kubelet PATCH /status
   # latency exceeds the default 40s grace period and the node flips NotReady,
@@ -191,12 +182,12 @@ kubelet-arg:
   # Match runtime-request-timeout to containerd pull/start latencies observed
   # during recovery storms (helper-pod-create 120s+).  Default 2m is too tight.
   - runtime-request-timeout=10m
-  # NOTE: shutdown-grace-period* removed in k3s 1.35+ — kubelet only accepts
+  # NOTE: shutdown-grace-period* removed in k3s 1.35+ - kubelet only accepts
   # these via KubeletConfiguration file now, not flags. Defaults still apply.
 
 # Admission: enforce PodSecurityStandards on all namespaces by default.
 # default-{not-ready,unreachable}-toleration-seconds are kube-apiserver flags
-# (DefaultTolerationSeconds admission plugin) — NOT controller-manager flags;
+# (DefaultTolerationSeconds admission plugin) - NOT controller-manager flags;
 # placing them on controller-manager-arg crashes the embedded CM at startup
 # ("unknown flag") which cascades to the whole k3s server exiting (field-
 # observed 2026-05-14 in #214 first deploy attempt).
@@ -212,7 +203,7 @@ kube-apiserver-arg:
   # them.  Defaults are 300s; under kine WAL saturation a node may flap
   # NotReady transiently and we don't want a 5-minute blip to trigger
   # wholesale pod recreation storm (the very thing that perpetuates the
-  # cascade — see #160/#166/#169/#209).
+  # cascade - see #160/#166/#169/#209).
   - default-not-ready-toleration-seconds=600
   - default-unreachable-toleration-seconds=600
 
@@ -342,9 +333,7 @@ K3S_REG_EOF
     fi
 }
 
-# =============================================================================
 # 4. SYSCTL TUNING
-# =============================================================================
 configure_sysctl() {
     info "Configuring kernel parameters..."
     local SYSCTL_FILE="/etc/sysctl.d/99-k3s-platform.conf"
@@ -360,9 +349,7 @@ SYSCTL_EOF
     ok "Kernel parameters configured"
 }
 
-# =============================================================================
 # 4b. DNS RELIABILITY
-# =============================================================================
 configure_dns() {
     info "Configuring DNS with fallback resolvers..."
     local HOST_DNS
@@ -380,9 +367,7 @@ DNS_EOF
     ok "DNS configured (primary: ${HOST_DNS}, fallback: 1.1.1.1, 8.8.8.8)"
 }
 
-# =============================================================================
 # 5. GO
-# =============================================================================
 install_go() {
     if has go && go version 2>&1 | grep -q "go${GO_VERSION}"; then
         ok "Go already installed: $(go version)"
@@ -407,9 +392,7 @@ install_go() {
     ok "Go installed: $(go version)"
 }
 
-# =============================================================================
 # 6. RUST + cargo-nextest
-# =============================================================================
 install_rust() {
     if has rustc && rustc --version 2>&1 | grep -q "${RUST_VERSION}"; then
         ok "Rust already installed: $(rustc --version)"
@@ -431,9 +414,7 @@ install_rust() {
     fi
 }
 
-# =============================================================================
 # 7. PYTHON (via uv)
-# =============================================================================
 install_python() {
     if has uv; then
         ok "uv already installed: $(uv --version)"
@@ -454,9 +435,7 @@ install_python() {
     fi
 }
 
-# =============================================================================
 # 8. BUN (TypeScript runtime)
-# =============================================================================
 install_bun() {
     if has bun && bun --version 2>&1 | grep -q "${BUN_VERSION}"; then
         ok "Bun already installed: $(bun --version)"
@@ -469,9 +448,7 @@ install_bun() {
     ok "Bun installed: $(bun --version)"
 }
 
-# =============================================================================
 # 9. JAVA (OpenJDK)
-# =============================================================================
 install_java() {
     if has java && java --version 2>&1 | grep -q "openjdk ${JAVA_VERSION}"; then
         ok "Java already installed: $(java --version 2>&1 | head -1)"
@@ -483,9 +460,7 @@ install_java() {
     ok "Java installed: $(java --version 2>&1 | head -1)"
 }
 
-# =============================================================================
 # 10. MILL (Scala/Java build tool)
-# =============================================================================
 install_mill() {
     if has mill; then
         ok "Mill already installed: $(mill version 2>&1 | tail -1)"
@@ -500,9 +475,7 @@ install_mill() {
     ok "Mill installed: $(mill version 2>&1 | tail -1)"
 }
 
-# =============================================================================
 # 11. XMAKE (C++ build system)
-# =============================================================================
 install_xmake() {
     if has xmake; then
         ok "xmake already installed: $(xmake --version 2>&1 | head -1 | sed 's/\x1b\[[0-9;]*m//g')"
@@ -524,9 +497,7 @@ install_xmake() {
     ok "xmake installed: $(xmake --version 2>&1 | head -1 | sed 's/\x1b\[[0-9;]*m//g')"
 }
 
-# =============================================================================
 # 12. HELM
-# =============================================================================
 install_helm() {
     if has helm; then
         ok "helm already installed: $(helm version --short 2>/dev/null)"
@@ -537,9 +508,7 @@ install_helm() {
     ok "helm installed: $(helm version --short)"
 }
 
-# =============================================================================
-# 13. KUSTOMIZE (standalone — kubectl has built-in but some workflows want CLI)
-# =============================================================================
+# 13. KUSTOMIZE (standalone - kubectl has built-in but some workflows want CLI)
 install_kustomize() {
     if has kustomize; then
         ok "kustomize already installed: $(kustomize version 2>/dev/null | head -1)"
@@ -551,9 +520,7 @@ install_kustomize() {
     ok "kustomize installed: $(kustomize version | head -1)"
 }
 
-# =============================================================================
 # 14. YQ
-# =============================================================================
 install_yq() {
     if has yq; then
         ok "yq already installed: $(yq --version 2>/dev/null)"
@@ -566,9 +533,7 @@ install_yq() {
     ok "yq installed: $(yq --version)"
 }
 
-# =============================================================================
 # 15. VERIFY
-# =============================================================================
 verify_all() {
     echo ""
     echo "=============================================="
@@ -622,9 +587,7 @@ verify_all() {
     echo "=============================================="
 }
 
-# =============================================================================
 # MAIN
-# =============================================================================
 main() {
     echo "=============================================="
     echo "  DataOps/MLOps Platform — Toolchain Setup"
@@ -647,7 +610,7 @@ main() {
         info "Skipping k3s (SKIP_K3S=1)"
     fi
 
-    # Cluster CLIs (always installed — needed by Makefile/preflight)
+    # Cluster CLIs (always installed - needed by Makefile/preflight)
     install_helm
     install_kustomize
     install_yq

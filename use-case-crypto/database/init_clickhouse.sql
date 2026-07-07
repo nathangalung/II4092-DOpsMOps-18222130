@@ -1,22 +1,17 @@
--- ============================================================================
--- Crypto Use Case — ClickHouse Database Initialization
--- ============================================================================
--- MEDALLION ARCHITECTURE: Bronze → Silver → Gold
+-- Crypto Use Case - ClickHouse Database Initialization
+-- MEDALLION ARCHITECTURE: Bronze to Silver to Gold
 --
 --   Bronze: Raw data from Kafka (append-only, no transforms, source of truth)
 --   Silver: Validated, deduplicated (populated by dbt staging models)
 --   Gold:   ML-ready features, aggregations (populated by dbt mart models)
---   Features: Backward-compat alias views → bronze/gold (existing services work unchanged)
+--   Features: Backward-compat alias views onto bronze/gold (existing services work unchanged)
 --
 -- TEMPLATE: When creating a new use case, replace 'crypto_' table prefix
 -- with your domain prefix (e.g., 'stock_'). Modify column definitions to
 -- match your domain data schema. Keep drift_metrics, model_metrics, and
 -- data_quality_* tables as-is (they are domain-agnostic).
--- ============================================================================
 
--- ============================================================================
 -- CREATE DATABASES (Medallion Layers)
--- ============================================================================
 CREATE DATABASE IF NOT EXISTS bronze;
 CREATE DATABASE IF NOT EXISTS silver;
 CREATE DATABASE IF NOT EXISTS gold;
@@ -26,13 +21,11 @@ CREATE DATABASE IF NOT EXISTS features;
 --                          BRONZE LAYER (Raw)
 -- ############################################################################
 -- Raw data exactly as received from Kafka. Append-only, no transforms.
--- Kafka engines write here. This is the "source of truth" — can always
+-- Kafka engines write here. This is the "source of truth" - can always
 -- reprocess silver/gold from bronze.
 -- ############################################################################
 
--- ============================================================================
 -- Bronze: Raw OHLCV Data (from crypto.validated topic)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv (
     symbol String,
     timestamp DateTime64(3),
@@ -49,20 +42,20 @@ CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv (
 ORDER BY (symbol, timestamp)
 PARTITION BY toYYYYMM(timestamp);
 
--- Kafka Engine: crypto.validated → bronze.crypto_ohlcv
+-- Kafka Engine: crypto.validated into bronze.crypto_ohlcv
 -- IMPORTANT (2026-05-29, #464): librdkafka does NOT pick up broker_list or
--- SASL creds from a SQL-created `CREATE NAMED COLLECTION` — only flat keys
+-- SASL creds from a SQL-created `CREATE NAMED COLLECTION` - only flat keys
 -- are stored and the Kafka-engine consumer ignores them (verified: a
 -- `Kafka(kafka_crypto)` consumer connected to the :9092 PLAINTEXT listener
 -- and failed the SSL handshake; an identical table with an explicit
 -- `kafka_broker_list=:9093` SETTING connected + authenticated cleanly).
 -- So connection config is split:
---   * broker_list  → explicit per-table SETTING below (:9093 TLS listener).
---   * SASL_SSL creds + mechanism + ssl_ca → ClickHouse server `<kafka>`
+--   * broker_list: explicit per-table SETTING below (:9093 TLS listener).
+--   * SASL_SSL creds + mechanism + ssl_ca live in the ClickHouse server `<kafka>`
 --     block (platform CHI installation.yaml `kafka/*` settings), the only
 --     place ClickHouse reliably feeds them to librdkafka. The crypto
 --     KafkaUser creds reach that block via the `clickhouse-kafka-sasl`
---     Secret (use-case ExternalSecret → storage ns).
+--     Secret (use-case ExternalSecret into storage ns).
 -- The `:9093` bootstrap host is platform infrastructure (domain-agnostic);
 -- the topic/group are use-case-specific.
 CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv_kafka (
@@ -89,9 +82,7 @@ SELECT
 FROM bronze.crypto_ohlcv_kafka
 WHERE open > 0 AND close > 0;
 
--- ============================================================================
 -- Bronze: Raw Sentiment Data (from crypto.supplementary topic)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS bronze.crypto_sentiment (
     symbol String,
     timestamp DateTime64(3),
@@ -130,9 +121,7 @@ SELECT
     title AS raw_data
 FROM bronze.crypto_sentiment_kafka;
 
--- ============================================================================
 -- Bronze: Stream-Computed Features (from crypto.features.v1 topic)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS bronze.crypto_ohlcv_features (
     symbol String,
     timestamp DateTime64(3),
@@ -224,9 +213,7 @@ SELECT
     dispersion, value_change, secondary_avg
 FROM bronze.crypto_features_kafka;
 
--- ============================================================================
 -- Bronze: Ticker Data (from crypto.validated topic, price > 0, open = 0)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS bronze.crypto_tickers (
     symbol String,
     timestamp DateTime64(3),
@@ -270,9 +257,7 @@ SELECT
 FROM bronze.crypto_tickers_kafka
 WHERE price > 0 AND open = 0;
 
--- ============================================================================
 -- Bronze: Trade Data (from crypto.trades.v1 topic)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS bronze.crypto_trades (
     symbol String,
     trade_id String,
@@ -335,9 +320,7 @@ TTL toDateTime(timestamp) + INTERVAL 30 DAY;
 -- Contains aggregated features, training views, predictions.
 -- ############################################################################
 
--- ============================================================================
 -- Gold: Aggregated Sentiment Features (populated by batch-sentiment job)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS gold.crypto_sentiment_features (
     symbol String,
     timestamp DateTime64(3),
@@ -352,9 +335,7 @@ CREATE TABLE IF NOT EXISTS gold.crypto_sentiment_features (
 ORDER BY (symbol, timestamp, window_hours)
 PARTITION BY toYYYYMM(timestamp);
 
--- ============================================================================
 -- Gold: Fear & Greed Index (populated by batch-sentiment job)
--- ============================================================================
 CREATE TABLE IF NOT EXISTS gold.fear_greed_index (
     timestamp DateTime64(3),
     value UInt8,
@@ -363,9 +344,7 @@ CREATE TABLE IF NOT EXISTS gold.fear_greed_index (
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/{table}', '{replica}', created_at)
 ORDER BY timestamp;
 
--- ============================================================================
--- Gold: Predictions (from serving/inference — Train+)
--- ============================================================================
+-- Gold: Predictions (from serving/inference - Train+)
 CREATE TABLE IF NOT EXISTS gold.crypto_predictions (
     symbol String,
     prediction_timestamp DateTime64(3),
@@ -380,9 +359,7 @@ CREATE TABLE IF NOT EXISTS gold.crypto_predictions (
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/{table}', '{replica}', created_at)
 ORDER BY (symbol, prediction_timestamp);
 
--- ============================================================================
--- CDC Kafka Engine: PostgreSQL predictions → Gold predictions
--- ============================================================================
+-- CDC Kafka Engine: PostgreSQL predictions into Gold predictions
 -- Consumes Debezium CDC events from cdc.pipeline.predictions topic.
 -- Debezium JSON: {"before":null,"after":{"symbol":"BTC",...},"op":"c"}
 -- Uses JSONAsString + JSONExtract for nested field access.
@@ -410,9 +387,7 @@ FROM gold.cdc_predictions_kafka
 WHERE JSONExtractString(message, 'op') IN ('c', 'u', 'r')
   AND JSONExtractString(message, 'after', 'symbol') != '';
 
--- ============================================================================
 -- Gold: Model Training Metrics
--- ============================================================================
 CREATE TABLE IF NOT EXISTS gold.model_metrics (
     run_id String,
     model_name String,
@@ -430,9 +405,7 @@ CREATE TABLE IF NOT EXISTS gold.model_metrics (
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{table}', '{replica}')
 ORDER BY (model_name, timestamp);
 
--- ============================================================================
 -- Gold: Drift Detection Metrics
--- ============================================================================
 CREATE TABLE IF NOT EXISTS gold.drift_metrics (
     symbol String,
     timestamp DateTime64(3),
@@ -460,9 +433,7 @@ CREATE TABLE IF NOT EXISTS gold.drift_multi_scale (
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{table}', '{replica}')
 ORDER BY (symbol, scale, timestamp, feature_name);
 
--- ============================================================================
 -- Gold: Data Quality Metrics
--- ============================================================================
 CREATE TABLE IF NOT EXISTS gold.data_quality_metrics (
     timestamp DateTime64(3),
     table_name String,
@@ -499,7 +470,7 @@ ORDER BY (symbol, timestamp, column_name);
 -- ############################################################################
 -- Views that redirect queries from existing services (ConfigMaps, Feast,
 -- batch jobs) to the appropriate Medallion layer.
--- Existing services query features.* — these views make that work unchanged.
+-- Existing services query features.* - these views make that work unchanged.
 -- ############################################################################
 
 -- Bronze data accessed via features.*
@@ -526,7 +497,6 @@ CREATE OR REPLACE VIEW features.data_quality_metrics AS SELECT * FROM gold.data_
 CREATE OR REPLACE VIEW features.data_quality_expectations AS SELECT * FROM gold.data_quality_expectations;
 CREATE OR REPLACE VIEW features.quality_outliers AS SELECT * FROM gold.quality_outliers;
 
--- ============================================================================
 -- Write-through aliases: writable "features.*" points to the gold table via
 -- a materialized view, so services that were hardcoded to write to
 -- `features.data_quality_*` keep working without code changes.
@@ -534,7 +504,6 @@ CREATE OR REPLACE VIEW features.quality_outliers AS SELECT * FROM gold.quality_o
 -- Pattern: Null-engine staging table + Materialized View that funnels
 -- INSERTs into the backing gold.<table>.  This is the ClickHouse-idiomatic
 -- way to make a read-only VIEW-like surface behave as writable.
--- ============================================================================
 CREATE TABLE IF NOT EXISTS features.quality_write_buffer (
     timestamp DateTime64(3),
     data_type LowCardinality(String),
@@ -549,9 +518,7 @@ TO gold.data_quality_expectations
 AS SELECT timestamp, data_type, expectation, success, details, created_at
 FROM features.quality_write_buffer;
 
--- ============================================================================
 -- Combined Features View (OHLCV + Technical + Sentiment)
--- ============================================================================
 CREATE OR REPLACE VIEW features.crypto_features_full AS
 SELECT
     o.symbol,
@@ -587,9 +554,7 @@ LEFT JOIN gold.crypto_sentiment_features s24
     AND toStartOfHour(o.timestamp) = toStartOfHour(s24.timestamp)
     AND s24.window_hours = 24;
 
--- ============================================================================
 -- Training Features View (OHLCV + Technical + Sentiment + Fear&Greed)
--- ============================================================================
 CREATE OR REPLACE VIEW features.crypto_training_features AS
 SELECT
     o.symbol,
@@ -633,9 +598,7 @@ LEFT JOIN gold.crypto_sentiment_features s24
 LEFT JOIN gold.fear_greed_index fg
     ON toDate(o.timestamp) = toDate(fg.timestamp);
 
--- ============================================================================
 -- Train/Validation Materialized Views
--- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS gold.train_data
 ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/{table}', '{replica}')
 ORDER BY (symbol, timestamp)
@@ -653,9 +616,7 @@ WHERE data_type = 'validation';
 -- Note: train_data and validation_data MVs write to their own internal storage
 -- in the gold database. Access them directly via gold.train_data / gold.validation_data.
 
--- ============================================================================
 -- Helper View: Data Summary by Type
--- ============================================================================
 CREATE OR REPLACE VIEW features.data_summary AS
 SELECT
     data_type,

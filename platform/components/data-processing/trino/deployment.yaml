@@ -1,21 +1,18 @@
-# =============================================================================
-# Trino catalog credentials — OpenBao-sourced (ADR-008)
-# =============================================================================
+# Trino catalog credentials - OpenBao-sourced (ADR-008)
 # Two ExternalSecrets render the full catalog .properties files from OpenBao:
 #
-#   platform/postgres/app       → postgresql.properties (CNPG `platform`
+#   platform/postgres/app       maps to postgresql.properties (CNPG `platform`
 #                                  app user; the `postgres` superuser is
 #                                  off-limits because CNPG defaults
 #                                  `enableSuperuserAccess: false`).
-#   platform/minio/root         → iceberg.properties
+#   platform/minio/root         maps to iceberg.properties
 #
 # The Secret `trino-catalog-secrets` keeps its name so the Deployment's
 # volumeMount subPaths (postgresql.properties, iceberg.properties) keep
 # working without change. The full .properties content is rendered server-side
-# by ESO using the template block — this means the eventual Secret payload
+# by ESO using the template block - this means the eventual Secret payload
 # is byte-identical to the previous hard-coded stringData, just with the
 # credential substrings pulled from OpenBao each refresh interval.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -37,7 +34,7 @@ spec:
       data:
         # compress=0: clickhouse-jdbc 0.7.x fails to LZ4-decode responses from
         # this ClickHouse 26.3 ("Magic is not correct - expect [-126]") even
-        # though curl with the same query/creds gets a valid LZ4 frame —
+        # though curl with the same query/creds gets a valid LZ4 frame -
         # uncompressed HTTP sidesteps the driver's Lz4InputStream entirely.
         clickhouse.properties: |
           connector.name=clickhouse
@@ -96,7 +93,7 @@ data:
     # their outbound Envoy, which stamps X-Forwarded-Proto onto the request.
     # Jetty rejects forwarded headers outright (HTTP 406 "Server configuration
     # does not allow processing of the X-Forwarded-Proto header") unless
-    # processing is opted in — without this, every in-mesh client (Superset,
+    # processing is opted in - without this, every in-mesh client (Superset,
     # meshed ad-hoc pods) gets 406 before reaching Trino at all.
     http-server.process-forwarded=true
     # Pod-IP announcer URI: without this Trino registers nodes with an
@@ -220,7 +217,7 @@ spec:
           secret:
             secretName: trino-catalog-secrets
 ---
-# PeerAuthentication — port-level PERMISSIVE on the coordinator's :8085.
+# PeerAuthentication - port-level PERMISSIVE on the coordinator's :8085.
 # data-processing is in-mesh and the istio-system default PeerAuth is STRICT,
 # but Airflow KubernetesExecutor worker pods are deliberately mesh-EXCLUDED
 # (see airflow/deployment.yaml pod-template: the sidecar never exits and

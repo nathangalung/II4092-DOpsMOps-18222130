@@ -1,13 +1,10 @@
-# =============================================================================
 # Crypto rest-collector patch
-# =============================================================================
 # Mounts the crypto-specific `crypto-rest-collector-config` ConfigMap at
 # /etc/rest-collector/config.yaml and points viper at it via CONFIG_PATH.
 #
 # Also disables in-deployment sentiment collection (handled by dedicated
 # supplementary CronJobs) and routes supplementary output to
 # `crypto.supplementary`.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,7 +26,7 @@ spec:
             # Pin viper at the mounted source registry (/etc/rest-collector/
             # config.yaml). Formerly inherited from the shared pipeline-config
             # ConfigMap, but that leaked this rest-collector-only path into every
-            # envFrom consumer — notably the Python batch loader, whose
+            # envFrom consumer - notably the Python batch loader, whose
             # load_config() then followed it to a path absent in the batch image,
             # skipped its baked /app/config/config.yaml, and silently wrote
             # sma_*/volatility_* as ClickHouse DEFAULT 0. Set explicitly here so

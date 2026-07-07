@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# =============================================================================
 # Flink pre-apply: install Argo Application for flink-kubernetes-operator,
 # trigger sync (the Application has automated.selfHeal=false, so first-install
 # requires an explicit sync), then wait for operator CRDs to be Established.
-# =============================================================================
 # Race condition (without this hook):
 #   Main `kubectl apply -k components/data-processing/flink/` ships:
-#     - Argo Application 'flink-kubernetes-operator' (installs the chart →
-#       FlinkDeployment / FlinkSessionJob CRDs)
-#     - FlinkDeployment 'session-cluster' (CR — needs CRDs to exist)
+#     - Argo Application 'flink-kubernetes-operator' (installs the chart, which
+#       provides the FlinkDeployment / FlinkSessionJob CRDs)
+#     - FlinkDeployment 'session-cluster' (CR - needs CRDs to exist)
 #   Argo chart sync is async; on a fresh apply the FlinkDeployment lands
 #   before the CRDs and kubectl errors with `no matches for kind
 #   "FlinkDeployment"`.
@@ -17,7 +15,6 @@
 # then blocks until both operator CRDs are Established. The main apply then
 # lands the FlinkDeployment against established CRDs on first attempt. Same
 # pattern as components/observability/opentelemetry/pre-apply.sh.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -33,7 +30,7 @@ ARGO_NS=gitops
 # Pre-create destination namespace BEFORE triggering Argo sync. Argo's
 # `syncOptions: CreateNamespace=true` is unreliable with helm-chart sources
 # under ServerSideApply: in observed runs the chart's CRDs apply (cluster-
-# scoped → no namespace needed) but namespaced resources fail with
+# scoped, so no namespace needed) but namespaced resources fail with
 # `namespaces "flink-operator" not found`. The Argo controller's namespace-
 # creation step appears to race with the parallel resource creation phase,
 # leaving the sync in `Failed` state with the namespace never created.

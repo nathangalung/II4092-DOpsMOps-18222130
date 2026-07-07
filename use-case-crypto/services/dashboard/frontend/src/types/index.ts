@@ -1,4 +1,4 @@
-// Crypto-specific API Response Types — overrides generic types with trading fields.
+// Crypto-specific API Response Types - overrides generic types with trading fields.
 
 export interface User {
   id: string;

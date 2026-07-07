@@ -94,17 +94,14 @@ metadata:
   name: dex
   namespace: common
 ---
-# =============================================================================
-# Dex — OpenBao-sourced credentials (ADR-008)
-# =============================================================================
+# Dex - OpenBao-sourced credentials (ADR-008)
 # Two ExternalSecrets replace the hand-rolled Secrets that previously shipped
 # a committed OIDC client secret + bcrypt password hash in the git tree.
 # ESO pulls the real values at install time from:
-#   platform/dex/clients/kubeflow → OIDC_CLIENT_ID / OIDC_CLIENT_SECRET
-#   platform/dex/admin            → DEX_USER_PASSWORD (bcrypt hash)
+#   platform/dex/clients/kubeflow maps to OIDC_CLIENT_ID / OIDC_CLIENT_SECRET
+#   platform/dex/admin            maps to DEX_USER_PASSWORD (bcrypt hash)
 # The OpenBao seeder stores BOTH the plaintext password and its bcrypt-12 hash;
 # the Dex `hashFromEnv: DEX_USER_PASSWORD` directive consumes the hash.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

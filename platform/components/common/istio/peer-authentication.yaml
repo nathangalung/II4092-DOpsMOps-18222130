@@ -1,15 +1,12 @@
-# =============================================================================
 # Mesh-wide STRICT mTLS + allow-list AuthorizationPolicy
-# =============================================================================
 # KNF-07 (TLS 1.3 + mTLS between services).  Installed in the Istio root
 # namespace (`istio-system`) so the policy applies to every sidecar-injected
 # workload in every namespace.
 #
 # With STRICT, a workload's sidecar will reject plaintext.  Non-mesh
-# workloads (e.g. k3s kubelet → pod on a hostNetwork pod, OpenBao server
+# workloads (e.g. k3s kubelet to pod on a hostNetwork pod, OpenBao server
 # connecting to itself over localhost, or Longhorn iSCSI) must stay OUT of
 # the mesh by not labeling their namespace `istio-injection=enabled`.
-# =============================================================================
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
@@ -23,7 +20,7 @@ spec:
 ---
 # Mesh-internal default: ALLOW any in-mesh traffic.  Combined with the
 # PeerAuthentication STRICT above, a request can only reach a sidecar after
-# completing mTLS — which means the source already proved its SPIFFE ID
+# completing mTLS - which means the source already proved its SPIFFE ID
 # (cluster.local/ns/<ns>/sa/<sa>).  Edge ingress is gated by oauth2-proxy
 # CUSTOM + APISIX upstream policies, so internal allow is safe.
 #
@@ -33,7 +30,7 @@ spec:
 #
 # Resource keeps the historical name `global-deny-all` (live in cluster
 # since 2026-04-06) so apply is a noop instead of recreating with a new
-# name; the action below changes the semantics from deny→allow.
+# name; the action below changes the semantics from deny to allow.
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
@@ -84,7 +81,6 @@ spec:
 # more specific DR, which in practice today means the two gateway pods.
 #
 # WHY `trafficPolicy.tls` IS ABSENT
-# ---------------------------------
 # The obvious addition here is `tls.mode: ISTIO_MUTUAL` to force every
 # outbound to use Istio-managed mTLS.  That would break the current
 # cluster: only the two istio-system gateway pods carry sidecars, so

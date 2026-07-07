@@ -1,58 +1,30 @@
-# =============================================================================
-# use-case-crypto :: KEDA ScaledObjects — event-driven + custom-metrics autoscaling
-# =============================================================================
-# Why KEDA (ADR-022 / ADR-026):
-#   The HPA + prometheus-adapter + kafka-exporter chain we had before
-#   (autoscaling.yaml :: feature-engine-hpa) worked but was brittle —
-#   label-mismatch on the `topic` field silently broke scaling for weeks (R7
-#   in AUDIT_FINAL_2026-04-20). KEDA's first-party Kafka scaler talks to the
-#   broker directly via `kafka_consumer_group_offset`, so there is no
-#   external-metrics-adapter in the critical path.
-#
-#   ADR-026 extends the same reasoning to the HTTP-RPS scaler on the
-#   gateway: prometheus-adapter v0.12.0 is the upstream HEAD (May 2024) and
-#   fails the 2026-minimum-release rule. Migrating the gateway's sole custom-
-#   metric HPA to a KEDA prometheus trigger lets us retire prometheus-adapter
-#   entirely (fewer APIServices, fewer moving parts, one autoscaler control
-#   plane instead of two).
-#
-# KEDA now owns three workloads in this use case:
-#   - validator        kafka triggers  (crypto.rest.raw + crypto.ws.raw)
-#   - analyzer         kafka trigger   (crypto.predictions.v1)
-#   - gateway          prometheus + cpu + memory triggers (HTTP request serving)
-# dashboard-backend + rest-collector keep their plain CPU-metric HPAs in
-# hpa/autoscaling.yaml — no custom metric, no adapter dependency, no value in
-# moving them to KEDA.
-#
-# Listener choice: platform-kafka publishes three listeners
-#   - 9092 `plain`  — in-cluster clients, no auth (used here)
-#   - 9093 `tls`    — TLS+SCRAM (external clients or strict-mode namespaces)
-#   - 9094 `mtls`   — in-mesh mTLS (Istio-injected namespaces only)
-# use-case-crypto has `istio-injection: disabled` (ADR-009), so it uses
-# the plain in-cluster listener.  The thesis runbook (§11.7) documents how
-# to flip to SCRAM when promoting to a multi-tenant production cluster.
-#
-# Coexistence with HPAs: KEDA GENERATES an HPA for each ScaledObject. It
-# REFUSES to reconcile if an operator-owned HPA already targets the same
-# Deployment. This file therefore REMOVES `feature-engine-hpa` AND
-# `gateway-hpa` from hpa/autoscaling.yaml — do NOT re-add either.
-# =============================================================================
+# use-case-crypto KEDA ScaledObjects (ADR-022, ADR-026).
+# KEDA first-party Kafka and prometheus scalers replace the old
+# HPA + prometheus-adapter chain, which was brittle and pinned to an
+# outdated adapter release. KEDA owns three workloads here: validator
+# (Kafka lag on rest.raw + ws.raw), analyzer (Kafka lag on
+# predictions.v1), and gateway (prometheus RPS + cpu + memory).
+# dashboard-backend and rest-collector keep plain CPU HPAs in
+# hpa/autoscaling.yaml. KEDA generates an HPA per ScaledObject and
+# refuses to reconcile if an operator-owned HPA targets the same
+# Deployment, so feature-engine-hpa and gateway-hpa are removed from
+# hpa/autoscaling.yaml; do not re-add them.
 ---
-# ------------------------- STREAM PROCESSOR (Flink) -------------------------
+# STREAM PROCESSOR (Flink)
 # The crypto speed layer is the Flink FlinkDeployment `stream-processor`
-# (flink/stream-processor.yaml), NOT a Kubernetes Deployment — so KEDA cannot
+# (flink/stream-processor.yaml), NOT a Kubernetes Deployment - so KEDA cannot
 # drive it via a `scaleTargetRef` (ScaledObject targets Deployment/StatefulSet
 # only). Flink elasticity is owned INSIDE the engine: 4 task slots give in-place
-# parallelism headroom (2→4) on the single TM pod, and the operator-level
+# parallelism headroom (2 to 4) on the single TM pod, and the operator-level
 # autoscaler/parallelism + a TM-replica bump cover real-load scale-out. The
 # Kafka-lag SLO on the `flink-features` consumer group (observability/slos.yaml)
 # is the burn-rate signal. There is therefore intentionally NO ScaledObject for
 # the stream processor here (this replaces the retired feature-engine-kafka-lag
 # SO, which targeted the bespoke Rust feature-engine Deployment).
 ---
-# ------------------------- VALIDATOR ----------------------------------------
+# VALIDATOR
 # Validator has TWO ingress topics (REST-polled + WebSocket-streamed) so we
-# declare two triggers — KEDA OR-combines them and scales to whichever is
+# declare two triggers - KEDA OR-combines them and scales to whichever is
 # hotter.  Single consumer group on the Deployment (validator) joins both.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -71,7 +43,7 @@ spec:
     name: validator
   minReplicaCount: 1
   # Single spinning-disk cap (verified 2026-06-30): each validator replica writes
-  # crypto.validated → the ClickHouse Kafka-engine consumes it → one HDD. 8 concurrent
+  # crypto.validated; the ClickHouse Kafka-engine consumes it onto one HDD. 8 concurrent
   # validators saturated the disk (IO-PSI 67, CH ops timing out). 3 is the disk-serveable
   # scale-on-load bound here; raise it once the k3s data dir is on an SSD/2nd disk.
   maxReplicaCount: 3
@@ -112,7 +84,7 @@ spec:
         lagThreshold: "2000"
         offsetResetPolicy: latest
 ---
-# ------------------------- ANALYZER -----------------------------------------
+# ANALYZER
 # Analyzer runs the data-quality check on every prediction written by
 # ml-bridge. Lag here is bursty (driven by model inference rate), so the
 # threshold is aggressive to keep it responsive and the max is modest
@@ -158,7 +130,7 @@ spec:
         lagThreshold: "500"
         offsetResetPolicy: latest
 ---
-# ------------------------- GATEWAY (HTTP RPS + CPU + MEMORY) ----------------
+# GATEWAY (HTTP RPS, CPU, memory).
 # ADR-026: the gateway HPA was previously a `kind: HorizontalPodAutoscaler`
 # that combined CPU + memory Resource metrics with a Pods-type custom metric
 # `http_requests_per_second`. That custom metric was served by
@@ -169,7 +141,7 @@ spec:
 # this single HPA, we retire the adapter and replace it with three KEDA
 # triggers on the same Deployment: a `prometheus` trigger (RPS) plus the
 # built-in `cpu` and `memory` triggers (Utilization). KEDA OR-combines them
-# and emits a single HPA — `keda-hpa-gateway-http-rps` — preserving the old
+# and emits a single HPA - `keda-hpa-gateway-http-rps` - preserving the old
 # behaviour while removing the APIService + extra controller.
 # Query note: `sum(rate(http_requests_total{app="gateway"}[2m]))` matches the
 # old prometheus-adapter `metricsQuery` exactly. metricType: AverageValue at

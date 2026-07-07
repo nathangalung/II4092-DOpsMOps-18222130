@@ -1,7 +1,5 @@
-# =============================================================================
 # KafkaTopic: crypto.supplementary
-# =============================================================================
-# Low-cadence context features — Fear & Greed index, CoinGecko market caps,
+# Low-cadence context features - Fear & Greed index, CoinGecko market caps,
 # DefiLlama TVL, on-chain metrics. Produced by supplementary CronJobs
 # (deployments/cronjobs/supplementary-*.yaml).
 #
@@ -9,14 +7,13 @@
 # heavily compacted to let consumers do a "read-latest" on startup.
 #
 # Sizing:
-#   partitions        : 3     — low fan-in; 1 per upstream SaaS provider
+#   partitions        : 3 - low fan-in; 1 per upstream SaaS provider
 #   replicas          : 1
 #   retention.ms      : 30d
 #   min.insync.replicas : 1
 #   compression.type  : zstd
-#   cleanup.policy    : compact,delete  — keep latest per key indefinitely
+#   cleanup.policy    : compact,delete - keep latest per key indefinitely
 #                                         AND purge > 30d old keys
-# =============================================================================
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:

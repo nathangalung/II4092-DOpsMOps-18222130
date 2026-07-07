@@ -1,6 +1,4 @@
-# =============================================================================
-# PLATFORM CONFIG — Integrated DataOps/MLOps Architecture on Kubernetes
-# =============================================================================
+# PLATFORM CONFIG - Integrated DataOps/MLOps Architecture on Kubernetes
 # Central configuration for the shared platform. Use-case AGNOSTIC.
 #
 # Structure:
@@ -12,14 +10,13 @@
 #
 # Portability (KNF-11): Deploy on local, GCP, AWS, Azure, or on-prem by
 # changing environment + uncommenting the matching cloud override below.
-# =============================================================================
 
-# --- Cluster ---
+# Cluster
 cluster:
   name: platform
   environment: local # local | gcp | aws | azure | on-prem
 
-# --- Namespaces (match K8s namespace names) ---
+# Namespaces (match K8s namespace names)
 namespaces:
   common: common
   storage: storage
@@ -32,7 +29,7 @@ namespaces:
   model_serving: model-serving
   data_governance: data-governance
 
-# --- Resource Profiles ---
+# Resource Profiles
 # Applied based on cluster.environment to size service pods appropriately.
 resource_profiles:
   development:
@@ -54,33 +51,31 @@ resource_profiles:
     default_memory_limit: "4Gi"
     default_replicas: 3
 
-# --- Minikube Resources (local development only) ---
+# Minikube Resources (local development only)
 minikube:
   cpus: 12
   memory: 24576 # MB
   disk: 100g
 
-# --- Timeouts ---
+# Timeouts
 timeouts:
   max_retries: 5
   pod_wait: 180 # seconds
   layer_wait: 30 # seconds between layer checks
   max_total_wait: 600 # seconds
 
-# --- Platform Feature Flags ---
+# Platform Feature Flags
 features:
   auto_scaling: true # Enable HPA for services
   service_mesh: true # Enable Istio sidecar injection
   tls_enabled: true # Enable TLS via cert-manager
   monitoring: true # Enable Prometheus metrics collection
-  tracing: true # Enable distributed tracing (OTel → Tempo; ADR-010 / ADR-025)
+  tracing: true # Enable distributed tracing (OTel to Tempo; ADR-010 / ADR-025)
   log_aggregation: true # Enable Loki log collection
   gitops: true # Enable ArgoCD deployment
 
 
-# =============================================================================
-# ENVIRONMENT OVERRIDES — Cloud-managed service endpoints
-# =============================================================================
+# ENVIRONMENT OVERRIDES - Cloud-managed service endpoints
 # Uncomment and customize for cloud deployments. These override values in
 # config/infrastructure.yaml with managed service endpoints.
 #

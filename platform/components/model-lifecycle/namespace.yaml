@@ -4,8 +4,8 @@ metadata:
   name: model-lifecycle
   labels:
     # Istio sidecar disabled: KFP launcher mints sub-pods that mount the
-    # KFP-internal ServiceAccount token — istio sidecar's mTLS mutates the
-    # request stream and breaks KFP step → MinIO/MLflow callbacks.  Keep the
+    # KFP-internal ServiceAccount token - istio sidecar's mTLS mutates the
+    # request stream and breaks KFP step to MinIO/MLflow callbacks.  Keep the
     # whole namespace mesh-free; cross-NS calls into model-lifecycle from
     # mesh-enabled namespaces still work because Istio PeerAuthentication
     # allows PERMISSIVE traffic at the gateway.

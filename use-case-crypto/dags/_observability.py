@@ -1,12 +1,12 @@
-"""Pushgateway DAG callbacks — shared by every crypto Airflow DAG.
+"""Pushgateway DAG callbacks - shared by every crypto Airflow DAG.
 
 Pure stdlib (urllib) so Airflow workers don't need an extra pip install
 for `requests`. Mirrors the metric shape emitted by:
   * the CronJob push-helper ConfigMap (rest-collector + vector-embedding)
   * the Tekton push-pipeline-metrics-task
 
-so every short-lived crypto workload — batch, dbt, stream-trigger,
-pipeline, DAG — lands in the SAME `crypto_job_*` Prometheus series and a
+so every short-lived crypto workload - batch, dbt, stream-trigger,
+pipeline, DAG - lands in the SAME `crypto_job_*` Prometheus series and a
 single Grafana panel renders the whole pipeline outcome stream.
 
 Wire from a DAG:
@@ -57,9 +57,9 @@ def _build_payload(rc: int, duration_s: int, rows: int, now: int) -> bytes:
 
 def _push(job: str, rc: int, *, duration_s: int = 0, rows: int = 0,
           instance: str | None = None) -> None:
-    """POST to Pushgateway. Never raises — metrics are best-effort.
+    """POST to Pushgateway. Never raises - metrics are best-effort.
 
-    Grouping key is {job, use_case} ONLY — Pushgateway groups never expire,
+    Grouping key is {job, use_case} ONLY - Pushgateway groups never expire,
     so keying on a per-run value (run_id, pod name) leaks one immortal group
     per DagRun. A stable key makes each push replace the previous run, which
     is exactly the `crypto_job_last_*` semantics. Run-level history lives in
@@ -91,7 +91,7 @@ def _push(job: str, rc: int, *, duration_s: int = 0, rows: int = 0,
 def _dag_job_label(context: dict[str, Any]) -> str:
     dag = context.get("dag")
     dag_id = getattr(dag, "dag_id", None) or context.get("dag_id") or "unknown_dag"
-    # Pushgateway URL path forbids `/` — replace with `_` defensively.
+    # Pushgateway URL path forbids `/` - replace with `_` defensively.
     return f"airflow_dag_{dag_id}".replace("/", "_")
 
 
@@ -105,17 +105,17 @@ def _run_duration_seconds(context: dict[str, Any]) -> int:
     if start is None:
         return 0
     if end is None:
-        # Callback fires before end_date is persisted — approximate with now.
+        # Callback fires before end_date is persisted - approximate with now.
         from datetime import datetime, timezone
         end = datetime.now(timezone.utc)
     try:
         return int((end - start).total_seconds())
-    except Exception:  # noqa: BLE001 — never let metrics break a DAG callback
+    except Exception:  # noqa: BLE001 - never let metrics break a DAG callback
         return 0
 
 
 def push_on_success(context: dict[str, Any]) -> None:
-    """Airflow DAG `on_success_callback` — emits rc=0."""
+    """Airflow DAG `on_success_callback` - emits rc=0."""
     _push(
         _dag_job_label(context),
         rc=0,
@@ -124,7 +124,7 @@ def push_on_success(context: dict[str, Any]) -> None:
 
 
 def push_on_failure(context: dict[str, Any]) -> None:
-    """Airflow DAG `on_failure_callback` — emits rc=1."""
+    """Airflow DAG `on_failure_callback` - emits rc=1."""
     _push(
         _dag_job_label(context),
         rc=1,

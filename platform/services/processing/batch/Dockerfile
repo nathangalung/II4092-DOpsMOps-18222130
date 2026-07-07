@@ -44,7 +44,7 @@ EXPOSE 8000
 
 # UV mandate: run via `uv run --no-sync`. `--no-sync` uses the baked venv
 # WITHOUT re-syncing, so it never triggers an editable rebuild (hatchling
-# from PyPI) that would fail air-gapped — and the build installs the project
+# from PyPI) that would fail air-gapped - and the build installs the project
 # --no-editable (a real wheel), so there is nothing to rebuild at runtime.
 ENTRYPOINT []
 CMD ["uv", "run", "--no-sync", "main.py"]

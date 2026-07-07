@@ -1,6 +1,4 @@
-# =============================================================================
-# Velero CRDs — installed SEPARATELY from the Helm release
-# =============================================================================
+# Velero CRDs - installed SEPARATELY from the Helm release
 # Why a separate Application?
 #   - The velero Helm chart bundles CRDs behind a pre-install-or-upgrade Job
 #     (`velero-upgrade-crds`) that has bitten us in R8: the Job wedges on
@@ -10,7 +8,7 @@
 #       1. Check the CRD manifests into GitOps.
 #       2. Apply them with ServerSideApply + Replace so that schema diffs
 #          (added validation rules, new columns in kubectl output) upgrade
-#          cleanly without deleting+recreating — no data loss on CRs.
+#          cleanly without deleting+recreating - no data loss on CRs.
 #       3. Sync BEFORE the chart (lower sync-wave).
 #
 # Source of truth: the upstream velero v1.18.0 CRD set. When bumping
@@ -27,7 +25,6 @@
 # git path, so we install with two parallel Applications at the same
 # sync-wave -10. Both must land before the helm-release Application
 # (sync-wave 0) starts.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -55,7 +52,7 @@ spec:
   syncPolicy:
     # selfHeal/prune disabled platform-wide so manual scale-down/delete is not auto-reverted during single-node tuning. Re-enable per app once stable.
     automated:
-      prune: false           # CRDs are never auto-pruned — deleting them wipes CRs.
+      prune: false           # CRDs are never auto-pruned - deleting them wipes CRs.
       selfHeal: false
       allowEmpty: false
     syncOptions:

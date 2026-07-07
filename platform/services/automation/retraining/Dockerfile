@@ -28,6 +28,6 @@ USER 1000:1000
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Per uv docs: invoke baked venv directly. `uv run` at runtime triggers
-# an editable rebuild needing hatchling from PyPI — fails air-gapped.
+# an editable rebuild needing hatchling from PyPI - fails air-gapped.
 ENTRYPOINT []
 CMD ["uv", "run", "--no-sync", "main.py"]

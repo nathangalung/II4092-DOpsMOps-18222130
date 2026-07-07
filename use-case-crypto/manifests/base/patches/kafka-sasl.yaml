@@ -1,6 +1,4 @@
-# =============================================================================
 # Kafka SASL_SSL wiring for use-case-crypto workloads (cycle-3 §3.1)
-# =============================================================================
 # Adds the `crypto-app-consumer` Secret as envFrom (KAFKA_SASL_USERNAME /
 # KAFKA_SASL_PASSWORD / sasl.jaas.config / ca.crt) and mounts the broker CA
 # at `/etc/kafka/ca/ca.crt` (matches `KAFKA_SSL_CA_LOCATION` in topics.yaml)
@@ -15,12 +13,11 @@
 # `crypto-app-consumer` secretRef.  Volume + volumeMount append cleanly via
 # the `name` mergeKey.
 #
-# The Flink stream-processor is NOT patched here — it carries the identical
+# The Flink stream-processor is NOT patched here - it carries the identical
 # credential surface (envFrom crypto-app-consumer + the /etc/kafka/ca mount)
 # inline in its FlinkDeployment podTemplate (flink/stream-processor.yaml),
 # because a strategic-merge Deployment patch cannot target a FlinkDeployment CR.
 # dashboard-backend / gateway / ml-bridge are not Kafka clients.
-# =============================================================================
 ---
 apiVersion: apps/v1
 kind: Deployment

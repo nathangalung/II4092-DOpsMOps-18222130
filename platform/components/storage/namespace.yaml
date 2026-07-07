@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/component: storage
     # Istio sidecar injection disabled for storage workloads:
     # - CNPG/Strimzi/ClickHouse operators speak peer-mTLS internally and
-    #   sidecar interception breaks operator↔pod webhooks (init container
+    #   sidecar interception breaks webhooks between operator and pod (init container
     #   exit 126 when istio-cni readiness flaps). Re-enable per-workload
     #   via `sidecar.istio.io/inject: "true"` annotation if mesh telemetry
     #   is required.

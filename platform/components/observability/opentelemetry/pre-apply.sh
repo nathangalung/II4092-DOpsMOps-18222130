@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
 # OpenTelemetry pre-apply: install operator first, wait for webhook endpoint.
-# =============================================================================
 # Race condition (without this hook):
 #   `kubectl apply -k components/observability/opentelemetry/` ships both
 #   helm-release.yaml (Argo Application that installs the operator chart) AND
@@ -10,13 +8,12 @@
 #   CRs hit the webhook before the operator pod is Ready, and kubectl errors
 #   with `no endpoints available for service
 #   "otel-operator-opentelemetry-operator-webhook"`. Argo's chart sync is
-#   async so the operator pod boots ~1–2 min after the Application CR lands
+#   async so the operator pod boots ~1-2 min after the Application CR lands
 #   (image pull ~1m17s on slow networks).
 #
 # Fix: pre-apply the Argo Application + namespace-level RBAC, then block until
 # the webhook endpoint has at least one address. Main apply then lands the
 # collectors against a Ready webhook on first attempt.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +25,7 @@ SLEEP_INTERVAL=10
 echo "    pre-apply: applying Argo Application + ESO + RBAC for OTel operator"
 kubectl apply --server-side --force-conflicts -f "$SCRIPT_DIR/helm-release.yaml"
 
-# CRITICAL — break chicken-egg conversion-webhook deadlock.
+# CRITICAL - break chicken-egg conversion-webhook deadlock.
 #
 # The OTel chart ships `opentelemetrycollectors.opentelemetry.io` with
 # `spec.conversion.strategy=Webhook` pointing to the operator's own service
@@ -36,14 +33,14 @@ kubectl apply --server-side --force-conflicts -f "$SCRIPT_DIR/helm-release.yaml"
 # still starting (image pull + cert-manager cert issuance + istio sidecar
 # init), the conversion webhook has no endpoints. kube-apiserver's CRD cacher
 # reflector hammers the unreachable webhook in a tight retry loop (every
-# ~100ms — see `cacher.go: unexpected ListAndWatch error: ... no endpoints
+# ~100ms - see `cacher.go: unexpected ListAndWatch error: ... no endpoints
 # available for service "otel-operator-webhook"; reinitializing...`).
 #
 # That loop saturates the single-node CPU (observed load avg 17+ on a 16-core
 # box, 100% CPU on apiserver). containerd's CreateContainer hits its 4-min
-# default timeout under that pressure → kubelet retries with a NEW container
-# UID → containerd still holds the OLD container in `Created` state under
-# the same name → "failed to reserve container name ... is reserved for
+# default timeout under that pressure, so kubelet retries with a NEW container
+# UID, while containerd still holds the OLD container in `Created` state under
+# the same name, so "failed to reserve container name ... is reserved for
 # <hash>" cascade across every pod trying to start (otel-operator itself,
 # istio sidecar inits, anything new). Cluster-wide deadlock.
 #
@@ -52,8 +49,8 @@ kubectl apply --server-side --force-conflicts -f "$SCRIPT_DIR/helm-release.yaml"
 # version conversion is never needed; setting strategy=None makes the cacher
 # loop short-circuit (returns the stored object directly). Operator pod can
 # then actually start, webhook endpoint populates, main apply lands cleanly.
-# Field-validated 2026-05-02 — observed load avg 17.96 → 9.06 within 90s of
-# patching, otel-operator pod transitioned from CreateContainerError →
+# Field-validated 2026-05-02 - observed load avg 17.96 to 9.06 within 90s of
+# patching, otel-operator pod transitioned from CreateContainerError to
 # Running within 3 min.
 echo "    pre-apply: waiting for OTel CRDs to exist before disabling conversion webhook"
 CRD_WAIT_DEADLINE=$(( $(date +%s) + 120 ))

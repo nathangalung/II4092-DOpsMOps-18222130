@@ -3,19 +3,16 @@ kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # =========================================================================
   # DATA QUALITY CONFIGURATION
-  # =========================================================================
   # Column names reference schema.yaml (single source of truth).
   # This file configures quality RULES and THRESHOLDS.
-  # =========================================================================
 
-  # --- Raw data quality (references RAW_OHLCV_COLUMNS from schema.yaml) ---
+  # Raw data quality (references RAW_OHLCV_COLUMNS from schema.yaml)
   # NOTE: DATA_TABLE is defined in topics.yaml. Do NOT redefine here.
   DATA_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
   DATA_TYPE: "ohlcv"
 
-  # --- Analyzer checks ---
+  # Analyzer checks
   ENTITY_COLUMN: "symbol"
   REQUIRED_COLUMNS: "symbol,timestamp,open,high,low,close,volume"
   RANGE_CHECK_COLUMNS: "open,high,low,close"
@@ -27,31 +24,31 @@ data:
   VALID_SYMBOLS: "BTC-USD,ETH-USD"
   OUTLIER_COLUMNS: "close,volume"
 
-  # --- Analyzer result-storage targets (schema-qualified) ---
+  # Analyzer result-storage targets (schema-qualified)
   # Crypto runs CLICKHOUSE_DB=default and references every table fully-qualified,
   # so the analyzer's result tables must be qualified too (the platform analyzer
-  # defaults to bare names). Without these, inserts landed in default.* → Code:60
+  # defaults to bare names). Without these, inserts landed in default.*, causing Code:60
   # "Table default.quality_write_buffer does not exist".
-  #   QUALITY_RESULTS_TABLE → features.quality_write_buffer (Null-engine staging;
+  #   QUALITY_RESULTS_TABLE maps to features.quality_write_buffer (Null-engine staging;
   #     a MaterializedView funnels rows into gold.data_quality_expectations)
-  #   OUTLIER_RESULTS_TABLE → gold.quality_outliers (base table;
+  #   OUTLIER_RESULTS_TABLE maps to gold.quality_outliers (base table;
   #     features.quality_outliers is a read-only View and rejects INSERTs)
   QUALITY_RESULTS_TABLE: "features.quality_write_buffer"
   OUTLIER_RESULTS_TABLE: "gold.quality_outliers"
 
-  # --- Stream feature quality (references STREAM features from schema.yaml) ---
+  # Stream feature quality (references STREAM features from schema.yaml)
   BOUNDED_FEATURES: "rsi_14:0:100,rsi_7:0:100,mfi_14:0:100,stoch_k:0:100,stoch_d:0:100,williams_r:-100:0"
   FEATURE_PAIR_RULES: "bb_upper>bb_lower,band_upper>band_lower"
   NONNEG_FEATURES: "volatility_24h,atr_14,dispersion"
 
-  # --- Drift detection (references DRIFT_FEATURES_TO_MONITOR from schema.yaml) ---
+  # Drift detection (references DRIFT_FEATURES_TO_MONITOR from schema.yaml)
   # NOTE: DRIFT_FEATURES_TO_MONITOR is defined in schema.yaml as the canonical source.
   # Services read it from there via envFrom. Do NOT redefine here.
 
-  # --- Drift reporting (Evidently) ---
+  # Drift reporting (Evidently)
   # Read by platform/services/drift-reporter (lakehouse DAG evidently_report
   # task). Without EVIDENTLY_HOST the reporter falls back to localhost:8000
-  # and saves HTML into the ephemeral task pod's /tmp — reports vanish with
+  # and saves HTML into the ephemeral task pod's /tmp - reports vanish with
   # the pod. Point it at the platform Evidently workspace so snapshots
   # persist and are browsable. The features table is the gold training mart;
   # its numeric columns minus EXCLUDE_COLUMNS (schema.yaml) are profiled.

@@ -1,10 +1,8 @@
-# =============================================================================
-# KafkaUsers — SCRAM-SHA-512 + ACLs for crypto use-case
-# =============================================================================
+# KafkaUsers - SCRAM-SHA-512 + ACLs for crypto use-case
 # Why this file exists (cycle-3 finding §3.1):
 #   `platform-kafka` is reconciled with `authorization: { type: simple }` and
 #   only `admin` in `superUsers`. The plain listener (9092) accepts anonymous
-#   connections at the socket level, but the broker still applies ACLs — so
+#   connections at the socket level, but the broker still applies ACLs - so
 #   anonymous KEDA scalers and use-case consumers fail with "client is not
 #   authorized to access this topic" the moment they try to describe a
 #   consumer group or fetch offsets.
@@ -22,16 +20,13 @@
 #
 # Topic prefix scoping:
 #   The `crypto.*` namespace is owned end-to-end by this use case, so all
-#   ACLs are anchored on prefix `crypto.` — no other use case can read/write
+#   ACLs are anchored on prefix `crypto.` - no other use case can read/write
 #   crypto topics with this credential, and no use-case credential can touch
 #   foreign topics.
-# =============================================================================
 ---
-# ----------------------------------------------------------------------------
-# crypto-keda-consumer  —  KEDA Kafka scaler: describe topic + group offsets
-# ----------------------------------------------------------------------------
+# crypto-keda-consumer - KEDA Kafka scaler: describe topic + group offsets
 # KEDA's kafka scaler issues OffsetFetchRequest (group) and ListOffsets
-# (topic) — Read on the topic + Describe on the consumer group is enough.
+# (topic) - Read on the topic + Describe on the consumer group is enough.
 # Read on the group itself is needed because OffsetFetch is checked as
 # `Read on Group`, not `Describe on Group`, contrary to what the trigger docs
 # imply.
@@ -69,9 +64,7 @@ spec:
           patternType: literal
         operations: [Describe, Read]
 ---
-# ----------------------------------------------------------------------------
-# crypto-app-consumer  —  validator/analyzer Deployments + Flink stream-processor
-# ----------------------------------------------------------------------------
+# crypto-app-consumer - validator/analyzer Deployments + Flink stream-processor
 # These workloads read and write `crypto.*` topics. Single shared credential is
 # acceptable because they share trust boundary (same use-case namespace, same
 # Vault path). If we ever need per-workload audit trails, split into three
@@ -122,14 +115,12 @@ spec:
           patternType: prefix
         operations: [Describe, Write]
 ---
-# ----------------------------------------------------------------------------
-# crypto-kafka-connect  —  Strimzi KafkaConnect cluster bootstrap user
-# ----------------------------------------------------------------------------
+# crypto-kafka-connect - Strimzi KafkaConnect cluster bootstrap user
 # Used by the platform-level `kafka-connect` KafkaConnect CR to authenticate
 # its workers against the broker once the cluster is flipped onto the SCRAM
 # listener. Connect needs broad ACLs on its own internal topics
 # (`_connect-{configs,offsets,status}`) plus on the source/sink topics it
-# routes — here scoped to `crypto.*` for this use case.
+# routes - here scoped to `crypto.*` for this use case.
 #
 # When stock and other use cases land, each gets its own `<usecase>-kafka-
 # connect` user with that use case's prefix; the platform Connect cluster
@@ -171,16 +162,14 @@ spec:
           patternType: literal
         operations: [Describe, Read]
 ---
-# ----------------------------------------------------------------------------
-# clickhouse  —  ClickHouse Kafka engine consumer (bronze + cdc.predictions)
-# ----------------------------------------------------------------------------
+# clickhouse - ClickHouse Kafka engine consumer (bronze + cdc.predictions)
 # ClickHouse bronze layer pulls `crypto.*` topics via the Kafka table engine
 # (init_clickhouse.sql) and `cdc.pipeline.predictions` via gold layer. Each
 # `Kafka()` table belongs to a unique consumer group (clickhouse_bronze_<topic>
 # or clickhouse_cdc_<topic>) so offsets don't collide with the Flink
 # stream-processor / analyzer.
 #
-# Read-only — ClickHouse never publishes back to Kafka. No transactionalId
+# Read-only - ClickHouse never publishes back to Kafka. No transactionalId
 # resource needed.
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser

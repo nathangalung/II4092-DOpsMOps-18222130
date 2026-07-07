@@ -1,17 +1,17 @@
 """
-KFP v2 Retraining Pipeline — Drift Detection → FLAML AutoML → Deploy to KServe.
+KFP v2 Retraining Pipeline - Drift Detection then FLAML AutoML then Deploy to KServe.
 
 Integration:
-  Kubeflow Pipelines  — orchestrates the pipeline as Argo Workflows
-  FLAML AutoML        — automatic model selection (LightGBM, XGBoost, CatBoost, RF, etc.)
-  MLflow              — experiment tracking + model artifact storage (MinIO S3)
-  KServe              — model serving via kserve-mlflowserver (mlflow format, model-agnostic)
+  Kubeflow Pipelines - orchestrates the pipeline as Argo Workflows
+  FLAML AutoML - automatic model selection (LightGBM, XGBoost, CatBoost, RF, etc.)
+  MLflow - experiment tracking + model artifact storage (MinIO S3)
+  KServe - model serving via kserve-mlflowserver (mlflow format, model-agnostic)
 
 Usage:
   uv run --with 'kfp[kubernetes]==2.16.0' retraining_pipeline.py     # compile
   uv run --with 'kfp[kubernetes]==2.16.0' submit_recurring.py        # submit recurring runs
 
-The `[kubernetes]` extra ships `kfp.kubernetes` (imported above) — without it,
+The `[kubernetes]` extra ships `kfp.kubernetes` (imported above) - without it,
 `from kfp import kubernetes` fails at module load. Version is pinned to match
 the kfp-launcher / kfp-driver image deployed by platform/.../pipelines.yaml so
 the compiled spec stays compatible with what runs it.
@@ -26,12 +26,10 @@ import os
 
 from kfp import compiler, dsl, kubernetes
 
-# =============================================================================
 # USE_CASE master-knob (matches DAG pattern in dags/crypto_*.py).
 # Compile-time env vars; the compiled pipeline YAML bakes them in, so re-run
 # `kfp compile` after changing USE_CASE / USE_CASE_REGISTRY / USE_CASE_IMAGE_TAG.
 # Defaults keep the local overlay (k3d-registry) working with no env exports.
-# =============================================================================
 USE_CASE = os.getenv("USE_CASE", "crypto")
 REGISTRY = os.getenv("USE_CASE_REGISTRY", "localhost:5000")
 IMAGE_PREFIX = os.getenv("USE_CASE_IMAGE_PREFIX", USE_CASE)
@@ -43,9 +41,7 @@ def _image(name: str) -> str:
     return f"{REGISTRY}/{IMAGE_PREFIX}-{name}:{IMAGE_TAG}"
 
 
-# =============================================================================
 # Step 1: Drift Detection
-# =============================================================================
 @dsl.container_component
 def detect_drift(
     clickhouse_host: str,
@@ -82,9 +78,7 @@ def detect_drift(
     )
 
 
-# =============================================================================
-# Step 2: FLAML AutoML Training → MLflow
-# =============================================================================
+# Step 2: FLAML AutoML Training then MLflow
 @dsl.container_component
 def train_and_register(
     symbol: str,
@@ -109,7 +103,7 @@ def train_and_register(
         image=_image("trainer"),
         command=["sh", "-c"],
         args=[
-            # POSIX `shift` does not affect $0 — `sh -c "script" arg0 ...`
+            # POSIX `shift` does not affect $0 - `sh -c "script" arg0 ...`
             # keeps $0=arg0 even after `shift N`. Use ${N} for N>=10 instead
             # of the (broken) shift-then-$0 trick.
             # $0=SYMBOL  $1=TASK    $2=TARGET    $3=TABLE   $4=START
@@ -155,9 +149,7 @@ def train_and_register(
     )
 
 
-# =============================================================================
-# Step 3: Deploy to KServe (mlflow format — model-agnostic)
-# =============================================================================
+# Step 3: Deploy to KServe (mlflow format - model-agnostic)
 @dsl.container_component
 def deploy_to_kserve(
     model_name: str,
@@ -170,7 +162,7 @@ def deploy_to_kserve(
 ):
     """Query MLflow for latest run, patch KServe InferenceService.
 
-    Uses deploy_kserve.py script baked into the trainer image —
+    Uses deploy_kserve.py script baked into the trainer image -
     proper error handling, logging, and no shell escaping issues.
     """
     return dsl.ContainerSpec(
@@ -183,7 +175,7 @@ def deploy_to_kserve(
             'AWS_ACCESS_KEY_ID="$5" '
             'AWS_SECRET_ACCESS_KEY="$6" '
             # UV mandate: `uv run --no-sync` uses the baked venv without
-            # re-syncing (no editable rebuild → air-gap safe), not bare python.
+            # re-syncing (no editable rebuild, so air-gap safe), not bare python.
             '&& uv run --no-sync src/deploy_kserve.py '
             '--model-name "$0" '
             '--namespace "$1" '
@@ -199,9 +191,7 @@ def deploy_to_kserve(
     )
 
 
-# =============================================================================
 # Pipeline
-# =============================================================================
 @dsl.pipeline(
     name=f"{USE_CASE}-retraining-pipeline",
     description=(
@@ -261,15 +251,15 @@ def retraining_pipeline(
             "VALKEY_PASSWORD": "VALKEY_PASSWORD",
         },
     )
-    # Drift signal changes per run — never reuse a cached Succeeded shell.
+    # Drift signal changes per run - never reuse a cached Succeeded shell.
     drift_task.set_caching_options(enable_caching=False)
-    # `:latest` tag defaults to IfNotPresent — once a digest is cached on the
+    # `:latest` tag defaults to IfNotPresent - once a digest is cached on the
     # node, kubelet skips re-pull and stale code (e.g. missing
     # clickhouse_connect import) keeps running after rebuild+push. Force Always
     # so digest check goes to the registry every launch.
     kubernetes.set_image_pull_policy(drift_task, "Always")
 
-    # Step 2: FLAML AutoML training → MLflow
+    # Step 2: FLAML AutoML training then MLflow
     train_task = train_and_register(
         symbol=symbol,
         task_type=task_type,
@@ -289,11 +279,11 @@ def retraining_pipeline(
         s3_secret_access_key=s3_secret_access_key,
     )
     train_task.after(drift_task)
-    # Trainer reads gold.fct_training_data via clickhouse_connect — same
+    # Trainer reads gold.fct_training_data via clickhouse_connect - same
     # ClickHouse default user with sha256 password as drift_task above.
     # MLflow server has no basic-auth (mlflow-config carries only S3 +
     # HOST/PORT/ARTIFACT vars), so we deliberately do NOT mount
-    # MLFLOW_TRACKING_PASSWORD — the mlflow client would otherwise send
+    # MLFLOW_TRACKING_PASSWORD - the mlflow client would otherwise send
     # an Authorization header with an empty username and 401.
     kubernetes.use_secret_as_env(
         train_task,
@@ -303,7 +293,7 @@ def retraining_pipeline(
             "CLICKHOUSE_PASSWORD": "CLICKHOUSE_PASSWORD",
         },
     )
-    # KFP v2 defaults enableCache=true — a previously-Succeeded train shell
+    # KFP v2 defaults enableCache=true - a previously-Succeeded train shell
     # (e.g. silent exit-0 from <50-row dataset) would otherwise be reused on
     # the next workflow run, skipping the impl pod and never writing to
     # MLflow. Deploy then fresh-fails with "Experiment '<usecase>-default' not
@@ -322,7 +312,7 @@ def retraining_pipeline(
         s3_secret_access_key=s3_secret_access_key,
     )
     deploy_task.after(train_task)
-    # Deploy mutates a live InferenceService — never cache the result.
+    # Deploy mutates a live InferenceService - never cache the result.
     deploy_task.set_caching_options(enable_caching=False)
     kubernetes.set_image_pull_policy(deploy_task, "Always")
 

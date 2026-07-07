@@ -4126,7 +4126,7 @@ spec:
   # namespace's services. Earlier draft narrowed egress to a hand-listed
   # subset (own ns + kubeflow + knative-* + istio-system) as an xDS
   # config-size optimization, but that left cross-namespace calls (e.g.
-  # datahub-gms in data-governance → karapace in data-ingestion) without
+  # datahub-gms in data-governance to karapace in data-ingestion) without
   # an outbound cluster — sidecar fell through to PassthroughCluster as
   # plaintext, hit karapace's STRICT-mTLS-only inbound, and was rejected
   # with filter_chain_not_found. With STRICT PeerAuthentication still in

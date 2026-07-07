@@ -10,7 +10,7 @@ patches:
   # The trainer/jobset CRDs (clustertrainingruntimes, trainingruntimes,
   # jobsets.jobset.x-k8s.io) are so large that kubectl client-side apply's
   # last-applied-configuration annotation exceeds the 262144-byte
-  # metadata.annotations limit — every ArgoCD sync of the app then fails
+  # metadata.annotations limit - every ArgoCD sync of the app then fails
   # with `metadata.annotations: Too long`. Server-side apply stores managed
   # fields instead of the annotation, so mark every CRD in this component.
   - target:

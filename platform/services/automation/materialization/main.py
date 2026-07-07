@@ -3,13 +3,13 @@ Feast feature materialization job.
 
 Renders the feature repo from a template (when FEAST_TEMPLATE_DIR is set),
 applies feature definitions, then materializes from the offline store
-(ClickHouse) to the online store (Valkey — Redis-RESP-compatible).
+(ClickHouse) to the online store (Valkey - Redis-RESP-compatible).
 
 Domain-agnostic: the optional render step lets any use-case ship its feature
 repo as a ConfigMap of `feature_store.yaml.tmpl` + `definitions.py` carrying
 `${VAR}` placeholders (creds delivered via envFrom). When FEAST_TEMPLATE_DIR
-is unset — e.g. the platform stub cronjob that mounts a ready-rendered
-`feature_store.yaml` — the render is a no-op and behaviour is unchanged.
+is unset - e.g. the platform stub cronjob that mounts a ready-rendered
+`feature_store.yaml` - the render is a no-op and behaviour is unchanged.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def _render_repo(repo_path: str) -> None:
     Reads ``$FEAST_TEMPLATE_DIR/feature_store.yaml.tmpl``, substitutes every
     ``${VAR}`` from the pod environment, copies ``definitions.py`` alongside it,
     and writes both into ``repo_path`` (a writable emptyDir).  A referenced var
-    that is missing raises immediately — better to fail loud than ship a
+    that is missing raises immediately - better to fail loud than ship a
     half-rendered store that silently points Feast at the wrong backend.
 
     No-op when FEAST_TEMPLATE_DIR is unset.
@@ -94,7 +94,7 @@ def main() -> None:
         )
     logger.info(f"feast apply: {result.stdout.strip()}")
 
-    # Step 2: Materialize features (offline → online)
+    # Step 2: Materialize features (offline to online)
     store = FeatureStore(repo_path=repo_path)
 
     end_date = datetime.now(tz=UTC)

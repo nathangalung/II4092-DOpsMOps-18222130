@@ -59,7 +59,7 @@ class OutlierDetector:
             col_names = [c.strip() for c in data_columns.split(",")]
             df = pd.DataFrame(result.result_rows, columns=col_names)
 
-            # Columns to check for outliers — configurable via env
+            # Columns to check for outliers - configurable via env
             outlier_columns = [
                 c.strip()
                 for c in os.getenv("OUTLIER_COLUMNS", "").split(",")

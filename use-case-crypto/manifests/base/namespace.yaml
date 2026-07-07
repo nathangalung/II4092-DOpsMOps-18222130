@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: mlops-platform
     # Tenant label consumed by platform NetworkPolicies in
-    # platform/components/common/network-policies.yaml — any namespace
+    # platform/components/common/network-policies.yaml - any namespace
     # carrying this label is allowed to talk to platform services through
     # the `allow-consumers` / `allow-vault-clients` / `allow-emitters`
     # rules.  Keeps the platform tree free of use-case names.
@@ -16,5 +16,5 @@ metadata:
     # kueue/queues.yaml) gates admission via namespaceSelector on this
     # label. Without it, every workload routed through training-queue or
     # batch-queue would be rejected at LocalQueue admission. Opt-in,
-    # domain-agnostic — any future use-case namespace adds the same label.
+    # domain-agnostic - any future use-case namespace adds the same label.
     kueue.mlops/use-case: "true"

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# wipe-data.sh — DESTRUCTIVE: drop every PVC + PV in platform data namespaces
-# =============================================================================
+# wipe-data.sh - DESTRUCTIVE: drop every PVC + PV in platform data namespaces
 # Resets all stateful storage (Postgres data, MinIO objects, Kafka logs,
 # ClickHouse parts, etc.). Use after `scale-zero-all` to ensure no pods are
 # holding the PVCs.
@@ -10,7 +8,6 @@
 #   wipe-data.sh                     # default: storage + data-ingestion + observability
 #   wipe-data.sh ns1 ns2 ns3 ...     # explicit namespace list
 #   FORCE=1 wipe-data.sh ...         # skip confirmation
-# =============================================================================
 set -euo pipefail
 
 if [[ $# -gt 0 ]]; then

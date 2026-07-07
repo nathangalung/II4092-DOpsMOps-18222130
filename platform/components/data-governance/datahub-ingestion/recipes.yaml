@@ -1,13 +1,11 @@
-# =============================================================================
-# DataHub ingestion recipes — PG, ClickHouse, MinIO, Kafka, dbt, Feast, mlflow
-# =============================================================================
+# DataHub ingestion recipes - PG, ClickHouse, MinIO, Kafka, dbt, Feast, mlflow
 # ADR-013.  One ConfigMap per source.  Recipes executed by a shared CronJob
 # that iterates recipe files (see ingestion-cronjob.yaml).  Uses the
 # DataHub Python ingestion framework (datahub[all] 1.5.0.1).
 #
 # Airflow is NOT in this list.  DataHub has no polling `source.type: airflow`
 # (the `acryl-datahub-airflow-plugin` package only registers as an Airflow
-# `airflow.plugins` / `apache_airflow_provider` — i.e. it runs INSIDE the
+# `airflow.plugins` / `apache_airflow_provider` - i.e. it runs INSIDE the
 # Airflow scheduler/webserver and pushes lineage events on DAG runs).  The
 # platform wires this push path directly: airflow Deployment carries
 # OPENLINEAGE_URL + AIRFLOW__OPENLINEAGE__TRANSPORT pointing at
@@ -18,12 +16,11 @@
 # v1.5.0.1's plugin registry (verified 2026-05-11).
 #
 # OpenBao paths (Strategic-merged into recipes at runtime by init container):
-#   secret/data/platform/datahub/admin    → GMS auth token
+#   secret/data/platform/datahub/admin    maps to GMS auth token
 #   secret/data/platform/postgres/app
 #   secret/data/platform/clickhouse/admin
 #   secret/data/platform/minio/root
 #   secret/data/platform/kafka/admin
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -79,8 +76,8 @@ data:
         # worker raises SystemExit:1, aborting the whole pipeline (verified
         # 2026-06-07). The data this platform catalogs carries no PII, so info-type
         # classification yields
-        # nothing of value. Profiling — the data-quality governance signal (row
-        # counts, null fraction, min/max/stddev) — is retained. To re-enable
+        # nothing of value. Profiling - the data-quality governance signal (row
+        # counts, null fraction, min/max/stddev) - is retained. To re-enable
         # classification, bake en_core_web_sm into the datahub-ingestion image so
         # no runtime egress is required.
         classification: { enabled: false }
@@ -147,7 +144,7 @@ data:
           aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
         target_platform: clickhouse
         target_platform_instance: platform-clickhouse
-        # Emits column-level lineage from dbt → ClickHouse.
+        # Emits column-level lineage from dbt to ClickHouse.
     sink:
       type: datahub-rest
       config:

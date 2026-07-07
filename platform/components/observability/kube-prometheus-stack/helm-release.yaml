@@ -1,7 +1,5 @@
-# =============================================================================
-# kube-prometheus-stack 83.4.3 (app v0.89.0) — Prometheus Operator + Alertmanager
+# kube-prometheus-stack 83.4.3 (app v0.89.0) - Prometheus Operator + Alertmanager
 # + kube-state-metrics + node-exporter + Grafana dashboards
-# =============================================================================
 # ADR-010.  Replaces hand-rolled Prometheus Deployment.  Adds:
 #   - Prometheus:          persistent storage (local-path, ADR-031), ServiceMonitor/PodMonitor
 #   - Alertmanager:        Slack + PagerDuty receivers, HA 3 replicas
@@ -11,9 +9,8 @@
 #
 # Custom-metrics HPA endpoint: KEDA 2.19.0 (components/common/keda) is the
 # single `external.metrics.k8s.io` / `custom.metrics.k8s.io` APIServer after
-# ADR-026 retired the prior prometheus-adapter sidecar — KEDA's Prometheus
+# ADR-026 retired the prior prometheus-adapter sidecar - KEDA's Prometheus
 # trigger reads this Prometheus directly for RPS-style scaling.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -81,14 +78,14 @@ spec:
           prometheusSpec:
             # Single-replica bootstrap; scale to 2 once node has CPU headroom.
             replicas: 1
-            # 7d/15GB on single-node sda — 30d/45GB saturated IO PSI to 60%+
+            # 7d/15GB on single-node sda - 30d/45GB saturated IO PSI to 60%+
             # (containerd CreateContainer started timing out cluster-wide).
-            # Compaction is the killer: 2h blocks → daily → 14d blocks each
+            # Compaction is the killer: 2h blocks to daily to 14d blocks each
             # rewrites the entire TSDB head; on a shared root disk also
             # hosting kine sqlite + containerd, sustained 100MB/s writes
             # blocked overlayfs sync. 7d is enough for KEDA scaler
             # lookback windows + on-call alert investigation; long-term
-            # storage is Thanos→MinIO once enabled.
+            # storage is Thanos to MinIO once enabled.
             retention: 7d
             retentionSize: "15GB"
             # 60s scrape (default 30s) halves WAL write rate; per-target
@@ -110,7 +107,7 @@ spec:
                   resources: { requests: { storage: 20Gi } }
             # Prometheus 3.x baseline: TSDB head + WAL + ~3MB/active series.
             # Single-node platform scrapes ~20 ServiceMonitors (kube-state,
-            # node-exporter, otel, kserve, datahub, mlflow…) →
+            # node-exporter, otel, kserve, datahub, mlflow…) yields
             # 80-150k active series, ~600-900Mi RSS; spike under rule eval.
             # 256Mi was OOMKilled within 2 min of WAL replay. 2Gi gives
             # headroom for 7d/15GB retention and KEDA scaler queries.
@@ -168,7 +165,7 @@ spec:
             # so the alert also flows down to team/SLO sub-routes), then fall
             # through to the default-slack catch-all.  Team- and SLO-specific
             # branching lives in the `platform-slo-routing` AlertmanagerConfig
-            # CR (alertmanager-configs.yaml) — keeping routing rules and
+            # CR (alertmanager-configs.yaml) - keeping routing rules and
             # receiver definitions co-located with one another instead of
             # split across the helm values and the CR makes on-call debugging
             # ("why did this alert land here?") a single-file lookup.
@@ -213,7 +210,7 @@ spec:
             limits:   { cpu: 200m, memory: 128Mi }
 
         # Subchart values for the bundled kube-state-metrics Deployment.
-        # Same Kyverno require-resource-limits gate as node-exporter above —
+        # Same Kyverno require-resource-limits gate as node-exporter above -
         # the upstream subchart ships {} resources by default. Field-observed
         # 2026-05-14: kube-state-metrics RS FailedCreate, kube-prometheus-stack
         # ArgoCD app stuck Degraded. KSM at platform scale (~150 active

@@ -1,10 +1,7 @@
-# =============================================================================
-# Kafka 4.2 — Strimzi KafkaNodePool + Kafka cluster
-# =============================================================================
+# Kafka 4.2 - Strimzi KafkaNodePool + Kafka cluster
 # KRaft mode.  3 combined-role brokers (broker+controller) on Longhorn.  For
 # strict HA separate the controller quorum into its own NodePool.  min.insync
 # = 2 ensures acks=all writes survive one node loss.
-# =============================================================================
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
@@ -106,7 +103,7 @@ spec:
             # Strimzi binds its own mTLS on 9090 (replication) + 9091 (control
             # plane) and SCRAM SASL on 9092/9093/9094. Excluding those broker
             # ports from the Istio sidecar (traffic.sidecar.istio.io/excludeInboundPorts)
-            # is documented as enough — but in practice on this k3s + Istio 1.28
+            # is documented as enough - but in practice on this k3s + Istio 1.28
             # cluster, native-sidecar envoy still races with Strimzi's TLS
             # listener and inbound SCRAM_SSL handshakes from out-of-mesh
             # callers fail with "SSL handshake failed" / librdkafka
@@ -117,7 +114,7 @@ spec:
   entityOperator:
     # Kyverno `require-resource-limits` (cluster-wide policy, restricted PSA)
     # rejects the auto-generated entity-operator Deployment unless every
-    # container declares CPU+memory requests AND limits — Strimzi defaults
+    # container declares CPU+memory requests AND limits - Strimzi defaults
     # leave resources empty.
     topicOperator:
       resources:
@@ -136,7 +133,7 @@ spec:
             # TLS handshake failures we removed on the broker pod; disable
             # injection on the operator pod too. JMX/Prometheus is unaffected.
             sidecar.istio.io/inject: "false"
-  # Cruise Control disabled — Strimzi rejects with `InvalidResourceException:
+  # Cruise Control disabled - Strimzi rejects with `InvalidResourceException:
   # Cruise Control cannot be deployed with a Kafka cluster which has only one
   # broker. It requires at least two Kafka brokers.` Re-enable when broker
   # NodePool scales to >=2 (post single-node bootstrap).
@@ -157,7 +154,7 @@ spec:
 ---
 # DestinationRule: disable Istio mTLS for traffic to Kafka broker ports.
 # The broker uses `traffic.sidecar.istio.io/excludeInboundPorts` to bypass
-# its own sidecar on 9090–9094 (Strimzi runs SCRAM/TLS itself). Without
+# its own sidecar on 9090-9094 (Strimzi runs SCRAM/TLS itself). Without
 # this DR, every CLIENT's outbound sidecar still wraps the connection in
 # Istio mTLS, the wrapped TLS bytes arrive at the broker (which expects
 # Kafka protocol) and trigger `InvalidReceive (size = 369295618 ...)`.
@@ -189,7 +186,7 @@ spec:
     tls:
       mode: DISABLE
 ---
-# Admin KafkaUser — Strimzi's User Operator creates a Secret named `admin`
+# Admin KafkaUser - Strimzi's User Operator creates a Secret named `admin`
 # with SCRAM password; ESO populates `platform/kafka/admin` in OpenBao from
 # that Secret for consumers (and populates it from the seed on first boot).
 apiVersion: kafka.strimzi.io/v1
@@ -213,11 +210,11 @@ spec:
       - resource: { type: transactionalId,name: "*", patternType: literal }
         operations: [All]
 ---
-# kafka-connect KafkaUser — Strimzi simple authorization is enabled with only
+# kafka-connect KafkaUser - Strimzi simple authorization is enabled with only
 # `admin` as a superuser, so anonymous PLAIN-listener access (where Connect
 # previously bound) is rejected as `TopicAuthorizationException: Not
 # authorized to access topics: [_connect-offsets]` and the
-# DistributedHerder thread exits with status 1 → CrashLoopBackOff.
+# DistributedHerder thread exits with status 1, so CrashLoopBackOff.
 # This dedicated user grants ALL ops on every topic/group/transactional-id
 # (Connect's framework topics _connect-offsets/-configs/-status PLUS every
 # use-case-defined source/sink topic the operator-deployed Connectors must
@@ -270,7 +267,7 @@ spec:
           remoteKey: platform/kafka/admin
           property: sasl_jaas_config
 ---
-# Platform topics — declarative (Topic Operator reconciles).
+# Platform topics - declarative (Topic Operator reconciles).
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:

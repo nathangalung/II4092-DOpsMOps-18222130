@@ -1,9 +1,6 @@
-# =============================================================================
-# WEBSOCKET COLLECTOR — Real-time Stream Ingestion (Rust)
-# =============================================================================
-# Connects to WebSocket feeds → Kafka for real-time data.
+# WEBSOCKET COLLECTOR - Real-time Stream Ingestion (Rust)
+# Connects to WebSocket feeds, then Kafka for real-time data.
 # Schema validation via Karapace schema registry.
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -17,7 +17,7 @@ COPY src ./src
 # layout recompiled every crate from scratch on any source edit). A cache mount
 # is NOT persisted into the image layer, so the release binary is copied to
 # /artifacts (an ordinary dir) inside the SAME RUN for the runtime stage to COPY
-# out — removing that cp breaks the cross-stage copy.
+# out - removing that cp breaks the cross-stage copy.
 RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=cargo-target-validator,target=/app/target \
     cargo build --release && \

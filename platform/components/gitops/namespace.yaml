@@ -4,7 +4,7 @@ metadata:
   name: gitops
   labels:
     # Gitea rootful image (s6-overlay supervisor) requires root briefly during
-    # init — see deployment.yaml:50-65. enforce=baseline lets it pass; warn set
+    # init - see deployment.yaml:50-65. enforce=baseline lets it pass; warn set
     # to baseline (not restricted) because the kubectl-side restricted warning
     # duplicates the kyverno require-run-as-nonroot Audit PolicyReport without
     # adding signal. audit=restricted retained for compliance logging.
@@ -17,6 +17,6 @@ metadata:
     # ArgoCD components use internal mTLS between repo-server / app-controller /
     # redis; istio-proxy sidecar mTLS conflicts and breaks the gRPC handshake
     # ("transport: authentication handshake failed: EOF"). Keep gitops out of
-    # the mesh — argocd-server external traffic is exposed via Istio Gateway
+    # the mesh - argocd-server external traffic is exposed via Istio Gateway
     # at the platform/components/security/istio layer instead.
     istio-injection: disabled

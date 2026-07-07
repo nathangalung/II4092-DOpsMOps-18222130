@@ -1,17 +1,14 @@
-# =============================================================================
-# MySQL 8.4 — Kubeflow metadata backend (Katib + MLMD)
-# =============================================================================
+# MySQL 8.4 - Kubeflow metadata backend (Katib + MLMD)
 # Katib's db-manager and KFP's ml-metadata-grpc-server speak the MySQL wire
 # protocol only (they cannot use libpq).  We keep a single-replica MySQL
 # instance purely for those two consumers; everything else on the platform
 # runs on CloudNativePG.
 #
 # Secret flow (ADR-008):
-#   platform/mysql/root (OpenBao) → mysql-root-secret (ESO-managed) → env.
+#   platform/mysql/root (OpenBao) to mysql-root-secret (ESO-managed) to env.
 # The mysql image auto-creates root@localhost from MYSQL_ROOT_PASSWORD and,
-# with MYSQL_ROOT_HOST=%, also creates root@'%' — so no template/envsubst
+# with MYSQL_ROOT_HOST=%, also creates root@'%' - so no template/envsubst
 # step is needed and the root password never appears in SQL text.
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -59,7 +56,7 @@ data:
   # *.sh and *.sql files here AFTER root@localhost / root@'%' have been
   # created from MYSQL_ROOT_PASSWORD + MYSQL_ROOT_HOST. We use a .sh wrapper
   # so we can ALTER USER to mysql_native_password (libmysqlclient-based
-  # clients — KFP MLMD + Katib db-manager — cannot do caching_sha2_password
+  # clients - KFP MLMD + Katib db-manager - cannot do caching_sha2_password
   # over the wire) without leaking the password into a static SQL file.
   init.sh: |
     #!/bin/bash
@@ -112,7 +109,7 @@ spec:
         # Prepare datadir + render root-reset SQL
         # (1) Reset a partial first-init datadir (no `mysql/` system schema): the
         #     image won't re-init a non-empty dir, so a first init killed before
-        #     the schema exists traps mysqld forever. Safe — a normal crash keeps
+        #     the schema exists traps mysqld forever. Safe - a normal crash keeps
         #     the schema and recovers via redo replay, so it is never wiped.
         # (2) Render an --init-file that re-asserts root@'%' / root@localhost from
         #     mysql-root-secret on every start. The datadir survives across
@@ -175,7 +172,7 @@ spec:
             # capacity removes the resize entirely. 100 MiB = the 8.4 default.
             - "--innodb-redo-log-capacity=104857600"
             # Re-assert root password from mysql-root-secret on every start
-            # (rendered by the prepare-datadir init container) — heals datadir
+            # (rendered by the prepare-datadir init container) - heals datadir
             # vs secret drift the running server cannot fix itself.
             - "--init-file=/startup/reset-root.sql"
           env:
@@ -222,7 +219,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                # status (unlike ping) needs a real auth — surfaces password drift
+                # status (unlike ping) needs a real auth - surfaces password drift
                 - mysqladmin status -h localhost -uroot -p"${MYSQL_ROOT_PASSWORD}"
             periodSeconds: 10
           livenessProbe:

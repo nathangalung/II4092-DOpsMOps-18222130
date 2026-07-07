@@ -1,6 +1,4 @@
-# =============================================================================
-# ANALYZER — Data Quality Analysis (Python + Great Expectations)
-# =============================================================================
+# ANALYZER - Data Quality Analysis (Python + Great Expectations)
 # Uses Great Expectations (OSS) for schema validation and data quality checks.
 # Custom outlier detection (Z-score) for domain-specific bounds.
 #
@@ -8,7 +6,6 @@
 #   - Great Expectations: Declarative data quality expectations (YAML-based)
 #   - Grafana: Unified alerting on quality violations
 #   - Prometheus: Quality metrics exported via Pushgateway
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -45,7 +42,7 @@ spec:
           livenessProbe:
             exec:
               # Check the main process is alive AND has touched the health
-              # file within the last 10 minutes (2x INTERVAL_SECONDS) —
+              # file within the last 10 minutes (2x INTERVAL_SECONDS) -
               # catches hung loops that a bare kill -0 would miss.
               command: ["/bin/sh", "-c", "kill -0 1 && find /tmp/healthy -mmin -10 | grep -q ."]
             initialDelaySeconds: 60

@@ -1,15 +1,12 @@
-# =============================================================================
-# GATEWAY — API Gateway (Rust + Axum)
-# =============================================================================
+# GATEWAY - API Gateway (Rust + Axum)
 # REST + gRPC API for serving predictions and features to clients.
 #
 # Platform tool integration:
 #   - Feast: Feature retrieval via gRPC (feast.model-lifecycle:6566)
 #   - MLflow: Model version discovery
 #   - APISIX: API management, rate limiting, auth + SpiceDB for RBAC
-#   - Tempo: Distributed tracing (OTLP gRPC via otel-collector-gateway) —
+#   - Tempo: Distributed tracing (OTLP gRPC via otel-collector-gateway) -
 #     replaced Jaeger 2026-04-21 (ADR-010 / ADR-025)
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,7 +15,7 @@ metadata:
     app: gateway
     component: serving
 spec:
-  # Single-node k3s platform mandate — replicas=1 everywhere.
+  # Single-node k3s platform mandate - replicas=1 everywhere.
   replicas: 1
   selector:
     matchLabels:
@@ -62,7 +59,7 @@ spec:
               memory: "4Gi"
           livenessProbe:
             # Dumb TCP-style probe on the dedicated health port (port 8082 in
-            # config.rs) — returns 200 to any request as long as the tokio
+            # config.rs) - returns 200 to any request as long as the tokio
             # runtime is alive. Cheap, doesn't touch dependencies.
             httpGet:
               path: /health

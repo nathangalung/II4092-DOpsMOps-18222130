@@ -335,7 +335,7 @@ class TestOutlierDetector:
             detector = OutlierDetector(std_threshold=2.0)
             detector.run()
 
-            # outliers found → store called
+            # outliers found, so store called
             mock_client.insert.assert_called()
 
     def test_run_exception_handling(self) -> None:

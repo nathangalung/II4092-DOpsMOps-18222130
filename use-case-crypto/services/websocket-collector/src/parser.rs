@@ -2,9 +2,9 @@
 //!
 //! Implements `websocket_collector::collectors::generic::MessageParser` for
 //! the Coinbase Exchange feed channel schemas:
-//!   - `ticker`                — best bid/ask + 24h stats, routed to primary topic
-//!   - `match` / `last_match`  — executed trades, routed to trades topic
-//!   - `l2update`              — L2 orderbook deltas, routed to orderbook topic
+//!   - `ticker` - best bid/ask + 24h stats, routed to primary topic
+//!   - `match` / `last_match` - executed trades, routed to trades topic
+//!   - `l2update` - L2 orderbook deltas, routed to orderbook topic
 //!
 //! Secondary (per-message-type) topic routing is driven by env vars so the
 //! deployment ConfigMap stays the single source of truth:

@@ -1,7 +1,7 @@
 """
 Generic statistical transformers for batch processing.
 Computes rolling statistics, dispersion, and windowed aggregations.
-No domain-specific dependencies — works for any numeric time series.
+No domain-specific dependencies - works for any numeric time series.
 
 Use-cases that need domain-specific indicators (e.g., financial technical analysis)
 should add their own transformer module and register it in their config.
@@ -105,7 +105,7 @@ def compute_dispersion_features(
         value_col = numeric_cols[0]
 
     for window in windows:
-        # window=1 → rolling(1).std() is always NaN — an all-NaN column that
+        # window=1 means rolling(1).std() is always NaN - an all-NaN column that
         # would pollute a downstream dropna (the #500 green-but-empty cause).
         # Skip degenerate windows entirely (the range feature was already so
         # guarded; the dispersion std was not).

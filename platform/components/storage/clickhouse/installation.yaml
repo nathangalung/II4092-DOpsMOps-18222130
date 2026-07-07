@@ -1,9 +1,7 @@
-# =============================================================================
-# ClickHouse 26.3.9.8 — Altinity CHI (single-shard single-replica bootstrap)
-# =============================================================================
+# ClickHouse 26.3.9.8 - Altinity CHI (single-shard single-replica bootstrap)
 # ADR-011.  The `Replicated*MergeTree` engines already used in
 # use-case overlays' init_clickhouse.sql REQUIRE a ZooKeeper/Keeper
-# quorum — previously on 1 node they were effectively non-replicated.
+# quorum - previously on 1 node they were effectively non-replicated.
 #
 # Single-node bootstrap: 1 shard × 1 replica (1 pod) on local-path (ADR-031),
 # 1 Keeper. Scale to (2 shards × 2 replicas + 3-node Keeper quorum) for HA via
@@ -13,7 +11,6 @@
 #   kubectl patch chki platform-keeper -n storage --type=merge \
 #     -p '{"spec":{"configuration":{"clusters":[{"name":"keeper",
 #       "layout":{"replicasCount":3}}]}}}'
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -39,26 +36,24 @@ spec:
     - secretKey: password
       remoteRef: { key: platform/clickhouse/admin, property: password }
 ---
-# =============================================================================
-# Strimzi cluster CA cert mirror — `data-ingestion/platform-kafka-cluster-ca-cert`
+# Strimzi cluster CA cert mirror - `data-ingestion/platform-kafka-cluster-ca-cert`
 # is auto-managed by the Strimzi cluster-operator and carries the cluster CA used
 # to sign each Kafka broker certificate (listeners :9093 internal TLS, :9094
 # external TLS).
 #
 # ClickHouse Kafka engine talks to brokers via librdkafka. With
 # `security_protocol=SASL_SSL` librdkafka verifies the broker cert chain against
-# the system CA bundle by default — Strimzi-issued certs are NOT in the system
+# the system CA bundle by default - Strimzi-issued certs are NOT in the system
 # bundle, so we must point ssl.ca.location at the mirrored CA file. CHI mounts
 # the secret read-only at /etc/clickhouse-server/kafka-ca/ca.crt (see
 # ch-pod podTemplate below) and the path is published via
 # `<kafka><ssl_ca_location>` in the configuration settings block.
 #
 # Domain-agnostic: every use-case Kafka engine table reuses this CA. Use-case
-# overlays only add their KafkaUser + named collection — no CA plumbing.
+# overlays only add their KafkaUser + named collection - no CA plumbing.
 # The CA source (Strimzi) installs after storage, so the pod volume is optional
-# (see podTemplate) — ClickHouse must start before Kafka exists; the file lands
+# (see podTemplate) - ClickHouse must start before Kafka exists; the file lands
 # once ESO mirrors it, well before any use-case Kafka table is created.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -150,7 +145,7 @@ spec:
       # Altinity CHK operator creates HEADLESS Service `keeper-<chk-name>`
       # (ClusterIP: None) selecting all keeper pods. For headless Services,
       # DNS returns the pod IP directly and the client connects to that IP
-      # on the configured port — kube-proxy port-mapping (2181→9181) is NOT
+      # on the configured port - kube-proxy port-mapping (2181 to 9181) is NOT
       # applied. So we MUST use the pod's actual listen port 9181
       # (keeper_server/tcp_port). `platform-keeper` alone does not exist as
       # a Service.
@@ -174,7 +169,7 @@ spec:
       merge_tree/parts_to_throw_insert: "600"
       # Single-node IO throttle (2026-05-20 cascade #307): default
       # background_pool_size=16 saturates a 1-disk local-path PVC under
-      # sustained ingestion (REST backfill + WS stream → ~1222 KB/s
+      # sustained ingestion (REST backfill + WS stream reaching ~1222 KB/s
       # sustained writes, sda w_await 210ms, some-PSI 88%). Cap parallel
       # merges at 4 + concurrency ratio 1 so one merge thread per
       # ~250 KB/s headroom, keeping w_await <50ms. Bumping
@@ -183,9 +178,9 @@ spec:
       background_pool_size: "4"
       background_schedule_pool_size: "8"
       background_merges_mutations_concurrency_ratio: "1"
-      # ClickHouse 26.x server sanity check (see Server::main → MergeTreeSettingsImpl::sanityCheck):
+      # ClickHouse 26.x server sanity check (see Server::main then MergeTreeSettingsImpl::sanityCheck):
       # number_of_free_entries_in_pool_to_execute_mutation must be ≤ background_pool_size *
-      # background_merges_mutations_concurrency_ratio. Default 20 vs our pool 4 → BAD_ARGUMENTS
+      # background_merges_mutations_concurrency_ratio. Default 20 vs our pool 4 triggers BAD_ARGUMENTS
       # (Code:36) on startup. Match the same logic for the lower_max_size_of_merge knob
       # (default 8). Values chosen: leave at least half the pool free for inserts before
       # gating mutations / down-sizing merges.
@@ -194,33 +189,33 @@ spec:
       merge_tree/number_of_free_entries_in_pool_to_execute_optimize_entire_partition: "2"
       merge_tree/merge_with_ttl_timeout: "14400"
       merge_tree/min_bytes_for_wide_part: "104857600"
-      # librdkafka SSL CA path — points at the cluster-CA cert mirrored from
+      # librdkafka SSL CA path - points at the cluster-CA cert mirrored from
       # `data-ingestion/platform-kafka-cluster-ca-cert` via the ExternalSecret
       # at the top of this file. Every Kafka engine table that talks to
       # `*-kafka-bootstrap.data-ingestion.svc.cluster.local:9093` (SASL_SSL)
-      # picks this up — use-case overlays do NOT need to set it per-table.
+      # picks this up - use-case overlays do NOT need to set it per-table.
       kafka/ssl_ca_location: "/etc/clickhouse-server/kafka-ca/ca.crt"
       # Strimzi :9093 TLS listener advertises SASL_SSL / SCRAM-SHA-512. The
       # ClickHouse Kafka engine ONLY reliably feeds SASL settings to librdkafka
-      # from this server `<kafka>` block — NOT from a SQL `CREATE NAMED
+      # from this server `<kafka>` block - NOT from a SQL `CREATE NAMED
       # COLLECTION`. Field-verified 2026-05-29 (#464): a `Kafka(kafka_<usecase>)`
       # consumer ignored the collection's flat `kafka_sasl_*`/`kafka_broker_list`
       # keys, came up with no credentials, and fell back to the :9092 PLAINTEXT
       # listener ("connecting to a PLAINTEXT broker listener?" SSL handshake
-      # failure → "Can't get assignment"). So ALL Kafka client config is split:
-      #   * SASL_SSL protocol/mechanism/creds/CA → this server block.
-      #   * `kafka_broker_list` (:9093) → explicit per-table SETTING in each
+      # failure results in "Can't get assignment"). So ALL Kafka client config is split:
+      #   * SASL_SSL protocol/mechanism/creds/CA goes in this server block.
+      #   * `kafka_broker_list` (:9093) goes in explicit per-table SETTING in each
       #     use-case init SQL (broker_list is a non-secret table setting, which
       #     librdkafka DOES honour from DDL).
       # security_protocol + mechanism + ssl_ca are domain-agnostic constants.
       # username/password are use-case creds injected via the generic
-      # `clickhouse-kafka-sasl` Secret — a use-case ExternalSecret mirrors its
+      # `clickhouse-kafka-sasl` Secret - a use-case ExternalSecret mirrors its
       # KafkaUser into the storage ns (see use-case-*/manifests/base/external-
-      # secrets.yaml) — so this platform manifest names no use-case and
+      # secrets.yaml) - so this platform manifest names no use-case and
       # credential rotation stays a use-case concern.
       kafka/security_protocol: "SASL_SSL"
       kafka/sasl_mechanism: "SCRAM-SHA-512"
-      # `optional: true` — a use-case-less platform (or one applied before its
+      # `optional: true` - a use-case-less platform (or one applied before its
       # use-case's `clickhouse-kafka-sasl` ExternalSecret has synced) still
       # renders + starts ClickHouse with an empty `<kafka>` SASL block; harmless
       # because no Kafka-engine tables exist until a use-case's init SQL runs.
@@ -232,17 +227,17 @@ spec:
       kafka/sasl_password:
         valueFrom:
           secretKeyRef: { name: clickhouse-kafka-sasl, key: password, optional: true }
-      # Do NOT set remote_servers/* here — the operator generates the full
+      # Do NOT set remote_servers/* here - the operator generates the full
       # `<remote_servers>` block from spec.configuration.clusters[*].layout.
       # A flat `remote_servers/main/shard/internal_replication: "true"` line
       # produces an empty `<shard>` element that overwrites the operator
       # output, leaving zero replicas under the shard. ClickHouse then
-      # crashes at startup with `Cluster::addShard out_of_range — vector`
+      # crashes at startup with `Cluster::addShard out_of_range - vector`
       # / CANNOT_LOAD_CONFIG. Field-validated 2026-05-07 against
       # 26.3.9.8: removing this line lets `chop-generated-remote-servers.xml`
       # populate `<replica><host>chi-platform-main-0-0</host></replica>`.
     profiles:
-      # max_memory_usage is per-query/user-level — server refuses at top
+      # max_memory_usage is per-query/user-level - server refuses at top
       # level with UNKNOWN_ELEMENT_IN_CONFIG. Must live under profiles.
       default/max_memory_usage: "4294967296"
       default/log_queries: "1"
@@ -263,7 +258,7 @@ spec:
             # OnRootMismatch: skip the recursive chown of the data PVC when the
             # root dir already matches fsGroup. Field-observed 2026-06-12: the
             # default policy chowned ~150k MergeTree part files for ~5 minutes
-            # of disk IO on every pod (re)start — an IO storm this single-node
+            # of disk IO on every pod (re)start - an IO storm this single-node
             # disk cannot absorb during recovery.
             fsGroupChangePolicy: OnRootMismatch
             seccompProfile: { type: RuntimeDefault }
@@ -289,7 +284,7 @@ spec:
                 periodSeconds: 10
                 failureThreshold: 60
               volumeMounts:
-                # Strimzi cluster CA — Kafka engine SSL verification target.
+                # Strimzi cluster CA - Kafka engine SSL verification target.
                 # `kafka/ssl_ca_location` in settings (above) points here.
                 - name: kafka-ca
                   mountPath: /etc/clickhouse-server/kafka-ca

@@ -18,9 +18,9 @@ use tracing::{debug, error, warn};
 /// transport failures, leader-resolution errors, etc.) into our tracing logs.
 ///
 /// Only `error()` is overridden. The default `log()` impl is intentionally
-/// preserved: it forwards librdkafka WARN lines — including the
+/// preserved: it forwards librdkafka WARN lines - including the
 /// "leader-not-found" message that is the signature of the post-broker-restart
-/// producer wedge (#468) — to the `librdkafka` tracing target. Overriding
+/// producer wedge (#468) - to the `librdkafka` tracing target. Overriding
 /// `log()` would silence that signal.
 struct LoggingContext;
 
@@ -102,8 +102,8 @@ impl KafkaProducer {
     /// detached task so the select loop keeps draining the channel.
     ///
     /// This decouple is the core of the #468 fix: the previous code awaited each
-    /// `send(...)` inline, which serialized delivery per-message and — once the
-    /// producer wedged after a broker restart — stalled the loop while every
+    /// `send(...)` inline, which serialized delivery per-message and - once the
+    /// producer wedged after a broker restart - stalled the loop while every
     /// message silently expired at `message.timeout.ms`. Enqueue + detached
     /// resolution keeps throughput up and feeds the delivery-health clock
     /// (`record_attempt` / `record_success` / `record_failure`) that gates the
@@ -149,7 +149,7 @@ impl KafkaProducer {
                                 error!("Kafka delivery error: {}", e);
                             }
                         }
-                        // Producer dropped before delivery resolved — process is
+                        // Producer dropped before delivery resolved - process is
                         // shutting down; nothing actionable.
                         Err(_canceled) => {}
                     }

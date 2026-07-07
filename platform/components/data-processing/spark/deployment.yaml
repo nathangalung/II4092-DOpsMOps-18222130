@@ -1,8 +1,6 @@
-# =============================================================================
-# SPARK ON KUBERNETES — On-demand batch processing
-# =============================================================================
+# SPARK ON KUBERNETES - On-demand batch processing
 # Uses spark-submit with --master k8s:// instead of a standalone cluster.
-# No always-running master/worker pods — zero idle resource cost.
+# No always-running master/worker pods - zero idle resource cost.
 #
 # Spark jobs are submitted via:
 #   1. Airflow SparkKubernetesOperator (preferred for scheduled jobs)
@@ -12,9 +10,8 @@
 # available nodes automatically via the K8s scheduler.
 #
 # The ServiceAccount + RBAC allows Spark driver pods to create executor pods.
-# =============================================================================
 
-# --- RBAC for Spark driver to create executor pods ---
+# RBAC for Spark driver to create executor pods
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -47,7 +44,7 @@ subjects:
     name: spark
     namespace: data-processing
 ---
-# --- S3/MinIO credentials via ExternalSecret (ADR-008) ---
+# S3/MinIO credentials via ExternalSecret (ADR-008)
 # Credentials are sourced from OpenBao; the resulting Secret keys `access-key`
 # and `secret-key` are the same names `spark-defaults.conf` references.
 # In cloud overlays this ESO is replaced by an IRSA/Workload Identity binding.
@@ -73,7 +70,7 @@ spec:
     - secretKey: secret-key
       remoteRef: { key: platform/minio/root, property: password }
 ---
-# --- ConfigMap with Spark defaults for K8s mode ---
+# ConfigMap with Spark defaults for K8s mode
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -103,7 +100,7 @@ data:
     spark.hadoop.fs.s3a.endpoint            http://minio.storage.svc.cluster.local:9000
     spark.hadoop.fs.s3a.path.style.access   true
     spark.hadoop.fs.s3a.impl               org.apache.hadoop.fs.s3a.S3AFileSystem
-    # Map K8s secret keys → Hadoop S3A credential env vars
+    # Map K8s secret keys to Hadoop S3A credential env vars
     spark.kubernetes.driver.secretKeyRef.AWS_ACCESS_KEY_ID     spark-s3-secret:access-key
     spark.kubernetes.driver.secretKeyRef.AWS_SECRET_ACCESS_KEY spark-s3-secret:secret-key
     spark.kubernetes.executor.secretKeyRef.AWS_ACCESS_KEY_ID     spark-s3-secret:access-key
@@ -114,7 +111,7 @@ data:
     spark.sql.catalog.iceberg.type          rest
     spark.sql.catalog.iceberg.uri           http://lakekeeper.storage.svc.cluster.local:8181/catalog
     spark.sql.catalog.iceberg.warehouse     warehouse
-    # Iceberg SQL extensions (MERGE INTO, CALL, time-travel) — class ships in the
+    # Iceberg SQL extensions (MERGE INTO, CALL, time-travel) - class ships in the
     # iceberg-spark-runtime jar below.
     spark.sql.extensions                    org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 
@@ -125,7 +122,7 @@ data:
     #     ship a dedicated Spark 4.1 runtime; matches the 4.1.1 image). Fallback if
     #     unavailable: pin the image to apache/spark:4.0.x + runtime-4.0_2.13:1.10.1.
     #   - clickhouse-jdbc:0.8.2 (:all shaded)    (reads the warehouse over JDBC for
-    #     the lake-archive Spark batch — see use-case spark/ manifests)
+    #     the lake-archive Spark batch - see use-case spark/ manifests)
     # OpenLineage listener also emits Spark job lineage to DataHub GMS (ADR-013).
     spark.jars.packages                     io.openlineage:openlineage-spark_2.13:1.26.0,org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,com.clickhouse:clickhouse-jdbc:0.8.2
     spark.extraListeners                    io.openlineage.spark.agent.OpenLineageSparkListener
@@ -150,7 +147,7 @@ data:
     spark.metrics.conf.driver.source.jvm.class org.apache.spark.metrics.source.JvmSource
     spark.ui.prometheus.enabled              true
 ---
-# --- Service for accessing Spark driver UI (only active during job execution) ---
+# Service for accessing Spark driver UI (only active during job execution)
 apiVersion: v1
 kind: Service
 metadata:

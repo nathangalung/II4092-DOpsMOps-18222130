@@ -35,8 +35,8 @@ spec:
             - --metrics-addr=0.0.0.0:8080
             # Leader election DISABLED on single-replica bootstrap.
             # Controller-runtime default lease/renew/retry (15s/10s/2s) is too
-            # tight for our k3s+kine sqlite single-node API server under load —
-            # field-observed 2026-05-14 the manager restarted every 10–30 min
+            # tight for our k3s+kine sqlite single-node API server under load -
+            # field-observed 2026-05-14 the manager restarted every 10-30 min
             # with `leader election lost: context deadline exceeded`. Each
             # restart drops the webhook server briefly; pod-mutator
             # failurePolicy=Ignore then lets predictor Pods slip through
@@ -56,10 +56,10 @@ spec:
             # Bind the controller-runtime health probe server explicitly so
             # liveness/readiness target a STABLE endpoint instead of /metrics
             # (the metrics handler does prometheus collection work and stalls
-            # under reconcile pressure → probe timeouts → pod restarts → the
+            # under reconcile pressure, then probe timeouts, then pod restarts, then the
             # MutatingWebhookConfiguration silently fails open with
-            # failurePolicy=Ignore → KServe storage-initializer init container
-            # is NOT injected → predictor pods crash with
+            # failurePolicy=Ignore, then KServe storage-initializer init container
+            # is NOT injected, then predictor pods crash with
             # `InvalidModelURI: /mnt/models`. Field-observed 2026-05-11 on
             # `make phase-full`: this pod hit `Liveness probe failed: connection
             # reset by peer` then `Readiness probe failed: connection refused`

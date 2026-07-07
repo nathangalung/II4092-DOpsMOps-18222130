@@ -1,13 +1,10 @@
-# =============================================================================
-# SpiceDB — Google Zanzibar-style fine-grained authorization
-# =============================================================================
+# SpiceDB - Google Zanzibar-style fine-grained authorization
 # v1.51.1 (authzed).  Backed by PostgreSQL (not in-memory) so that schema and
 # relationship tuples survive pod restart.  The preshared key and PG connection
-# string are supplied via ExternalSecret (ADR-008) — no plain stringData.
+# string are supplied via ExternalSecret (ADR-008) - no plain stringData.
 #
 # Schema is loaded by a one-shot Job (`spicedb-schema-loader`) after the
 # SpiceDB Deployment is Ready; see schema-loader.yaml.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -90,7 +87,7 @@ metadata:
     app.kubernetes.io/component: authorization
     app.kubernetes.io/part-of: mlops-platform
 spec:
-  # Single-pod bootstrap; HPA below scales 1→3 on CPU>70%.
+  # Single-pod bootstrap; HPA below scales 1 to 3 on CPU>70%.
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -198,7 +195,7 @@ spec:
             capabilities: { drop: ["ALL"] }
             seccompProfile: { type: RuntimeDefault }
 ---
-# PDB — single-node single-replica: maxUnavailable=1 (= minAvailable=0)
+# PDB - single-node single-replica: maxUnavailable=1 (= minAvailable=0)
 # permits voluntary eviction. minAvailable=1 with replicas=1 deadlocks drains.
 apiVersion: policy/v1
 kind: PodDisruptionBudget

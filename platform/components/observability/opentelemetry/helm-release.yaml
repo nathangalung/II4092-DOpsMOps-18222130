@@ -1,6 +1,4 @@
-# =============================================================================
 # OpenTelemetry Operator + Collector (gateway + agent)
-# =============================================================================
 # ADR-010.  KNF-06 requires OpenTelemetry.  The Operator installs the CRD
 # `OpenTelemetryCollector`; see `collectors.yaml` for the two instances:
 #
@@ -8,7 +6,6 @@
 #                           tags with k8s.node.name, forwards to gateway)
 #   otel-collector-gateway  Deployment (sampling, routing, fan-out to
 #                           Tempo (traces) / Prometheus (metrics) / Loki (logs))
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,7 +20,7 @@ spec:
   source:
     repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
     chart: opentelemetry-operator
-    targetRevision: 0.111.0    # 2026-04-29 — OTel Operator chart (appVersion 0.149.0). Patch on 0.110 line; controller-runtime metrics secure-by-default carries forward.
+    targetRevision: 0.111.0    # 2026-04-29 - OTel Operator chart (appVersion 0.149.0). Patch on 0.110 line; controller-runtime metrics secure-by-default carries forward.
     helm:
       releaseName: otel-operator
       values: |
@@ -35,7 +32,7 @@ spec:
         fullnameOverride: otel-operator
 
         admissionWebhooks:
-          # autoGenerateCert default is enabled in chart 0.110.0 — when both
+          # autoGenerateCert default is enabled in chart 0.110.0 - when both
           # autoGenerateCert AND certManager are on, the operator pod serves
           # the in-memory self-signed cert (no SAN) while the kube-apiserver
           # validates against the cert-manager Certificate referenced via
@@ -69,7 +66,7 @@ spec:
           # Enables auto-instrumentation injection webhook (Instrumentation CR).
           # Collector container tag kept in sync with chart appVersion 0.148.0 so
           # the operator-manager and collector binary stay in lockstep (operator
-          # translates CR → collector config and only knows schemas up to its
+          # translates CR to collector config and only knows schemas up to its
           # own appVersion). This value is the DEFAULT; the OpenTelemetryCollector
           # CRs in collectors.yaml override it explicitly and must be kept in sync.
           collectorImage:
@@ -86,7 +83,7 @@ spec:
       - ServerSideApply=true
   # cert-manager injects caBundle into the CRD conversion webhook at runtime;
   # ArgoCD has no desired-state value and reports OutOfSync on every reconcile.
-  # Single exact path — jsonPointers (no array traversal needed).
+  # Single exact path - jsonPointers (no array traversal needed).
   ignoreDifferences:
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition

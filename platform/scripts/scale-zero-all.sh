@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# =============================================================================
-# scale-zero-all.sh — scale every Deployment + StatefulSet in platform
+# scale-zero-all.sh - scale every Deployment + StatefulSet in platform
 # namespaces to 0 (frees CPU/mem; keeps CRDs, Services, PVCs).
-# =============================================================================
-# Operators (cnpg-operator, kyverno admission, istiod, etc.) are NOT scaled —
+# Operators (cnpg-operator, kyverno admission, istiod, etc.) are NOT scaled -
 # they manage cluster invariants. To scale operators too, use NUKE_ALL=1.
 #
 # Excluded: kube-system (built-in local-path-provisioner lives here), cnpg-system,
 # kyverno (policy admission), istio-system (mesh), keda, external-secrets,
-# cert-manager. Also platform-registry — it is the push-target for `make *-build`;
+# cert-manager. Also platform-registry - it is the push-target for `make *-build`;
 # scaling it to 0 breaks the build (platform-registry-up only CHECKS reachability,
 # it never re-ups the registry), so it must stay running through a scale-zero.
-# =============================================================================
 set -euo pipefail
 
 NUKE_ALL="${NUKE_ALL:-0}"
@@ -24,7 +21,7 @@ declare -a EXCLUDE=(
   default
 )
 
-# Operator namespaces — kept up unless NUKE_ALL=1
+# Operator namespaces - kept up unless NUKE_ALL=1
 if [[ "$NUKE_ALL" == "0" ]]; then
   EXCLUDE+=(
     platform-registry

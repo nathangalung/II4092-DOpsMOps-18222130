@@ -1,17 +1,14 @@
-# =============================================================================
 # KafkaTopic: crypto.ws.raw
-# =============================================================================
 # Raw stream from the websocket collector. Higher-volume than REST (every
 # exchange tick pushed), so wider partitioning + shorter retention.
 #
 # Sizing:
-#   partitions        : 24    — 2x rest.raw to absorb micro-burst throughput
+#   partitions        : 24 - 2x rest.raw to absorb micro-burst throughput
 #   replicas          : 1
-#   retention.ms      : 3d    — shorter TTL; WS is a firehose, disk would blow up
+#   retention.ms      : 3d - shorter TTL; WS is a firehose, disk would blow up
 #   min.insync.replicas : 1
 #   compression.type  : zstd
 #   cleanup.policy    : delete
-# =============================================================================
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
@@ -32,5 +29,5 @@ spec:
     min.insync.replicas: 1
     compression.type: zstd
     cleanup.policy: delete
-    max.message.bytes: 524288          # 512 KiB — WS frames are small
+    max.message.bytes: 524288          # 512 KiB - WS frames are small
     message.timestamp.type: CreateTime

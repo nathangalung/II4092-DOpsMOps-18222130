@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# render-scalability.sh — render an HPA / VPA / KEDA ScaledObject from template
-# =============================================================================
+# render-scalability.sh - render an HPA / VPA / KEDA ScaledObject from template
 # Usage:
 #   render-scalability.sh hpa <component> <ns> <min> <max>
 #   render-scalability.sh vpa <component> <ns>
@@ -13,7 +11,6 @@
 #   MODE=Off|Initial|Auto
 #   CPU_MIN=100m CPU_MAX=2 MEM_MIN=128Mi MEM_MAX=4Gi
 #   TRIGGER_META='...'
-# =============================================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

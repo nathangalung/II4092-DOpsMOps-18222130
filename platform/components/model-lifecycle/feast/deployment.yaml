@@ -1,6 +1,4 @@
-# =============================================================================
-# Feast 0.62 — Feature Store Server (model-lifecycle)
-# =============================================================================
+# Feast 0.62 - Feature Store Server (model-lifecycle)
 # The platform chart ships the Deployment/Service/HPA + a connection-only
 # `feast-feature-repo` ConfigMap stub (see feature-repo.yaml).  Use-case
 # overlays patch that same ConfigMap by name to add their feature_views /
@@ -15,12 +13,11 @@
 #   - Online store : Valkey (Redis-protocol on 6379).
 #
 # Secret flow (ADR-008):
-#   platform/minio/root      → feast-s3         (AWS_ACCESS_KEY_ID /
+#   platform/minio/root      maps to feast-s3         (AWS_ACCESS_KEY_ID /
 #                                                AWS_SECRET_ACCESS_KEY)
-#   platform/clickhouse/admin → feast-clickhouse-secret
+#   platform/clickhouse/admin maps to feast-clickhouse-secret
 #                                                (CLICKHOUSE_USER/PASSWORD)
-#   platform/valkey/auth     → feast-valkey-secret (VALKEY_PASSWORD)
-# =============================================================================
+#   platform/valkey/auth     maps to feast-valkey-secret (VALKEY_PASSWORD)
 apiVersion: v1
 kind: Service
 metadata:
@@ -66,7 +63,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # Registry lives on MinIO S3 — wait-for-minio guards the registry
+        # Registry lives on MinIO S3 - wait-for-minio guards the registry
         # write path. Offline = ClickHouse, online = Valkey: each has its own
         # bounded TCP probe below before the package install + render steps.
         - name: wait-for-minio
@@ -178,7 +175,7 @@ spec:
               uv add --python 3.12 "feast[aws,clickhouse]" && \
               cp -r .venv/lib/python*/site-packages/. /shared/packages/
               # cp -a fails with "Operation not permitted" on the shared
-              # EmptyDir when the container runs as uid 1000 — preserving
+              # EmptyDir when the container runs as uid 1000 - preserving
               # owner/times requires CAP_FOWNER/CAP_CHOWN which restricted
               # PSS strips. cp -r copies contents only; new uid/timestamps
               # are fine for a venv.
@@ -186,7 +183,7 @@ spec:
             - name: shared-packages
               mountPath: /shared/packages
         - name: render-feature-store
-          # Reuse the uv image already pulled by install-db-drivers above —
+          # Reuse the uv image already pulled by install-db-drivers above -
           # it ships Python 3.12 so we can do template substitution inline
           # without `apk add gettext` (apk needs root, which the pod-level
           # runAsNonRoot blocks). Python's str.replace also handles
@@ -205,7 +202,7 @@ spec:
               cpu: 200m
               memory: 128Mi
           # UV mandate (project policy): no `python3 -c`. Write the renderer
-          # to a tmpfile and call `uv run --no-project` — uses the image's
+          # to a tmpfile and call `uv run --no-project` - uses the image's
           # embedded CPython without needing a pyproject.toml. The script has
           # no external deps (stdlib-only os/stat) so --no-project is correct.
           # `uv run` writes a per-invocation lock + venv into HOME/.cache/uv
@@ -237,14 +234,14 @@ spec:
               PYEOF
               uv run --no-project /tmp/render.py
           envFrom:
-            # CLICKHOUSE_USER/CLICKHOUSE_PASSWORD — offline_store creds
+            # CLICKHOUSE_USER/CLICKHOUSE_PASSWORD - offline_store creds
             # substituted by envsubst into feature_store.yaml.
             - secretRef:
                 name: feast-clickhouse-secret
-            # VALKEY_PASSWORD — online_store connection_string.
+            # VALKEY_PASSWORD - online_store connection_string.
             - secretRef:
                 name: feast-valkey-secret
-          # Registry uses a plain `s3://` path — no `${VAR}` interpolation
+          # Registry uses a plain `s3://` path - no `${VAR}` interpolation
           # needed at template time, so feast-s3 is only mounted on the
           # main container (where boto3 actually opens the registry).
           volumeMounts:
@@ -275,7 +272,7 @@ spec:
               value: "/shared/packages"
             # MinIO S3 endpoint override.  Feast's `python-helm-demo` example
             # uses FEAST_S3_ENDPOINT_URL; that name is also honoured by
-            # boto3 / s3fs via Feast's registry shim. Plain HTTP — the
+            # boto3 / s3fs via Feast's registry shim. Plain HTTP - the
             # in-cluster traffic is on a private CNI, TLS is terminated at
             # the Service edge for external paths.
             - name: FEAST_S3_ENDPOINT_URL
@@ -285,7 +282,7 @@ spec:
             - name: AWS_DEFAULT_REGION
               value: "us-east-1"
           envFrom:
-            # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — registry I/O against
+            # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY - registry I/O against
             # MinIO.  boto3 / s3fs read these directly from the pod env.
             - secretRef:
                 name: feast-s3
@@ -296,7 +293,7 @@ spec:
                 name: feast-clickhouse-secret
             # Feast's `feast` CLI may re-open a Valkey client at runtime
             # (`feast materialize`, `feast apply`) and reads the password
-            # from the already-rendered connection_string — however, keep
+            # from the already-rendered connection_string - however, keep
             # the Secret mounted so any env-aware code path sees the same
             # VALKEY_PASSWORD as the init container used.
             - secretRef:

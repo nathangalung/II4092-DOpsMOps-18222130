@@ -5773,7 +5773,7 @@ data:
   # Executor sidecar (Argo `wait` container) injected into every workflow pod.
   # Resources are required because the cluster's Kyverno
   # `require-resource-limits` policy denies pods whose containers omit them
-  # — without this block the wait sidecar fails admission and the whole
+  # - without this block the wait sidecar fails admission and the whole
   # workflow step errors before `measure-drift` ever runs.
   executor: |
     imagePullPolicy: IfNotPresent
@@ -5784,6 +5784,13 @@ data:
       limits:
         cpu: 100m
         memory: 128Mi
+  # Reap finished run pods.
+  workflowDefaults: |
+    spec:
+      podGC:
+        strategy: OnWorkflowCompletion
+      ttlStrategy:
+        secondsAfterCompletion: 86400
 kind: ConfigMap
 metadata:
   labels:
@@ -5791,9 +5798,7 @@ metadata:
   name: workflow-controller-configmap
   namespace: model-lifecycle
 ---
-# -----------------------------------------------------------------------------
 # KFP artifact-store + metadata DB credentials (ADR-008)
-# -----------------------------------------------------------------------------
 # These two blocks diverge from the upstream Kubeflow Pipelines manifests:
 # upstream ships hard-coded `minioadmin` / `platform123` Secrets, which fail
 # KNF-08 (no plaintext credentials in git).  We replace them with
@@ -5801,7 +5806,6 @@ metadata:
 # (`mlpipeline-minio-artifact`, `mysql-secret`) and the exact data-key
 # names (`accesskey`, `secretkey`, `username`, `password`) are preserved
 # so the KFP controller and API-server code paths remain byte-identical.
-# -----------------------------------------------------------------------------
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -6081,7 +6085,7 @@ metadata:
   name: workflow-controller
 value: 1000000
 ---
-# mysql-pv-claim PVC removed — MySQL runs in storage namespace with its own PVC.
+# mysql-pv-claim PVC removed - MySQL runs in storage namespace with its own PVC.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -6943,7 +6947,7 @@ spec:
         image: ghcr.io/kubeflow/kfp-frontend:2.16.0
         imagePullPolicy: IfNotPresent
         # Upstream chart sets initialDelaySeconds=3 which works in isolation
-        # but is too tight under Kyverno-enforced memory limits — the Node.js
+        # but is too tight under Kyverno-enforced memory limits - the Node.js
         # frontend takes 10-20s to bind :3000, and a 3s liveness window
         # CrashLoops the pod before it serves the first /healthz. Replaced
         # with a 60s startupProbe (tolerates slow boot) + readiness/liveness
@@ -6977,7 +6981,7 @@ spec:
         # FailedCreate "All containers must set resources.requests AND
         # resources.limits for cpu and memory"). Upstream kubeflow-pipelines
         # 2.15 manifests ship requests only; we add limits sized for the
-        # Node.js frontend's actual footprint — 256Mi was OOMKilled (exit
+        # Node.js frontend's actual footprint - 256Mi was OOMKilled (exit
         # 137) during startup, 512Mi gives Node.js + React bundle headroom.
         resources:
           requests:
@@ -7115,7 +7119,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 2
         # Single-pod bootstrap; bump for production load.
-        # Limits required by Kyverno `require-resource-limits` policy —
+        # Limits required by Kyverno `require-resource-limits` policy -
         # upstream chart omits them and pods FailCreate on the
         # admission webhook (field-observed 2026-05-14).
         resources:
@@ -7138,7 +7142,7 @@ spec:
           type: RuntimeDefault
       serviceAccountName: ml-pipeline-visualizationserver
 ---
-# MySQL Deployment removed — uses shared mysql.storage.svc.cluster.local
+# MySQL Deployment removed - uses shared mysql.storage.svc.cluster.local
 # via ExternalName Service defined above. The storage/mysql deployment
 # provides the actual MySQL instance for all platform consumers.
 ---

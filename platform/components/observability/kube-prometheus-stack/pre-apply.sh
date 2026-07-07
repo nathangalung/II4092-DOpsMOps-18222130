@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
 # kube-prometheus-stack pre-apply: install operator chart first, wait for CRDs.
-# =============================================================================
 # Race condition (without this hook):
 #   `kubectl apply -k components/observability/kube-prometheus-stack/` ships
 #   helm-release.yaml (Argo Application that installs the chart, including the
@@ -14,7 +12,6 @@
 # Fix: pre-apply the Argo Application, then block until the relevant CRDs are
 # Established. Main apply then lands the PrometheusRule + AlertmanagerConfig
 # CRs against ready CRDs on first attempt.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

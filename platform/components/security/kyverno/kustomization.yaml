@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Kyverno 1.17 (chart 3.7.1, 2026-02-02) — Policy-as-Code for Kubernetes.
+# Kyverno 1.17 (chart 3.7.1, 2026-02-02) - Policy-as-Code for Kubernetes.
 #
 # Rendered via `kustomize build --enable-helm` (apply-component.sh) and
 # applied with `kubectl apply --server-side --force-conflicts`. Server-side
@@ -10,7 +10,7 @@ kind: Kustomization
 #
 # CRD-then-CR ordering (CRDs + admission webhook from chart, ValidatingPolicy
 # / GeneratingPolicy CRs in policies.yaml) is handled by the retry loop in
-# apply-component.sh — first apply lands CRDs + controllers, retries land the
+# apply-component.sh - first apply lands CRDs + controllers, retries land the
 # policy CRs once admission-controller is serving.
 namespace: kyverno
 
@@ -37,8 +37,8 @@ helmCharts:
         # this, when the single Kyverno admission-controller pod is being
         # restarted (OOM, eviction, image pull) the webhook returns
         # "no endpoints available for service kyverno-svc", which the API
-        # server treats as Fail → every Pod / Deployment admission request
-        # cluster-wide is denied → cluster cannot self-heal.  On a
+        # server treats as Fail, so every Pod / Deployment admission request
+        # cluster-wide is denied, so cluster cannot self-heal.  On a
         # single-node lab cluster the trade-off (brief governance gap
         # while kyverno is down) is strictly better than the deadlock.
         # Flip back to false on multi-node prod where the admission
@@ -47,7 +47,7 @@ helmCharts:
         forceFailurePolicyIgnore:
           enabled: true
       admissionController:
-        # >=1 replica — the webhook MUST serve before ValidatingPolicy CRs in
+        # >=1 replica - the webhook MUST serve before ValidatingPolicy CRs in
         # policies.yaml apply. HA needs replicas:3.
         replicas: 1
         rbac:
@@ -57,29 +57,29 @@ helmCharts:
                 resources: [secrets]
                 verbs: [get, list, watch]
         container:
-          # Bumped 2026-05-01 — 512Mi limit was causing OOM/probe-fail under
+          # Bumped 2026-05-01 - 512Mi limit was causing OOM/probe-fail under
           # CEL eval load (cluster-wide policy storms during phase-full).
           # Endpoint flap broke pod creation everywhere. 1Gi gives headroom.
           resources:
             requests: { cpu: 200m, memory: 384Mi }
             limits:   { cpu: 2000m, memory: 1Gi }
-          # Bumped 2026-05-20 — single-node k3s kine sqlite under load can
+          # Bumped 2026-05-20 - single-node k3s kine sqlite under load can
           # take >10s on a `PUT /apis/coordination.k8s.io/v1/.../leases/kyverno`
           # request. Default retryPeriod=2s + renewDeadline=10s (client-go
           # default, not configurable in kyverno 1.17.1) means the renewal
-          # gets queued behind admission-load → context deadline exceeded
-          # → "leadership lost, stopped leading" → graceful exit 0 → kubelet
+          # gets queued behind admission-load, so the context deadline is exceeded,
+          # so it logs "leadership lost, stopped leading", then a graceful exit 0, then kubelet
           # restart. Observed: 177 restarts over 4d10h (~36min cycle, exit 0).
-          # Bumping retryPeriod 2s→10s reduces renewal churn (fewer in-flight
+          # Bumping retryPeriod from 2s to 10s reduces renewal churn (fewer in-flight
           # attempts competing with admission webhooks) and gives slack on
           # the apiserver. replicas=1 + forceFailurePolicyIgnore=true means
           # the brief webhook gap during the still-eventual restart is
           # tolerated. Kyverno chart 3.7.1 doesn't expose a disable-leader-
-          # election flag — RetryPeriod is the only knob.
+          # election flag - RetryPeriod is the only knob.
           extraArgs:
             leaderElectionRetryPeriod: 10s
         # Probes tuned for kine-bound cold-start (CEL engine warm-up + policy
-        # tree hydration). Field-stabilised 2026-04-28 — flat restart count.
+        # tree hydration). Field-stabilised 2026-04-28 - flat restart count.
         livenessProbe:
           httpGet: { path: /health/liveness, port: 9443, scheme: HTTPS }
           initialDelaySeconds: 120
@@ -99,13 +99,13 @@ helmCharts:
           timeoutSeconds: 15
           failureThreshold: 30
         priorityClassName: system-cluster-critical
-        # ServiceMonitor disabled at bootstrap — Prometheus Operator (CRD
+        # ServiceMonitor disabled at bootstrap - Prometheus Operator (CRD
         # source) installs in atom-obs-stack AFTER phase-base. Re-apply this
         # component once monitoring.coreos.com/v1 is Established to enable
         # scrape (or rely on the apply-component retry loop on second apply).
         serviceMonitor:
           enabled: false
-      # Background / cleanup / reports controllers disabled — they only
+      # Background / cleanup / reports controllers disabled - they only
       # reconcile existing PolicyReport / generated resources, which there
       # are none of on a fresh cluster. Chart rejects replicas:0 explicitly
       # ("Kyverno does not support running with 0 replicas"), so use enabled:
@@ -119,13 +119,12 @@ helmCharts:
         enabled: false
       policyReports:
         enabled: true
-      # ---------------------------------------------------------------------------
       # kyverno-api subchart (CRDs in policies.kyverno.io v1beta1 group) ships
       # `annotations: {}` and `labels: {}` in its values.yaml. The CRD templates
       # render via `{{- include "kyverno-api.labels" . | nindent 4 }}` which
       # `toYaml`s the empty map to literal `{}`. K8s server-side apply then
       # normalizes the `{}` to absent/null on persist, and ArgoCD's diff engine
-      # sees `{}` (rendered) vs absent (live) for every CRD → 9 OutOfSync rows
+      # sees `{}` (rendered) vs absent (live) for every CRD, causing 9 OutOfSync rows
       # on platform-security forever. Populating non-empty values means the
       # chart renders real label/annotation entries that survive the K8s
       # round-trip. Keys chosen are stable and side-effect-free (no sync-wave,

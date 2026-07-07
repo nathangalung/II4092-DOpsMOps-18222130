@@ -3,35 +3,32 @@ kind: ConfigMap
 metadata:
   name: pipeline-config
 data:
-  # =========================================================================
   # FEATURE ENGINEERING CONFIGURATION
-  # =========================================================================
   # Feature NAMES are defined in schema.yaml (single source of truth).
   # This file configures HOW features are computed (parameters, thresholds).
-  # =========================================================================
 
-  # FEATURES_COLUMNS is defined ONCE in schema.yaml — it is the GE-analyzer query
+  # FEATURES_COLUMNS is defined ONCE in schema.yaml - it is the GE-analyzer query
   # target and MUST list only columns that exist on gold.fct_training_data
   # (FEATURES_TABLE). The full 38-col real-time stream list lives in schema.yaml
   # as STREAM_FEATURES_ALL (those are bronze.crypto_ohlcv_features columns, NOT
   # gold). Do NOT redefine FEATURES_COLUMNS here: this file configures HOW
   # features are computed, not the gold-table column contract. Redefining it
   # here previously overrode schema.yaml (later in kustomize file-order) and made
-  # the analyzer query non-existent gold columns (ema_12, rsi_14, …) → Code:47.
+  # the analyzer query non-existent gold columns (ema_12, rsi_14, …), causing Code:47.
 
-  # --- Feast online features (subset for real-time serving) ---
+  # Feast online features (subset for real-time serving)
   # Must be a subset of GOLD_OHLCV_FEATURES in schema.yaml
   FEAST_LATEST_FEATURES: "close,volume,sma_20,sma_50,return_1h,return_24h,volatility_24h"
 
-  # --- Vector similarity ---
+  # Vector similarity
   SIMILARITY_RETURN_FIELD: "return_24h"
 
-  # --- Flink stream processing parameters ---
+  # Flink stream processing parameters
   # Flink is the SINGLE crypto stream processor (ADR speed-layer; thesis
   # SK-F-11/KF-11 name "stream (Flink)"). These knobs define the emitted feature
   # set so it matches the 20-key bronze.crypto_ohlcv_features contract exactly.
   # Periods are LOAD-BEARING for the column NAMES (rolling_mean_{p}/
-  # rolling_ema_{p}/momentum_{p}) — keep 7,14 / 12,26 / 14 in lockstep with
+  # rolling_ema_{p}/momentum_{p}) - keep 7,14 / 12,26 / 14 in lockstep with
   # init_clickhouse.sql.
   PRIMARY_VALUE_FIELD: "close"
   SECONDARY_VALUE_FIELD: "volume"
@@ -45,6 +42,6 @@ data:
   FLINK_DISPERSION_PERIOD: "14"
   FLINK_SECONDARY_AVG_PERIOD: "20"
   # MACD signal line period (standard 9). The Flink stream computes a real
-  # stateful EMA-9 of the MACD line for trend_signal/trend_hist — the corrected
+  # stateful EMA-9 of the MACD line for trend_signal/trend_hist - the corrected
   # form vs the legacy convergence*0.2 approximation (see ADR).
   FLINK_MACD_SIGNAL_PERIOD: "9"

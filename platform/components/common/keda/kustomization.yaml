@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# KEDA 2.19.0 — Kubernetes Event-Driven Autoscaling (ADR-012/022/026).
+# KEDA 2.19.0 - Kubernetes Event-Driven Autoscaling (ADR-012/022/026).
 #
 # Rendered via `kustomize build --enable-helm` (apply-component.sh) and
 # applied with `kubectl apply --server-side --force-conflicts`. Server-side
@@ -9,7 +9,7 @@ kind: Kustomization
 # ications, clustertriggerauthentications, cloudeventsources CRDs whose
 # schemas exceed the 256KB annotation limit.
 #
-# Sole custom-metric APIServer on the cluster — owns both
+# Sole custom-metric APIServer on the cluster - owns both
 # `custom.metrics.k8s.io` and `external.metrics.k8s.io` registrations
 # (prometheus-adapter retired by ADR-026, 2026-04-21). ScaledObjects live
 # with the workloads they target (data-ingestion, data-processing,
@@ -29,7 +29,7 @@ helmCharts:
       # Helm chart default `imagePullPolicy: Always` triggers a manifest
       # HEAD against ghcr.io on every restart, so a transient DNS blip
       # (`lookup ghcr.io: Try again`) flips a cached pod into
-      # ImagePullBackOff and never recovers — observed restartCount=89
+      # ImagePullBackOff and never recovers - observed restartCount=89
       # while the image was already on disk.  Force IfNotPresent so the
       # cached layer is reused; phase-full bumps the chart version
       # explicitly when KEDA upgrades.
@@ -42,7 +42,7 @@ helmCharts:
       image:
         pullPolicy: IfNotPresent
       operator:
-        # Scaled-to-zero by default — opt-in via
+        # Scaled-to-zero by default - opt-in via
         # `kubectl scale -n keda deploy keda-operator --replicas=1` once
         # ScaledObjects need reconciliation.
         replicaCount: 1
@@ -82,7 +82,7 @@ helmCharts:
       # latency spike (1-3s observed on 185MB state.db single-node k3s),
       # churning ~220 restarts with `leader election lost`. Chart template
       # hardcodes the `--leader-elect` arg with no toggle, so we strip it via
-      # the JSON patch below (single-replica → LE adds zero safety).
+      # the JSON patch below (single-replica means LE adds zero safety).
 
 resources:
   - namespace.yaml

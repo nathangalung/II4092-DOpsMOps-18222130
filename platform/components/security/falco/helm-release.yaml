@@ -1,24 +1,21 @@
-# =============================================================================
-# Falco 0.43.1 (2026-02-18) — Runtime Security for Kubernetes (CNCF graduated)
-# =============================================================================
+# Falco 0.43.1 (2026-02-18) - Runtime Security for Kubernetes (CNCF graduated)
 # ADR-014 / KNF-09.  Falco is the de-facto runtime security layer for
 # Kubernetes: it watches syscalls via eBPF and emits structured alerts on
 # "suspicious" behaviour (shell in a container, mount of /proc, unexpected
 # outbound connection, privileged exec, etc).  Pairs with Kyverno
 # (admission-time) for defence-in-depth:
 #
-#     Kyverno        — blocks non-compliant YAML at kube-apiserver
-#     Falco          — detects compliant YAML that becomes non-compliant at
+#     Kyverno - blocks non-compliant YAML at kube-apiserver
+#     Falco - detects compliant YAML that becomes non-compliant at
 #                      RUNTIME (e.g. an image that drops a malicious binary
 #                      after passing Cosign verification)
-#     Falcosidekick  — fan-out alerts to Alertmanager + Loki (Loki's object
+#     Falcosidekick - fan-out alerts to Alertmanager + Loki (Loki's object
 #                      store is MinIO, so events land in MinIO via Loki)
 #
 # Driver choice: `modern_ebpf` (CO-RE eBPF), which needs no kernel headers
 # and works on every k3s node the platform targets (kernel >= 5.8).
-# Legacy `kmod` driver is explicitly disabled — it requires kernel headers
+# Legacy `kmod` driver is explicitly disabled - it requires kernel headers
 # on every node and breaks air-gapped upgrades.
-# =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -48,11 +45,11 @@ spec:
         image:
           repository: falcosecurity/falco
           tag: 0.43.1
-        # ----- driver -----
+        # driver
         driver:
           enabled: true
           kind: modern-bpf       # CO-RE eBPF; no kernel headers required.
-        # ----- Falco itself -----
+        # Falco itself
         falco:
           json_output: true
           json_include_output_property: true
@@ -68,7 +65,7 @@ spec:
           stdout_output: { enabled: true }
           # Outputs queued in-memory to survive brief sidekick outages.
           outputs: { rate: 1, max_burst: 1000 }
-          # ----- rule files -----
+          # rule files
           # Loading order matters: earlier files define macros reused later.
           rules_files:
             - /etc/falco/falco_rules.yaml
@@ -79,9 +76,7 @@ spec:
         # Custom platform rules (ADR-014 §Runtime-Detection).
         customRules:
           platform-rules.yaml: |
-            # ----------------------------------------------------------------
             # Platform-specific rules layered on top of upstream defaults.
-            # ----------------------------------------------------------------
             - macro: platform_sensitive_ns
               condition: (k8s.ns.name in (security, storage, gitops, model-lifecycle))
             - rule: Exec into sensitive namespace
@@ -113,7 +108,7 @@ spec:
           limits:   { cpu: 1000m, memory: 1Gi }
         # falcoctl ships as an init container (rule-install) + sidecar
         # (rule-follow). Chart 8.x leaves their resources empty, which
-        # Kyverno require-resource-limits (Deny) rejects — set them here.
+        # Kyverno require-resource-limits (Deny) rejects - set them here.
         falcoctl:
           artifact:
             install:
@@ -138,14 +133,14 @@ spec:
         tolerations:
           - operator: Exists        # run on every node, including tainted CP
         priorityClassName: system-node-critical
-        # ----- falcosidekick sidecar (built-in from chart 4.x+) -----
+        # falcosidekick sidecar.
         falcosidekick:
           enabled: true
           replicaCount: 1
           image:
             repository: falcosecurity/falcosidekick
             tag: 2.32.0
-          # Main sidekick deployment resources — chart default is `{}` which
+          # Main sidekick deployment resources - chart default is `{}` which
           # Kyverno require-resource-limits (Deny) rejects.
           resources:
             requests: { cpu: 50m,  memory: 64Mi }
@@ -155,17 +150,17 @@ spec:
             # (falco-sidekick-outputs). When `existingSecret` is set the
             # falcosidekick subchart STILL renders its own Secret with the
             # full ~384-key env set, but every value is the chart default
-            # (all empty — verified live 2026-06-11, every output key
+            # (all empty - verified live 2026-06-11, every output key
             # length 0): any `config.<output>.*` values written here are
             # silently dropped from the render. The Deployment's envFrom
             # lists the chart Secret first and the existingSecret second,
             # and Kubernetes gives the LAST source precedence on key
-            # collisions — so the Secret below is authoritative. The outputs
+            # collisions - so the Secret below is authoritative. The outputs
             # that used to sit here (alertmanager/loki/prometheus) now
             # live in that Secret as canonical FALCOSIDEKICK env names.
             existingSecret: falco-sidekick-outputs
           # webui DISABLED (2026-05-29): the bundled redis/redis-stack StatefulSet
-          # OOM/RDB-thrashed on the single-disk node (451 restarts — persisted dump
+          # OOM/RDB-thrashed on the single-disk node (451 restarts - persisted dump
           # reload + BGSAVE loop saturating sda). The UI is redundant: every alert
           # already fans out to Loki (Grafana visualises) and Alertmanager per
           # the Secret below. Disabling drops a chronically-broken component AND
@@ -179,7 +174,7 @@ spec:
               tag: 2.3.0
             # Chart 8.x expects an OBJECT (registry/repository/tag) for
             # `webui.redis.image`; chart default `redis/redis-stack:7.2.0-v11`
-            # is kept — overriding with the plain `redis:` image breaks the
+            # is kept - overriding with the plain `redis:` image breaks the
             # init container schema and prior releases had a string here.
             # Resources must be set on BOTH webui & the redis sidecar so
             # Kyverno require-resource-limits admits the pod.
@@ -212,7 +207,7 @@ spec:
       # Deployment + its redis StatefulSet from the rendered desired state.
       # With prune:false ArgoCD leaves those orphans running (the 451-restart
       # redis keeps thrashing); prune:true lets the next sync delete them.
-      # selfHeal stays false — single-node tuning may still hand-tweak the
+      # selfHeal stays false - single-node tuning may still hand-tweak the
       # falco DaemonSet without Argo reverting it.
       prune: true
       selfHeal: false
@@ -226,23 +221,21 @@ spec:
       backoff: { duration: 10s, factor: 2, maxDuration: 5m }
   revisionHistoryLimit: 10
 ---
-# =============================================================================
 # falcosidekick FULL output configuration (the helm values `config:` block is
-# inert once `existingSecret` is set — see comment there). Keys are the
-# canonical FALCOSIDEKICK env names (yaml path uppercased, dots → underscores:
-# `loki.hostPort` → LOKI_HOSTPORT); the Deployment envFrom-mounts this Secret.
+# inert once `existingSecret` is set - see comment there). Keys are the
+# canonical FALCOSIDEKICK env names (yaml path uppercased, dots become underscores:
+# `loki.hostPort` becomes LOKI_HOSTPORT); the Deployment envFrom-mounts this Secret.
 # Plain Secret, NOT an ExternalSecret: every value here is static in-cluster
 # wiring with zero credential material, and ESO's validating webhook rejects
 # an ExternalSecret without data/dataFrom remote refs. The only remote ref
 # this ever held was the MinIO keypair for the AWSS3 output, which is
 # intentionally DISABLED: falcosidekick ≤2.33.0 UploadS3 discards the
 # endpoint-resolver client when AWS_S3_ENDPOINT is set (zero-value s3.Client
-# → nil-deref panic in retry middleware → CrashLoopBackOff). The fix landed
+# causes a nil-deref panic in retry middleware, so CrashLoopBackOff). The fix landed
 # in 2.34.0 (2026-05-25), past the April-2026 version cap. Raw event archival
 # is covered by the Loki output (Loki object store is MinIO). Kept a Secret
 # (not ConfigMap) because the falcosidekick chart's `existingSecret` mounts
 # via envFrom.secretRef.
-# =============================================================================
 apiVersion: v1
 kind: Secret
 metadata:
@@ -253,15 +246,15 @@ metadata:
     app.kubernetes.io/component: falco
 type: Opaque
 stringData:
-  # --- Prometheus /metrics extra labels ---
+  # Prometheus /metrics extra labels
   PROMETHEUS_EXTRALABELS: "cluster:platform"
-  # --- Alertmanager ---
+  # Alertmanager
   ALERTMANAGER_HOSTPORT: "http://kube-prometheus-stack-alertmanager.observability.svc.cluster.local:9093"
   # falcosidekick's default endpoint is /api/v1/alerts, but Alertmanager >=0.27
-  # removed the v1 API (returns 410 Gone) — v2 is the only alerts API.
+  # removed the v1 API (returns 410 Gone) - v2 is the only alerts API.
   ALERTMANAGER_ENDPOINT: "/api/v2/alerts"
   ALERTMANAGER_MINIMUMPRIORITY: "notice"
-  # --- Loki (Grafana visualises; tenant isolates falco streams) ---
+  # Loki (Grafana visualises; tenant isolates falco streams)
   LOKI_HOSTPORT: "http://loki.observability.svc.cluster.local:3100"
   LOKI_TENANT: "falco"
   LOKI_MINIMUMPRIORITY: "notice"
@@ -281,14 +274,12 @@ metadata:
     # Istio sidecar breaks the eBPF probe reload path; skip injection.
     istio-injection: disabled
 ---
-# =============================================================================
-# PolicyException — exempt the Falco DaemonSet pods from disallow-privileged.
+# PolicyException - exempt the Falco DaemonSet pods from disallow-privileged.
 # Falco MUST run privileged to load its CO-RE eBPF probe and read kernel
 # tracepoints from /proc, /sys.  Scope matches ONLY pods with
-# `app.kubernetes.io/name=falco` in the falco namespace — the sidekick
+# `app.kubernetes.io/name=falco` in the falco namespace - the sidekick
 # Deployment (labelled `falcosidekick`) and the falcosidekick-ui redis
 # StatefulSet do NOT need privileged and must still pass the policy.
-# =============================================================================
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:

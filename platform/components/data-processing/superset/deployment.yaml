@@ -13,9 +13,7 @@ spec:
       port: 8088
       targetPort: 8088
 ---
-# =============================================================================
-# Superset runtime secrets — OpenBao-sourced (ADR-008)
-# =============================================================================
+# Superset runtime secrets - OpenBao-sourced (ADR-008)
 # Replaces the previously hard-coded `platform123` Postgres password and the
 # "change-me" Flask SECRET_KEY literal embedded in superset_config.py.
 #
@@ -24,9 +22,8 @@ spec:
 # `postgresql-app` Secret) + the CNPG bootstrap DB `superset`.  Hostname
 # uses the CNPG read/write service (-rw) so that Superset always reaches
 # the current primary, not a replica.  The `postgres` superuser is
-# intentionally off-limits — CNPG defaults `enableSuperuserAccess: false`
+# intentionally off-limits - CNPG defaults `enableSuperuserAccess: false`
 # so only the `platform` owner role has usable password auth.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -124,15 +121,15 @@ spec:
           #
           # Drivers installed (all platform-resident backends so Superset is
           # usable for any use-case without further extension):
-          #   * psycopg2-binary       — Postgres (Superset metastore + CNPG
+          #   * psycopg2-binary - Postgres (Superset metastore + CNPG
           #                              app DB + MLflow tracking schema)
-          #   * clickhouse-connect    — direct ClickHouse access (time-series
+          #   * clickhouse-connect - direct ClickHouse access (time-series
           #                              / feature tables; faster than going
           #                              through Trino for narrow scans)
-          #   * trino                 — federated catalog (Iceberg / Postgres
+          #   * trino - federated catalog (Iceberg / Postgres
           #                              / ClickHouse joins on the data
           #                              lakehouse via lakekeeper)
-          #   * pymysql               — MySQL (Kong/Kuma metastore, opencost
+          #   * pymysql - MySQL (Kong/Kuma metastore, opencost
           #                              postgres-mirror replicas); pure
           #                              python so no -dev build deps.
           image: apache/superset:6.0.0
@@ -177,7 +174,7 @@ spec:
                   # dep resolves to SQLAlchemy 2.x and overrides the base image's
                   # 1.4.x via PYTHONPATH=/extra-libs, breaking
                   #   from sqlalchemy.orm import eagerload  (removed in 2.0)
-                  # → superset CLI crashes at import time, pod Init:Error loop.
+                  # so superset CLI crashes at import time, pod Init:Error loop.
                   "sqlalchemy>=1.4,<2",
                   "psycopg2-binary>=2.9,<3",
                   "clickhouse-connect>=0.8,<1",
@@ -299,7 +296,7 @@ spec:
               path: /health
               port: 8088
             periodSeconds: 30
-            # Liveness kills on failure (exit 137 reason=Error) — the cause of
+            # Liveness kills on failure (exit 137 reason=Error) - the cause of
             # the 37-restart loop. 5s timeout × default 3 failures = 90s grace.
             timeoutSeconds: 5
       volumes:

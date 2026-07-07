@@ -14,10 +14,10 @@ import java.util.Properties;
  *
  * <p>Two construction paths:
  * <ul>
- *   <li>{@code (bootstrapServers, topic)} — minimal, AT_LEAST_ONCE, no auth.
+ *   <li>{@code (bootstrapServers, topic)} - minimal, AT_LEAST_ONCE, no auth.
  *       Used by unit tests and PLAINTEXT dev clusters.</li>
  *   <li>{@code (bootstrapServers, topic, producerConfig, transactionalIdPrefix)}
- *       — production path. {@code producerConfig} carries the client security
+ * - production path. {@code producerConfig} carries the client security
  *       properties (SASL_SSL / SCRAM / PEM truststore) and tuning such as
  *       {@code transaction.timeout.ms}. A non-empty {@code transactionalIdPrefix}
  *       switches the sink to EXACTLY_ONCE (two-phase commit on Flink checkpoints);
@@ -43,7 +43,7 @@ public class KafkaSinkFactory {
         this.bootstrapServers = Objects.requireNonNull(bootstrapServers, "bootstrapServers");
         this.topic = Objects.requireNonNull(topic, "topic");
         this.producerConfig = (producerConfig == null) ? new Properties() : producerConfig;
-        // Empty / null prefix ⇒ no transactions ⇒ AT_LEAST_ONCE.
+        // Empty / null prefix means no transactions, so AT_LEAST_ONCE.
         this.transactionalIdPrefix =
             (transactionalIdPrefix == null || transactionalIdPrefix.isEmpty()) ? null : transactionalIdPrefix;
     }
@@ -65,7 +65,7 @@ public class KafkaSinkFactory {
             // successful Flink checkpoint. Downstream ClickHouse Kafka-engine
             // consumers read committed (librdkafka default isolation.level=
             // read_committed), so aborted/in-flight transactions never reach
-            // the bronze table — end-to-end exactly-once on the durable path.
+            // the bronze table - end-to-end exactly-once on the durable path.
             builder.setDeliveryGuarantee(DeliveryGuarantee.EXACTLY_ONCE)
                    .setTransactionalIdPrefix(transactionalIdPrefix);
         } else {

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# preflight.sh — verify required tools + kubectl context
-# =============================================================================
+# preflight.sh - verify required tools + kubectl context
 set -euo pipefail
 
 PASS=0

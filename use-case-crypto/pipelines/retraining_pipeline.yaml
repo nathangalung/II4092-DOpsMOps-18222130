@@ -1,6 +1,6 @@
 # PIPELINE DEFINITION
 # Name: crypto-retraining-pipeline
-# Description: Drift detection → FLAML AutoML → MLflow → KServe. Model selection controlled via FLAML_ESTIMATOR_LIST config.
+# Description: Drift detection then FLAML AutoML then MLflow then KServe. Model selection controlled via FLAML_ESTIMATOR_LIST config.
 # Inputs:
 #    clickhouse_db: str [Default: 'gold']
 #    clickhouse_host: str [Default: 'clickhouse-platform.storage.svc.cluster.local']

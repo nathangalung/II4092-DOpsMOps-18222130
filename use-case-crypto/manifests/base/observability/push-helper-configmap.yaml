@@ -1,6 +1,4 @@
-# =============================================================================
-# PUSH-HELPER ConfigMap — Prometheus Pushgateway emitter for crypto batch jobs
-# =============================================================================
+# PUSH-HELPER ConfigMap - Prometheus Pushgateway emitter for crypto batch jobs
 # Reusable scripts mounted by every short-lived crypto job (CronJob, Tekton
 # task, Airflow KubernetesPodOperator, dbt run-operation) so each one emits
 # its outcome to the platform Pushgateway when it exits.
@@ -8,7 +6,7 @@
 # Why Pushgateway?
 #   Prometheus scrape model assumes long-running endpoints. Short-lived
 #   crypto batch work (cronjobs every 5 min / dbt mart compile / Tekton
-#   finally hook) dies before the next scrape window — without an
+#   finally hook) dies before the next scrape window - without an
 #   intermediate push, those runs are invisible to alerting / SLOs.
 #   Pushgateway buffers metrics until the next scrape reaches it.
 #
@@ -23,7 +21,7 @@
 #   push_metrics.py       PEP 723 inline-script for callers that already
 #                         have python + uv (Airflow KubernetesPodOperator,
 #                         retrain-on-drift, vector-embedding). Pure stdlib
-#                         (urllib) — no pip / no requests dependency.
+#                         (urllib) - no pip / no requests dependency.
 #
 # Domain-agnostic shape: every metric is grouped
 #   {use_case="crypto", job="<job>"}
@@ -34,9 +32,8 @@
 # Grouping key deliberately EXCLUDES the pod name: Pushgateway groups are
 # immortal (no TTL), so keying on a per-run pod name leaks one group per
 # fire (288/day for a */5 cron) until the gateway restarts. A stable
-# {job, use_case} key makes each push REPLACE the previous run — exactly
+# {job, use_case} key makes each push REPLACE the previous run - exactly
 # the `crypto_job_last_*` semantics the metric names promise.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,7 +43,6 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
     mlops-platform.io/use-case: crypto
 data:
-  # ---------------------------------------------------------------------------
   # POSIX-sh helper. Works in alpine (curl preinstalled in most platform
   # images; falls back to wget) and debian-trixie (curl preinstalled in
   # the astral uv image used by retrain-on-drift).
@@ -60,15 +56,14 @@ data:
   #
   # Env-var contract (set by the workload):
   #   PUSHGATEWAY_URL     default http://pushgateway.observability.svc.cluster.local:9091
-  #   JOB_NAME            REQUIRED — pushgateway job label
-  #   INSTANCE            optional extra grouping key — default EMPTY so each
+  #   JOB_NAME            REQUIRED - pushgateway job label
+  #   INSTANCE            optional extra grouping key - default EMPTY so each
   #                       run replaces the last (per-pod values leak immortal
   #                       Pushgateway groups; see header)
   #   USE_CASE            default "crypto"
-  #   ROWS_FILE           optional — path to a file the workload writes
+  #   ROWS_FILE           optional - path to a file the workload writes
   #                       with `rows_ingested=N` lines; sourced into the
   #                       payload to expose ingestion counts.
-  # ---------------------------------------------------------------------------
   push_job_metrics.sh: |
     #!/bin/sh
     # shellcheck shell=sh
@@ -100,9 +95,9 @@ data:
       _payload="$1"
       _url="${PUSHGATEWAY_URL}/metrics/job/${JOB_NAME}/use_case/${USE_CASE}"
       [ -n "${INSTANCE}" ] && _url="${_url}/instance/${INSTANCE}"
-      # printf '%s\n' — $(...) strips the heredoc's trailing newline and
+      # printf '%s\n' - $(...) strips the heredoc's trailing newline and
       # Pushgateway's text parser hard-rejects a body that doesn't end in
-      # one ("unexpected end of input stream" → HTTP 400, metrics dropped).
+      # one ("unexpected end of input stream", so HTTP 400, metrics dropped).
       if command -v curl >/dev/null 2>&1; then
         printf '%s\n' "${_payload}" | curl -fsS --max-time 10 \
           --data-binary @- "${_url}" \
@@ -135,7 +130,7 @@ data:
       _dur=$((_end - _start))
       _rows=0
       if [ -f "${ROWS_FILE}" ]; then
-        # File format: lines of `key=value` — pick rows_ingested. Falls back
+        # File format: lines of `key=value` - pick rows_ingested. Falls back
         # to 0 if absent.
         _rows=$(grep -E '^rows_ingested=' "${ROWS_FILE}" 2>/dev/null \
                 | tail -1 | cut -d= -f2 | tr -dc '0-9')
@@ -146,7 +141,7 @@ data:
       return ${_rc}
     }
 
-    # push_only <rc> [rows] — for callers that have already run the work and
+    # push_only <rc> [rows] - for callers that have already run the work and
     # only need to emit. Duration is the time since this script was sourced.
     : "${PUSH_HELPER_START:=$(date +%s)}"
     export PUSH_HELPER_START
@@ -159,13 +154,11 @@ data:
       _post_pushgateway "${_payload}"
     }
 
-  # ---------------------------------------------------------------------------
-  # Python PEP 723 inline-script — same shape, used by callers that already
+  # Python PEP 723 inline-script - same shape, used by callers that already
   # have python+uv (DAG tasks, retrain-on-drift). Pure stdlib.
   #
   # Invocation:
   #   uv run /scripts/push_metrics.py --job <name> --rc <rc> [--rows N]
-  # ---------------------------------------------------------------------------
   push_metrics.py: |
     # /// script
     # requires-python = ">=3.13"
@@ -195,7 +188,7 @@ data:
             f"crypto_job_last_success {success}",
             "# TYPE crypto_job_rows_ingested gauge",
             f"crypto_job_rows_ingested {rows}",
-            "",  # trailing newline — pushgateway is strict about it
+            "",  # trailing newline - pushgateway is strict about it
         ]
         return "\n".join(lines).encode("utf-8")
 
@@ -223,7 +216,7 @@ data:
             default=0,
             help="wall-clock duration seconds (0 = use START env)",
         )
-        # Empty default on purpose — a per-pod instance value would key a new
+        # Empty default on purpose - a per-pod instance value would key a new
         # immortal Pushgateway group every run (see ConfigMap header).
         parser.add_argument(
             "--instance",

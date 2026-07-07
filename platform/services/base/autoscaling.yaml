@@ -1,9 +1,7 @@
-# =============================================================================
-# Platform template — plain CPU/memory HPAs only (domain-agnostic).
-# =============================================================================
+# Platform template - plain CPU/memory HPAs only (domain-agnostic).
 # ADR-022 + ADR-026 retired every HPA that depended on prometheus-adapter:
-#   - feature-engine-hpa   (was `External kafka_consumer_lag`) → KEDA kafka trigger
-#   - gateway-hpa          (was `Pods http_requests_per_second`) → KEDA prometheus trigger
+#   - feature-engine-hpa   (was `External kafka_consumer_lag`), now KEDA kafka trigger
+#   - gateway-hpa          (was `Pods http_requests_per_second`), now KEDA prometheus trigger
 # Live use cases declare their own KEDA ScaledObjects with use-case-
 # specific topic names / consumer groups / thresholds that cannot be
 # templated here (the platform knows nothing about any concrete topic).
@@ -12,7 +10,6 @@
 # stamp a new use case, add `scaling/scaledobjects.yaml` under your
 # overlay (`use-case-<name>/manifests/base/`) with your own kafka topics
 # and Prometheus queries.
-# =============================================================================
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -52,7 +49,7 @@ spec:
           value: 50
           periodSeconds: 120
 ---
-# feature-engine + gateway HPAs removed — scaling is KEDA-driven
+# feature-engine + gateway HPAs removed - scaling is KEDA-driven
 # (ADR-022 / ADR-026). See the header comment above for the rationale.
 ---
 apiVersion: autoscaling/v2
@@ -113,18 +110,15 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
 ---
-# =============================================================================
-# PodDisruptionBudgets — one per long-running Deployment
-# =============================================================================
+# PodDisruptionBudgets - one per long-running Deployment
 # `maxUnavailable: 1` is the platform default. Idle workloads run at
 # replicas=1 (single-node k3s), so any `minAvailable: 1` PDB would block
 # `kubectl drain` and node maintenance. `maxUnavailable: 1` correctly
-# permits a single eviction at idle (1/1 → 0) and at HPA-scaled load
-# (e.g. 5/5 → 4/5) — kubelet then reschedules.
+# permits a single eviction at idle (1/1 to 0) and at HPA-scaled load
+# (e.g. 5/5 to 4/5) - kubelet then reschedules.
 # CronJob pods (which reuse the same `app:` label on some services) are
 # excluded via `matchExpressions: [key: type, operator: DoesNotExist]` where
 # ambiguity exists (see rest-collector).
-# =============================================================================
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

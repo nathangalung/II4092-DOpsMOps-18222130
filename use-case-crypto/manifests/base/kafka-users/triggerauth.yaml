@@ -1,13 +1,10 @@
-# =============================================================================
-# KEDA TriggerAuthentication — SCRAM creds for crypto kafka scalers
-# =============================================================================
+# KEDA TriggerAuthentication - SCRAM creds for crypto kafka scalers
 # `keda-operator` runs in the `keda` namespace but reads
 # TriggerAuthentication + secret from the workload's namespace
 # (use-case-crypto). The KafkaUser secret originates in `data-ingestion`
 # (Strimzi User Operator emits it there); `external-secrets.yaml` mirrors it
 # into this namespace as `crypto-keda-consumer` via a `kubernetes`
 # ClusterSecretStore that reads from `data-ingestion/crypto-keda-consumer`.
-# =============================================================================
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
@@ -17,7 +14,7 @@ metadata:
     app.kubernetes.io/part-of: mlops-platform
     usecase: crypto
 spec:
-  # `sasl` and `tls` parameters are NOT bound here — KEDA's ScaledObject
+  # `sasl` and `tls` parameters are NOT bound here - KEDA's ScaledObject
   # metadata fields (`sasl: scram_sha512`, `tls: enable`) carry the right
   # enum values directly, and Strimzi writes the dash-form `scram-sha-512`
   # which collides with KEDA's underscore enum if injected via secretTargetRef.

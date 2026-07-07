@@ -1,6 +1,4 @@
-# =============================================================================
 # use-case-crypto :: Stream-processing FlinkDeployment (Apache Flink Operator)
-# =============================================================================
 # Canonical speed-layer for the crypto use case. The Flink Kubernetes Operator
 # (platform/components/data-processing/flink/flink-operator.yaml, cluster-wide
 # watch) reconciles this application-mode FlinkDeployment and submits the
@@ -8,28 +6,28 @@
 #
 # WHY FLINK OWNS THE SPEED LAYER (vs the legacy Rust feature-engine):
 #   - one engine for the entire streaming feature path (no second bespoke
-#     consumer to operate/observe/scale) — "every tool a non-overlapping job"
-#   - exactly-once Kafka→Kafka with Flink-managed transactions + RocksDB state
+#     consumer to operate/observe/scale) - "every tool a non-overlapping job"
+#   - exactly-once Kafka-to-Kafka with Flink-managed transactions + RocksDB state
 #     checkpointed to MinIO (feature-engine had at-most-once, no replayable
-#     state) — showcases k8s/operator strength over a plain Deployment
+#     state) - showcases k8s/operator strength over a plain Deployment
 #   - declarative lifecycle: savepoint-triggered upgrades, HA via K8s leases,
 #     reconcile loop, first-party app-mode job submission
 #   - lineage to DataHub (OpenLineage) + uniform Prometheus metrics (port 9249)
 #
 # DOMAIN-AGNOSTIC SPLIT (platform stays crypto-blind):
-#   The platform StreamJob is a generic harness — it wires N streams purely
+#   The platform StreamJob is a generic harness - it wires N streams purely
 #   from env (ENABLED_STREAMS + STREAM_<NAME>_* keys). ALL crypto specifics
 #   (which topic, which feature function, which sink, the online-cache key
 #   prefix) live in this use-case file's podTemplate env + the inherited
 #   pipeline-config (configmaps/features.yaml supplies the FLINK_* indicator
 #   knobs). A new use case copies use-case-crypto/, edits these env values, and
-#   reuses the same platform image — zero platform edits.
+#   reuses the same platform image - zero platform edits.
 #
 # DUAL SINK (lambda speed layer):
 #   1. Kafka  crypto.features.v1  (EXACTLY_ONCE, txn id prefix crypto.flink-*)
-#      → ClickHouse bronze via the Kafka engine table (init_clickhouse.sql),
-#        and the batch↔stream parity oracle (experiments/, SK-F-11/KF-11).
-#   2. Valkey features:{symbol}   (online low-latency cache for serving) —
+#      to ClickHouse bronze via the Kafka engine table (init_clickhouse.sql),
+#        and the batch and stream parity oracle (experiments/, SK-F-11/KF-11).
+#   2. Valkey features:{symbol}   (online low-latency cache for serving) -
 #      enabled by STREAM_TIME_SERIES_KEY_PREFIX; StreamJob emits a side-output
 #      to the Lettuce RedisSink keyed by the JSON `symbol` field.
 #
@@ -43,13 +41,12 @@
 #   `make usecase-crypto-build`; IfNotPresent silently ran a stale jar).
 #
 # SECRET PLUMBING (ExternalSecret is namespace-scoped, so replicated here):
-#   flink-s3-secret  → MinIO checkpoint/HA creds (platform/minio/root)
-#   pipeline-config  → KAFKA_BROKERS + FLINK_* knobs (inherited, prefixed)
-#   pipeline-secrets → VALKEY_PASSWORD, CLICKHOUSE_*, AWS/S3 (raw target.name)
-#   crypto-app-consumer → KAFKA_SASL_USERNAME/_PASSWORD + ca.crt (SCRAM/TLS)
-# =============================================================================
+#   flink-s3-secret  maps to MinIO checkpoint/HA creds (platform/minio/root)
+#   pipeline-config  maps to KAFKA_BROKERS + FLINK_* knobs (inherited, prefixed)
+#   pipeline-secrets maps to VALKEY_PASSWORD, CLICKHOUSE_*, AWS/S3 (raw target.name)
+#   crypto-app-consumer maps to KAFKA_SASL_USERNAME/_PASSWORD + ca.crt (SCRAM/TLS)
 ---
-# --- Flink SA + RBAC — the operator runs the JM/TM pods under this SA in the
+# Flink SA + RBAC - the operator runs the JM/TM pods under this SA in the
 #     namespace the FlinkDeployment lives in. namePrefix renames it to
 #     `crypto-flink`; the FlinkDeployment.spec.serviceAccount reference is
 #     rewritten in lockstep by the nameReference rule in kustomize-config.
@@ -71,10 +68,10 @@ metadata:
 # Verbs required by Flink-native Kubernetes application-mode RM:
 #   - configmaps: HA lease persistence + JM<->TM config exchange
 #   - pods: full CRUD because the JM directly drives TM pod lifecycle (no
-#     Deployment controller in between — it's an "ActiveResourceManager")
+#     Deployment controller in between - it's an "ActiveResourceManager")
 #   - services: create JM REST + RPC ClusterIPs at startup
 #   - events: emit operator-visible events (optional but expected)
-#   - deployments.apps: GET only — JM reads its own Deployment to derive the
+#   - deployments.apps: GET only - JM reads its own Deployment to derive the
 #     owner reference stamped on every TM pod (so they GC when the JM is gone)
 #   - leases: kubernetes-HA leader election (high-availability.type=kubernetes)
 # Spec: https://nightlies.apache.org/flink/flink-docs-release-2.2/docs/deployment/resource-providers/native_kubernetes/#rbac
@@ -103,7 +100,7 @@ subjects:
     name: flink
     namespace: use-case-crypto
 ---
-# --- S3/MinIO credentials for Flink checkpoints + HA (ADR-008 ESO pattern).
+# S3/MinIO credentials for Flink checkpoints + HA (ADR-008 ESO pattern).
 #     target.name stays `flink-s3-secret` (raw) so the podTemplate secretRef
 #     below resolves without a namePrefix rewrite (mirrors pipeline-secrets).
 apiVersion: external-secrets.io/v1
@@ -129,7 +126,7 @@ spec:
     - secretKey: S3_SECRET_KEY
       remoteRef: { key: platform/minio/root, property: password }
 ---
-# --- The crypto stream-processor FlinkDeployment (application mode) ---
+# The crypto stream-processor FlinkDeployment (application mode)
 apiVersion: flink.apache.org/v1beta1
 kind: FlinkDeployment
 metadata:
@@ -140,7 +137,7 @@ metadata:
     app.kubernetes.io/component: stream-processing
     use-case: crypto
 spec:
-  # Generic platform image name — overlays/local rewrites it to
+  # Generic platform image name - overlays/local rewrites it to
   # localhost:5000/crypto-flink-job:latest (see header IMAGE note).
   image: flink-job
   imagePullPolicy: Always
@@ -150,8 +147,8 @@ spec:
   flinkConfiguration:
     # One stream (time_series) at parallelism 2 over the 6-partition
     # crypto.validated topic (3 partitions per subtask). numberOfTaskSlots=4
-    # leaves 2 idle slots so a real-load parallelism bump (2→4) scales IN
-    # PLACE on the single TM pod — demonstrating Flink/k8s elasticity without
+    # leaves 2 idle slots so a real-load parallelism bump (2 to 4) scales IN
+    # PLACE on the single TM pod - demonstrating Flink/k8s elasticity without
     # breaching the single-node "1 pod at idle" invariant (CLAUDE.md).
     parallelism.default: "2"
     taskmanager.numberOfTaskSlots: "4"
@@ -166,13 +163,13 @@ spec:
     # JM heap headroom. Operator derives jobmanager.memory.process.size from
     # jobManager.resource.memory; JVM layout leaves heap ≈ process − ~25%.
     # Sized for the 1-stream / parallelism-2 ExecutionGraph (~4 subtasks incl.
-    # sinks) — far lighter than the historical 3-stream graph, so 2560m process
+    # sinks) - far lighter than the historical 3-stream graph, so 2560m process
     # (~1.9 GiB heap) is ample with off-heap raised for Kafka AdminClient +
     # S3 multipart buffers.
     jobmanager.memory.off-heap.size: "256m"
     jobmanager.memory.jvm-overhead.fraction: "0.15"
 
-    # State backend + checkpoint/savepoint storage → MinIO (rocksdb so the
+    # State backend + checkpoint/savepoint storage to MinIO (rocksdb so the
     # rolling-window feature state survives TM restarts and replays exactly).
     state.backend.type: rocksdb
     state.checkpoints.dir: s3://flink-checkpoints/crypto/
@@ -184,7 +181,7 @@ spec:
 
     # Heartbeat + restart tuning for a single-node cluster under transient disk
     # pressure: triple the heartbeat timeout (a TM with a stuck disk-write gets
-    # one more chance), exponential restart back-off (10s→5min breaks a flap
+    # one more chance), exponential restart back-off (10s to 5min breaks a flap
     # loop the fixed 1s default would hammer), and a 1h clean-run reset so a
     # transient incident doesn't pin the job at the 5-min ceiling forever.
     heartbeat.timeout: "180000"
@@ -198,7 +195,7 @@ spec:
 
     # S3 client: default hadoop-aws pool is tiny (15) with unbounded request
     # timeout, so a MinIO hiccup during checkpoint listing blocks the JM
-    # heartbeat thread → operator misreads a dead leader → recycle. 100-conn
+    # heartbeat thread, so the operator misreads a dead leader and recycles. 100-conn
     # pool + 60s timeouts fail fast and let the next checkpoint cycle recover.
     s3.connection.maximum: "100"
     s3.connection.request.timeout: "60000"
@@ -214,7 +211,7 @@ spec:
     s3.endpoint: http://minio.storage.svc.cluster.local:9000
     s3.path.style.access: "true"
 
-    # OpenLineage → DataHub GMS: the bronze table this job produces appears as
+    # OpenLineage to DataHub GMS: the bronze table this job produces appears as
     # a downstream dataset in the lakehouse catalog (governance coupling).
     execution.attached: "true"
     pipeline.openlineage.url: http://datahub-gms.data-governance.svc.cluster.local:8080/openapi/openlineage
@@ -235,7 +232,7 @@ spec:
         # label which only exists post-prefix.
         metrics: flink
     spec:
-      # Strimzi cluster CA (PEM) for the SASL_SSL broker listener — mounted at
+      # Strimzi cluster CA (PEM) for the SASL_SSL broker listener - mounted at
       # /etc/kafka/ca/ca.crt, consumed by StreamJob via KAFKA_SSL_CA_LOCATION
       # (topics.yaml). crypto-app-consumer is the user-namespace ESO replica of
       # the Strimzi KafkaUser secret.
@@ -258,7 +255,7 @@ spec:
               containerPort: 8081
               protocol: TCP
           envFrom:
-            # pipeline-config (prefixed → crypto-pipeline-config by the
+            # pipeline-config (prefixed to crypto-pipeline-config by the
             # nameReference rule): KAFKA_BROKERS, KAFKA_SECURITY_PROTOCOL,
             # KAFKA_SASL_MECHANISM, KAFKA_SSL_CA_LOCATION, OUTPUT_TOPIC, and the
             # FLINK_* indicator knobs (configmaps/features.yaml).
@@ -270,7 +267,7 @@ spec:
                 name: pipeline-secrets
             - secretRef:
                 name: flink-s3-secret
-            # SCRAM creds for the crypto.* ACL'd KafkaUser → KAFKA_SASL_USERNAME
+            # SCRAM creds for the crypto.* ACL'd KafkaUser become KAFKA_SASL_USERNAME
             # / _PASSWORD consumed by StreamJob.kafkaSecurityProperties().
             - secretRef:
                 name: crypto-app-consumer
@@ -279,9 +276,9 @@ spec:
               mountPath: /etc/kafka/ca
               readOnly: true
           env:
-            # --- Stream topology (the ONLY crypto-specific wiring; platform
+            # Stream topology (the ONLY crypto-specific wiring; platform
             #     StreamJob reads these generically). One stream "time_series":
-            #     source crypto.validated → FeatureFunction → dual sink.
+            #     source crypto.validated, then FeatureFunction, then dual sink.
             - name: ENABLED_STREAMS
               value: "time_series"
             - name: STREAM_TIME_SERIES_TOPIC
@@ -307,12 +304,12 @@ spec:
               value: "valkey.storage.svc.cluster.local"
             - name: VALKEY_PORT
               value: "6379"
-            # --- Flink hadoop-S3 plugin expects AWS_* (bridge from S3_* keys).
+            # Flink hadoop-S3 plugin expects AWS_* (bridge from S3_* keys).
             - name: AWS_ACCESS_KEY_ID
               valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_ACCESS_KEY } }
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: flink-s3-secret, key: S3_SECRET_KEY } }
-            # --- OTEL auto-instrumentation fan-out.
+            # OTEL auto-instrumentation fan-out.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://gateway-collector.observability.svc.cluster.local:4317"
             - name: OTEL_SERVICE_NAME
@@ -326,7 +323,7 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: false
-      # Pod securityContext — UID/GID + seccomp for every container in the pod.
+      # Pod securityContext - UID/GID + seccomp for every container in the pod.
       securityContext:
         runAsNonRoot: true
         runAsUser: 9999
@@ -355,7 +352,7 @@ spec:
       # parallelism / a TM replica bump, not a fat idle reservation.
       cpu: 0.5
 
-  # Application-mode job — operator submits the platform fat JAR baked at
+  # Application-mode job - operator submits the platform fat JAR baked at
   # /opt/flink/usrlib/flink-job.jar (local:// protocol) by the flink-job
   # Dockerfile. StandaloneApplicationClusterEntryPoint scans usrlib and runs
   # entryClass; StreamJob then wires streams from the env above.

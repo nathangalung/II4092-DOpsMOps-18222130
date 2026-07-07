@@ -2,7 +2,7 @@
 
 This document lists every open source tool used in the platform, what each one
 does here, which parts of the pipeline depend on it, and whether it is actually
-running. The platform is domain agnostic. The crypto use case at the end shows
+running. The platform is domain agnostic. An example use case at the end shows
 how the same tools are wired for one concrete domain.
 
 The tools are grouped by the layer they belong to, following the seven layer
@@ -117,7 +117,7 @@ interactive development.
 
 | Tool | Role in this project | Depended on by | Status |
 | --- | --- | --- | --- |
-| KServe | Model serving in RawDeployment mode with the v2 inference protocol. Two InferenceServices exist and report Ready: a platform health check and the crypto predictor. The predictor deployment was at zero replicas at the snapshot. | ml bridge, dashboard | Running controller, predictor scaled down |
+| KServe | Model serving in RawDeployment mode with the v2 inference protocol. Two InferenceServices exist and report Ready: a platform health check and the example use-case predictor. The predictor deployment was at zero replicas at the snapshot. | ml bridge, dashboard | Running controller, predictor scaled down |
 | Argo Rollouts | Progressive delivery. The ml bridge ships as a Rollout, giving canary style rollouts on the serving path. | ml bridge | Running |
 
 ## Layer 7: Data governance
@@ -344,39 +344,14 @@ as an unmodified service. Ceph is a full distributed storage system, far
 oversized here. SeaweedFS covers only part of the S3 API. Garage is young
 with a small ecosystem.
 
-## Use case: crypto
+## Example use case
 
-The platform above is domain agnostic. The crypto use case under
-`use-case-crypto/` instantiates it for one domain without changing any platform
-tool. It adds domain code and configuration only.
-
-Data sources feeding the pipeline:
-
-- Coinbase for OHLCV bars and trades, from 1 January 2026 up to real time. This
-  is the primary tabular data (verified in ClickHouse: about 744 thousand
-  minute bars and 1.76 million trades at the last check).
-- Supplementary sentiment and news, so the pipeline is not tabular only:
-  CoinGecko, DefiLlama, the Fear and Greed index, and news text that is
-  embedded and stored in Qdrant (about 63 thousand sentiment rows).
-
-The crypto services are project code, not open source tools. They consume the
-tools above:
-
-- Rust websocket collector publishing trades to Kafka (running); the REST and
-  supplementary collection runs as scheduled CronJobs.
-- A Rust validator and gateway, deployed with KEDA scalers and scaled to zero
-  while idle.
-- A Python batch service for feature engineering, run by Airflow.
-- A dashboard with a Go backend, a React frontend, and a Python ml bridge (an
-  Argo Rollout) that reads predictions and online features.
-
-Open source libraries inside the crypto code, verified in the dependency files:
-
-- FLAML for automated model selection (flaml 2.3 in the trainer).
-- LightGBM as the selected model family (lightgbm 4.5 in the trainer).
-- Evidently for drift reports (drift reporter service).
-- sentence-transformers for text embeddings, with the model baked into the
-  vector job image.
+The platform above is domain agnostic. A complete worked example that
+instantiates it end to end, without changing any platform tool, lives in
+`use-case-crypto/`. It adds domain code and configuration only. The data
+sources, the project services that consume these tools, and the model
+libraries are documented there in `use-case-crypto/README.md` and
+`use-case-crypto/docs/RUNBOOK.md`.
 
 ## Known gaps at verification time
 

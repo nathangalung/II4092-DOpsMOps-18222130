@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# =============================================================================
 # chaos-mesh pre-apply: bootstrap ArgoCD Application + block on CRD Established.
-# =============================================================================
 # This component installs the chaos-mesh operator only (helm-release.yaml).
 # The resilience experiments that used to ship here moved to the evaluation
-# harness experiments/chaos/ — one-shot CRs run manually, never reconciled by
+# harness experiments/chaos/ - one-shot CRs run manually, never reconciled by
 # Argo CD or part of `make phase-full`.
 #
-# `make install-chaos-mesh` → kustomize emits helm-release.yaml:
+# `make install-chaos-mesh` runs kustomize, which emits helm-release.yaml:
 #     1. Namespace `chaos-mesh`.
 #     2. ArgoCD Application that installs the chart (provides the
 #        `chaos-mesh.org/v1alpha1` CRDs: PodChaos, NetworkChaos, IOChaos,
@@ -23,7 +21,6 @@
 # endpoints, then soften the webhooks (failurePolicy=Ignore). The readiness
 # gate plus softened webhooks let the manually-applied experiments/chaos/ CRs
 # pass admission later without a 502 on a saturated single node.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -38,7 +35,7 @@ echo "    pre-apply: applying chaos-mesh helm-release (Namespace + Application +
 kubectl apply --server-side --force-conflicts \
   -f "$SCRIPT_DIR/helm-release.yaml" >/dev/null 2>&1 || true
 
-# Trigger immediate ArgoCD refresh — skip default 3-min poll.
+# Trigger immediate ArgoCD refresh - skip default 3-min poll.
 kubectl annotate -n "$APP_NS" "application/${APP_NAME}" \
   argocd.argoproj.io/refresh=hard --overwrite >/dev/null 2>&1 || true
 
@@ -68,10 +65,10 @@ for i in $(seq 1 "$ATTEMPTS"); do
 done
 
 # Wait for chaos-mesh-controller-manager Deployment Available + webhook
-# endpoints populated — required because Schedule/Workflow CRs in the main
+# endpoints populated - required because Schedule/Workflow CRs in the main
 # render trigger admission via mschedule.kb.io / mworkflow.kb.io webhooks
 # (failurePolicy=Fail). If main apply lands before controller pod is Ready,
-# Webhook returns "no endpoints available" → 502 → apply fails.
+# Webhook returns "no endpoints available", which becomes a 502, so apply fails.
 # Note: chart Deployment is `chaos-controller-manager` (no `-mesh-` prefix)
 # but the Service it backs is `chaos-mesh-controller-manager` (which the
 # admission webhook clientConfig points at). Wait on the Deployment name.
@@ -82,8 +79,8 @@ done
 # errors immediately on a non-existent object (no `--for=create` semantics),
 # so we must poll for existence first. Field-observed 2026-05-11
 # `make phase-full`: CRD landed at T+30s, controller Deployment landed at
-# T+90s, but pre-apply hit `kubectl wait` at T+35s → "deployments.apps
-# 'chaos-controller-manager' not found" → install-chaos-mesh exited 1.
+# T+90s, but pre-apply hit `kubectl wait` at T+35s, so it got "deployments.apps
+# 'chaos-controller-manager' not found", and install-chaos-mesh exited 1.
 echo "    pre-apply: waiting Deployment/chaos-controller-manager to exist (timeout 600s)"
 i=0
 MAX_I=120  # 120 × 5s = 600s
@@ -92,7 +89,7 @@ while (( i < MAX_I )); do
     echo "    pre-apply: Deployment/chaos-controller-manager present (after ${i}×5s)"
     break
   fi
-  # Nudge ArgoCD refresh every 30s — initial refresh annotation at line 41
+  # Nudge ArgoCD refresh every 30s - initial refresh annotation at line 41
   # primes the application controller, but on cold boot the controller pod
   # itself may be starting; re-annotating keeps the reconciliation loop tight.
   if (( i > 0 && i % 6 == 0 )); then
@@ -112,7 +109,7 @@ fi
 
 # 900s (in-family with the CRD wait above): on a fresh phase-full this is the
 # last atom on a fully-loaded single node, where the controller image is a cold
-# pull from ghcr.io under IO contention — observed ~27 min once, exceeding 600s.
+# pull from ghcr.io under IO contention - observed ~27 min once, exceeding 600s.
 echo "    pre-apply: waiting chaos-controller-manager Deployment Available"
 kubectl -n "$NS" wait --for=condition=Available --timeout=900s \
   deployment/chaos-controller-manager 2>&1 | tail -3
@@ -134,7 +131,6 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# ---------------------------------------------------------------------------
 # Soften chaos-mesh webhooks: failurePolicy=Ignore so transient controller
 # pod evictions (CPU pressure on saturated single-node) don't block main
 # apply of Schedule/Workflow CRs. Defaults: failurePolicy=Fail. On a
@@ -143,7 +139,6 @@ done
 # with "no endpoints available". Ignore lets CR apply succeed without
 # webhook mutation; chart-installed defaults already populate required
 # fields. Webhook resumes mutating once pod returns. Idempotent under SSA.
-# ---------------------------------------------------------------------------
 soften_chaos_webhook() {
   local kind=$1 name=$2
   if ! kubectl get "$kind" "$name" >/dev/null 2>&1; then

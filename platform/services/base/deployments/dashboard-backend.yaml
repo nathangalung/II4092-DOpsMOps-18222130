@@ -1,6 +1,4 @@
-# =============================================================================
-# DASHBOARD BACKEND — API Server (Go + Gin)
-# =============================================================================
+# DASHBOARD BACKEND - API Server (Go + Gin)
 # REST API for the dashboard frontend. Queries ClickHouse and Valkey.
 #
 # Platform tool integration:
@@ -8,7 +6,6 @@
 #   - APISIX + SpiceDB: Auth for dashboard users
 #   - ClickHouse: OLAP queries for historical data
 #   - Valkey: Real-time feature cache (Redis-RESP wire protocol)
-# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

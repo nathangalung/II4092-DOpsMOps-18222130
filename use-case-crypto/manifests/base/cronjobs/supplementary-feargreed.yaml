@@ -1,4 +1,4 @@
-# Fear & Greed Index — Alternative.me (free, no API key)
+# Fear & Greed Index - Alternative.me (free, no API key)
 # Runs every hour, fetches current sentiment score
 # Emits run outcome to platform Pushgateway via push-helper ConfigMap.
 apiVersion: batch/v1
@@ -10,11 +10,11 @@ metadata:
     component: ingestion
     mlops-platform.io/use-case: crypto
 spec:
-  # Staggered off :00 (was "0 * * * *") — single-HDD: supplementary feeds +
+  # Staggered off :00 (was "0 * * * *") - single-HDD: supplementary feeds +
   # vector-embedding all firing on the hour caused a same-tick job storm that
   # fed an IO cascade (2026-06-30). Spread across the hour: feargreed :12.
   schedule: "12 * * * *"
-  # suspend declared so ArgoCD owns the field under SSA — an out-of-band
+  # suspend declared so ArgoCD owns the field under SSA - an out-of-band
   # `kubectl patch` to suspend:true otherwise hides from the diff (#513).
   # startingDeadlineSeconds bounds missed-schedule lookback (>100 missed =
   # controller stops scheduling permanently).
@@ -24,13 +24,13 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
-    # Kueue admission: Job-level label routes to batch-queue → cluster cohort.
+    # Kueue admission: Job-level label routes to batch-queue, which maps to cluster cohort.
     metadata:
       labels:
         kueue.x-k8s.io/queue-name: crypto-batch-queue
     spec:
       backoffLimit: 2
-      # 600→1800: local-registry pulls under IO contention measured at 18+ min
+      # 600 to 1800: local-registry pulls under IO contention measured at 18+ min
       # (`localhost:5000/crypto-rest-collector:latest` saw 18m48s + 18m57s
       # concurrent waits in #402 forensics). Pair with IfNotPresent below so
       # only the first cold-cache pod pays the bill; subsequent fires reuse
@@ -64,7 +64,7 @@ spec:
             - name: rest-collector-config
               configMap:
                 name: crypto-rest-collector-config
-            # Kafka SASL_SSL CA — required by librdkafka producer in rest-collector
+            # Kafka SASL_SSL CA - required by librdkafka producer in rest-collector
             # (KAFKA_SSL_CA_LOCATION=/etc/kafka/ca/ca.crt). patches/kafka-sasl.yaml
             # only patches Deployments; CronJobs embed the mount directly.
             - name: kafka-ca
@@ -103,7 +103,7 @@ spec:
               env:
                 # rest-collector source-registry path. Moved off the shared
                 # pipeline-config ConfigMap (it leaked into non-rest-collector
-                # envFrom consumers → Python batch loader sma_*/volatility_* = 0);
+                # envFrom consumers, so Python batch loader sma_*/volatility_* = 0);
                 # explicit set also fails loud if the mount is missing. See
                 # configmaps/sources.yaml.
                 - name: CONFIG_PATH
@@ -115,7 +115,7 @@ spec:
                 - name: SUPPLEMENTARY_SOURCE_NAME
                   value: "fear-greed"
                 - name: SUPPLEMENTARY_SOURCE_URL
-                  # limit=0 → alternative.me returns the FULL daily history
+                  # limit=0 makes alternative.me return the FULL daily history
                   # (~3000 days), covering the OHLCV training window. limit=1
                   # (one row) starved the backfill (#514). Real data, no synthesis.
                   value: "https://api.alternative.me/fng/?limit=0&format=json"
@@ -124,7 +124,7 @@ spec:
                 # Per-source mapping for alternative.me fear-greed JSON:
                 # data[] of {value, value_classification, timestamp}. Without an
                 # explicit mapping the job inherits the OHLCV field mapping from the
-                # shared ConfigMap and extracts nothing → placeholder score=0.
+                # shared ConfigMap and extracts nothing, so placeholder score=0.
                 - name: RESPONSE_FIELD_MAPPING
                   value: "root=data,timestamp=timestamp,value=value,title=value_classification"
                 - name: SUPPLEMENTARY_SOURCE_POLL_INTERVAL

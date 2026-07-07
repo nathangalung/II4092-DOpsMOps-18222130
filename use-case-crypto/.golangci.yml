@@ -22,7 +22,7 @@ linters-settings:
   govet:
     enable-all: true
     disable:
-      - fieldalignment # Struct field reordering — micro-optimization, not bugs
+      - fieldalignment # Struct field reordering - micro-optimization, not bugs
   revive:
     rules:
       - name: exported

@@ -1,6 +1,4 @@
-# =============================================================================
-# CRYPTO USE-CASE — Cross-Namespace Subkustomization
-# =============================================================================
+# CRYPTO USE-CASE - Cross-Namespace Subkustomization
 # Resources owned by the crypto use-case that live OUTSIDE the
 # `use-case-crypto` namespace (Strimzi KafkaTopics/KafkaUsers in
 # `data-ingestion`, Istio AuthorizationPolicies in `istio-system`,
@@ -22,13 +20,12 @@
 #
 # CONSUMED BY: overlays/{local,cloud}/kustomization.yaml via
 #   `resources: [..., ../../cross-namespace]`
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  # --- Strimzi KafkaTopics (data-ingestion ns) ---
+  # Strimzi KafkaTopics (data-ingestion ns)
   # Broker topic names preserved via `spec.topicName: crypto.<topic>`;
   # K8s `metadata.name` is hyphenated + carries `crypto-` after the
   # overlay namePrefix is applied.
@@ -41,66 +38,64 @@ resources:
   - ../base/kafka-topics/supplementary.yaml
   - ../base/kafka-topics/iceberg-dlq.yaml
 
-  # --- Strimzi KafkaUsers (data-ingestion ns) ---
+  # Strimzi KafkaUsers (data-ingestion ns)
   # User Operator emits SCRAM Secret of `metadata.name` in data-ingestion;
   # ESO `external-secrets.yaml` mirrors it back into use-case-crypto as
   # `crypto-keda-consumer` / `crypto-app-consumer`.
   - ../base/kafka-users/scram-users.yaml
 
-  # --- Istio AuthorizationPolicies (istio-system ns) ---
-  # Edge L7 AuthZ on ingressgateway — use-case-crypto has injection
+  # Istio AuthorizationPolicies (istio-system ns)
+  # Edge L7 AuthZ on ingressgateway - use-case-crypto has injection
   # disabled (ADR-009) so enforcement lives at the gateway, not in-mesh.
   - ../base/authorization/edge-authz.yaml
 
-  # --- Velero Schedule (velero ns) ---
+  # Velero Schedule (velero ns)
   # Hourly snapshot of use-case-crypto namespace PVCs + CRs.
   - ../base/velero-schedule.yaml
 
-  # --- Argo CronWorkflow (model-lifecycle ns) ---
-  # Retrain-on-drift (ADR-017) — Workflow controller is in model-lifecycle
+  # Argo CronWorkflow (model-lifecycle ns)
+  # Retrain-on-drift (ADR-017) - Workflow controller is in model-lifecycle
   # and reads Workflows from there.
   - ../base/workflows/retrain-on-drift.yaml
 
-  # --- KFP pipeline bootstrap Job (model-lifecycle ns) ---
+  # KFP pipeline bootstrap Job (model-lifecycle ns)
   # ArgoCD PostSync hook that runs submit_recurring.py to register the KFP
   # retraining pipeline + recurring runs the CronWorkflow above resolves by
   # name. Closes the manual-bootstrap gap (CronWorkflow ticks were failing
   # `KFP pipelines not found` on a fresh cluster). Idempotent per sync.
   - ../base/workflows/pipeline-bootstrap.yaml
 
-  # --- pipeline-secrets mirror into model-lifecycle ns ---
+  # pipeline-secrets mirror into model-lifecycle ns
   # KFP single-user mode runs pipeline executor pods in `model-lifecycle`;
   # `kubernetes.use_secret_as_env(secret_name="pipeline-secrets")` on
   # drift_task + train_task therefore needs the Secret in that namespace.
   # File header explains why we mirror instead of moving the canonical one.
   - ../base/model-lifecycle-pipeline-secrets.yaml
 
-  # --- ClickHouse Kafka SASL creds (storage ns) ---
+  # ClickHouse Kafka SASL creds (storage ns)
   # Supplies the platform CHI `<kafka>` block sasl_username/password via the
   # generic `clickhouse-kafka-sasl` Secret (mirrors the crypto-clickhouse
   # KafkaUser). #464: server-block SASL is the only path librdkafka honours.
   - ../base/clickhouse-kafka-sasl.yaml
 
-  # --- Cluster-scoped RBAC with cross-namespace subjects ---
+  # Cluster-scoped RBAC with cross-namespace subjects
   # ClusterRoleBinding `kfp-kserve-deployer-binding` references SAs
   # `default` + `pipeline-runner` in `model-lifecycle`. Setting
   # `namespace: use-case-crypto` would corrupt those subject refs via
   # kustomize's FixSubjectsKindNamespace builtin transformer.
   - ../base/rbac/kfp-runner.yaml
 
-  # --- OpenBao bootstrap (security ns) ---
+  # OpenBao bootstrap (security ns)
   # Crypto-scoped OpenBao seed Job. SA + Role + RoleBinding + Job all
   # live in `security` (where OpenBao lives) so the Job can read the
   # `openbao-unseal` Secret and talk to `openbao.security.svc:8200`.
-  # MUST live here (not in `../base/`) — the base namespace setter
+  # MUST live here (not in `../base/`) - the base namespace setter
   # `use-case-crypto` would clobber the explicit `namespace: security`
   # fields and break RBAC + DNS resolution. namePrefix `crypto-` from
   # the overlay still applies, so live names are `crypto-openbao-bootstrap-crypto`.
   - ../base/openbao/bootstrap.yaml
 
-# =============================================================================
 # COMMON LABELS
-# =============================================================================
 # `includeSelectors: false` because cross-namespace resources include
 # Istio AuthorizationPolicies whose `spec.selector.matchLabels` MUST
 # match the ingressgateway pods (which do NOT carry our use-case labels).

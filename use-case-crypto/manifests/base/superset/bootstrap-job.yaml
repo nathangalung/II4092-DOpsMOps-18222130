@@ -1,6 +1,4 @@
-# =============================================================================
 # CRYPTO SUPERSET BOOTSTRAP JOB
-# =============================================================================
 # One-shot Job that runs the bootstrap-configmap.yaml script.  Re-applies of
 # the overlay re-create the Job (Kustomize sees Job spec immutability and
 # uses replace-with-delete only via `ttlSecondsAfterFinished`); idempotency
@@ -10,20 +8,19 @@
 #   * Same base as push-pipeline-metrics-task and the supplementary CronJobs.
 #   * Ships `uv` + a pinned Python 3.14.  We rely on uv to read the PEP 723
 #     inline-script block from /scripts/bootstrap.py and resolve the (empty)
-#     dependency list — the script is pure stdlib so resolution is zero-work
+#     dependency list - the script is pure stdlib so resolution is zero-work
 #     and there is no networked package install.
 #
 # Wait strategy: the script polls /health on the Superset Service for up
 # to 5 minutes before logging in, so the Job tolerates a slow Superset
 # Deployment rollout (init container builds psycopg2/clickhouse/trino wheels).
 #
-# RBAC: the Job runs without ServiceAccount RBAC against the K8s API — it
+# RBAC: the Job runs without ServiceAccount RBAC against the K8s API - it
 # only talks to Superset's HTTP API and OpenBao-mirrored Secret env vars.
 # No `automountServiceAccountToken: true` is needed.
-# =============================================================================
 # Job name is intentionally `superset-bootstrap` (NOT `superset-bootstrap-crypto`).
 # The use-case-crypto overlay applies `namePrefix: crypto-` which would otherwise
-# produce `crypto-superset-bootstrap-crypto` — duplicated suffix. The base
+# produce `crypto-superset-bootstrap-crypto` - duplicated suffix. The base
 # stays domain-agnostic; the overlay supplies the use-case naming.
 apiVersion: batch/v1
 kind: Job
@@ -43,7 +40,7 @@ metadata:
 spec:
   # Cleanly delete pod 1h after success so the Job list stays readable.
   # Failed pods stick around for postmortem (no failedJobsHistoryLimit
-  # parameter on batch/v1 Jobs — TTL handles only the succeeded case).
+  # parameter on batch/v1 Jobs - TTL handles only the succeeded case).
   ttlSecondsAfterFinished: 3600
   backoffLimit: 5
   activeDeadlineSeconds: 600
@@ -81,7 +78,7 @@ spec:
             - { name: UV_CACHE_DIR,   value: "/tmp/.uv-cache" }
             - { name: UV_LINK_MODE,   value: "copy" }
             - { name: UV_NO_PROGRESS, value: "1" }
-            # Optional overrides — defaults inlined in bootstrap.py match
+            # Optional overrides - defaults inlined in bootstrap.py match
             # the in-cluster Service DNS so this Job runs zero-config.
             - { name: SUPERSET_BASE_URL,
                 value: "http://superset.data-processing.svc.cluster.local:8088" }
@@ -91,7 +88,7 @@ spec:
             - { name: TRINO_HOST,
                 value: "trino.data-processing.svc.cluster.local" }
             # Platform Trino Service port is 8085 (see
-            # platform/components/data-processing/trino/deployment.yaml —
+            # platform/components/data-processing/trino/deployment.yaml -
             # http-server.http.port=8085, NOT upstream default 8080).
             - { name: TRINO_PORT,    value: "8085" }
             - { name: TRINO_CATALOG, value: "iceberg" }

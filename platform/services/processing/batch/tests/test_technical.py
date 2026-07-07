@@ -105,13 +105,13 @@ class TestComputeDispersionFeatures:
 
     def test_default_windows(self, sample_df: pd.DataFrame) -> None:
         result = compute_dispersion_features(sample_df)
-        # window=1 is degenerate (rolling(1).std() ≡ NaN) and is now skipped —
+        # window=1 is degenerate (rolling(1).std() ≡ NaN) and is now skipped -
         # see test_skips_degenerate_window. Only the real window survives.
         assert "dispersion_1" not in result.columns
         assert "dispersion_24" in result.columns
 
     def test_skips_degenerate_window(self, sample_df: pd.DataFrame) -> None:
-        """Regression #500: window=1 → rolling(1).std() is an all-NaN column.
+        """Regression #500: window=1 means rolling(1).std() is an all-NaN column.
         A blanket df.dropna() downstream then wiped every row (green-but-empty
         insert). Degenerate windows must produce NO column at all."""
         result = compute_dispersion_features(sample_df, windows=[1, 24])

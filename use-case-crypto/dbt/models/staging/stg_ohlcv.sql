@@ -1,5 +1,5 @@
 -- Deduplicated, validated OHLCV candle data
--- Bronze → Silver: removes duplicates, filters invalid records
+-- Bronze to Silver: removes duplicates, filters invalid records
 SELECT
     symbol,
     timestamp,

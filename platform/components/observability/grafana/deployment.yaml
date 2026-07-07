@@ -1,7 +1,5 @@
-# =============================================================================
-# Grafana 13.0 — OIDC via Dex, persistent storage, ExternalSecret-backed
+# Grafana 13.0 - OIDC via Dex, persistent storage, ExternalSecret-backed
 # admin credential, dashboards + datasources provisioned via ConfigMap.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -195,7 +193,7 @@ spec:
           env:
             - name: GF_INSTALL_PLUGINS
               value: "grafana-clickhouse-datasource,grafana-oncall-app"
-            # OIDC via Dex — SSO for Kubeflow/Grafana/Superset/ArgoCD.
+            # OIDC via Dex - SSO for Kubeflow/Grafana/Superset/ArgoCD.
             - name: GF_AUTH_GENERIC_OAUTH_ENABLED
               value: "true"
             - name: GF_AUTH_GENERIC_OAUTH_NAME
@@ -224,7 +222,7 @@ spec:
             - name: GF_ALERTING_ENABLED
               value: "false"  # use unified alerting only
             # SQLite WAL journal mode: writes append to -wal with batched
-            # fsyncs and readers don't block the writer — directly cuts the
+            # fsyncs and readers don't block the writer - directly cuts the
             # `database is locked` (SQLITE_BUSY) crash-restarts seen when the
             # single-writer default rollback journal stalls behind node-wide
             # IO contention (#306 follow-up; spinning sda, f_await 500ms+).
@@ -241,7 +239,7 @@ spec:
             failureThreshold: 60
             periodSeconds: 10
             timeoutSeconds: 5
-          # timeoutSeconds: 5 — Istio sidecar rewrites probes to
+          # timeoutSeconds: 5 - Istio sidecar rewrites probes to
           # envoy port 15020 which adds ~50-200ms proxy overhead;
           # the K8s default 1s flapped Ready=False under index-rebuild
           # bursts. 5s gives slack without delaying real-failure detection.
@@ -275,7 +273,7 @@ spec:
         - name: tmp
           emptyDir: {}
 ---
-# PDB — single-node single-replica: maxUnavailable=1 permits voluntary
+# PDB - single-node single-replica: maxUnavailable=1 permits voluntary
 # eviction. minAvailable=1 with replicas=1 deadlocks drains.
 apiVersion: policy/v1
 kind: PodDisruptionBudget

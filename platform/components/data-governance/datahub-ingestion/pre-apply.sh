@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# =============================================================================
 # datahub-ingestion pre-apply: ensure `datahub-feast-deps:1.5.0.1` is present
 # in platform-registry before the feast CronJob's initContainer tries to
 # pull it.
-# =============================================================================
 # Background (full rationale in build-resources.yaml header):
 #   `acryldata/datahub-ingestion:v1.5.0.3` ships the DataHub feast SOURCE
 #   plugin but not the `feast` python package itself. We sidecar-overlay
@@ -19,7 +17,6 @@
 #      is already there (re-apply without nuke), exit clean.
 #   4. Otherwise: drop any stale build Job, apply build-resources.yaml
 #      directly, wait up to 900s for the kaniko Job to complete.
-# =============================================================================
 set -euo pipefail
 
 NS=data-governance
@@ -76,7 +73,7 @@ kubectl apply --server-side --force-conflicts -f "${DIR}/build-resources.yaml"
 # afterwards (containerStatuses show Terminated/Completed but the phase
 # field never advances). Job controller derives `Complete` condition from
 # pod phase=Succeeded, so condition=complete never fires and the wait
-# eventually times out — even though the image is already in the registry
+# eventually times out - even though the image is already in the registry
 # and downstream pulls would succeed. Polling the registry directly
 # decouples this hook from the cluster's phase-reporting latency.
 #

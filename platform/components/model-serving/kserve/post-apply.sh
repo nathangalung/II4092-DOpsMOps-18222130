@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# kserve/post-apply.sh — heal predictor pods that missed storage-init injection
-# =============================================================================
+# kserve/post-apply.sh - heal predictor pods that missed storage-init injection
 # Why this exists:
 #   The kserve component is a single render that ships CRDs, controller-manager,
 #   the `inferenceservice.kserve-webhook-server.pod-mutator` MutatingWebhook,
@@ -18,7 +16,7 @@
 #   container, because the API server failed-open on the unreachable
 #   webhook. mlserver_mlflow then errors with `Invalid URI specified for
 #   model platform-health-check (/mnt/models)` because /mnt/models is empty
-#   — it's an emptyDir, never populated, since the init container that
+# - it's an emptyDir, never populated, since the init container that
 #   would `aws s3 cp` from `s3://platform-models/sklearn/iris/` never
 #   existed in the spec.
 #
@@ -39,7 +37,6 @@
 #   Idempotent: on a healthy cluster every predictor pod already has the
 #   init container, so the loop walks the list and exits. Cost on a clean
 #   cluster: ~5s for the rollout-status + endpoints checks.
-# =============================================================================
 set -euo pipefail
 
 NS=model-serving

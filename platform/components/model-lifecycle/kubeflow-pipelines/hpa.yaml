@@ -58,7 +58,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: metadata-writer
-  # Singleton writer — subscribes to Argo workflow events and inserts into
+  # Singleton writer - subscribes to Argo workflow events and inserts into
   # MLMD without leader election. Two replicas = duplicate MLMD inserts.
   # Upstream KFP standalone keeps replicas:1 for this reason.
   minReplicas: 1

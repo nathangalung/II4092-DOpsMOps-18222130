@@ -1,6 +1,4 @@
-# =============================================================================
-# pipeline DB schema bootstrap — domain-agnostic CDC source
-# =============================================================================
+# pipeline DB schema bootstrap - domain-agnostic CDC source
 # CNPG's postInitApplicationSQL only runs on cluster initdb (first boot).
 # Existing clusters that bootstrapped before `CREATE DATABASE pipeline` landed
 # in cluster.yaml need a second hook to create the DB + schema.  This Job
@@ -22,7 +20,6 @@
 # (postgresql-app Secret).  ALTER ROLE platform WITH CREATEDB was granted in
 # cluster.yaml postInitApplicationSQL, so the bootstrap CREATE DATABASE call
 # succeeds without invoking the disabled `postgres` superuser.
-# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -186,7 +183,7 @@ spec:
               set -eu
               # CREATE DATABASE has no IF NOT EXISTS in PostgreSQL.  Standard
               # idiom: SELECT against pg_database, then \gexec only when row is
-              # absent — safe on every re-run.  Database created without
+              # absent - safe on every re-run.  Database created without
               # template1 contamination so it stays a clean pipeline DB.
               echo "Ensuring database 'pipeline' exists..."
               psql -d platform -At <<'SQL'

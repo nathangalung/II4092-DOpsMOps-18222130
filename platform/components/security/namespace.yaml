@@ -7,7 +7,7 @@ metadata:
     # retains visibility), warn=baseline (suppress apply-time warning noise).
     #
     # Rationale: openbao-bootstrap Job MUST run as root for `apk add kubectl jq
-    # openssl htpasswd` on the alpine-based openbao image — `restricted`
+    # openssl htpasswd` on the alpine-based openbao image - `restricted`
     # blocks runAsUser=0 even on one-shot admin Jobs. All long-lived
     # workloads in this ns (openbao STS, ESO, Kyverno, KES, APISIX, Falco,
     # Trivy, OPA) set their own restricted securityContext explicitly, so
@@ -27,7 +27,7 @@ metadata:
     # PSA "restricted" + istio sidecar (istio-validation/istio-proxy init
     # containers) collide: upstream istio-proxy image does not set
     # seccompProfile, which `restricted` requires at the pod level. Keep
-    # the security namespace out of the mesh — security operators (OpenBao,
+    # the security namespace out of the mesh - security operators (OpenBao,
     # OPA, Trivy, Kyverno) talk to kube-apiserver and their own backends
     # over TLS already and do not need east-west mTLS.
     istio-injection: disabled

@@ -1,13 +1,11 @@
-# =============================================================================
-# inferenceservice-config — KServe v0.17.0 controller configuration
-# =============================================================================
+# inferenceservice-config - KServe v0.17.0 controller configuration
 # Schema: each top-level data key (`agent`, `batcher`, `storageInitializer`,
 # `logger`, …) maps to a JSON struct that is unmarshalled directly into the
 # matching Go config type in `kserve/pkg/types/config.go` and the
 # pod-mutator injectors in `kserve/pkg/webhook/admission/pod/`. The keys in
 # the JSON are the FLAT top-level field tags of those structs (image,
-# cpuRequest, …) — do NOT wrap the JSON in an outer object named after the
-# key, e.g. `{"batcher": {...}}` — the unmarshal targets a struct with
+# cpuRequest, …) - do NOT wrap the JSON in an outer object named after the
+# key, e.g. `{"batcher": {...}}` - the unmarshal targets a struct with
 # `image`/`cpuRequest`/… directly, so a wrapper makes every quantity field
 # the empty string and the validate-side `resource.ParseQuantity("")` fails
 # with `quantities must match the regular expression …`. The pod-mutator
@@ -16,8 +14,7 @@
 # 2026-05-07 against KServe v0.17.0 (commit
 # pkg/webhook/admission/pod/batcher_injector.go:62-72).
 # Likewise, the ConfigMap data key for the agent block is `agent` (singular)
-# — `constants.AgentConfigMapKeyName = "agent"` in v0.17.0 — not `agents`.
-# =============================================================================
+# - `constants.AgentConfigMapKeyName = "agent"` in v0.17.0 - not `agents`.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -196,7 +193,7 @@ data:
         "azure": {"azureBlob": {"accountNameSourceFrom": {"secretKeyRef": {"name": "storage-config", "key": "accountname"}}, "accountKeySourceFrom": {"secretKeyRef": {"name": "storage-config", "key": "accountkey"}}}}
       }
     }
-  # storage-initializer initContainer config — KServe controller injects a
+  # storage-initializer initContainer config - KServe controller injects a
   # storage-initializer initContainer into every predictor pod when
   # `storageUri` points outside the cluster (e.g., s3://, gs://).  Without
   # this block the controller fails reconciliation with
@@ -224,7 +221,7 @@ data:
 # KServe S3 storage credentials.  Populated by ESO from
 # `platform/minio/root` in OpenBao (ADR-008).  The key names `aws_access_key_id`
 # / `aws_secret_access_key` are required by the `storageSpec` block above
-# (lines 172-179) — do NOT rename without updating that reference.
+# (lines 172-179) - do NOT rename without updating that reference.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

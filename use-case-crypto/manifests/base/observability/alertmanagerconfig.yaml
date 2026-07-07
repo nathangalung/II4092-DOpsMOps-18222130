@@ -1,14 +1,11 @@
-# =============================================================================
 # Crypto use-case alert routing + receivers
-# =============================================================================
-# AlertmanagerConfig CR (Prometheus Operator) — discovered by the platform
+# AlertmanagerConfig CR (Prometheus Operator) - discovered by the platform
 # Alertmanager because its `alertmanagerConfigSelector.matchLabels:
 # alertmanager=platform` matches our label below. Namespace-scoped routes
 # and receivers merge into the top-level Alertmanager config at reload.
 #
 # This file is crypto-domain-specific. The platform does not know that
 # `use-case-crypto` exists; it discovers our routes via the selector.
-# =============================================================================
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -80,7 +77,7 @@ spec:
           expr: |
             time() - max by (symbol) (crypto_feature_ingested_timestamp_seconds)
 
-        # Prediction accuracy window (1h rolling) — ground truth comes
+        # Prediction accuracy window (1h rolling) - ground truth comes
         # from the ClickHouse `crypto_predictions` vs `crypto_ohlcv` join
         # written by the Airflow DAG `crypto_hourly_features`.
         - record: crypto:prediction_accuracy:1h
@@ -113,15 +110,13 @@ spec:
           annotations:
             summary: "Websocket ingestor produced 0 messages in the last 5m"
 
-    # =========================================================================
     # Service-health alerts driven by the ServiceMonitors in
     # observability/servicemonitors.yaml. These five mirror the
     # audit expectation (ingest lag, validator error rate, ml-bridge
     # latency, Katib experiment status, drift threshold).
-    # =========================================================================
     - name: crypto.services.alerts
       rules:
-        # ---- Ingest lag (Kafka consumer lag for the validator group).
+        # Validator ingest lag.
         # Complements CryptoIngestorStalled (no messages produced) by
         # catching the back-pressure case: messages ARE produced but
         # consumers fall behind.
@@ -136,7 +131,7 @@ spec:
             summary: "Kafka lag on {{ $labels.topic }} = {{ $value }} (group=validator)"
             description: "Validator is lagging — check validator pod CPU / Flink back-pressure."
 
-        # ---- Validator error rate (failed-schema / drop ratio over 10m).
+        # Validator error rate.
         # Metric emitted by platform/services/base/deployments/validator.yaml.
         - alert: CryptoValidatorErrorRateHigh
           expr: |
@@ -151,7 +146,7 @@ spec:
             summary: "Validator drop-rate {{ $value | humanizePercentage }} > 5% for 10m"
             description: "Schema violations or Great Expectations failures are elevated. Check analyzer /reports."
 
-        # ---- ml-bridge latency (p95 request latency > 500ms for 5m).
+        # ml-bridge latency.
         # ml-bridge is the MLflow+Model Registry proxy consumed by the
         # dashboard; slow responses degrade UX.
         - alert: CryptoMLBridgeLatencyHigh
@@ -170,7 +165,7 @@ spec:
             summary: "ml-bridge p95 latency {{ $value | humanizeDuration }} > 500ms"
             description: "Check MLflow Postgres / S3 latency; consider scaling ml-bridge replicas."
 
-        # ---- Katib experiment stuck (running > 2h OR failed trials > 30%).
+        # Katib experiment stuck.
         # Emitted by katib-controller via kube-state-metrics custom
         # resource collector (katib_experiment_condition_status).
         - alert: CryptoKatibExperimentStuck
@@ -205,7 +200,7 @@ spec:
             summary: "Katib experiment {{ $labels.experiment }} stuck or >30% failing"
             description: "HPO run is not converging; inspect trial logs via katib-ui."
 
-        # ---- Drift threshold (Evidently drift score > 0.3 for any feature).
+        # Feature drift threshold.
         # Metric emitted by the inline drift_check step in the Airflow DAG
         # `crypto_hourly_features` (see dags/data_pipeline.py).
         - alert: CryptoFeatureDriftHigh

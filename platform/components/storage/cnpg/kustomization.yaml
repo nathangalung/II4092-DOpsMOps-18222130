@@ -1,19 +1,19 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# CloudNativePG 1.29.x (chart 0.28.0) — PostgreSQL operator (ADR-011).
+# CloudNativePG 1.29.x (chart 0.28.0) - PostgreSQL operator (ADR-011).
 #
 # Rendered via `kustomize build --enable-helm` (apply-component.sh) and
 # applied with `kubectl apply --server-side --force-conflicts`.
 #
-# CRDs are installed by `pre-apply.sh` (raw chart files → SSA), NOT by this
+# CRDs are installed by `pre-apply.sh` (raw chart files applied via SSA), NOT by this
 # render. `crds.create: false` below ensures `helm template` omits the CRD
 # objects so neither the local apply path nor Argo CD's render carries them.
 # Rationale: clusters.postgresql.cnpg.io (452 KB) and poolers (649 KB)
 # exceed the 262144-byte last-applied-configuration annotation limit. Argo
 # CD 3.3.6 with `syncStrategy.apply.force: true` falls back to CSA
 # (`kubectl replace --force`), writes the legacy annotation, then prunes
-# the CRD on the apply failure — taking every Cluster/Pooler CR with it.
+# the CRD on the apply failure - taking every Cluster/Pooler CR with it.
 # Server-side apply via pre-apply.sh writes managedFields instead of the
 # legacy annotation and has no size cap.
 #
@@ -26,7 +26,7 @@ helmCharts:
   - name: plugin-barman-cloud
     repo: https://cloudnative-pg.github.io/charts
     # Chart 0.6.0 (2026-04-14) bundles plugin app v0.12.0. Compatible with
-    # CNPG >= 1.29. cert-manager is a hard prereq — plugin talks to operator
+    # CNPG >= 1.29. cert-manager is a hard prereq - plugin talks to operator
     # over mTLS using certs from the in-cluster issuer (atom-cert-istio runs
     # before atom-storage-core in phase-base).
     version: 0.6.0
@@ -54,7 +54,7 @@ helmCharts:
     valuesInline:
       crds:
         create: false
-      # Operator >=1 — webhook MUST serve before any Cluster / Pooler /
+      # Operator >=1 - webhook MUST serve before any Cluster / Pooler /
       # ScheduledBackup CR applies (admission calls fail "no endpoints
       # available for service cnpg-webhook-service" otherwise). Bump to 2
       # (active/standby with leader election) post-stabilization.
@@ -78,7 +78,7 @@ helmCharts:
         limits:   { cpu: 500m, memory: 256Mi }
       config:
         data:
-          # Cluster-wide watch — any Cluster CR in any namespace reconciled.
+          # Cluster-wide watch - any Cluster CR in any namespace reconciled.
           WATCH_NAMESPACE: ""
           INHERITED_LABELS: "app.kubernetes.io/part-of"
           INHERITED_ANNOTATIONS: "linkerd.io/inject,sidecar.istio.io/inject"
@@ -139,7 +139,7 @@ patches:
   # renew-deadline knobs). Single replica + kine-backed k3s: the 5-second
   # default Lease timeout collapses under any apiserver latency spike and
   # the pod exits with "leader election lost", churning ~220 restarts since
-  # boot. With one replica, leader election adds no safety — drop it.
+  # boot. With one replica, leader election adds no safety - drop it.
   - target:
       group: apps
       version: v1
@@ -158,7 +158,7 @@ patches:
 
   # Strip --leader-elect from cnpg-cloudnative-pg operator Deployment. Chart
   # 0.28.0 hardcodes the flag in templates/deployment.yaml:68 with no toggle
-  # exposed. Same kine 5s LE collapse pattern as barman-cloud above — 35+
+  # exposed. Same kine 5s LE collapse pattern as barman-cloud above - 35+
   # `leader election lost` restarts on a single-replica controller. Preserve
   # the rest of the args verbatim from the chart render.
   - target:

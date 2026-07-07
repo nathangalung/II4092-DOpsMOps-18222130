@@ -1,6 +1,4 @@
-# =============================================================================
-# Kustomize name-reference transformer configuration — KEDA ScaledObject
-# =============================================================================
+# Kustomize name-reference transformer configuration - KEDA ScaledObject
 # Kustomize ships builtin name-reference transformers for core Kubernetes
 # resources (e.g., HorizontalPodAutoscaler.spec.scaleTargetRef.name is
 # automatically rewritten when namePrefix is applied to the referenced
@@ -13,7 +11,7 @@
 # This file teaches kustomize to treat ScaledObject.spec.scaleTargetRef.name
 # as a Deployment reference so the rewrite happens automatically. Mirrors
 # the kustomize builtin behavior for HPA. Same mechanism works for any CRD
-# that references a Deployment by name — add entries here if we grow more.
+# that references a Deployment by name - add entries here if we grow more.
 #
 # Applies to both ScaledObject and ScaledJob (the two KEDA CRs that embed
 # a scaleTargetRef). The fieldSpecs list is evaluated against every matching
@@ -21,8 +19,7 @@
 #
 # Referenced from use-case-crypto/manifests/base/kustomization.yaml via
 # `configurations:`. Also required in the platform base if platform-scope
-# ScaledObjects are ever added — copy this file under platform/.
-# =============================================================================
+# ScaledObjects are ever added - copy this file under platform/.
 nameReference:
   - kind: Deployment
     fieldSpecs:
@@ -88,7 +85,7 @@ nameReference:
   # `InvalidSpec: AnalysisTemplate 'success-rate-p99' not found`.
   #
   # Same pattern as FlinkDeployment for the pod template's configMapRef.
-  # The pipeline-secrets envFrom is intentionally left out — it's an
+  # The pipeline-secrets envFrom is intentionally left out - it's an
   # ExternalSecret `target.name` literal that must keep its raw name (mirrors
   # the FlinkDeployment carve-out comment above).
   - kind: AnalysisTemplate
@@ -113,12 +110,12 @@ nameReference:
   # FlinkDeployment (flink.apache.org/v1beta1) is opaque to kustomize. Two
   # string refs inside its spec must follow `namePrefix: crypto-`:
   #
-  #   1. spec.serviceAccount — the JM/TM pods run under this SA. namePrefix
-  #      renames the ServiceAccount resource `flink` → `crypto-flink`, but the
-  #      CRD's serviceAccount field stays `flink` without this rule → the
+  #   1. spec.serviceAccount - the JM/TM pods run under this SA. namePrefix
+  #      renames the ServiceAccount resource `flink` to `crypto-flink`, but the
+  #      CRD's serviceAccount field stays `flink` without this rule, so the
   #      operator schedules pods against a non-existent SA (pods never admit).
   #
-  #   2. podTemplate envFrom configMapRef pipeline-config — the inherited
+  #   2. podTemplate envFrom configMapRef pipeline-config - the inherited
   #      platform ConfigMap is renamed to `crypto-pipeline-config`; the
   #      FlinkDeployment's envFrom must follow or the JM/TM boot with no
   #      KAFKA_BROKERS / FLINK_* config and StreamJob dies on the required-env
@@ -127,7 +124,7 @@ nameReference:
   # The secretRef envFroms (pipeline-secrets, flink-s3-secret, crypto-app-consumer)
   # are deliberately NOT listed: each is an ExternalSecret `target.name` literal
   # that keeps its raw (un-prefixed) name, so the podTemplate refs already match
-  # the rendered Secret — adding a Secret rule here would be a no-op anyway
+  # the rendered Secret - adding a Secret rule here would be a no-op anyway
   # (no Secret-kind resource carries those names) but is omitted for clarity.
   - kind: ServiceAccount
     fieldSpecs:
@@ -135,13 +132,13 @@ nameReference:
         kind: FlinkDeployment
       # Tekton EventListener (triggers.tekton.dev) is opaque to kustomize the
       # same way: namePrefix renames the ServiceAccount resource
-      # `tekton-triggers-sa` → `crypto-tekton-triggers-sa`, but the EL's
+      # `tekton-triggers-sa` to `crypto-tekton-triggers-sa`, but the EL's
       # spec.serviceAccountName kept the bare name, so the Triggers
       # controller's generated `el-*` Deployment failed pod creation with
       # `serviceaccount "tekton-triggers-sa" not found` (26d outage of the CI
       # webhook listener). The overlay JSON patch that tried to fix this
       # targeted the POST-prefix name `crypto-build-listener`, which patches
-      # never see (they match pre-prefix names) — removed in favour of this
+      # never see (they match pre-prefix names) - removed in favour of this
       # rule.
       - path: spec/serviceAccountName
         kind: EventListener
@@ -150,14 +147,12 @@ nameReference:
       - path: spec/podTemplate/spec/containers/envFrom/configMapRef/name
         kind: FlinkDeployment
 
-# =============================================================================
-# IMAGE TRANSFORMER — FlinkDeployment.spec.image
-# =============================================================================
+# IMAGE TRANSFORMER - FlinkDeployment.spec.image
 # Kustomize's builtin image transformer only walks PodSpec container image
 # paths (spec/containers/image, spec/template/spec/containers/image, …). The
 # FlinkDeployment carries its image at the CRD-level field spec/image, which the
-# builtin never sees — so the overlay `images:` mapping
-# (flink-job → localhost:5000/crypto-flink-job:latest) would NOT apply and the
+# builtin never sees - so the overlay `images:` mapping
+# (flink-job maps to localhost:5000/crypto-flink-job:latest) would NOT apply and the
 # operator would try to pull the bare `flink-job` name. This FieldSpec teaches
 # the image transformer to also rewrite spec/image on FlinkDeployment. Custom
 # `images` FieldSpecs are ADDED to the builtin set (not replaced), so every

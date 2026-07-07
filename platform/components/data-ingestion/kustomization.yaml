@@ -20,12 +20,9 @@ resources:
   - namespace.yaml
   - kafka-operator
   - kafka/kafka-cluster.yaml
-  # kafka-ui (Kafbat) REMOVED: 0 use-case references, not a thesis pillar
-  # (comparison-table mention only). Kafka topic/consumer-group visibility is
-  # already covered by Grafana's Strimzi dashboards (kube-prometheus-stack
-  # scrapes the Kafka exporter) + Karapace REST. Dropping it removes one idle
-  # JVM (GC + access-log disk writes) from the single-HDD footprint.
   - karapace
+  # kafka-ui interactive Kafka browser.
+  - kafka-ui/deployment.yaml
   # kafka-connect uses the in-cluster Distribution registry (platform/
   # components/common/registry) as Strimzi Build output sink. k3s
   # containerd trusts `registry.platform-registry.svc.cluster.local:5000`

@@ -2,7 +2,7 @@
 Feature engineering job for batch processing.
 Reads raw data from ClickHouse, computes features, and writes back.
 
-This is a GENERIC feature engineering runner — all indicator types,
+This is a GENERIC feature engineering runner - all indicator types,
 periods, columns, and horizons come from the use-case config.yaml.
 """
 
@@ -39,7 +39,7 @@ class FeatureEngineeringJob:
     3. Writes computed features to ClickHouse (configurable features table)
 
     All domain-specific settings (which indicators, what periods, which
-    columns to lag) come from the use-case's config.yaml — not hardcoded.
+    columns to lag) come from the use-case's config.yaml - not hardcoded.
     """
 
     def __init__(self, config: Config) -> None:
@@ -136,7 +136,7 @@ class FeatureEngineeringJob:
         return df
 
     def _compute_all_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Compute all features — driven entirely by config."""
+        """Compute all features - driven entirely by config."""
         # Technical indicators (config specifies which indicators and periods)
         if self.config.technical_indicators:
             df = compute_technical_indicators(df, self.config.technical_indicators)
@@ -172,7 +172,7 @@ class FeatureEngineeringJob:
 
         Feature computation produces a SUPERSET of columns (technical +
         dispersion + time + lag + return + target). Sink tables expose
-        different subsets — so we intersect df.columns with the live
+        different subsets - so we intersect df.columns with the live
         destination schema (`DESCRIBE TABLE`) and write only the overlap.
         This makes the job robust to schema evolution and prevents
         `NO_SUCH_COLUMN` insert failures (e.g. writing a computed indicator
@@ -197,9 +197,9 @@ class FeatureEngineeringJob:
 
         # Drop rows with NaN ONLY in the columns we actually write. A blanket
         # df.dropna() (previously in _process_symbol) wiped EVERY row whenever
-        # any computed-but-UNWRITTEN column was all-NaN on warm-up — e.g.
+        # any computed-but-UNWRITTEN column was all-NaN on warm-up - e.g.
         # dispersion_1/volatility_1 = rolling(window=1).std() is structurally
-        # all-NaN — producing a green-but-empty insert (#500). Scoping the drop
+        # all-NaN - producing a green-but-empty insert (#500). Scoping the drop
         # to write_cols keeps rows whose WRITTEN features are present, while
         # still dropping rows with NaN in written targets/features.
         df = df.dropna(subset=write_cols)

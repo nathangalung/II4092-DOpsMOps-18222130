@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# =============================================================================
 # openbao pre-apply: delete any prior `openbao-bootstrap` Job
-# =============================================================================
 # A Kubernetes Job's spec.template is immutable once created. The platform
 # applies openbao-bootstrap.yaml on every `make install-openbao` so the
-# bootstrap script (apk add, init/unseal, KV seeding) re-runs idempotently —
+# bootstrap script (apk add, init/unseal, KV seeding) re-runs idempotently -
 # but server-side apply rejects template mutations with `field is immutable`,
 # making the second `install-openbao` invocation fatal.
 #
@@ -14,7 +12,6 @@
 # no-op against OpenBao state.
 #
 # `--ignore-not-found` makes the hook safe on first install.
-# =============================================================================
 set -euo pipefail
 
 NS=security

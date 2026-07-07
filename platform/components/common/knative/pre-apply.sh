@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
 # Knative Serving pre-apply: wait for webhook Deployment Available + endpoint.
-# =============================================================================
 # Race condition (without this hook):
 #   `kubectl apply -k components/common/knative/` ships
 #   ValidatingWebhookConfiguration / MutatingWebhookConfiguration AND the
@@ -20,7 +18,6 @@
 # Note: gcr.io/knative-releases image-pull on cold cluster has been observed
 # to take 11+ minutes (24MB controller, ~22MB autoscaler/webhook), so the
 # wait window is sized for slow registry / single-node clusters.
-# =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

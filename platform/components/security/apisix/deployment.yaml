@@ -1,17 +1,15 @@
-# =============================================================================
-# Apache APISIX — high-performance API Gateway (replaces Kong)
-# =============================================================================
+# Apache APISIX - high-performance API Gateway (replaces Kong)
 # Standalone YAML mode (no etcd) per ADR-002.  140-220% faster than Kong,
 # O(k) routing, ms-level config sync. Apache 2.0 license, CNCF Top-Level.
 #
-# Image: 3.16.0-debian (latest stable, 2026-04-13 — verified via Docker Hub
+# Image: 3.16.0-debian (latest stable, 2026-04-13 - verified via Docker Hub
 # tag listing.  Earlier 3.15.0 was the prior pin; 3.16.0 ships compatible
 # YAML schema and OpenSSL 3.x updates).
 #
 # Conf-dir handling: APISIX writes nginx.conf, logs, and runtime state into
 # /usr/local/apisix/{conf,logs,client_body_temp,proxy_temp,...} at startup.
 # In the apache/apisix:3.16.0-debian image, /usr/local/apisix is owned by
-# the built-in `apisix` user (UID/GID 636 — verified via `getent passwd
+# the built-in `apisix` user (UID/GID 636 - verified via `getent passwd
 # apisix` against the running image). Running the pod as anything else
 # (we previously used 1000) leaves /usr/local/apisix mode 0755 owned by
 # 636:636, so the apisix process cannot mkdir client_body_temp/proxy_temp
@@ -22,7 +20,6 @@
 # read-only after the chown chain in the Dockerfile), but the rest of
 # the install dir is left intact and writable for runtime temp paths.
 # fsGroup=636 so the kubelet chowns mounted emptyDir volumes to GID 636.
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -52,7 +49,7 @@ metadata:
 spec:
   replicas: 1
   # Recreate strategy: with replicas=1 (single-node bootstrap), RollingUpdate +
-  # PDB maxUnavailable=0 deadlocks — new pod cannot schedule alongside old
+  # PDB maxUnavailable=0 deadlocks - new pod cannot schedule alongside old
   # without violating PDB; old cannot terminate while new is not ready. Recreate
   # tears down first, then starts the replacement. Switch back to RollingUpdate
   # once replicas≥2.
@@ -157,7 +154,7 @@ spec:
           # /apisix/prometheus/metrics on :9091 returns 200. The control API
           # (:9090) only exposes /v1/* routes (schema, healthcheck for
           # upstreams, gc, etc.). For liveness we use a TCP probe on the
-          # proxy port (9080) — nginx accepting connections is the canonical
+          # proxy port (9080) - nginx accepting connections is the canonical
           # alive signal. For readiness we hit the prometheus metrics
           # endpoint (200 only after `init_worker_by_lua` has finished
           # loading every plugin), which is the closest stand-in for
@@ -189,7 +186,7 @@ spec:
           configMap:
             name: apisix-config
         # apisix-routes is rendered by ESO from OpenBao (platform/apisix/default-key)
-        # — see components/security/apisix/externalsecret-routes.yaml.
+        # - see components/security/apisix/externalsecret-routes.yaml.
         - name: apisix-routes
           secret:
             secretName: apisix-routes

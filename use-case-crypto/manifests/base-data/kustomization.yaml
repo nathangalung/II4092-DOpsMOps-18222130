@@ -1,14 +1,11 @@
-# =============================================================================
-# PHASE 1 BASE — Ingestion + Quality + Processing ONLY
-# =============================================================================
+# PHASE 1 BASE - Ingestion + Quality + Processing ONLY
 # Pulls the Data subset of the platform Deployments + crypto CRs that are
-# needed to run ingestion → quality → processing. Train/3/4 resources are
-# NOT included — no unnecessary image pulls.
+# needed to run ingestion, then quality, then processing. Train/3/4 resources are
+# NOT included - no unnecessary image pulls.
 #
 # Paths: `../../../platform/...` cross-repo references REQUIRE
 # `kubectl kustomize --load-restrictor LoadRestrictionsNone` (see Makefile
 # data-apply target).
-# =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -17,7 +14,7 @@ kind: Kustomization
 namespace: use-case-crypto
 
 resources:
-  # --- Infrastructure (platform base ConfigMap + crypto namespace/secrets) ---
+  # Infrastructure (platform base ConfigMap + crypto namespace/secrets)
   - ../../../platform/services/base/pipeline-infrastructure-configmap.yaml
   - ../base/namespace.yaml
   - ../base/configmaps/feast.yaml
@@ -26,7 +23,7 @@ resources:
   - ../base/schema-registration.yaml
   # Kafka Connect connectors removed from this use case (Debezium CDC = wrong
   # tool for an API source; the Iceberg-sink is superseded by the Spark-batch
-  # Iceberg writer — see manifests/base/spark/ — NOT by Flink, which sinks only
+  # Iceberg writer - see manifests/base/spark/ - NOT by Flink, which sinks only
   # to Kafka + Valkey and writes zero Iceberg). See the rationale in
   # ../base/kustomization.yaml. Platform retains the capability.
   # KEDA TriggerAuthentication stays in use-case-crypto. KafkaUsers moved to
@@ -34,7 +31,7 @@ resources:
   # explicit data-ingestion namespace (Strimzi User Operator watches there).
   - ../base/kafka-users/triggerauth.yaml
 
-  # --- Data: Ingestion (platform Deployments + crypto CronJobs) ---
+  # Data: Ingestion (platform Deployments + crypto CronJobs)
   - ../../../platform/services/base/deployments/rest-collector.yaml
   - ../../../platform/services/base/deployments/websocket-collector.yaml
   - ../base/cronjobs/supplementary.yaml
@@ -42,21 +39,21 @@ resources:
   - ../base/cronjobs/supplementary-coingecko.yaml
   - ../base/cronjobs/supplementary-defillama.yaml
 
-  # --- Data: Quality ---
+  # Data: Quality
   - ../../../platform/services/base/deployments/validator.yaml
   - ../../../platform/services/base/deployments/analyzer.yaml
 
-  # --- Data: Processing ---
+  # Data: Processing
   # Flink stream-processor (generic flink-job image) is the speed layer:
-  # crypto.validated → OHLCV features → online `features:{symbol}` Valkey
+  # crypto.validated, then OHLCV features, then online `features:{symbol}` Valkey
   # cache + crypto.features.v1 (ADR-027 End-state Y; the Rust feature-engine
   # was retired). Self-contains its ServiceAccount/Role/RoleBinding and the
   # flink-s3-secret ExternalSecret.
   - ../base/flink/stream-processor.yaml
   - ../base/cronjobs/vector-embedding.yaml
-  # batch-features, batch-sentiment, dbt-run, backfill → Airflow DAGs
+  # batch-features, batch-sentiment, dbt-run, backfill are Airflow DAGs
 
-  # --- Data: Lakehouse (Spark → Iceberg cold archive via Lakekeeper) ---
+  # Data: Lakehouse (Spark to Iceberg cold archive via Lakekeeper)
   # Activates spark-operator + Iceberg + Lakekeeper + Trino as a NON-redundant
   # tier: ClickHouse = hot warehouse, Iceberg-on-MinIO = cold open archive of raw
   # ticks, Trino = federation across both. 6-hourly ScheduledSparkApplication, no
@@ -66,7 +63,7 @@ resources:
   - ../base/spark/archive-script.yaml
   - ../base/spark/trades-archive.yaml
 
-  # --- RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount) ---
+  # RBAC (platform Roles/Bindings + crypto-scoped ServiceAccount)
   - ../../../platform/services/base/rbac/roles.yaml
   - ../../../platform/services/base/rbac/bindings.yaml
   - ../base/rbac/service-account.yaml
@@ -95,8 +92,8 @@ patches:
   - path: ../base/patches/kafka-sasl.yaml
 
 # Teach kustomize's image transformer to rewrite the FlinkDeployment's
-# CRD-level `spec/image` — the builtin transformer only walks PodSpec
-# images, so without this the overlay's `flink-job → crypto-flink-job`
+# CRD-level `spec/image` - the builtin transformer only walks PodSpec
+# images, so without this the overlay's `flink-job to crypto-flink-job`
 # remap silently no-ops and the base `flink-job` placeholder is pulled.
 # Mirrors base/kustomization.yaml.
 configurations:

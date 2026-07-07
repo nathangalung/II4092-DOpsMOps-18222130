@@ -37,9 +37,9 @@ def _resolve_refs(store: Any, names: list[str]) -> list[str]:
     """Map bare feature names to fully-qualified ``view:feature`` refs.
 
     A name already containing ':' passes through untouched. A bare name is
-    resolved against every online view's feature set: unknown → error (a typo
+    resolved against every online view's feature set: unknown becomes error (a typo
     fails loud instead of silently serving null), ambiguous (owned by >1 view)
-    → error asking the caller to qualify it. This replaces the old hardcoded
+    becomes error asking the caller to qualify it. This replaces the old hardcoded
     single-view assumption (``FEATURE_VIEW_NAME``) which returned 0 features
     once the repo grew past one view (the train/serve "Feast returns 0" seam).
     """

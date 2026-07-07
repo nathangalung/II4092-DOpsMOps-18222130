@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# =============================================================================
-# nuke.sh — DESTRUCTIVE: tear down the whole platform.
-# =============================================================================
+# nuke.sh - DESTRUCTIVE: tear down the whole platform.
 # Order:
 #   1. Scale every workload to 0 (graceful shutdown, NUKE_ALL=1)
 #   2. Strip operator-managed CR finalizers (CHI/Kafka/CNPG/ESO/…)
@@ -17,14 +15,13 @@
 #
 # Storage: k3s built-in `local-path` provisioner (ADR-031). PVCs land as
 # hostPath bind-mounts under /var/lib/rancher/k3s/storage/. PV reclaimPolicy
-# Delete on the SC drops the dir on PVC delete — no extra cleanup needed.
+# Delete on the SC drops the dir on PVC delete - no extra cleanup needed.
 #
 # Excluded by default: kube-system, kube-public, kube-node-lease, default.
 #
 # Usage:
 #   nuke.sh                         # confirm prompt
 #   FORCE=1 nuke.sh                 # skip confirmation
-# =============================================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,9 +29,9 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # Platform namespaces. PVCs release via local-path-provisioner (ADR-031);
 # hostPath dirs under /var/lib/rancher/k3s/storage/ are deleted by k3s on
 # PVC delete (reclaimPolicy=Delete on local-path SC). No CSI driver namespace
-# to keep alive — single pass tear-down.
+# to keep alive - single pass tear-down.
 #
-# platform-registry — in-cluster Docker registry (data-ingestion atom installs
+# platform-registry - in-cluster Docker registry (data-ingestion atom installs
 # install-registry into its own namespace before kafka-connect's Connect Build
 # pushes Debezium+Iceberg images there). Without this entry in nuke, the
 # namespace lingers Terminating across runs (deletionTimestamp from prior
@@ -63,7 +60,6 @@ echo ""
 echo "==> Step 1: scale-zero-all (graceful)"
 NUKE_ALL=1 bash "$ROOT/platform/scripts/scale-zero-all.sh" || true
 
-# -----------------------------------------------------------------------------
 # Step 1.5: pre-nuke CR finalizer scrub.
 #
 # Operator-managed CRs (CHI/CHK, Kafka*, CNPG Cluster/Backup, KEDA ScaledObject,
@@ -73,7 +69,7 @@ NUKE_ALL=1 bash "$ROOT/platform/scripts/scale-zero-all.sh" || true
 # operator can clear. Step 1 (scale-zero-all) intentionally takes those
 # operators down; Step 2 then deletes the platform namespaces with
 # --wait=false. Result: the CRs sit with deletionTimestamp + uncleared
-# finalizer forever, blocking ns termination AND — worst case — surviving
+# finalizer forever, blocking ns termination AND - worst case - surviving
 # CRD deletion long enough that `phase-full` resurrects them when the CRD
 # is re-applied. The resurrected CR re-enters the operator's deleteCR path
 # with deletionTimestamp still set, which is exactly the nil-deref panic
@@ -84,7 +80,6 @@ NUKE_ALL=1 bash "$ROOT/platform/scripts/scale-zero-all.sh" || true
 # Per-kind list rather than walking every CRD: keeps the scrub bounded and
 # avoids stripping finalizers we shouldn't (e.g. cert-manager.io leaf-CA
 # finalizers that DO want operator-managed clearing in a non-nuke flow).
-# -----------------------------------------------------------------------------
 echo ""
 echo "==> Step 1.5: pre-nuke CR finalizer scrub (stateful operator CRs)"
 declare -a STUCK_KINDS=(
@@ -135,7 +130,7 @@ declare -a STUCK_KINDS=(
 for kind in "${STUCK_KINDS[@]}"; do
   # Walk every namespace, strip finalizers on every CR of this kind.
   # `kubectl get <unknown-kind> -A` returns empty when the CRD is absent,
-  # so jq emits nothing and the inner loop is a natural no-op — no need
+  # so jq emits nothing and the inner loop is a natural no-op - no need
   # for an upfront `kubectl get crd "$kind"` check (which would require
   # the full plural-CRD-object-name `kafkas.kafka.strimzi.io` etc., not
   # the short forms `kafka`/`chi`/`chk`/`cluster` that `kubectl get` is
@@ -210,7 +205,7 @@ declare -a CRD_GROUPS=(
 
 # Wrap each group's pipeline in `{ ... } || true` so pipefail-propagated
 # kubectl/awk/SIGPIPE failures never bail the whole nuke (Step 3 is best-effort
-# — a missing CRD or transient API blip must not abort cleanup that still has
+# - a missing CRD or transient API blip must not abort cleanup that still has
 # Steps 4-12 to run).
 for g in "${CRD_GROUPS[@]}"; do
   {
@@ -261,20 +256,18 @@ for pv in $(kubectl get pv -o name 2>/dev/null); do
   fi
 done
 
-# -----------------------------------------------------------------------------
 # Step 6: sweep LEGACY Longhorn + snapshot-controller artifacts.
 #
 # Pre-ADR-031 clusters carried longhorn-system (CSI driver, manager, engine,
 # replica) + snapshot-controller (kube-system, external-snapshotter v8.x).
 # Both removed from the platform manifest tree, but a forward-compatible nuke
 # must still erase any residue from a cluster bootstrapped before the
-# migration — otherwise leftover CRs/CRDs trap PVC release and orphan
+# migration - otherwise leftover CRs/CRDs trap PVC release and orphan
 # webhooks reject new apply.
 #
 # Idempotent: every loop is a natural no-op on a fresh / already-migrated
 # cluster (kubectl get on absent CRD returns empty, ns/cluster-role delete
 # with --ignore-not-found is silent).
-# -----------------------------------------------------------------------------
 echo ""
 echo "==> Step 6: sweep legacy Longhorn + snapshot-controller artifacts"
 # Longhorn CRs (clear finalizers, then delete)
@@ -329,11 +322,10 @@ echo "==> Step 7: strip stuck CRDs (force-finalize)"
       done
 } || true
 
-# -----------------------------------------------------------------------------
 # Step 7.5: wait until no platform CRD has a deletionTimestamp.
 #
 # `kubectl delete crd ... --wait=false` (Step 3 + 6 + 7 above) returns the
-# moment the apiserver records the deletion intent — but GC may take 10-60s
+# moment the apiserver records the deletion intent - but GC may take 10-60s
 # to drop the CRD object once finalizers clear. If the next phase-full apply
 # fires while a CRD still has deletionTimestamp set, SSA accepts the new
 # spec WITH a warning ("Detected changes to resource X which is currently
@@ -342,10 +334,9 @@ echo "==> Step 7: strip stuck CRDs (force-finalize)"
 # for any operator CRD; wait for the sweep to converge before phase-full.
 #
 # Fix: poll the platform CRD list and exit only once all are GONE (not just
-# `deletionTimestamp` set — fully gone). 180s deadline covers slow
+# `deletionTimestamp` set - fully gone). 180s deadline covers slow
 # finalizer chains (operator missing, finalizer-clearing already null'd in
 # Step 7 above so this should converge in well under 30s in practice).
-# -----------------------------------------------------------------------------
 echo ""
 echo "==> Step 7.5: wait for platform CRD termination (deadline 180s)"
 # Apiserver returns 503 ServiceUnavailable mid-nuke under kine WAL pressure
@@ -409,7 +400,6 @@ echo "==> Step 10: drop legacy non-built-in StorageClasses"
 # on fresh clusters.
 kubectl delete sc longhorn longhorn-backup longhorn-fast longhorn-replicated longhorn-static --ignore-not-found 2>/dev/null || true
 
-# -----------------------------------------------------------------------------
 # Step 11: flush containerd CRI bookkeeping (sandbox + container reservations).
 #
 # Why this exists:
@@ -417,7 +407,7 @@ kubectl delete sc longhorn longhorn-backup longhorn-fast longhorn-replicated lon
 #   every container/sandbox it has ever created on the host: the name, its
 #   container-ID, and the lifecycle state (CREATED, RUNNING, EXITED, REMOVING).
 #   `--wait=false` deletes from Steps 2/3/6/7 above tell the apiserver "drop
-#   the K8s objects" — but kubelet's CRI calls to actually stop+remove the
+#   the K8s objects" - but kubelet's CRI calls to actually stop+remove the
 #   underlying containers race with the apiserver work, and on a cluster
 #   under IO pressure (PSI io >70% during nuke is common with Longhorn
 #   detach) some of those CRI removes get stuck in a "removing state" that
@@ -438,7 +428,7 @@ kubectl delete sc longhorn longhorn-backup longhorn-fast longhorn-replicated lon
 # What this hook does:
 #   1. `crictl rm` every container in EXITED state. Frees the
 #      "container_<name>_<podUID>_<attempt>" reservation. The "already in
-#      removing state" subset is silently ignored — they require containerd
+#      removing state" subset is silently ignored - they require containerd
 #      restart, which we escalate to in the next bullet.
 #   2. `crictl rmp` every sandbox in NOTREADY state. Frees the
 #      "<pod>_<ns>_<podUID>_0" sandbox-name reservation. Job pods that
@@ -448,11 +438,10 @@ kubectl delete sc longhorn longhorn-backup longhorn-fast longhorn-replicated lon
 #      is the only cure for a stuck-in-removing container record. It's
 #      disruptive (~30s downtime for kube-apiserver/kubelet) but on a
 #      single-node nuked cluster there is nothing actually serving traffic
-#      to disrupt — every workload is already gone.
+#      to disrupt - every workload is already gone.
 #
 #   Idempotent: on a clean nuke (no stragglers) every loop is a no-op and
 #   the entire step finishes in <2s. ~30s when the prune actually fires.
-# -----------------------------------------------------------------------------
 echo ""
 echo "==> Step 11: flush containerd CRI bookkeeping (stale sandbox/container reservations)"
 if command -v crictl >/dev/null 2>&1; then
@@ -503,9 +492,7 @@ else
   echo "    crictl not on PATH — skip (k3s embeds it; check /var/lib/rancher/k3s/data/current/bin/)"
 fi
 
-# -----------------------------------------------------------------------------
 # Step 12: reclaim host-local CNI IPAM lease files (flannel /var/lib/cni)
-# -----------------------------------------------------------------------------
 # Why this exists:
 #   k3s' default CNI is flannel + host-local IPAM. host-local writes one file
 #   per allocated pod IP under /var/lib/cni/networks/cbr0/<10.42.x.y>. The
@@ -514,8 +501,8 @@ fi
 #
 #   On nuke-scale churn (Step 2/3/6/7 batch delete; Step 11 crictl rmp), some
 #   DEL calls race with sandbox removal and silently no-op. Each leak burns
-#   one IP from the /24 range. After 1–2 nuke cycles, the lease file count
-#   can exceed live pod IPs by 50–100. Eventually the range is exhausted
+#   one IP from the /24 range. After 1-2 nuke cycles, the lease file count
+#   can exceed live pod IPs by 50-100. Eventually the range is exhausted
 #   and all NEW pod sandboxes fail with:
 #       failed to allocate for range 0: no IP addresses available in
 #       range set: 10.42.0.1-10.42.0.254
@@ -528,9 +515,8 @@ fi
 #   3. Delete every lease whose IP is NOT in the live-pod set.
 #
 #   Skipped silently if /var/lib/cni/networks/cbr0/ doesn't exist (different
-#   CNI installed, or a clean host pre-bootstrap). Idempotent — re-runs on
+#   CNI installed, or a clean host pre-bootstrap). Idempotent - re-runs on
 #   a clean state do nothing.
-# -----------------------------------------------------------------------------
 echo ""
 echo "==> Step 12: reclaim leaked host-local CNI IPAM leases"
 CNI_DIR=/var/lib/cni/networks/cbr0

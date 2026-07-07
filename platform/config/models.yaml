@@ -1,6 +1,4 @@
-# =============================================================================
-# ML MODEL TEMPLATES — Available Model Types & AutoML
-# =============================================================================
+# ML MODEL TEMPLATES - Available Model Types & AutoML
 # Defines model architectures available in the platform trainer.
 # Use cases select from these templates in their config.yaml:
 #
@@ -10,12 +8,9 @@
 #       type: xgboost              # from the types list
 #       target: my_target_col
 #       framework: sklearn         # sklearn | tensorflow | pytorch | h2o
-# =============================================================================
 
 model_templates:
-  # ---------------------------------------------------------------------------
-  # REGRESSION — Predict continuous values
-  # ---------------------------------------------------------------------------
+  # REGRESSION - Predict continuous values
   # Use for: value prediction, demand forecasting, sensor readings, trend estimation
   regression:
     description: "Predict continuous numerical values"
@@ -65,9 +60,7 @@ model_templates:
         framework: tensorflow
         default_params: { n_d: 8, n_a: 8, n_steps: 3 }
 
-  # ---------------------------------------------------------------------------
-  # CLASSIFICATION — Predict categories
-  # ---------------------------------------------------------------------------
+  # CLASSIFICATION - Predict categories
   # Use for: signal classification, fraud detection, anomaly labels, churn prediction
   classification:
     description: "Predict discrete categories or labels"
@@ -98,9 +91,7 @@ model_templates:
         framework: tensorflow
         default_params: { n_d: 8, n_a: 8, n_steps: 3 }
 
-  # ---------------------------------------------------------------------------
-  # TIME SERIES — Sequence-based prediction
-  # ---------------------------------------------------------------------------
+  # TIME SERIES - Sequence-based prediction
   # Use for: sequence forecasting, trend prediction, temporal patterns
   time_series:
     description: "Sequence-based temporal prediction"
@@ -137,9 +128,7 @@ model_templates:
         default_params:
           { forecast_length: 24, backcast_length: 96, num_blocks: 3 }
 
-  # ---------------------------------------------------------------------------
-  # ANOMALY DETECTION — Identify outliers and anomalies
-  # ---------------------------------------------------------------------------
+  # ANOMALY DETECTION - Identify outliers and anomalies
   # Use for: fraud detection, system monitoring, quality control
   anomaly_detection:
     description: "Detect anomalies and outliers in data"
@@ -158,9 +147,7 @@ model_templates:
         default_params:
           { encoding_dim: 32, epochs: 50, threshold_percentile: 95 }
 
-  # ---------------------------------------------------------------------------
-  # CLUSTERING — Unsupervised grouping
-  # ---------------------------------------------------------------------------
+  # CLUSTERING - Unsupervised grouping
   # Use for: customer segmentation, pattern discovery, data exploration
   clustering:
     description: "Unsupervised grouping of similar data points"
@@ -178,9 +165,7 @@ model_templates:
         framework: sklearn
         default_params: { n_components: 5, covariance_type: "full" }
 
-  # ---------------------------------------------------------------------------
-  # ENSEMBLE — Combine multiple models
-  # ---------------------------------------------------------------------------
+  # ENSEMBLE - Combine multiple models
   # Use for: improved accuracy, reduced overfitting, robust predictions
   ensemble:
     description: "Combine predictions from multiple models"
@@ -202,9 +187,7 @@ model_templates:
         framework: sklearn
         default_params: { final_estimator: "logistic_regression" }
 
-  # ---------------------------------------------------------------------------
-  # AUTOML — Automated model selection & hyperparameter tuning
-  # ---------------------------------------------------------------------------
+  # AUTOML - Automated model selection & hyperparameter tuning
   # Use for: rapid prototyping, baseline models, hyperparameter optimization
   automl:
     description: "Automated machine learning pipelines"
@@ -228,9 +211,7 @@ model_templates:
             learning_rate: [0.01, 0.3]
             n_estimators: [50, 300]
 
-# ---------------------------------------------------------------------------
 # EXPORT SETTINGS
-# ---------------------------------------------------------------------------
 export:
   onnx: true # Export to ONNX for inference engine
   mlflow_registry: true # Register in MLflow model registry

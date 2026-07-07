@@ -34,7 +34,7 @@ spec:
   # client routes through the Service which only forwards to Ready pods.
   # Recreate terminates the old pod first, the bootstrap Job then races
   # the new pod's startup, posts the install form (200), and the new pod
-  # becomes Ready — total downtime ≤ 60 s on a warm-cache k3s.  Once Gitea
+  # becomes Ready - total downtime ≤ 60 s on a warm-cache k3s.  Once Gitea
   # is installed, this could be relaxed to RollingUpdate, but with a single
   # replica the practical difference is nil.
   strategy:
@@ -59,7 +59,7 @@ spec:
       # non-root.  fsGroup=1000 ensures PVC ownership matches the runtime
       # uid.  If a fully rootless variant is required (PSS-restricted
       # namespace), switch to gitea/gitea:1.26.1-rootless and remount the
-      # PVC at /var/lib/gitea — see ADR-027 §B.
+      # PVC at /var/lib/gitea - see ADR-027 §B.
       # Kyverno `require-run-as-nonroot` ValidatingPolicy stays in Audit
       # mode for this workload (policies.yaml:105) so a PolicyReport row
       # is emitted but admission is not blocked.
@@ -72,10 +72,10 @@ spec:
           image: gitea/gitea:1.26.1
           # Container-level securityContext intentionally left empty.  The
           # rootful Gitea image's s6-overlay supervisor escalates briefly
-          # (setuid drop from root → git uid 1000) during start-up, so
+          # (setuid drop from root to git uid 1000) during start-up, so
           # capabilities.drop=ALL + allowPrivilegeEscalation=false aborts
           # the boot sequence.  After s6 hands off to the Gitea binary,
-          # the workload runs as uid 1000 with no setuid syscalls — the
+          # the workload runs as uid 1000 with no setuid syscalls - the
           # security envelope is comparable to enforcing the policy
           # explicitly, but without breaking entrypoint init.
           imagePullPolicy: IfNotPresent
@@ -96,7 +96,7 @@ spec:
               value: "2222"
             - name: GITEA__server__DOMAIN
               value: "gitea.gitops.svc.cluster.local"
-            # In-cluster SVC URL is the canonical AppURL — both ArgoCD repo-server
+            # In-cluster SVC URL is the canonical AppURL - both ArgoCD repo-server
             # and Tekton CSI git-clone resolve via this hostname.  Setting
             # ROOT_URL=localhost (the chart default) breaks the install POST
             # because Gitea rejects form submissions when the Host header

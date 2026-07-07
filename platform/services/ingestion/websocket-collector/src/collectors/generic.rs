@@ -1,4 +1,4 @@
-//! Generic WebSocket collector — platform-agnostic connection / dispatch loop.
+//! Generic WebSocket collector - platform-agnostic connection / dispatch loop.
 //!
 //! The collector holds a `MessageParser` implementation which translates raw
 //! WebSocket payloads into the platform `Record` structure. Platform ships

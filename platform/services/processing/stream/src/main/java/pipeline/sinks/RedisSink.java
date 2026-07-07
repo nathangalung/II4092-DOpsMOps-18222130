@@ -20,7 +20,7 @@ import java.io.Serializable;
 /**
  * Valkey sink using Lettuce async client (Redis-RESP wire protocol).
  * Class name retains "Redis" prefix because the underlying client is the
- * Lettuce {@code io.lettuce.core.RedisClient} type — Valkey 9 is fully
+ * Lettuce {@code io.lettuce.core.RedisClient} type - Valkey 9 is fully
  * drop-in (BSD-3-Clause vs Redis 8 AGPL).
  * Stores features keyed by symbol.
  * Updated for Flink 2.x Sink API.
@@ -45,7 +45,7 @@ public class RedisSink implements Sink<String>, Serializable {
         // distinct Valkey keyspace and never clobbers another writer's
         // `features:{symbol}` (the online feature cache is owned solely by
         // the feature-engine service). Falls back to the legacy bare
-        // "features:" only if a caller passes null/empty — StreamJob always
+        // "features:" only if a caller passes null/empty - StreamJob always
         // supplies a namespaced default.
         this.keyPrefix = (keyPrefix == null || keyPrefix.isEmpty()) ? "features:" : keyPrefix;
     }
@@ -99,7 +99,7 @@ public class RedisSink implements Sink<String>, Serializable {
 
                 // The online-cache payload is the indicator map ONLY. Strip the
                 // routing/scoring fields (symbol, timestamp) so the stored value
-                // is a pure {feature: number} object — the exact shape the
+                // is a pure {feature: number} object - the exact shape the
                 // feature-cache (BTreeMap<String,f64>) and gateway readers
                 // expect, and byte-compatible with the historical feature-engine
                 // writer (which cached the indicator map alone under the same
