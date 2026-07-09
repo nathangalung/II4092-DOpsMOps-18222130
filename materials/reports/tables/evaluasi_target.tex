@@ -18,9 +18,9 @@
 
 \multicolumn{4}{|l|}{\textbf{Kebutuhan Fungsional}} \\
 \hline
-KF-01 & \textit{Feature view} terversion dan rekonsiliasi otomatis & Feast \textit{registry}, Argo CD, Gitea & Terverifikasi struktural. Rekonsiliasi Argo CD konvergen dan definisi \textit{feature view} tanpa \textit{drift}. \\
+KF-01 & \textit{Feature view} berversi dan rekonsiliasi otomatis & Feast \textit{registry}, Argo CD, Gitea & Terverifikasi struktural. Rekonsiliasi Argo CD konvergen dan definisi \textit{feature view} tanpa \textit{drift}. \\
 \hline
-KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, \textit{materialize} & Terverifikasi struktural. Nilai \textit{online} dan \textit{offline} sama melalui \textit{materialize} Feast. \\
+KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, materialisasi & Terverifikasi struktural. Nilai \textit{online} dan \textit{offline} sama melalui materialisasi Feast. \\
 \hline
 KF-03 & \textit{Zero leakage} pada \textit{point-in-time join} & Feast PIT, probe \textit{leakage} & Terverifikasi struktural. Probe \textit{timestamp} masa depan menolak baris bocor. \\
 \hline
@@ -28,13 +28,13 @@ KF-04 & Pencarian vektor HNSW berfungsi, latensi sub-detik & Qdrant, k6 & Terins
 \hline
 KF-05 & \textit{Pipeline end-to-end}, \textit{run} tercatat di MLflow & Kubeflow Pipelines, MLflow & Terverifikasi struktural. \textit{Pipeline} Kubeflow merangkai deteksi \textit{drift}, pelatihan dari tabel \textit{gold}, dan \textit{deploy} ke KServe; definisinya terkompilasi dan terdaftar pada KFP dengan jalur pencatatan ke MLflow. \\
 \hline
-KF-06 & Promosi kanari dan \textit{rollback} otomatis & KServe, Argo Rollouts, Prometheus & Terverifikasi struktural. \textit{Rollout} kanari dan \textit{rollback} otomatis terbentuk. \\
+KF-06 & Promosi \textit{canary} dan \textit{rollback} otomatis & KServe, Argo Rollouts, Prometheus & Terverifikasi struktural. \textit{Rollout} \textit{canary} dan \textit{rollback} otomatis terbentuk. \\
 \hline
-KF-07 & \textit{Drift} memicu pelatihan ulang & \textit{drift-detector}, Argo CronWorkflow & Terverifikasi fungsional. PSI 18,107 dan KS 0,815 melampaui ambang sehingga \textit{retrain} terpicu. \\
+KF-07 & \textit{Drift} memicu pelatihan ulang & \textit{drift-detector}, Argo CronWorkflow & Terverifikasi fungsional. PSI 18,107 dan KS 0,815 melampaui ambang sehingga pelatihan ulang terpicu. \\
 \hline
 KF-08 & \textit{Lineage} data ke fitur ke model utuh & DataHub, OpenLineage & Terverifikasi struktural. Terhubung 270 \textit{dataset}, 18 \textit{DataJob}, dan 3 \textit{DataFlow}. \\
 \hline
-KF-09 & \textit{Run} reproducible, selisih ulang kecil & MLflow & Terverifikasi struktural. Seed tetap (42), pelacakan MLflow, dan jendela tanggal terparameter memungkinkan \textit{run} direproduksi dari \textit{snapshot}. \\
+KF-09 & \textit{Run} dapat direproduksi, selisih ulang kecil & MLflow & Terverifikasi struktural. Seed tetap (42), pelacakan MLflow, dan jendela tanggal terparameter memungkinkan \textit{run} direproduksi dari \textit{snapshot}. \\
 \hline
 KF-10 & Transisi status dan \textit{audit trail} & MLflow Tracking dan Model Registry & Terverifikasi struktural. Transisi status pada \textit{Model Registry} tersedia sebagai prosedur dan belum dijalankan otomatis oleh \textit{trainer}; MLflow Tracking merekam parameter, metrik, dan artefak tiap \textit{run} sebagai jejak audit. \\
 \hline
@@ -42,18 +42,18 @@ KF-11 & Paritas fitur \textit{batch} dan \textit{stream} & dbt, Flink & Terverif
 \hline
 KF-12 & Konvergensi deklaratif tanpa \textit{drift} & Kustomize, Argo CD, Gitea & Terverifikasi struktural. Hasil \texttt{argocd diff} bersih dan konvergen tanpa \textit{drift}. \\
 \hline
-KF-13 & SDK Feast, MLflow, dan klien KServe v2 termuat dalam satu \textit{environment} uv & Notebook \texttt{uv run}, pyproject & Terverifikasi struktural. Notebook \texttt{unified\_sdk\_walkthrough} memuat ketiga klien dalam satu \textit{environment} uv lalu menjalankannya sebagai operasi baca independen. \\
+KF-13 & SDK Feast, MLflow, dan klien KServe v2 termuat dalam satu \textit{environment} uv & \textit{Notebook} \texttt{uv run}, pyproject & Terverifikasi struktural. \textit{Notebook} \texttt{unified\_sdk\_walkthrough} memuat ketiga klien dalam satu \textit{environment} uv lalu menjalankannya sebagai operasi baca independen. \\
 \hline
 KF-14 & \textit{Job} luar kuota \textit{Pending}, admisi sesuai & Kueue \textit{ClusterQueue}, HPA, VPA, KEDA & Terverifikasi struktural. \textit{Job} di luar kuota berstatus \textit{Pending} sesuai admisi Kueue. \\
 \hline
 
 \multicolumn{4}{|l|}{\textbf{Kebutuhan Nonfungsional}} \\
 \hline
-KNF-01 & Latensi p99 sub-detik \textit{serving} dan vektor & k6, SLO Sloth & Terinstrumentasi. Jalur penyajian fitur dan vektor terukur; p99 pada beban tinggi belum diukur. \\
+KNF-01 & Latensi p99 sub-detik penyajian dan vektor & k6, SLO Sloth & Terinstrumentasi. Jalur penyajian fitur dan vektor terukur; p99 pada beban tinggi belum diukur. \\
 \hline
 KNF-02 & \textit{Throughput serving} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-}\allowbreak\texttt{perf-test}, KEDA & Terinstrumentasi. Instrumen beban k6 dan KEDA terpasang; \textit{throughput} puncak belum diukur. \\
 \hline
-KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Terinstrumentasi. HPA dan KEDA aktif pada satu \textit{node}; skala mendekati linear belum diuji pada multi-node. \\
+KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Terinstrumentasi. HPA dan KEDA aktif pada satu \textit{node}; skala mendekati linear belum diuji pada multi-\textit{node}. \\
 \hline
 KNF-04 & Pemulihan otomatis, RTO dan RPO terjaga & Chaos Mesh, Velero, Sloth & Terverifikasi struktural. Jalur pemulihan otomatis Chaos Mesh dan Velero terbentuk. \\
 \hline

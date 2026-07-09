@@ -1,0 +1,29 @@
+\begin{table}[!htb]
+\centering
+\caption{Ilustrasi Biaya Infrastruktur dan Tenaga Kerja Tiga Tahun per 16 Juni 2026}
+\label{tab:perbandingan_biaya_tahunan}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}|>{\raggedright\arraybackslash}m{5.0cm}|>{\centering\arraybackslash}m{2.5cm}|>{\centering\arraybackslash}m{2.5cm}|>{\centering\arraybackslash}m{2.6cm}|}
+\hline
+\textbf{Komponen Biaya} & \textbf{Skenario A (VPS)} & \textbf{Skenario B (GKE)} & \textbf{Skenario C (Terkelola)} \\
+\hline
+Infrastruktur per bulan & USD 416,26 & USD 504,35 & USD 1.004,36 \\
+\hline
+Infrastruktur 12 bulan & USD 4.995,12 & USD 6.052,20 & USD 12.052,32 \\
+\hline
+Alokasi tenaga bulan pertama & 1,0 FTE & 1,0 FTE & 0,5 FTE \\
+\hline
+Alokasi tenaga bulan kedua sampai kedua belas & 0,25 FTE per bulan & 0,25 FTE per bulan & 0,1 FTE per bulan \\
+\hline
+Biaya tenaga 12 bulan & USD 3.174,56 & USD 3.174,56 & USD 1.354,48 \\
+\hline
+\textbf{Total tahun pertama} & \textbf{USD 8.169,68} & \textbf{USD 9.226,76} & \textbf{USD 13.406,80} \\
+\hline
+Biaya per tahun sesudah tahun pertama & USD 7.534,77 & USD 8.591,85 & USD 13.068,18 \\
+\hline
+\textbf{Total tiga tahun} & \textbf{USD 23.239,22} & \textbf{USD 26.410,46} & \textbf{USD 39.543,16} \\
+\hline
+\end{tabular*}
+\par{\footnotesize Alokasi tenaga merupakan asumsi ilustratif untuk memperlihatkan struktur biaya, bukan hasil pengukuran; satu FTE (\textit{full-time equivalent}) berarti alokasi penuh satu \textit{engineer} selama satu bulan. Infrastruktur Skenario A memakai median empat penyedia vCPU \textit{dedicated} pada Tabel~\ref{tab:perbandingan_biaya}, yaitu USD 416,26 per bulan. Biaya tenaga memakai gaji acuan IDR 15.000.000 per bulan dari batas atas kisaran \textit{Data Engineer} pada panduan gaji PERSOLKELLY Indonesia \autocite{persolkelly2023}, setara USD 846,55 pada kurs referensi JISDOR IDR 17.719 per USD tanggal 15 Juni 2026, hari penerbitan terakhir sebelum 16 Juni yang merupakan libur nasional \autocite{bi2026}. Tahun kedua dan ketiga memakai alokasi tetap 0,25 FTE per bulan pada Skenario A dan B serta 0,1 FTE per bulan pada Skenario C, dengan harga daftar dianggap tetap.}
+\end{table}

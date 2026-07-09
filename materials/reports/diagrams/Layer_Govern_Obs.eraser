@@ -7,10 +7,10 @@
 
 direction right
 
-// ===== Penghasil sinyal (batas) =====
+// Penghasil sinyal (batas)
 Lapisan Beban Kerja [icon: layers, color: gray, label: "Lapisan Beban Kerja (data, fitur, model)"]
 
-// ===== Lapis Tata Kelola dan Observabilitas =====
+// Lapis Tata Kelola dan Observabilitas
 Lapisan Tata Kelola dan Observabilitas [icon: eye, color: teal] {
   Tata Kelola Data [icon: book] {
     DataHub [icon: book-open, label: "DataHub (katalog metadata)"]
@@ -30,11 +30,11 @@ Lapisan Tata Kelola dan Observabilitas [icon: eye, color: teal] {
   Superset [icon: pie-chart, label: "Apache Superset (dasbor BI)"]
 }
 
-// ===== Indeks dan konsumen (batas) =====
+// Indeks dan konsumen (batas)
 OpenSearch [icon: search, color: green, label: "OpenSearch (indeks pencarian)"]
 Business User [icon: user, color: gray]
 
-// ===== Alur tata kelola dan lineage =====
+// Alur tata kelola dan lineage
 Lapisan Beban Kerja > OpenLineage: emisi lineage
 OpenLineage > DataHub: graf lineage
 Great Expectations > DataHub: hasil validasi
@@ -42,7 +42,7 @@ Lapisan Beban Kerja > Great Expectations: kontrak kualitas
 Lapisan Beban Kerja > Evidently: distribusi fitur
 DataHub -- OpenSearch: indeks pencarian
 
-// ===== Alur observabilitas =====
+// Alur observabilitas
 Lapisan Beban Kerja > OpenTelemetry: metrik + log + trace
 OpenTelemetry > Tempo: trace
 OpenTelemetry > Prometheus: metrik
@@ -54,7 +54,7 @@ Pyroscope > Grafana: profil
 Prometheus > OpenCost: metrik biaya
 OpenCost > Grafana: biaya per beban
 
-// ===== Alur BI =====
+// Alur BI
 DataHub > Superset: dasbor BI
 Business User > Superset: analitik
 Business User > Grafana: pemantauan

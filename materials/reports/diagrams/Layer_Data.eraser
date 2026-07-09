@@ -9,7 +9,7 @@ direction right
 
 Sumber Data Eksternal [icon: cloud, color: gray]
 
-// ===== Lapis Ingestasi =====
+// Lapis Ingestasi
 Lapisan Ingestasi Data [icon: download, color: orange] {
   Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
   Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
@@ -17,7 +17,7 @@ Lapisan Ingestasi Data [icon: download, color: orange] {
   Kafbat UI [icon: monitor, label: "Kafbat UI"]
 }
 
-// ===== Lapis Pemrosesan =====
+// Lapis Pemrosesan
 Lapisan Pemrosesan [icon: cpu, color: yellow] {
   Flink [icon: zap, label: "Apache Flink (stream)"]
   Spark [icon: sun, label: "Apache Spark (batch)"]
@@ -26,7 +26,7 @@ Lapisan Pemrosesan [icon: cpu, color: yellow] {
   Trino [icon: search, label: "Trino (federasi kueri)"]
 }
 
-// ===== Lapis Penyimpanan dan Fitur =====
+// Lapis Penyimpanan dan Fitur
 Lapisan Penyimpanan Fitur [icon: database, color: green] {
   Lakehouse [icon: layers] {
     MinIO [icon: hard-drive, label: "MinIO (objek + KES)"]
@@ -47,16 +47,16 @@ Lapisan Penyimpanan Fitur [icon: database, color: green] {
   }
 }
 
-// ===== Konsumen fitur (batas) =====
+// Konsumen fitur (batas)
 Lapisan Siklus Hidup Model [icon: refresh-cw, color: purple, label: "Lapisan Siklus Hidup Model (konsumen fitur)"]
 
-// ===== Alur ingestasi =====
+// Alur ingestasi
 Sumber Data Eksternal > Kafka Connect: REST + CDC
 Kafka Connect > Kafka
 Kafka <> Karapace: validasi skema
 Kafbat UI -- Kafka: pemantauan topik
 
-// ===== Alur pemrosesan =====
+// Alur pemrosesan
 Kafka > Flink: jalur stream
 Flink > ClickHouse: agregasi real-time
 Kafka > Spark: jalur batch
@@ -66,12 +66,12 @@ Spark > Iceberg: tulis tabel
 dbt > ClickHouse: model gold
 Trino > Iceberg: kueri federatif
 
-// ===== Alur penyimpanan =====
+// Alur penyimpanan
 Iceberg -- MinIO: penyimpanan objek
 lakeFS -- MinIO: versi data
 Lakekeeper -- Iceberg: katalog tabel
 
-// ===== Alur fitur =====
+// Alur fitur
 ClickHouse > Feast: sumber offline
 Feast > Valkey: materialisasi online
 Flink > Valkey: fitur stream

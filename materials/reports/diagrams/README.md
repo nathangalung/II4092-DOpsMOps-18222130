@@ -16,6 +16,13 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    (Raystack, Kong, Redis Stack, Jaeger).
 4. Diagram untuk bab mana pun (bukan hanya Bab III/IV) boleh ditaruh di sini
    selama mengikuti aturan penamaan di atas.
+5. Gambar III.1 dan IV.1 membawa penanda kematangan yang harus tetap konsisten
+   dengan Subbab II.1.3 (`subsec:maturity`): Fragment = MLOps level 0
+   (googlecloud2024mlops) + tahap awal model evolusi DataOps (munappy2020adhoc);
+   Integrate = MLOps level 2 + tahap DataOps. Grup legenda pada kedua berkas
+   (`Ciri Kematangan Kondisi Saat Ini`, `Pemetaan Kematangan Target`) tidak
+   boleh dihapus tanpa memperbarui caption dan prosa Bab III/IV yang
+   mengutip landasan tersebut.
 
 ## Render ulang
 
@@ -30,9 +37,12 @@ Konvensi lengkap: `WRITING_GUIDE.md` bagian 1.7 dan `TEMPLATE_BAB.md`.
 
 - `Fragment_General_Arch.eraser` — pandangan umum fragmentasi (Gambar III.1),
   status quo pra-platform: empat peran + tumpukan ad hoc generik, tanpa
-  menamai komponen platform.
+  menamai komponen platform; grup `Ciri Kematangan Kondisi Saat Ini`
+  merender penanda MLOps level 0 + tahap awal evolusi DataOps.
 - `Integrate_General_Arch.eraser` — arsitektur umum platform (Gambar IV.1),
-  tujuh lapisan Bab IV + empat peran pengguna + rantai GitOps.
+  tujuh lapisan Bab IV + empat peran pengguna + rantai GitOps; grup
+  `Pemetaan Kematangan Target` merender penanda MLOps level 2 (tujuh
+  komponen wajib) + tahap DataOps.
 - `Layer_Infra_Control.eraser` — rincian Lapisan Infrastruktur dan Bidang
   Kendali (Subbab IV.2.1): orkestrasi, mesh, keamanan, operasional, dan GitOps.
 - `Layer_Data.eraser` — rincian Lapisan Ingestasi, Pemrosesan, dan Penyimpanan

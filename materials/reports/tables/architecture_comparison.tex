@@ -63,7 +63,7 @@ Reprodusibilitas meningkat melalui kontainerisasi dan pengelolaan eksperimen ter
 \hline
 \textit{Deployment} Model &
 Proses \textit{deployment} manual dengan \textit{refactoring} besar dan sering terjadi \textit{bug} pasca-\textit{deploy}. &
-KServe dengan \textit{InferenceService} deklaratif dan \textit{deployment} otomatis melalui GitOps di atas Knative Serving. OpenTelemetry mengumpulkan log dan \textit{trace} inferensi ke Loki dan Grafana Tempo sebagai dasar \textit{monitoring} dan analitik lanjutan. &
+KServe dengan \textit{InferenceService} deklaratif dan \textit{deployment} otomatis melalui GitOps di atas Knative Serving. OpenTelemetry mengumpulkan log dan \textit{trace} \textit{inference} ke Loki dan Grafana Tempo sebagai dasar pemantauan dan analitik lanjutan. &
 Waktu \textit{deployment} berpotensi turun secara signifikan, dan insiden terkait kesalahan konfigurasi \textit{deployment} dapat dikurangi lewat otomasi. &
 \autocite{paleyes2022challenges} \\
 \hline
@@ -76,30 +76,30 @@ Dukungan \textit{canary release}, A/B \textit{testing}, dan \textit{automatic ro
 Deteksi \textit{Drift} &
 Deteksi \textit{drift} bersifat reaktif dengan jeda deteksi yang panjang terhadap isu penting dan perubahan gradual. &
 \textit{Monitoring} proaktif dengan uji statistik, \textit{alert real-time}, dan penetapan ambang adaptif. &
-Jeda deteksi \textit{drift} dapat dipersingkat sehingga \textit{retraining} dapat dijadwalkan lebih tepat waktu untuk menjaga kinerja model. &
+Jeda deteksi \textit{drift} dapat dipersingkat sehingga pelatihan ulang dapat dijadwalkan lebih tepat waktu untuk menjaga kinerja model. &
 \autocite{cespedes2024efficient,bayram2022concept} \\
 \hline
-\textit{Governance} \& \textit{Lineage} &
+Tata Kelola \& \textit{Lineage} &
 Dokumentasi dilakukan secara manual dan \textit{audit trail} sering tidak lengkap atau tersebar. &
 DataHub dengan \textit{metadata ingestion} otomatis dan \textit{lineage} yang dapat ditelusuri dari \textit{source} hingga model, dibantu OpenLineage sebagai protokol pengirim peristiwa lintas \textit{engine} pemrosesan. &
 Waktu persiapan audit dapat berkurang dan cakupan metadata meningkat melalui proses \textit{ingestion} dan \textit{lineage} otomatis. &
 \autocite{stoyanovich2020responsible,lamer2024data} \\
 \hline
 \textit{Observability} &
-Fokus \textit{monitoring} pada metrik infrastruktur, tanpa cakupan metrik ML spesifik di sebagian besar organisasi. &
-\textit{Observability} mencakup metrik ML, \textit{dashboard} kinerja model, dan \textit{alert} berbasis indikator \textit{drift}. Prometheus dan Grafana menjadi inti, OpenTelemetry mengalirkan log dan \textit{trace} ke Loki dan Grafana Tempo, sementara Alertmanager mengonsolidasikan \textit{alert} ke berbagai kanal notifikasi. &
+Fokus pemantauan pada metrik infrastruktur, tanpa cakupan metrik ML spesifik di sebagian besar organisasi. &
+\textit{Observability} mencakup metrik ML, dasbor kinerja model, dan \textit{alert} berbasis indikator \textit{drift}. Prometheus dan Grafana menjadi inti, OpenTelemetry mengalirkan log dan \textit{trace} ke Loki dan Grafana Tempo, sementara Alertmanager mengonsolidasikan \textit{alert} ke berbagai kanal notifikasi. &
 Proses \textit{debugging} dan \textit{root cause analysis} menjadi lebih efektif sehingga MTTR dapat diturunkan. &
 \autocite{shankar2022operationalizing} \\
 \hline
 Integrasi CI/CD &
-CI/CD untuk \textit{pipeline} dan model dilakukan secara manual atau semiotomatis, dengan \textit{workflow} yang tidak seragam. &
+CI/CD untuk \textit{pipeline} dan model dilakukan secara manual atau semiotomatis, dengan alur kerja yang tidak seragam. &
 GitOps dengan Argo CD sebagai mekanisme \textit{continuous deployment} deklaratif, dilengkapi Tekton untuk \textit{continuous integration} dan Argo Rollouts untuk \textit{progressive delivery}, dengan Git sebagai sumber kebenaran tunggal yang mencakup seluruh konfigurasi DataOps dan MLOps. &
 Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{deployment} dapat ditekan melalui otomasi dan \textit{peer review} pada \textit{pull request}. &
 \autocite{kreuzberger2023mlops} \\
 \hline
 Pengalaman \textit{Developer} &
 \textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan alat yang terpisah. &
-Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan otentikasi tunggal di seluruh antarmuka pengembang. &
+Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan autentikasi tunggal di seluruh antarmuka pengembang. &
 \textit{Onboarding} dapat dipercepat dan produktivitas \textit{data scientist} meningkat karena hambatan akses infrastruktur berkurang. &
 \autocite{paleyes2022challenges,rella2022mlops} \\
 \hline
@@ -111,7 +111,7 @@ Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber day
 \hline
 Keamanan \& \textit{Compliance} &
 Kontrol akses beragam di tiap sistem, dan \textit{audit} tersebar tanpa pandangan terpadu. &
-RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan otentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada klaster, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan citra. &
+RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan autentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada klaster, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan \textit{image}. &
 Risiko insiden keamanan dapat berkurang melalui kontrol terpusat dan proses audit menjadi lebih ringkas. &
 \autocite{ahmad2024mlops} \\
 \hline

@@ -1,0 +1,182 @@
+% Lampiran B parameter rubrik skor
+% Kriteria lintas tabel lalu spesifik
+% Dirujuk makro skorlegendtools
+\cleardoublepage
+\chapter{PARAMETER PENILAIAN KRITERIA EVALUASI ALTERNATIF}
+\label{appx:rubrik}
+
+Lampiran ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2, dan parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
+
+Parameter dibagi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu lapis, dikelompokkan menurut lapis arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
+
+\section{Kriteria Lintas Tabel}
+\label{sec:appx-rubrik-lintas}
+
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
+\caption{Parameter Penilaian Kriteria Lintas Tabel}
+\label{tab:rubrik_lintas} \\
+\hline
+\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+Kematangan & Belum ada rilis stabil atau pengembangan berhenti dua belas bulan terakhir & Rilis stabil tersedia namun versi mayor masih muda atau adopsi produksi terbatas & Rilis stabil dengan ritme rilis teratur dan rekam jejak produksi bertahun-tahun \\
+\hline
+Komunitas & Kontributor efektif tunggal atau aktivitas kontribusi minim & Komunitas aktif namun lebih kecil atau terpusat pada satu organisasi & Komunitas kontributor lintas organisasi terluas pada kategori fungsinya \\
+\hline
+Ekstensibilitas & Tanpa titik ekstensi resmi & Ekstensi terbatas pada sebagian antarmuka atau menuntut perubahan inti & Antarmuka \textit{plugin} atau \textit{provider} resmi terdokumentasi tanpa mengubah inti \\
+\hline
+Lisensi Terbuka, Lisensi \textit{Open} & Lisensi tidak diakui OSI, seperti BSL, BUSL, atau \textit{source-available} & Lisensi OSI dengan \textit{copyleft} kuat seperti AGPL & Lisensi OSI permisif atau \textit{copyleft} lemah seperti Apache 2.0, BSD, MPL \\
+\hline
+Integrasi K8s, Opera\-bilitas K8s, Duku\-ngan K8s & Tanpa dukungan resmi untuk berjalan pada Kubernetes & Berjalan melalui \textit{chart} atau manifes tanpa pengelolaan siklus hidup, atau mensyaratkan komponen infrastruktur eksternal tetap seperti etcd atau antrean pesan & Dukungan kelas satu berupa \textit{operator}, CRD, atau \textit{chart} resmi terkelola \\
+\hline
+K8s-Native & Tidak dirancang berjalan pada Kubernetes & Berjalan pada Kubernetes namun model eksekusinya tidak berbasis CRD & Model eksekusi berbasis CRD sebagai antarmuka utama \\
+\hline
+Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem alat itu sendiri & Integrasi tersedia untuk sebagian alat data dan ML & Integrasi luas lintas ekosistem data dan ML yang terdokumentasi \\
+\hline
+\end{longtable}
+}
+
+\section{Kriteria Spesifik per Lapis}
+\label{sec:appx-rubrik-spesifik}
+
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
+\caption{Parameter Penilaian Kriteria Spesifik per Lapis}
+\label{tab:rubrik_spesifik} \\
+\hline
+\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+\multicolumn{4}{|l|}{\textbf{Distribusi Kubernetes}} \\
+\hline
+\textit{Footprint} Ringan & Kebutuhan sumber daya setara distribusi penuh & Ringan namun bergantung paket sistem tambahan & Biner tunggal dengan kebutuhan memori minimal terdokumentasi \\
+\hline
+Siap Produksi & Ditujukan untuk pengujian, bukan produksi & Dapat dipakai produksi dengan batasan tertentu & Didukung resmi untuk beban produksi \\
+\hline
+Tanpa Dependensi & Memerlukan beberapa komponen eksternal & Memerlukan satu \textit{runtime} atau paket eksternal & \textit{Runtime} kontainer tertanam tanpa dependensi eksternal \\
+\hline
+Ekosistem \textit{Add-on} & Tanpa mekanisme \textit{add-on} & \textit{Add-on} bawaan terbatas & \textit{Add-on} bawaan luas termasuk \textit{controller} Helm \\
+\hline
+\multicolumn{4}{|l|}{\textbf{\textit{Message Broker} dan \textit{Schema Registry}}} \\
+\hline
+Ekosistem Konektor & Konektor minim & Konektor tersedia namun cakupannya jauh lebih sempit & Ekosistem konektor terluas melalui Kafka Connect \textit{native} \\
+\hline
+Operator K8s & Tanpa \textit{operator} & \textit{Operator} tersedia dengan cakupan terbatas & \textit{Operator} matang mencakup klaster, pengguna, dan \textit{topic} \\
+\hline
+Protokol Kafka & Protokol berbeda tanpa kompatibilitas & Kompatibel melalui lapisan protokol tambahan & Kompatibel penuh pada level protokol \textit{native} \\
+\hline
+Kompati\-bilitas Confluent & API tidak kompatibel & Kompatibel pada sebagian \textit{endpoint} & Kompatibel penuh dengan API Confluent \\
+\hline
+Duku\-ngan Format & Satu format skema & Dua format atau dukungan parsial & Avro, JSON Schema, dan Protobuf penuh \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Pemrosesan Data}} \\
+\hline
+Kapa\-bilitas \textit{Batch} & Tanpa mode \textit{batch} & \textit{Batch} tersedia namun bukan kekuatan utama & \textit{Batch} skala besar sebagai kapabilitas inti \\
+\hline
+Kapa\-bilitas \textit{Streaming} & Tanpa \textit{streaming} \textit{native} & \textit{Streaming} melalui \textit{micro-batch} & \textit{Streaming} \textit{event-time} dengan \textit{exactly-once} \textit{native} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Format Tabel \textit{Lakehouse}}} \\
+\hline
+Transaksi ACID & Tanpa jaminan transaksi & Transaksi dengan batasan mode tulis & Transaksi atomik penuh terdokumentasi \\
+\hline
+Evolusi Skema & Tanpa evolusi skema & Evolusi terbatas atau bergantung \textit{engine} & Evolusi penuh pada level format tanpa menulis ulang data \\
+\hline
+Integrasi \textit{Engine} & Terikat satu \textit{engine} & Dukungan multi-\textit{engine} tidak setara antar \textit{engine} & Netral multi-\textit{engine} dengan dukungan setara \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Penyimpanan Objek dan Versi Data}} \\
+\hline
+Kompati\-bilitas S3 & Tanpa API S3 & Subset API S3 & Cakupan API S3 luas termasuk fitur lanjutan \\
+\hline
+\textit{Footprint} Satu \textit{Node} & Arsitektur menuntut banyak \textit{node} & Dapat satu \textit{node} dengan komponen berat & Berjalan ringan pada satu \textit{node} \\
+\hline
+Enkripsi KMS & Tanpa enkripsi sisi \textit{server} berbasis KMS & Enkripsi tanpa integrasi KMS eksternal & Enkripsi sisi \textit{server} dengan integrasi KMS eksternal \\
+\hline
+Per\-cabangan Tanpa Salin & Tanpa konsep percabangan & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
+\hline
+Integrasi Objek S3 & Tidak bekerja di atas penyimpanan objek & Bekerja melalui katalog atau \textit{remote} khusus & Antarmuka S3 langsung tanpa mengubah klien \\
+\hline
+Skala Data Besar & Tidak dirancang untuk data besar & Skala bergantung repositori Git atau basis data tunggal & Metadata terpisah yang menangani jutaan objek \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Layanan Fitur}} \\
+\hline
+Performa \textit{Query} & Latensi agregasi tinggi pada data besar & Agregasi cepat dengan batasan bentuk kueri & Agregasi kolumnar sub-detik pada data besar \\
+\hline
+Duku\-ngan \textit{Ingestion} & \textit{Batch} saja dengan alat eksternal & \textit{Streaming} atau \textit{batch} dengan komponen tambahan & \textit{Streaming} dan \textit{batch} \textit{native} termasuk Kafka \\
+\hline
+Latensi & Latensi baca di atas puluhan milidetik & Latensi milidetik pada penyimpanan \textit{disk} & Latensi sub-milidetik pada memori \\
+\hline
+\textit{Through\-put} & \textit{Throughput} rendah untuk \textit{lookup} masif & \textit{Throughput} tinggi dengan batasan skala vertikal & Ratusan ribu operasi per detik terdokumentasi \\
+\hline
+Latensi Rendah & Kueri ANN berlatensi tinggi & Latensi rendah dengan batasan indeks atau skala & HNSW dalam memori dengan jalur gRPC berlatensi rendah \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Siklus Hidup Model}} \\
+\hline
+\textit{Pipeline} ML & Tanpa abstraksi \textit{pipeline} ML & \textit{Pipeline} generik yang dapat dipakai untuk ML & Abstraksi \textit{pipeline} ML khusus dengan kontrak artefak \\
+\hline
+Skala\-bilitas & Replika statis tanpa \textit{autoscaling} & \textit{Autoscaling} tanpa \textit{scale-to-zero} & \textit{Autoscaling} termasuk \textit{scale-to-zero} \\
+\hline
+\textit{Frame\-work} & Terikat satu kerangka model & Beberapa kerangka melalui penyesuaian manual & Multi-kerangka melalui \textit{runtime} yang dapat diganti \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Observabilitas dan BI}} \\
+\hline
+Konektor SQL & Konektor terbatas satu keluarga basis data & Konektor untuk beberapa basis data umum & Puluhan dialek SQL melalui lapisan konektor standar \\
+\hline
+Multi-Tenant K8s & Tanpa dukungan Kubernetes resmi & Berjalan pada Kubernetes tanpa isolasi peran & \textit{Chart} resmi dengan RBAC multi-\textit{tenant} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{GitOps}} \\
+\hline
+Antar\-muka & Tanpa antarmuka pemantauan & Antarmuka terbatas atau lewat alat pihak ketiga & Antarmuka web penuh untuk sinkronisasi dan \textit{diff} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Keamanan Platform}} \\
+\hline
+Bobot \textit{Footprint} & Kebutuhan sumber daya besar dengan banyak komponen & Layanan tunggal namun berat pada memori & Proses tunggal ringan tanpa basis data wajib \\
+\hline
+Federasi OIDC & Tanpa federasi ke penyedia hulu & Federasi terbatas pada sebagian protokol & Federasi luas ke penyedia identitas hulu \\
+\hline
+Rotasi Dinamis & Rahasia statis tanpa rotasi & Rotasi manual atau terbatas & Kredensial dinamis dengan masa hidup otomatis \\
+\hline
+Integrasi ESO & Tanpa \textit{provider} External Secrets Operator & Integrasi tidak langsung melalui \textit{provider} generik & \textit{Provider} External Secrets Operator resmi \\
+\hline
+Fitur L7 & Fokus L3 dan L4 tanpa kontrol aplikasi & Kontrol L7 dasar & Kontrol L7 penuh termasuk \textit{routing} dan otorisasi \\
+\hline
+Ekosistem CRD & Tanpa CRD & CRD terbatas pada sebagian fungsi & CRD kaya untuk lalu lintas, otorisasi, dan telemetri \\
+\hline
+Plugin/\allowbreak Ekstensi & Tanpa mekanisme \textit{plugin} & \textit{Plugin} terbatas pada edisi terbuka & Ekosistem \textit{plugin} luas dengan muat ulang dinamis \\
+\hline
+Sintaks \textit{Native} & Bahasa kebijakan eksternal terpisah dari Kubernetes & Bahasa khusus dengan integrasi Kubernetes & Kebijakan ditulis sebagai YAML \textit{native} Kubernetes \\
+\hline
+Mode \textit{Mutate} & Validasi saja & Mutasi terbatas & \textit{Validate}, \textit{mutate}, dan \textit{generate} penuh \\
+\hline
+Pela\-poran Pelang\-garan & Log saja & Metrik atau status tanpa laporan standar & \texttt{PolicyReport} standar per sumber daya \\
+\hline
+Cakupan eBPF/\allowbreak Kernel & Tanpa visibilitas kernel & Visibilitas kernel pada subset peristiwa & \textit{Probe} eBPF modern mencakup \textit{syscall} luas \\
+\hline
+Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan bawaan siap pakai yang luas \\
+\hline
+\end{longtable}
+}

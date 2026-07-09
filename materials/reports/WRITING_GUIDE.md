@@ -77,6 +77,8 @@ Tables and figures are not rivals. A dashboard that shows a chart and the underl
 
 All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`): `diagrams/Integrate_General_Arch.eraser` is the source of truth for `figures/Integrate_General_Arch.png` (Gambar IV.1). The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. The source groups nodes by the seven Bab IV layers plus the four user roles and the GitOps chain, and every node must name a tool that actually exists in `platform/components/`. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents. Beyond the master Gambar IV.1, four per-group detail sources (`Layer_Infra_Control`, `Layer_Data`, `Layer_Model`, `Layer_Govern_Obs`) split the same seven layers across the four §IV.2 subsections so each layer group can be read at full size; every chapter figure uses the self-healing `\IfFileExists{figures/X.png}{\includegraphics...}{placeholder box}` pattern so the build stays green until the PNG is rendered, and the placeholder auto-disappears once the figure exists.
 
+Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). `Fragment_General_Arch` renders a marker group for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring — googlecloud2024mlops) plus the early DataOps evolution stages (data silos, manual pipeline monitoring — munappy2020adhoc). `Integrate_General_Arch` renders a mapping group for MLOps level 2 (the seven required components mapped to Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) plus the DataOps stage (CI/CD for data analytics, orchestration, continuous testing and monitoring). The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/IV.1 cite both sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
+
 ## 2. Tables
 
 The figure guidance above already covers when to pick a table over a figure. A few additional rules for tables themselves:
@@ -93,21 +95,21 @@ For long tables of raw numbers (per-symbol metrics, full hyperparameter sweeps),
 
 ### 2.1 Tool comparison tables (per-layer)
 
-Each architectural layer that has more than one credible open-source candidate carries a small comparison table in Bab II, immediately after the prose introducing the layer. The pattern is fixed so reviewers can scan across layers:
+Each architectural layer that has more than one credible open-source candidate carries a small comparison table in Bab III §III.4 (Analisis Pemilihan Open Source Tools), grouped by architecture layer and referring back to the concept subsection in Bab II. Bab II introduces the concept and names the candidates as examples; Bab III §III.4 carries the scored comparison and the selection verdict. The pattern is fixed so reviewers can scan across layers:
 
 - 4 candidates per table (the chosen tool plus 3 credible alternatives).
 - 4 criteria per table on a 0–2 scale. Criteria are layer-specific, not generic — pick the dimensions that drive the decision for that layer (e.g. *Latensi Rendah* for vector index, *K8s-Native* for orchestration, *Transaksi ACID* for table format).
 - Total column sums to /8. The chosen tool holds the unique highest Total in its table and justifies it with a textual paragraph; it must not be hand-waved.
-- The scoring rubric is stated once in prose immediately before the first scored table in Bab II (currently `k8s_distribution_comparison`, §2.2.1): 0 = criterion not met or feature absent, 1 = partial support that still needs extra components or carries a meaningful limitation, 2 = fully met by built-in capability. Scores derive from official documentation and project maintenance status. The narrow 3-level scale is deliberate: each level has an explicit justification, avoiding the false precision of a 5-point scale.
+- The scoring rubric is stated once in prose in the §III.4 introduction (Bab III), before the first scored table (`k8s_distribution_comparison`): 0 = criterion not met or feature absent, 1 = partial support that still needs extra components or carries a meaningful limitation, 2 = fully met by built-in capability. Scores derive from official documentation and project maintenance status. The narrow 3-level scale is deliberate: each level has an explicit justification, avoiding the false precision of a 5-point scale. Per-criterion 0/1/2 parameters live in Lampiran B (`appx:rubrik`, `appendices/Lampiran_B.tex`): cross-table criteria (Kematangan, Komunitas, Ekstensibilitas, the license family, the K8s-integration family) are defined once, layer-specific criteria once per layer, and criterion names there must match the table column headers verbatim. The 24 tool tables use the `\skorlegendtools` legend macro that points to that Lampiran; `evaluasi_kf`/`evaluasi_knf` keep the generic `\skorlegend` (their scores mean requirement fulfilment, not the tool rubric), and `mlops_maturity_comparison` carries its own inline maturity-semantics legend.
 - The rubric also anchors the open-source claim: the license criterion follows OSI-approved license status, and stewardship under a neutral foundation (Apache Software Foundation, CNCF, Linux Foundation) counts as supporting evidence of open governance feeding the maturity and community criteria. Only state a foundation affiliation in prose when it is certain (e.g. Kafka under ASF, Valkey under Linux Foundation, OpenBao under Linux Foundation).
-- Every scored table carries a textual **Lisensi (Yayasan)** column between the last criterion and Total: the official license plus the steward foundation in parentheses, e.g. `Apache 2.0 (CNCF)`, `MPL 2.0 (LF)`, `BUSL 1.1 (mandiri)`. `mandiri` marks vendor- or community-run projects without a neutral foundation; `komunitas` is reserved for pgvector under the PostgreSQL community. The column is informational only and never changes the Total; the legend paragraph in Bab II says so explicitly. Verified facts to keep: Featureform = MPL 2.0; OpenMetadata = Apache 2.0 under Linux Foundation (March 2026, via Collate); DataHub, Amundsen, Feast, Feathr, Milvus, KServe = LF AI & Data; MLflow, Valkey, OpenBao = LF; SOPS = CNCF; TorchServe = PyTorch Foundation (LF).
+- Every scored table carries a textual **Lisensi (Yayasan)** column between the last criterion and Total: the official license plus the steward foundation in parentheses, e.g. `Apache 2.0 (CNCF)`, `MPL 2.0 (LF)`, `BUSL 1.1 (mandiri)`. `mandiri` marks vendor- or community-run projects without a neutral foundation; `komunitas` is reserved for pgvector under the PostgreSQL community. The column is informational only and never changes the Total; the §III.4 introduction (Bab III) says so explicitly. Verified facts to keep: Featureform = MPL 2.0; OpenMetadata = Apache 2.0 under Linux Foundation (March 2026, via Collate); DataHub, Amundsen, Feast, Feathr, Milvus, KServe = LF AI & Data; MLflow, Valkey, OpenBao = LF; SOPS = CNCF; TorchServe = PyTorch Foundation (LF).
 - Standard scored-table layout so all 24 tables render identically inside the 14 cm text width: `[!htb]`, `\footnotesize`, `\setlength{\tabcolsep}{3pt}`, columns `m{2.6cm}` (name, left-aligned, header centered via `\multicolumn`), four criteria `m{1.5cm}` centered, `m{2.3cm}` Lisensi (Yayasan), `m{0.9cm}` Total. Long criterion headers break with `\-` or `\allowbreak` instead of widening the column.
 - Highest Total = the platform primary pick for the evaluated function. A lower-scoring row may still be deployed in a complementary role (e.g. Flink for streaming beside Spark for batch); the prose around the table must say so explicitly.
 - `mlops_maturity_comparison.tex` and `architecture_comparison.tex` are non-scored (color matrix and longtable respectively) and sit outside the rubric.
 - Caption above, label `tab:<topic>_comparison`, file `tables/<topic>_comparison.tex`.
 - Placement spec is `\begin{table}[!htb]`, never `[H]`. `[H]` blocks text reflow: when the table does not fit the rest of the page it drags a large white gap with it. `[!htb]` lets body text fill the page and moves the table to the top of the next page, which is the agreed layout rule (text fills, table follows; a short last page of a section or chapter is fine). The three MLOps level figures follow the same `[!htb]` rule and sit directly after the first paragraph of the Tingkat Kematangan subsection, in level order 0, 1, 2.
 
-Layers currently covered:
+Layers currently covered (all 24 scored tables now live in Bab III §III.4 `sec:pemilihan-tools`, grouped into 9 layer subsections; the §2.x anchor beside each names the Bab II concept subsection that its §III.4 entry refers back to):
 
 - `k8s_distribution_comparison.tex` — §2.2.1 (Kubernetes distribution: k3s vs k0s vs MicroK8s vs kind)
 - `feature_store_comparison.tex` — §2.4
@@ -271,6 +273,10 @@ Catatan:
 - IV.6 Alur Kerja End-to-End                        : rangkaian sub-sistem ke siklus produksi
 Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
 Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke Bab V.
+Catatan tujuh lapis: penataan ulang 6 kategori najafabadi2024analysis + 9 komponen
+teknis kreuzberger2023mlops (bukan taksonomi baru; dua penyesuaian dinyatakan
+eksplisit di IV.2: data curation dipecah ingestasi+pemrosesan, pemantauan dipisah
+dari inference ke lapisan tata kelola + observabilitas).
 ```
 
 **Bab V — Implementasi Arsitektur Platform DataOps dan MLOps**
@@ -338,3 +344,151 @@ Doing it in this order means the chapters stay in sync without late rewrites.
 4. Weissgerber, T. L., Milic, N. M., Winham, S. J., & Garovic, V. D. (2015). Beyond bar and line graphs. *PLoS Biology*, 13(4), e1002128.
 5. Crameri, F., Shephard, G. E., & Heron, P. J. (2020). The misuse of colour in science communication. *Nature Communications*, 11, 5444.
 6. Midway, S. R. (2020). Principles of effective data visualization. *Patterns*, 1(9), 100141.
+
+### 4.x Term register: English kept vs Indonesian accepted
+
+English engineering terms whose Indonesian force-translation shifts meaning or
+is not the accepted register stay in English (italic in prose, plain inside
+code listings). Never reintroduce the calque on the left:
+
+- penyebaran / penggelaran / penerapan (for deploy) -> `\textit{deployment}`
+- citra (for container image) -> `\textit{image}`
+- kanari -> `\textit{canary}`
+- topik (for Kafka topic) -> `\textit{topic}` (discourse "topik" is fine)
+- perkakas -> `\textit{tool}`
+- pembelajaran mesin -> `\textit{machine learning}`
+- peladen -> `\textit{server}`; simpul (for cluster node) -> `\textit{node}`
+- penyematan (for embedding) -> `\textit{embedding}`; muatan (for payload) -> `\textit{payload}`
+- danau data / gudang data -> `\textit{data lake}` / `\textit{warehouse}`
+- titik pemeriksaan -> `\textit{checkpoint}`; ruang nama -> `\textit{namespace}`
+
+Indonesian terms that ARE the accepted register and stay Indonesian:
+klaster (not kluster), berkas, antarmuka, penyajian (serving), bidang kendali
+(control plane), penskalaan, pencadangan, alur kerja (workflow as concept;
+Argo Workflows the product stays English), gerbang kualitas (quality gate),
+sumber kebenaran tunggal, beban kerja (workload), ingestasi (adopted loan,
+used consistently since the section titles depend on it).
+
+"penerapan" remains valid Indonesian when it means applying a technique
+(e.g. "penerapan deteksi drift pada lingkungan serverless"), never as the
+translation of deploying software.
+
+Round-3 refinements:
+
+- "menutup/ditutup" is VALID for concluding (menutup bab, bab ini ditutup
+  dengan, menutup siklus, menutup kesenjangan, menutup jalur = blocking) and
+  BANNED only in the covers/spans sense (menutup rentang/risiko/dimensi ->
+  mencakup/menjawab; menutup rantai-of-coverage -> melengkapi).
+- graf for every graph data structure (metadata graph, lineage graph, kueri
+  graf); grafik only for charts. Recheck after each big edit.
+- Bare English tokens must be italicized (server -> `\textit{server}`).
+- Dual registers sanctioned as-is (do not churn): klaster and
+  `\textit{cluster}`; pelacakan and `\textit{tracking}`; registri and
+  `\textit{registry}`. Unified to Indonesian: pencadangan (not italic
+  backup), pemantauan, dasbor, rahasia, penemuan, ingestasi, materialisasi,
+  alur kerja (generic workflow).
+- Transitive verbs need their -kan: menyebarkan peraturan, not menyebar.
+
+KBBI round (round 4) doctrine and verdicts:
+
+- Symmetric-metaphor principle: a loan stays Indonesian when its KBBI sense
+  differs from the technical sense in the SAME way the English word's
+  dictionary sense differs from its own technical sense (the metaphor is
+  inherited, so English gains no fidelity). Verified keeps under this rule:
+  orkestrasi, latensi, artefak, konektor, kontainer, kredensial, metrik,
+  materialisasi, rotasi, jendela (statistical window), kontrak (data
+  contract), pendaratan data (landing).
+- KBBI-confirmed same-sense keeps: kompatibilitas (KBBI's own computing
+  example), retensi (archival example), replika, telemetri, agregasi,
+  agregat, konsistensi, purwarupa, anotasi, katalog, klaster, dasbor.
+- Standard informatics loans absent from KBBI, kept by academic usage:
+  ingestasi, observabilitas, skalabilitas, ekstensibilitas,
+  reproduksibilitas, granularitas, kueri, portabilitas, modularitas,
+  registri, granular, idempoten, deklaratif, rekonsiliasi.
+- Fixed this round: Maturitas -> Kematangan (headers; prose already used the
+  baku form), peraturan (Kyverno rules) -> kebijakan, instans (non-word) ->
+  kasus, penjamin (person-surety) -> "yang menjamin", terversion (hybrid) ->
+  berversi, preambel -> preambul (KBBI spelling), keterpicuan -> terpicunya,
+  Keutuhan lineage -> Keterhubungan lineage, bare English tokens italicized
+  (notebook, listing, medallion, serving/reproducible/retrain cells to
+  their locked forms).
+
+Opus 4.8 sign-off round (round 5) verdicts:
+
+- Spelling to KBBI baku: otentikasi -> autentikasi (all forms); konsumer ->
+  konsumen; Preambel -> Preambul (capitalized caption escapee).
+- False friend fixed: "terjaga secara konstruktif" (by construction) ->
+  "terjaga secara struktural" (KBBI konstruktif = bersifat membangun).
+- Calques out: "panggilan ulang" (ANN recall) -> `\textit{recall}`;
+  "menempel pada pipeline" -> "dijalankan pada pipeline";
+  "\textit{exactly-once} semantik" -> "semantik \textit{exactly-once}"
+  (head noun first); "pengamatan ... dipantau" doubled subject -> drop
+  "pengamatan".
+- Register unifications: manifes everywhere (no bare/italic manifest);
+  materialisasi (never `\textit{materialize}`); artefak for the
+  measurement-artifact sense (`\textit{artifact}` only inside
+  `\textit{artifact store}`); tabel `\textit{medallion}` (never "medali");
+  Pencadangan sentence-initial (capital `\textit{Backup}` escapee).
+- Bare English italicized: `\textit{node}` tunggal and multi-`\textit{node}`
+  everywhere (Bab 6/7, KNF, Abstrak, evaluasi_target aligned to the
+  guide-locked form); `\textit{wire-protocol}`, `\textit{suite}`,
+  `\textit{hook}`, `\textit{sidecar}`, `\textit{emitter}`,
+  `\textit{probe}`, `\textit{idle}`, sisi `\textit{server}` (Daftar
+  Singkatan + Lampiran B), `\textit{ambient}/\textit{sidecar}`.
+- "tuning resource" -> "penyetelan \textit{resource}" (register match with
+  "penyetelan sumber daya").
+Round 7 (user override of round-6 keeps): every remaining rare or
+literary-technical word converted to common Indonesian or the italicized
+English term. Replaced: pendaratan data -> `\textit{landing}` data,
+mendaratkan -> memuat; yayasan penaung -> yayasan yang menaungi; lekukan
+pada kurva -> bentuk kurva; terusir -> tergusur (Pod eviction); luaran ->
+keluaran; tataran -> tingkatan; serempak -> bersamaan; fitur volatil ->
+fitur fluktuatif; reproduksibel -> yang dapat direproduksi; lazim -> umum;
+merembet -> menjalar; multimoda -> multimodal; dikawal -> dikendalikan;
+dipancarkan -> dikirim; pemutus (tie-breaker) -> penentu; merutekan ->
+meneruskan. Still kept (everyday words): menyasar, berpijak, pada
+hakikatnya, pemutus rantai (idiom), keluaran, dirunut.
+
+Commonness rule (round 6, after the tunak ban): baku-but-rare words an
+Indonesian engineer would not write unprompted are replaced with common
+Indonesian or the italicized English term. Replaced: teremit -> terkirim;
+uji jalan -> uji coba; keterbentukan -> terbentuknya; preambul -> langkah
+persiapan; pembongkaran beban -> penurunan beban; menjenuhkan kuota ->
+memenuhi kuota; berbutir halus -> granular; keterpantauan -> pemantauan;
+percabangan tanpa salin -> percabangan `\textit{zero-copy}`; konformansi ->
+lolos uji `\textit{conformance}`; konsolidatif -> terpadu; keluwesan ->
+fleksibilitas; kebergantungan -> ketergantungan; peleburan -> penggabungan;
+regu keamanan -> tim keamanan; dirambatkan -> diteruskan; runtutan -> deret.
+Checked and KEPT as common: dirunut (8 uses, standard academic), pendaratan data, penaung,
+lekukan, terusir, luaran, tataran, serempak, merembet, reproduksibel,
+volatil, multimoda, lazim, menjembatani.
+- tunak (steady state) avoided as uncommon: use plain phrasing (sesudah tahun pertama, alokasi tetap) or `\textit{steady-state}` for the technical latency sense.
+- Deliberately kept: bare "log" (naturalized document-wide; italicizing one
+  triad line would create inconsistency), konformansi, skalabel, multimoda,
+  `\textit{sub-sistem}`, `\textit{image container}` word order.
+
+
+
+
+Additional locked pairs (register-audit round 2):
+
+- pasca-fakta (after-the-fact calque) -> "pekerjaan susulan"
+- pelanggan (for Kafka consumer) -> konsumen
+- grafik (for graph data structure) -> graf ("grafik" only for charts)
+- pengembalian (for rollback) -> `\textit{rollback}`
+- inferensi -> `\textit{inference}` (majority register)
+- `\textit{control plane}` in prose -> bidang kendali (never italic English)
+- `\textit{promotion}` -> promosi; `\textit{materialization}` -> materialisasi;
+  `\textit{retraining}` -> pelatihan ulang; konektor `\textit{ingestion}` -> ingestasi
+- menutup/ditutup for "covers/rounds out" -> melengkapi/tercakup;
+  menjatuhkan for "taking down a pipeline" -> menghentikan;
+  ditempelkan for "bolted onto" -> digabungkan langsung
+- "menggantikan X oleh Y" -> "menggantikan X dengan Y"; bare "otomatis" before a
+  passive verb -> "secara otomatis" after it
+
+Also accepted (do NOT convert to English): alat (tool; `\textit{tool}` where
+already present is fine), pelacakan (tracking), penemuan (discovery), registri,
+promosi, materialisasi, pelatihan ulang, indikator, beban uji. Requirement
+titles in kebutuhan_fungsional.tex stay Indonesian by design even when their
+descriptions use the italic English term.
+

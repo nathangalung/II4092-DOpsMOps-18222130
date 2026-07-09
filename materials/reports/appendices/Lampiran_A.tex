@@ -5,9 +5,9 @@
 \chapter{KATALOG PERINTAH VERIFIKASI USE CASE}
 \label{appx:verifikasi}
 
-Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk memverifikasi alur ujung ke ujung pada \textit{use case} pasar aset kripto. Seluruh perintah dijalankan secara manual dari direktori akar repositori \texttt{\textasciitilde/documents/ta/}, kecuali listing menyertakan perintah \texttt{cd} eksplisit. Katalog ini terpisah dari \texttt{make phase-full} maupun rekonsiliasi Argo CD sehingga bukan bagian dari alur produksi. Sebagian besar perintah hanya membaca kluster, sedangkan skenario ketahanan (SK-N-04), skalabilitas (SK-N-03), dan rekonstruksi (SK-N-11) menerapkan gangguan terkendali yang dapat dipulihkan pada \textit{namespace} \texttt{experiments} yang terpisah dari produksi, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}; rincian argumen tiap skenario tersedia pada \texttt{README.md} di \texttt{experiments/} beserta subdirektori terkait. Prasyarat menjalankannya: platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum skenario dijalankan, konfigurasi domain dimuat dan \textit{namespace} beban dibuat melalui preambel berikut.
+Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk memverifikasi alur ujung ke ujung pada \textit{use case} pasar aset kripto. Seluruh perintah dijalankan secara manual dari direktori akar repositori \texttt{\textasciitilde/documents/ta/}, kecuali \textit{listing} menyertakan perintah \texttt{cd} eksplisit. Katalog ini terpisah dari \texttt{make phase-full} maupun rekonsiliasi Argo CD sehingga bukan bagian dari alur produksi. Sebagian besar perintah hanya membaca klaster, sedangkan skenario ketahanan (SK-N-04), skalabilitas (SK-N-03), dan rekonstruksi (SK-N-11) menerapkan gangguan terkendali yang dapat dipulihkan pada \textit{namespace} \texttt{experiments} yang terpisah dari produksi, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}; rincian argumen tiap skenario tersedia pada \texttt{README.md} di \texttt{experiments/} beserta subdirektori terkait. Prasyarat menjalankannya: platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum skenario dijalankan, konfigurasi domain dimuat dan \textit{namespace} beban dibuat melalui langkah persiapan berikut.
 
-\begin{lstlisting}[caption={Preambel pemuatan konfigurasi domain dan \textit{namespace} pembangkit beban (dari \texttt{\textasciitilde/documents/ta/})},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+\begin{lstlisting}[caption={Langkah persiapan pemuatan konfigurasi domain dan \textit{namespace} pembangkit beban (dari \texttt{\textasciitilde/documents/ta/})},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # Muat DOMAIN; ganti berkas ini
 set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
 kubectl apply -f experiments/namespace.yaml
@@ -16,7 +16,7 @@ kubectl apply -f experiments/namespace.yaml
 \section{Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
 \label{sec:appx-t1}
 
-Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi siklus hidup model setara MLOps Level 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
+Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi siklus hidup model setara MLOps \textit{level} 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-1 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t1},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-01/KF-01: rekonsiliasi feature view Feast
@@ -28,7 +28,7 @@ kubectl -n use-case-crypto get configmap crypto-feast-feature-repo \
 argocd app diff crypto-use-case-local
 kubectl -n use-case-crypto get deploy
 
-# SK-F-06/KF-06: kanari dan rollback Rollouts
+# SK-F-06/KF-06: canary dan rollback Rollouts
 kubectl -n use-case-crypto get rollouts
 kubectl argo rollouts -n use-case-crypto get rollout crypto-ml-bridge --watch
 
