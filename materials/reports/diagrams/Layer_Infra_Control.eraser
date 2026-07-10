@@ -1,9 +1,12 @@
-// Layer_Infra_Control — Lapisan Infrastruktur dan Bidang Kendali
+// Layer_Infra_Control — Infrastructure Layer dan Control Plane
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
 // Ekspor PNG ke materials/reports/figures/Layer_Infra_Control.png
-// Acuan: Subbab IV.2.1 (subsec:lapisan-infra); rincian Lapis 1 dari Gambar IV.1.
-// Fokus: orkestrasi Kubernetes, mesh dan keamanan, operasional, serta bidang
-// kendali GitOps sebagai satu-satunya jalur perubahan.
+// Acuan: Subbab IV.2.1 (subsec:lapisan-infra); rincian Layer 1 dari Gambar IV.1.
+// Fokus: orkestrasi Kubernetes, mesh dan keamanan, operasional, serta
+// control plane GitOps sebagai satu-satunya jalur perubahan.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis)
+// yaitu infrastructure and supporting services + CI/CD; penataan ulang
+// dinyatakan pada prosa IV.2.
 
 direction right
 
@@ -15,15 +18,15 @@ Pengguna [icon: users, color: gray] {
   ML Engineer [icon: user]
 }
 
-// Bidang Kendali — GitOps
-GitOps [icon: git-branch, color: blue] {
+// Control Plane — GitOps
+GitOps [icon: git-branch, color: blue, label: "GitOps (kategori CI/CD)"] {
   Gitea [icon: git-merge, label: "Gitea (Git internal)"]
   Tekton [icon: settings, label: "Tekton (CI)"]
   Argo CD [icon: refresh-cw, label: "Argo CD (GitOps CD)"]
 }
 
-// Lapis Infrastruktur
-Lapisan Infrastruktur [icon: kubernetes, color: blue] {
+// Infrastructure Layer
+Infrastructure Layer [icon: kubernetes, color: blue, label: "Infrastructure Layer (infrastructure and supporting services)"] {
   Kubernetes [icon: kubernetes, label: "Kubernetes (k3s)"]
   Istio [icon: network, label: "Istio (mesh + mTLS)"]
   APISIX [icon: globe, label: "APISIX (API gateway)"]
@@ -47,7 +50,7 @@ Lapisan Infrastruktur [icon: kubernetes, color: blue] {
 }
 
 // Beban kerja yang dikelola (batas)
-Lapisan Beban Kerja [icon: layers, color: gray, label: "Lapisan Beban Kerja (data, model, tata kelola)"]
+Workload Layer [icon: layers, color: gray, label: "Workload Layer (data, model, governance)"]
 
 // Alur akses pengguna dan identitas
 Business User > APISIX
@@ -66,15 +69,15 @@ Gitea > Tekton: webhook CI
 Tekton > Gitea: image + manifest baru
 Gitea > Argo CD: pull manifest
 Argo CD > Kubernetes: sinkronisasi deklaratif
-Argo CD > Lapisan Beban Kerja: terapkan manifest
+Argo CD > Workload Layer: terapkan manifest
 OpenBao > ESO: distribusi rahasia
-ESO > Lapisan Beban Kerja: rahasia tersinkron
+ESO > Workload Layer: rahasia tersinkron
 
 // Kebijakan, keamanan, dan keandalan lintas-layer
 Kyverno > Kubernetes: kebijakan admisi
 Falco -- Kubernetes: keamanan runtime
 Trivy Operator -- Kubernetes: pemindaian kerentanan
 Chaos Mesh > Kubernetes: injeksi gangguan
-Velero > Lapisan Beban Kerja: cadangan terjadwal
-Autoscaler > Lapisan Beban Kerja: skala replica
-Kueue > Lapisan Beban Kerja: admisi kuota job
+Velero > Workload Layer: cadangan terjadwal
+Autoscaler > Workload Layer: skala replica
+Kueue > Workload Layer: admisi kuota job

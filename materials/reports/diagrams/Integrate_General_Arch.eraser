@@ -1,11 +1,11 @@
 // Integrate_General_Arch — Arsitektur Terintegrasi Platform DataOps dan MLOps
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
 // Ekspor PNG ke materials/reports/figures/Integrate_General_Arch.png
-// Acuan: Gambar IV.1 (fig:integrate-general); tujuh lapis Subbab IV.2;
+// Acuan: Gambar IV.1 (fig:integrate-general); tujuh layer Subbab IV.2;
 // menjawab fragmentasi Gambar III.1 serta dua pemicu Bab I
 // (beban integrasi/konfigurasi dan biaya lisensi berlangganan):
-// satu bidang kendali Kubernetes, satu sumber kebenaran Git,
-// seluruh komponen open source, kontrak antar lapis eksplisit.
+// satu control plane Kubernetes, satu sumber kebenaran Git,
+// seluruh komponen open source, kontrak antar layer eksplisit.
 // Landasan kematangan (Subbab II.1.3, subsec:maturity):
 // - MLOps level 2 (googlecloud2024mlops): tujuh komponen wajib terpenuhi —
 //   source control = Gitea, test/build = Tekton, deployment = Argo CD,
@@ -16,6 +16,12 @@
 //   analitik data, orkestrasi Airflow, pengujian Great Expectations,
 //   pemantauan seluruh siklus data (Prometheus + OpenLineage).
 // Grup "Pemetaan Kematangan Target" merender penanda tersebut pada PNG.
+// Landasan layer (Subbab IV.2, sec:arsitektur-terintegrasi): label tiap grup
+// layer membawa kategori komponen sumbernya, yaitu enam kategori
+// najafabadi2024analysis (35 komponen, 43 studi primer) dan sembilan komponen
+// teknis kreuzberger2023mlops; dua penataan ulang (data curation dipecah
+// data ingestion+pemrosesan, monitoring dipisah ke tata kelola dan observabilitas)
+// dinyatakan pada prosa IV.2.
 
 direction right
 
@@ -37,14 +43,14 @@ Pemetaan Kematangan Target [icon: check-circle, color: gray] {
 }
 
 // GitOps — satu sumber kebenaran
-GitOps [icon: git-branch, color: blue] {
+GitOps [icon: git-branch, color: blue, label: "GitOps (kategori CI/CD)"] {
   Gitea [icon: git-merge, label: "Gitea (Git internal)"]
   Tekton [icon: settings, label: "Tekton (CI)"]
   Argo CD [icon: refresh-cw, label: "Argo CD (GitOps CD)"]
 }
 
-// Lapis 1 — Infrastruktur
-Lapisan Infrastruktur [icon: kubernetes, color: blue] {
+// Layer 1 — Infrastruktur
+Infrastructure Layer [icon: kubernetes, color: blue, label: "Infrastructure Layer (infrastructure and supporting services)"] {
   Kubernetes [icon: kubernetes, label: "Kubernetes (k3s)"]
   Istio [icon: network, label: "Istio (mesh + mTLS)"]
   APISIX [icon: globe, label: "APISIX (API gateway)"]
@@ -67,16 +73,16 @@ Lapisan Infrastruktur [icon: kubernetes, color: blue] {
   }
 }
 
-// Lapis 2 — Ingestasi Data
-Lapisan Ingestasi Data [icon: download, color: orange] {
+// Layer 2 — Data Ingestion
+Data Ingestion Layer [icon: download, color: orange, label: "Data Ingestion Layer (data curation: data collector)"] {
   Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
   Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
   Karapace [icon: file-text, label: "Karapace (schema registry)"]
   Kafbat UI [icon: monitor, label: "Kafbat UI"]
 }
 
-// Lapis 3 — Pemrosesan
-Lapisan Pemrosesan [icon: cpu, color: yellow] {
+// Layer 3 — Pemrosesan
+Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (data curation: data preprocessor)"] {
   Flink [icon: zap, label: "Apache Flink (stream)"]
   Spark [icon: sun, label: "Apache Spark (batch)"]
   dbt [icon: code, label: "dbt (transformasi SQL)"]
@@ -84,8 +90,8 @@ Lapisan Pemrosesan [icon: cpu, color: yellow] {
   Trino [icon: search, label: "Trino (federasi kueri)"]
 }
 
-// Lapis 4 — Penyimpanan dan Fitur
-Lapisan Penyimpanan Fitur [icon: database, color: green] {
+// Layer 4 — Penyimpanan dan Feature Store
+Storage and Feature Store Layer [icon: database, color: green, label: "Storage and Feature Store Layer (storage and versioning)"] {
   Lakehouse [icon: layers] {
     MinIO [icon: hard-drive, label: "MinIO (objek + KES)"]
     lakeFS [icon: git-branch, label: "lakeFS (versi data)"]
@@ -105,8 +111,8 @@ Lapisan Penyimpanan Fitur [icon: database, color: green] {
   }
 }
 
-// Lapis 5 — Siklus Hidup Model
-Lapisan Siklus Hidup Model [icon: refresh-cw, color: purple] {
+// Layer 5 — Model Lifecycle
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (ML training + model registry + ML metadata)"] {
   Kubeflow Notebooks [icon: book-open, label: "Kubeflow Notebooks"]
   Kubeflow Pipelines [icon: workflow, label: "Kubeflow Pipelines"]
   Katib [icon: sliders, label: "Katib (HPO)"]
@@ -115,15 +121,15 @@ Lapisan Siklus Hidup Model [icon: refresh-cw, color: purple] {
   Argo Workflows [icon: workflow, label: "Argo Workflows (CronWorkflow)"]
 }
 
-// Lapis 6 — Penyajian Model
-Lapisan Penyajian Model [icon: send, color: red] {
+// Layer 6 — Model Serving
+Model Serving Layer [icon: send, color: red, label: "Model Serving Layer (inference)"] {
   KServe [icon: server, label: "KServe (runtime MLServer)"]
   Knative [icon: cloud, label: "Knative (serverless)"]
   Argo Rollouts [icon: trending-up, label: "Argo Rollouts (canary)"]
 }
 
-// Lapis 7 — Tata Kelola dan Observabilitas
-Lapisan Tata Kelola dan Observabilitas [icon: eye, color: teal] {
+// Layer 7 — Tata Kelola dan Observabilitas
+Governance and Observability Layer [icon: eye, color: teal, label: "Governance and Observability Layer (monitoring + DataOps governance)"] {
   Tata Kelola Data [icon: book] {
     DataHub [icon: book-open, label: "DataHub (katalog metadata)"]
     OpenLineage [icon: git-merge, label: "OpenLineage (lineage)"]
@@ -136,10 +142,10 @@ Lapisan Tata Kelola dan Observabilitas [icon: eye, color: teal] {
     Loki [icon: file-text, label: "Loki (log)"]
     Tempo [icon: clock, label: "Tempo (trace)"]
     Pyroscope [icon: flame, label: "Pyroscope (profil)"]
-    Grafana [icon: grafana, label: "Grafana (dasbor operasional)"]
+    Grafana [icon: grafana, label: "Grafana (dashboard operasional)"]
     OpenCost [icon: dollar-sign, label: "OpenCost (biaya)"]
   }
-  Superset [icon: pie-chart, label: "Apache Superset (dasbor BI)"]
+  Superset [icon: pie-chart, label: "Apache Superset (dashboard BI)"]
 }
 
 // Alur akses pengguna
@@ -182,11 +188,11 @@ Feast > Valkey: materialisasi online
 Feast > Kubeflow Pipelines: fitur pelatihan
 Kubeflow Notebooks > Kubeflow Pipelines: eksperimen ke pipeline
 Kubeflow Pipelines <> Katib: HPO
-Kubeflow Pipelines > Kubeflow Trainer: job pelatihan
+Kubeflow Pipelines > Kubeflow Trainer: training job
 Kubeflow Pipelines > MLflow: log run + registrasi model
 MLflow > KServe: deploy dari registry
-Valkey > KServe: fitur online
-Qdrant > KServe: fitur vektor
+Valkey > KServe: online feature
+Qdrant > KServe: vector feature
 KServe -- Knative: autoscaling serverless
 Argo Rollouts -- KServe: promosi bertahap
 Evidently > Argo Workflows: pemicu drift
@@ -203,7 +209,7 @@ OpenTelemetry > Loki: log
 Prometheus > Grafana
 Loki > Grafana
 Tempo > Grafana
-ClickHouse > Superset: dasbor BI
+ClickHouse > Superset: dashboard BI
 Trino > Superset: kueri ad-hoc
 
 // Keamanan dan kebijakan lintas-layer

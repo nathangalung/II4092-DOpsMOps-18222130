@@ -23,6 +23,16 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    (`Ciri Kematangan Kondisi Saat Ini`, `Pemetaan Kematangan Target`) tidak
    boleh dihapus tanpa memperbarui caption dan prosa Bab III/IV yang
    mengutip landasan tersebut.
+6. Label grup layer pada `Integrate_General_Arch` dan keempat berkas
+   `Layer_*` membawa kategori komponen sumbernya sesuai derivasi Subbab IV.2
+   (najafabadi2024analysis + kreuzberger2023mlops): GitOps = kategori CI/CD,
+   Infrastructure Layer = infrastructure and supporting services,
+   Data Ingestion Layer = data curation: data collector, Processing Layer =
+   data curation: data preprocessor, Storage and Feature Store Layer =
+   storage and versioning, Model Lifecycle Layer = ML training + model
+   registry + ML metadata, Model Serving Layer = inference, Governance and
+   Observability Layer = monitoring + DataOps governance. Jangan
+   mengubah anotasi ini tanpa menyunting prosa derivasi IV.2.
 
 ## Render ulang
 
@@ -40,14 +50,15 @@ Konvensi lengkap: `WRITING_GUIDE.md` bagian 1.7 dan `TEMPLATE_BAB.md`.
   menamai komponen platform; grup `Ciri Kematangan Kondisi Saat Ini`
   merender penanda MLOps level 0 + tahap awal evolusi DataOps.
 - `Integrate_General_Arch.eraser` — arsitektur umum platform (Gambar IV.1),
-  tujuh lapisan Bab IV + empat peran pengguna + rantai GitOps; grup
+  tujuh layer Bab IV + empat peran pengguna + rantai GitOps; grup
   `Pemetaan Kematangan Target` merender penanda MLOps level 2 (tujuh
   komponen wajib) + tahap DataOps.
-- `Layer_Infra_Control.eraser` — rincian Lapisan Infrastruktur dan Bidang
-  Kendali (Subbab IV.2.1): orkestrasi, mesh, keamanan, operasional, dan GitOps.
-- `Layer_Data.eraser` — rincian Lapisan Ingestasi, Pemrosesan, dan Penyimpanan
-  Fitur (Subbab IV.2.2): dua jalur batch dan stream menuju lakehouse dan fitur.
-- `Layer_Model.eraser` — rincian Lapisan Siklus Hidup Model dan Penyajian
-  (Subbab IV.2.3): eksperimen, pelatihan, registri, penyajian, retrain otomatis.
-- `Layer_Govern_Obs.eraser` — rincian Lapisan Tata Kelola dan Observabilitas
+- `Layer_Infra_Control.eraser` — rincian Infrastructure Layer dan Control
+  Plane (Subbab IV.2.1): orkestrasi, mesh, keamanan, operasional, dan GitOps.
+- `Layer_Data.eraser` — rincian Data Ingestion Layer, Processing Layer, dan
+  Storage and Feature Store Layer (Subbab IV.2.2): dua jalur batch dan stream
+  menuju lakehouse dan feature store.
+- `Layer_Model.eraser` — rincian Model Lifecycle Layer dan Model Serving
+  Layer (Subbab IV.2.3): eksperimen, training, registri, serving, retrain otomatis.
+- `Layer_Govern_Obs.eraser` — rincian Governance and Observability Layer
   (Subbab IV.2.4): katalog dan lineage berdampingan dengan tiga pilar observabilitas.

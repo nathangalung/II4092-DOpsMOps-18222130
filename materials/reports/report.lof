@@ -118,10 +118,12 @@
 \contentsline {figure}{\numberline {II.1}{\ignorespaces MLOps \textit {level} 0: proses manual}}{13}{figure.caption.17}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {II.2}{\ignorespaces MLOps \textit {level} 1: otomasi \textit {pipeline} pelatihan}}{14}{figure.caption.18}%
+\contentsline {figure}{\numberline {II.2}{\ignorespaces MLOps \textit {level} 1: otomasi \textit {training pipeline}}}{14}{figure.caption.18}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {figure}{\numberline {II.3}{\ignorespaces MLOps \textit {level} 2: orkestrasi CI/CD/CT}}{14}{figure.caption.19}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -698,8 +700,8 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.2}{\ignorespaces Rincian Lapisan Infrastruktur dan Bidang Kendali}}{82}{figure.caption.50}%
-\contentsline {figure}{\numberline {IV.3}{\ignorespaces Rincian Lapisan Ingestasi, Pemrosesan, dan Penyimpanan Fitur}}{83}{figure.caption.51}%
+\contentsline {figure}{\numberline {IV.2}{\ignorespaces Rincian \textit {Infrastructure Layer} dan \textit {Control Plane}}}{82}{figure.caption.50}%
+\contentsline {figure}{\numberline {IV.3}{\ignorespaces Rincian \textit {Data Ingestion Layer}, \textit {Processing Layer}, dan \textit {Storage and Feature Store Layer}}}{83}{figure.caption.51}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -714,7 +716,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.4}{\ignorespaces Rincian Lapisan Siklus Hidup Model dan Penyajian}}{85}{figure.caption.52}%
+\contentsline {figure}{\numberline {IV.4}{\ignorespaces Rincian \textit {Model Lifecycle Layer} dan \textit {Model Serving Layer}}}{85}{figure.caption.52}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -729,7 +731,9 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.5}{\ignorespaces Rincian Lapisan Tata Kelola dan Observabilitas}}{87}{figure.caption.53}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.5}{\ignorespaces Rincian \textit {Governance and Observability Layer}}}{87}{figure.caption.53}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 

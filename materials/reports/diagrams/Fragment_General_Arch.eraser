@@ -34,7 +34,7 @@ Ciri Kematangan Kondisi Saat Ini [icon: eye, color: gray] {
 
 // Wilayah Data Engineer
 Wilayah Data Engineer [icon: download, color: orange] {
-  Ingestasi Manual [icon: terminal, label: "Ingestasi Data Manual (skrip shell, CSV/FTP, email)"]
+  Manual Ingestion [icon: terminal, label: "Manual Data Ingestion (skrip shell, CSV/FTP, email)"]
   Kualitas Manual [icon: alert-triangle, label: "Kualitas Data Manual (pemeriksaan acak, tinjauan spreadsheet)"]
   Penyimpanan Tak Terkelola [icon: database, label: "Penyimpanan Tidak Terorganisasi (basis data terpisah, shared drive, bucket objek)"]
 }
@@ -49,15 +49,15 @@ Wilayah Data Scientist [icon: flask-conical, color: yellow] {
 // Wilayah ML Engineer
 Wilayah ML Engineer [icon: send, color: red] {
   Penyimpanan Model Tersebar [icon: archive, label: "Penyimpanan Model Tersebar (berkas .pkl, network drive, email)"]
-  Deployment Manual [icon: upload, label: "Deployment Manual (penulisan ulang kode, web framework, SSH)"]
-  Penyajian Dasar [icon: server, label: "Penyajian Model Dasar (REST API tunggal, cron job)"]
+  Manual Deployment [icon: upload, label: "Manual Deployment (penulisan ulang kode, web framework, SSH)"]
+  Basic Model Serving [icon: server, label: "Basic Model Serving (REST API tunggal, cron job)"]
   Pemantauan Dasar [icon: eye, label: "Pemantauan Dasar (berkas log, CPU/memori, peringatan email)"]
 }
 
 // Alur Data Engineer
-Sumber Data Eksternal > Ingestasi Manual: ekstraksi manual
-Data Engineer > Ingestasi Manual: mengelola ekstraksi dan status
-Ingestasi Manual > Kualitas Manual: pemeriksaan sporadis
+Sumber Data Eksternal > Manual Ingestion: ekstraksi manual
+Data Engineer > Manual Ingestion: mengelola ekstraksi dan status
+Manual Ingestion > Kualitas Manual: pemeriksaan sporadis
 Data Engineer > Kualitas Manual: menjalankan pemeriksaan dan laporan
 Kualitas Manual > Penyimpanan Tak Terkelola: setelah validasi
 Data Engineer > Penyimpanan Tak Terkelola: mengatur data dan akses
@@ -73,14 +73,14 @@ Pengujian Ad Hoc > Penyimpanan Model Tersebar: menyimpan artefak
 Data Scientist <> Penyimpanan Model Tersebar: simpan dan ambil model
 
 // Alur ML Engineer
-Penyimpanan Model Tersebar > Deployment Manual: penyerahan model satu arah
-ML Engineer > Deployment Manual: menangani deployment dan status
-Deployment Manual > Penyajian Dasar: rilis ke produksi
-ML Engineer > Penyajian Dasar: mengelola penyajian dan metrik
-Penyajian Dasar > Pemantauan Dasar: melacak kinerja
+Penyimpanan Model Tersebar > Manual Deployment: penyerahan model satu arah
+ML Engineer > Manual Deployment: menangani deployment dan status
+Manual Deployment > Basic Model Serving: rilis ke produksi
+ML Engineer > Basic Model Serving: mengelola penyajian dan metrik
+Basic Model Serving > Pemantauan Dasar: melacak kinerja
 ML Engineer > Pemantauan Dasar: pelacakan kinerja dan peringatan
 
 // Putaran umpan balik manual
 Pemantauan Dasar > Data Scientist: peringatan dan pelatihan ulang
-Business User > Penyajian Dasar: meminta dan menerima prediksi
+Business User > Basic Model Serving: meminta dan menerima prediksi
 Business User > Data Scientist: umpan balik dan laporan masalah

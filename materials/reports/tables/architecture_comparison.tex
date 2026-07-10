@@ -55,10 +55,10 @@ Spark sebagai mesin \textit{batch processing} dan Flink sebagai mesin \textit{st
 Waktu pengembangan \textit{pipeline} dapat menurun dan \textit{freshness} data meningkat berkat pemrosesan \textit{streaming} yang lebih efisien dan terintegrasi. &
 \autocite{rodrigues2025architecture} \\
 \hline
-Pelatihan Model &
+\textit{Model Training} &
 \textit{Workflow} pelatihan berbasis \textit{notebook} dengan \textit{tracking} eksperimen informal dan \textit{artifact} tidak terkelola. &
 Kubeflow \textit{Pipelines} untuk orkestrasi pelatihan dan MLflow untuk \textit{tracking} eksperimen. &
-Reprodusibilitas meningkat melalui kontainerisasi dan pengelolaan eksperimen terpusat, sementara siklus pengembangan \textit{pipeline} menjadi lebih terstruktur. &
+Reproduksibilitas meningkat melalui kontainerisasi dan pengelolaan eksperimen terpusat, sementara siklus pengembangan \textit{pipeline} menjadi lebih terstruktur. &
 \autocite{amershi2019software,pimentel2019notebooks} \\
 \hline
 \textit{Deployment} Model &
@@ -76,7 +76,7 @@ Dukungan \textit{canary release}, A/B \textit{testing}, dan \textit{automatic ro
 Deteksi \textit{Drift} &
 Deteksi \textit{drift} bersifat reaktif dengan jeda deteksi yang panjang terhadap isu penting dan perubahan gradual. &
 \textit{Monitoring} proaktif dengan uji statistik, \textit{alert real-time}, dan penetapan ambang adaptif. &
-Jeda deteksi \textit{drift} dapat dipersingkat sehingga pelatihan ulang dapat dijadwalkan lebih tepat waktu untuk menjaga kinerja model. &
+Jeda deteksi \textit{drift} dapat dipersingkat sehingga \textit{retraining} dapat dijadwalkan lebih tepat waktu untuk menjaga kinerja model. &
 \autocite{cespedes2024efficient,bayram2022concept} \\
 \hline
 Tata Kelola \& \textit{Lineage} &
@@ -87,7 +87,7 @@ Waktu persiapan audit dapat berkurang dan cakupan metadata meningkat melalui pro
 \hline
 \textit{Observability} &
 Fokus pemantauan pada metrik infrastruktur, tanpa cakupan metrik ML spesifik di sebagian besar organisasi. &
-\textit{Observability} mencakup metrik ML, dasbor kinerja model, dan \textit{alert} berbasis indikator \textit{drift}. Prometheus dan Grafana menjadi inti, OpenTelemetry mengalirkan log dan \textit{trace} ke Loki dan Grafana Tempo, sementara Alertmanager mengonsolidasikan \textit{alert} ke berbagai kanal notifikasi. &
+\textit{Observability} mencakup metrik ML, \textit{dashboard} kinerja model, dan \textit{alert} berbasis indikator \textit{drift}. Prometheus dan Grafana menjadi inti, OpenTelemetry mengalirkan log dan \textit{trace} ke Loki dan Grafana Tempo, sementara Alertmanager mengonsolidasikan \textit{alert} ke berbagai kanal notifikasi. &
 Proses \textit{debugging} dan \textit{root cause analysis} menjadi lebih efektif sehingga MTTR dapat diturunkan. &
 \autocite{shankar2022operationalizing} \\
 \hline

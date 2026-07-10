@@ -26,13 +26,13 @@ SK-F-12 & KF-12 & Mengubah jumlah \textit{replica} pada manifes YAML di Gitea, l
 \hline
 SK-F-13 & KF-13 & Menjalankan \textit{notebook} satu \textit{environment} uv yang memuat SDK Feast, MLflow, dan klien \textit{inference} KServe v2, lalu memanggil ketiganya sebagai operasi baca independen. & Ketiga klien termuat dan berjalan dari satu \textit{environment} uv tanpa konfigurasi tambahan per layanan. \\
 \hline
-SK-F-14 & KF-14 & Mengirim sejumlah \textit{job} pelatihan melebihi kuota \textit{ClusterQueue} Kueue, lalu mengamati status admisi. & \textit{Job} di luar anggaran kuota berstatus \textit{Pending}. Admisi mengikuti \textit{nominalQuota} dan \textit{borrowingLimit}. \\
+SK-F-14 & KF-14 & Mengirim sejumlah \textit{training job} melebihi kuota \textit{ClusterQueue} Kueue, lalu mengamati status admisi. & \textit{Job} di luar anggaran kuota berstatus \textit{Pending}. Admisi mengikuti \textit{nominalQuota} dan \textit{borrowingLimit}. \\
 \hline
 SK-N-03 & KNF-03 & Menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} sambil mengamati HPA, KEDA \textit{ScaledObject}, dan jumlah \textit{pod}. & Jumlah \textit{replica} naik mengikuti beban dan \textit{throughput} bertambah mendekati linear. \\
 \hline
 SK-N-04 & KNF-04 & Menyuntikkan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & Beban kerja pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
 \hline
-SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{runtime} penyajian) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
+SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{serving runtime}) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
 \hline
 SK-N-09 & KNF-09 & Mengakses seluruh konsol platform melalui satu sesi identitas dex serta memeriksa ketersediaan dokumentasi operasional pada repositori Gitea. & Seluruh konsol dapat dicapai melalui satu jalur autentikasi tanpa login ulang dan dokumentasi prosedur inti tersedia. \\
 \hline
@@ -47,31 +47,31 @@ SK-N-12 & KNF-12 & Menjalankan \texttt{make usecase-crypto-test} untuk cakupan u
 \hline
 SK-F-08 & KF-08 & Menelusuri \textit{lineage} pada DataHub dari \textit{topic} sumber hingga keluaran prediksi melalui antarmuka katalog. & Rantai \textit{lineage} utuh dari sumber data sampai prediksi tersaji pada satu graf metadata. \\
 \hline
-SK-F-09 & KF-09 & Menjalankan dua \textit{run} pelatihan lalu mencatatnya pada MLflow, kemudian memutar ulang \textit{run} dari \textit{snapshot} data dan parameter tercatat. & \textit{Run} tercatat lengkap dan pemutaran ulang menghasilkan selisih metrik di bawah satu persen. \\
+SK-F-09 & KF-09 & Menjalankan dua \textit{training run} lalu mencatatnya pada MLflow, kemudian memutar ulang \textit{run} dari \textit{snapshot} data dan parameter tercatat. & \textit{Run} tercatat lengkap dan pemutaran ulang menghasilkan selisih metrik di bawah satu persen. \\
 \hline
 SK-F-10 & KF-10 & Memindahkan model melalui status \textit{none}, \textit{staging}, \textit{production}, dan \textit{archived} pada registri MLflow. & Transisi mengikuti aturan yang ditetapkan dan \textit{audit trail} terekam lengkap. \\
 \hline
-SK-N-05 & KNF-05 & Menjalankan \textit{checkpoint} Great Expectations pada \textit{batch} data, lalu menyuntikkan pelanggaran skema, rentang nilai, dan kelengkapan untuk menguji penegakan kontrak. & Setiap pelanggaran kontrak kualitas terdeteksi dan \textit{batch} cacat ditolak sebelum masuk lapis hilir. \\
+SK-N-05 & KNF-05 & Menjalankan \textit{checkpoint} Great Expectations pada \textit{batch} data, lalu menyuntikkan pelanggaran skema, rentang nilai, dan kelengkapan untuk menguji penegakan kontrak. & Setiap pelanggaran kontrak kualitas terdeteksi dan \textit{batch} cacat ditolak sebelum masuk \textit{layer} hilir. \\
 \hline
-SK-N-06 & KNF-06 & Menelusuri satu \textit{trace} OpenTelemetry pada Grafana Tempo dari ingestasi hingga prediksi. & Satu \textit{trace} menautkan lintasan kritis dan metrik, log, serta \textit{trace} dapat dirujuk silang. \\
+SK-N-06 & KNF-06 & Menelusuri satu \textit{trace} OpenTelemetry pada Grafana Tempo dari \textit{ingestion} hingga prediksi. & Satu \textit{trace} menautkan lintasan kritis dan metrik, log, serta \textit{trace} dapat dirujuk silang. \\
 \hline
 SK-N-07 & KNF-07 & Memindai \textit{cluster} dengan Trivy dan memeriksa konfigurasi TLS pada \textit{endpoint} layanan. & TLS 1.3 \textit{in transit} dan AES-256 \textit{at rest} terverifikasi tanpa kerentanan kritis terbuka. \\
 \hline
 
-\multicolumn{4}{|l|}{\textbf{Tujuan T-3: deteksi \textit{drift} dan pelatihan ulang}} \\
+\multicolumn{4}{|l|}{\textbf{Tujuan T-3: deteksi \textit{drift} dan \textit{retraining}}} \\
 \hline
-SK-F-03 & KF-03 & Mengaudit \texttt{get\_historical\_features} pada \textit{dataset} pelatihan untuk memastikan jendela \textit{point-in-time} dipatuhi. & Tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. \\
+SK-F-03 & KF-03 & Mengaudit \texttt{get\_historical\_features} pada \textit{training dataset} untuk memastikan jendela \textit{point-in-time} dipatuhi. & Tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. \\
 \hline
-SK-F-05 & KF-05 & Menjalankan \textit{pipeline} pelatihan pada Kubeflow Pipelines yang membaca fitur dari tabel \textit{gold} dan menulis model ke MLflow. & \textit{Pipeline} berjalan dari ujung ke ujung dan model tercatat sebagai artefak \textit{run} pada MLflow yang dapat disajikan KServe. \\
+SK-F-05 & KF-05 & Menjalankan \textit{training pipeline} pada Kubeflow Pipelines yang membaca fitur dari tabel \textit{gold} dan menulis model ke MLflow. & \textit{Pipeline} berjalan dari ujung ke ujung dan model tercatat sebagai artefak \textit{run} pada MLflow yang dapat disajikan KServe. \\
 \hline
-SK-F-07 & KF-07 & Menyuntikkan \textit{drift} terkendali pada satu fitur data nyata, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow retrain-on-drift}. & \textit{Drift} terdeteksi saat ambang PSI atau KS terlampaui dan \textit{pipeline} pelatihan ulang terpicu otomatis. \\
+SK-F-07 & KF-07 & Menyuntikkan \textit{drift} terkendali pada satu fitur data nyata, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow retrain-on-drift}. & \textit{Drift} terdeteksi saat ambang PSI atau KS terlampaui dan \textit{retraining pipeline} terpicu otomatis. \\
 \hline
 
 \multicolumn{4}{|l|}{\textbf{Tujuan T-4: layanan fitur \textit{dual-store}}} \\
 \hline
-SK-F-02 & KF-02 & Memeriksa penyajian fitur \textit{online} pada Valkey mengembalikan nilai non-\textit{null} melalui \texttt{online-serving-check.py}. & Penyajian \textit{online} mengembalikan nilai non-\textit{null} dan kesetaraan nilai \textit{online} dan \textit{offline} terpenuhi secara struktural melalui materialisasi. \\
+SK-F-02 & KF-02 & Memeriksa \textit{online feature serving} pada Valkey mengembalikan nilai non-\textit{null} melalui \texttt{online-serving-check.py}. & \textit{Online serving} mengembalikan nilai non-\textit{null} dan kesetaraan nilai \textit{online} dan \textit{offline} terpenuhi secara struktural melalui materialisasi. \\
 \hline
-SK-F-04 & KF-04 & Menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} dengan k6. & Latensi pencarian vektor berada pada orde sub-detik; pengujian \textit{recall} dilakukan saat koleksi vektor terisi. \\
+SK-F-04 & KF-04 & Menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} dengan k6. & Latensi pencarian vektor berada pada orde sub-detik. Pengujian \textit{recall} dilakukan saat koleksi vektor terisi. \\
 \hline
 SK-F-11 & KF-11 & Membandingkan fitur hasil \textit{batch} (dbt) dan hasil \textit{stream} (Flink) untuk indikator yang sama. & Nilai fitur \textit{batch} dan \textit{stream} setara dalam toleransi yang ditetapkan. \\
 \hline

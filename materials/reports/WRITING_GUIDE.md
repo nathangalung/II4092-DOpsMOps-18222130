@@ -79,6 +79,8 @@ All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, 
 
 Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). `Fragment_General_Arch` renders a marker group for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring — googlecloud2024mlops) plus the early DataOps evolution stages (data silos, manual pipeline monitoring — munappy2020adhoc). `Integrate_General_Arch` renders a mapping group for MLOps level 2 (the seven required components mapped to Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) plus the DataOps stage (CI/CD for data analytics, orchestration, continuous testing and monitoring). The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/IV.1 cite both sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
 
+Layer-derivation labels (2026-07): every layer group in `Integrate_General_Arch` and the four `Layer_*` sources carries its source-category annotation in the group label, mirroring the §IV.2 derivation (Najafabadi's six categories + Kreuzberger's technical components): GitOps (kategori CI/CD), Infrastructure Layer (infrastructure and supporting services), Data Ingestion Layer (data curation: data collector), Processing Layer (data curation: data preprocessor), Storage and Feature Store Layer (storage and versioning), Model Lifecycle Layer (ML training + model registry + ML metadata), Model Serving Layer (inference), Governance and Observability Layer (monitoring + DataOps governance). The Gambar IV.1 caption cites najafabadi2024analysis for these annotations. Changing the derivation prose requires updating these labels, and vice versa; see diagrams/README.md rule 6 for the canonical list.
+
 ## 2. Tables
 
 The figure guidance above already covers when to pick a table over a figure. A few additional rules for tables themselves:
@@ -202,7 +204,7 @@ Run through this list when the draft is close to done.
 - IV.1 contains a system-overview figure and a short description.
 - Each Bab V section refers back to the matching Bab IV section.
 - Each kesimpulan point answers exactly one tujuan.
-- Daftar Singkatan lists only acronyms that actually appear in Bab 1 to Bab 5, alphabetically, each with the chapter of first use; re-run the first-use grep after moving content between chapters (license and foundation acronyms ASF, CNCF, LF, MPL, BSL, BUSL, AGPL, BSD entered via the Lisensi (Yayasan) column and live in Bab II).
+- Daftar Singkatan lists only acronyms that actually appear in Bab 1 to Bab 7, alphabetically, each with the chapter of first use; re-run the first-use grep after moving content between chapters (license and foundation acronyms ASF, CNCF, LF, MPL, BSL, BUSL, AGPL, BSD entered via the Lisensi (Yayasan) column and live in Bab II).
 
 ### 3.7 Per-Bab template comments (central store)
 
@@ -214,7 +216,7 @@ Chapter files under `chapters/` carry only a minimal pointer comment at the top 
 - I.1 Latar Belakang         : motivasi domain-agnostic platform DataOps + MLOps
 - I.2 Rumusan Masalah        : RM-1..RM-4 (akar isu, bukan turunan tools)
 - I.3 Tujuan                 : T-1..T-4, satu lawan satu dengan RM-N
-- I.4 Batasan Masalah        : B-1..B-5 (ruang lingkup yang dijaga)
+- I.4 Batasan Masalah        : BP-1..BP-3 + BI-1..BI-2 (batasan penelitian vs batasan implementasi)
 - I.5 Metodologi             : DSRM Peffers et al. (6 fase)
 - I.6 Sistematika Penulisan  : peta bab II..VII
 Catatan: kripto hanya use-case verifikasi; tidak masuk latar belakang.
@@ -225,10 +227,13 @@ Catatan: kripto hanya use-case verifikasi; tidak masuk latar belakang.
 ```
 - II.1 DataOps dan MLOps            : definisi, kematangan, integrasi
 - II.2 Kubernetes dan Cloud-Native  : orkestrasi, scaling (HPA/VPA/KEDA), operator, runtime
-- II.3 Manajemen Data               : Lambda/Kappa, Kafka+Karapace, Flink, Spark+dbt,
-                                      lakehouse (Iceberg/Trino), MinIO/lakeFS, PG/MySQL/OpenSearch
+- II.3 Manajemen Data               : Lambda/Kappa, message broker + data ingestion,
+                                      stream processing, batch processing + SQL,
+                                      lakehouse, objek + versi data, relasional + pencarian
+                                      (alat contoh: Kafka+Karapace, Flink, Spark+dbt,
+                                      Iceberg/Trino, MinIO/lakeFS, PG/MySQL/OpenSearch)
 - II.4 Layanan Fitur                : Feast, ClickHouse, Valkey, Qdrant, HNSW, point-in-time
-- II.5 Siklus Hidup Model           : MLflow, KFP+Argo Workflows, Notebooks/Katib/Trainer, KServe
+- II.5 *Model Lifecycle*            : MLflow, KFP+Argo Workflows, Notebooks/Katib/Trainer, KServe
 - II.6 Tata Kelola Data             : DataHub, Great Expectations, OpenLineage
 - II.7 Deteksi Drift                : PSI, Kolmogorov-Smirnov, retraining loop
 - II.8 Observabilitas               : Prometheus/Loki/Tempo/Grafana/OTel, Sloth, Evidently,
@@ -251,13 +256,15 @@ Penjelasan tool: setiap tool pada platform/components diberi definisi dan citasi
   - III.1.3 Efek Domino Fragmentasi Lintas Peran    : pandangan umum fragmentasi DataOps + MLOps (Gambar III.1 saja, tanpa rincian per peran)
 - III.2 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
 - III.3 Analisis Pemilihan Solusi             : alternatif + penentuan solusi
+- III.4 Analisis Pemilihan Open Source Tools  : 9 kelompok layer, 24 tabel berskor 0-2,
+                                                legenda skorlegendtools + rubrik Lampiran B
 Catatan:
   - Urutan sub-sub-section di III.1 mengikuti urutan pemicu pada Bab I Latar Belakang.
   - KF berorientasi kemampuan (apa yang dilakukan platform).
   - KNF berorientasi sifat sistem (latensi, ketersediaan, observabilitas, keamanan).
   - Setiap KNF wajib menyebut metrik dan ambang batas yang terukur.
   - Tabel KF (kolom: ID, Kebutuhan, Deskripsi, Tujuan) dan KNF (kolom: ID, Kebutuhan, Deskripsi, Target Metrik, Tujuan) sama-sama memuat kolom Tujuan yang menautkan tiap kebutuhan ke salah satu dari empat tujuan (T-1..T-4), mengikuti pengelompokan uji penerimaan pada Bab VI; untuk KNF kolom ini menunjuk tujuan utama karena KNF bersifat lintas-bidang.
-  - Urutan baris (sort subject) yang wajib dijaga: KF diurut menurut lapisan arsitektur (KF-01..04 lapisan fitur, KF-05..10 siklus hidup model dan tata kelola, KF-11..14 lapisan operasional); KNF diurut menurut taksonomi atribut kualitas (kinerja, skalabilitas, keandalan, konsistensi, observability, keamanan, ekstensibilitas, lalu atribut operasional jangka panjang). Urutan ID sengaja tidak mengikuti Tujuan karena keterunutan ke T sudah ditampung kolom Tujuan secara terpisah.
+  - Urutan baris (sort subject) yang wajib dijaga: KF diurut menurut layer arsitektur (KF-01..04 layanan fitur, KF-05..10 model lifecycle dan tata kelola, KF-11..14 operasional); KNF diurut menurut taksonomi atribut kualitas (kinerja, skalabilitas, keandalan, konsistensi, observability, keamanan, ekstensibilitas, lalu atribut operasional jangka panjang). Urutan ID sengaja tidak mengikuti Tujuan karena keterunutan ke T sudah ditampung kolom Tujuan secara terpisah.
   - ID KF-NN/KNF-NN terkunci satu lawan satu pada SK-F-NN/SK-N-NN di Bab VI dan dirujuk lintas bab; nomor tidak boleh diubah, perubahan urutan dilakukan lewat narasi pengelompokan bukan penomoran ulang.
   - Fragmentasi cukup ditampilkan sebagai pandangan umum pada Gambar III.1; rincian per peran tidak ditulis karena tesis bersifat layer-centric (lihat TEMPLATE_BAB.md §5). Lampiran C dan keempat diagram fragmentasi per peran sudah dihapus.
 ```
@@ -265,7 +272,7 @@ Catatan:
 **Bab IV — Perancangan Arsitektur Platform DataOps dan MLOps**
 
 ```
-- IV.1 Gambaran Umum Platform                       : sintesis arsitektur tujuh lapis + diagram
+- IV.1 Gambaran Umum Platform                       : sintesis arsitektur tujuh layer + diagram
 - IV.2 Perancangan Arsitektur Terintegrasi          : menjawab T-1 (arsitektur terintegrasi)
 - IV.3 Perancangan Sub-sistem Tata Kelola Data      : menjawab T-2 (tata kelola data)
 - IV.4 Perancangan Sub-sistem Deteksi Drift dan Continuous Training : menjawab T-3 (deteksi drift + PIT)
@@ -273,10 +280,10 @@ Catatan:
 - IV.6 Alur Kerja End-to-End                        : rangkaian sub-sistem ke siklus produksi
 Rantai keterhubungan: T-N ↔ IV.N+1 ↔ V.N+1 ↔ Kesimpulan ke-N
 Catatan domain-agnostic: arsitektur murni platform; verifikasi kripto ditunda ke Bab V.
-Catatan tujuh lapis: penataan ulang 6 kategori najafabadi2024analysis + 9 komponen
+Catatan tujuh layer: penataan ulang 6 kategori najafabadi2024analysis + 9 komponen
 teknis kreuzberger2023mlops (bukan taksonomi baru; dua penyesuaian dinyatakan
-eksplisit di IV.2: data curation dipecah ingestasi+pemrosesan, pemantauan dipisah
-dari inference ke lapisan tata kelola + observabilitas).
+eksplisit di IV.2: data curation dipecah data ingestion+processing, pemantauan
+dipisah dari inference ke Governance and Observability Layer).
 ```
 
 **Bab V — Implementasi Arsitektur Platform DataOps dan MLOps**
@@ -299,7 +306,7 @@ Catatan use-case: kripto hanya untuk verifikasi jalur, tidak mengubah sifat doma
 - VI.2 Hasil Evaluasi               : status pemenuhan per kebutuhan (struktural, fungsional, terinstrumentasi)
 - VI.3 Pembahasan Hasil Evaluasi    : interpretasi, keterbatasan, tindak lanjut
 Rantai keterhubungan: T-N ↔ VI.1.N ↔ VI.2.N ↔ VI.3.N ↔ Kesimpulan ke-N
-Catatan status: setiap klaim sepadan dengan bukti pada lingkungan node tunggal (B-2);
+Catatan status: setiap klaim sepadan dengan bukti pada lingkungan node tunggal (BI-1);
 karakterisasi beban kuantitatif multi-node menjadi arah pengembangan pada Bab VII.
 ```
 
@@ -318,9 +325,11 @@ Every chapter opens with one short unnumbered lead-in (1 paragraph, maximum 2) p
 
 ### 3.9 Section depth and section lead-ins in Bab II
 
-Split a \section into \subsection blocks only when it carries four or more narrative paragraphs covering more than one distinct topic; each resulting subsection must still hold at least two paragraphs. Sections with two or three paragraphs on a single topic stay flat: currently §2.6 Tata Kelola, §2.7 Deteksi Drift, §2.8 Observabilitas, §2.9 GitOps, and §2.11 Penelitian Terkait. Six sections carry subsections: §2.1 DataOps dan MLOps, §2.2 Kubernetes, §2.3 Manajemen Data, §2.4 Layanan Fitur, §2.5 Siklus Hidup Model, and §2.10 Keamanan. Depth stops at \subsection; no \subsubsection is used anywhere in Bab II, so the heading tree is uniformly two levels deep.
+Split a \section into \subsection blocks only when it carries four or more narrative paragraphs covering more than one distinct topic; each resulting subsection must still hold at least two paragraphs. Sections with two or three paragraphs on a single topic stay flat: currently §2.6 Tata Kelola, §2.7 Deteksi Drift, §2.8 Observabilitas, §2.9 GitOps, and §2.11 Penelitian Terkait. Six sections carry subsections: §2.1 DataOps dan MLOps, §2.2 Kubernetes, §2.3 Manajemen Data, §2.4 Layanan Fitur, §2.5 *Model Lifecycle*, and §2.10 Keamanan. Depth stops at \subsection; no \subsubsection is used anywhere in Bab II, so the heading tree is uniformly two levels deep.
 
-Every section that has subsections opens with one short lead-in paragraph (four sentences) placed between the \section heading and the first \subsection. The lead-in names the subsection topics and their reading order, mirroring the chapter lead-in pattern (§3.8) and the proposal's Bab 2 layout; it is navigational only and introduces no factual claim that is not made with a citation inside a subsection. Revision 2026-06: formerly only §2.10 carried such a lead-in; the other five were added, and §2.3 was retitled from "Ingestasi, Streaming, dan Batch" to "Manajemen Data: Ingestasi, Pemrosesan, dan Penyimpanan" so the title covers its three storage subsections. Comparison tables are \input in the subsection whose prose cites them via Tabel~\ref (e.g. tab:feature_store_comparison sits in §2.4.2 where Feast is selected, not in the point-in-time subsection).
+Concept-first rule (2026-07): every Bab II subsection and sub-subsection opens with concept paragraphs grounded in literature and names open-source tools only in its closing example paragraph(s), typically with the phrase "Contoh perwujudan \textit{open source} ...", because tool selection happens in Bab III §III.4. Never open a unit with a tool name or a decision sentence ("Pada platform ini, X dipakai"); implementation-operational detail (auth modes, topic topology, bucket layout, PodDisruptionBudget and the like) lives in Bab V. Tool-named subsection titles were renamed to concept titles while keeping their labels: subsec:kafka = "\textit{Message Broker} dan \textit{Data Ingestion}", subsec:flink = "\textit{Stream Processing}", subsec:spark = "\textit{Batch Processing} dan Transformasi SQL". The report must read forward, never reverse-engineered: Bab I overview, Bab II concepts per service, Bab III problem decomposition per service then per-service tool comparison and selection.
+
+Every section that has subsections opens with one short lead-in paragraph (four sentences) placed between the \section heading and the first \subsection. The lead-in names the subsection topics and their reading order, mirroring the chapter lead-in pattern (§3.8) and the proposal's Bab 2 layout; it is navigational only and introduces no factual claim that is not made with a citation inside a subsection. Revision 2026-06: formerly only §2.10 carried such a lead-in; the other five were added, and §2.3 was retitled from "Ingestasi, Streaming, dan Batch" to "Manajemen Data: \textit{Ingestion}, \textit{Processing}, dan \textit{Storage}" (current round-8 form) so the title covers its three storage subsections. Comparison tables are \input in the subsection whose prose cites them via Tabel~\ref (e.g. tab:feature_store_comparison sits in §2.4.2 where Feast is selected, not in the point-in-time subsection).
 
 ## 4. Working order while drafting
 
@@ -363,11 +372,12 @@ code listings). Never reintroduce the calque on the left:
 - titik pemeriksaan -> `\textit{checkpoint}`; ruang nama -> `\textit{namespace}`
 
 Indonesian terms that ARE the accepted register and stay Indonesian:
-klaster (not kluster), berkas, antarmuka, penyajian (serving), bidang kendali
-(control plane), penskalaan, pencadangan, alur kerja (workflow as concept;
-Argo Workflows the product stays English), gerbang kualitas (quality gate),
-sumber kebenaran tunggal, beban kerja (workload), ingestasi (adopted loan,
-used consistently since the section titles depend on it).
+klaster (not kluster), berkas, antarmuka, penskalaan,
+pencadangan, alur kerja (workflow as concept; Argo Workflows the product
+stays English), gerbang kualitas (quality gate), sumber kebenaran tunggal,
+beban kerja (workload). Round 8 removed bidang kendali and ingestasi from
+this list; they are now `\textit{control plane}` and
+`\textit{ingestion}`/`\textit{data ingestion}`.
 
 "penerapan" remains valid Indonesian when it means applying a technique
 (e.g. "penerapan deteksi drift pada lingkungan serverless"), never as the
@@ -385,7 +395,7 @@ Round-3 refinements:
 - Dual registers sanctioned as-is (do not churn): klaster and
   `\textit{cluster}`; pelacakan and `\textit{tracking}`; registri and
   `\textit{registry}`. Unified to Indonesian: pencadangan (not italic
-  backup), pemantauan, dasbor, rahasia, penemuan, ingestasi, materialisasi,
+  backup), pemantauan, rahasia, penemuan, materialisasi,
   alur kerja (generic workflow).
 - Transitive verbs need their -kan: menyebarkan peraturan, not menyebar.
 
@@ -400,9 +410,10 @@ KBBI round (round 4) doctrine and verdicts:
   contract), pendaratan data (landing).
 - KBBI-confirmed same-sense keeps: kompatibilitas (KBBI's own computing
   example), retensi (archival example), replika, telemetri, agregasi,
-  agregat, konsistensi, purwarupa, anotasi, katalog, klaster, dasbor.
+  agregat, konsistensi, purwarupa, anotasi, katalog, klaster (dasbor was
+  reversed to `\textit{dashboard}` by round 8).
 - Standard informatics loans absent from KBBI, kept by academic usage:
-  ingestasi, observabilitas, skalabilitas, ekstensibilitas,
+  observabilitas, skalabilitas, ekstensibilitas,
   reproduksibilitas, granularitas, kueri, portabilitas, modularitas,
   registri, granular, idempoten, deklaratif, rekonsiliasi.
 - Fixed this round: Maturitas -> Kematangan (headers; prose already used the
@@ -437,6 +448,57 @@ Opus 4.8 sign-off round (round 5) verdicts:
   Singkatan + Lampiran B), `\textit{ambient}/\textit{sidecar}`.
 - "tuning resource" -> "penyetelan \textit{resource}" (register match with
   "penyetelan sumber daya").
+Round 8 (user override 2026-07, final English-term scheme):
+- ORDER RULE: multiword English technical NPs are written in proper English
+  order inside one `\textit{...}` (lowercase in prose, Title Case in
+  headings/diagram labels). English words in Indonesian order are banned:
+  "\textit{layer} pemrosesan" and "Data Ingestion Manual" are wrong;
+  "\textit{processing layer}" and "Manual Data Ingestion" are right. A
+  single English borrow with an Indonesian modifier stays legal ("antar
+  \textit{layer}", "\textit{dashboard} operasional", "jalur \textit{ingestion}").
+- lapis/lapisan (architecture, stratum, medallion, defense senses) ->
+  `\textit{layer}`; named layers use the canonical set below; medallion ->
+  "\textit{bronze layer}" / "\textit{silver layer}" / "\textit{gold layer}";
+  LaTeX labels (subsec:lapisan-*) stay unchanged; the Abstrak triad became
+  "tiga pilar: metrik, log, dan \textit{trace}".
+- ingestasi -> `\textit{ingestion}` / `\textit{data ingestion}`; bidang
+  kendali -> `\textit{control plane}` (KEEP bidang orkestrasi, bidang
+  serverless, bidang identitas, bidang data, and jalur kendali).
+- penyajian model -> `\textit{model serving}`; penyajian fitur ->
+  `\textit{feature serving}`; serving-sense penyajian -> `\textit{serving}`;
+  siklus hidup model -> `\textit{model lifecycle}`; pelatihan model ->
+  `\textit{model training}`; pelatihan ulang -> `\textit{retraining}`
+  (reverses the round-2 lock); data/pipeline/job/run pelatihan ->
+  `\textit{training data}` / `\textit{training pipeline}` /
+  `\textit{training job}` / `\textit{training run}`; verbs melatih/dilatih
+  stay Indonesian.
+- fitur \textit{online}/\textit{offline}/vektor/tabular -> `\textit{online
+  feature}` / `\textit{offline feature}` / `\textit{vector feature}` /
+  `\textit{tabular feature}` (KEEP layanan fitur, definisi fitur, and bare
+  fitur inside Indonesian syntax); dasbor -> `\textit{dashboard}` (reverses
+  the round-3 unification).
+- Adjudicated KEEP (do not churn): jalur (the alur = flow vs jalur = path
+  split is deliberate), penskalaan, peristiwa, antrean, ketertelusuran,
+  orkestrasi, observabilitas (prose), tata kelola (prose), granularitas,
+  nonstasioner, sambungan, perakitan/dirakit, jendela waktu, pemutaran
+  ulang, kanal, tulang punggung, efek domino, layanan fitur.
+- Round-8 consistency fixes: bus pesan -> `\textit{message broker}`;
+  perekayasaan/merekayasa/rekayasa fitur -> `\textit{feature engineering}`;
+  silang-rujuk / saling-rujuk -> dirujuk silang / saling dirujuk;
+  Reprodusibilitas -> Reproduksibilitas; "keterikatan vendor" -> keterikatan
+  (redundant beside penyedia); kosa kata -> kosakata; terstandarisasi ->
+  terstandardisasi.
+Canonical seven-layer name set (Bab I/IV, Abstrak, titles, diagram labels):
+\textit{Infrastructure Layer}; \textit{Data Ingestion Layer};
+\textit{Processing Layer}; \textit{Storage and Feature Store Layer};
+\textit{Model Lifecycle Layer}; \textit{Model Serving Layer};
+\textit{Governance and Observability Layer}. Bab V storage-only subsection:
+\textit{Storage Layer}. Compact prose list: "yaitu \textit{infrastructure},
+\textit{data ingestion}, \textit{processing}, \textit{storage and feature
+store}, \textit{model lifecycle}, \textit{model serving}, serta
+\textit{governance and observability}". Diagram labels use the same names in
+plain text (no \textit).
+
 Round 7 (user override of round-6 keeps): every remaining rare or
 literary-technical word converted to common Indonesian or the italicized
 English term. Replaced: pendaratan data -> `\textit{landing}` data,
@@ -459,12 +521,12 @@ percabangan tanpa salin -> percabangan `\textit{zero-copy}`; konformansi ->
 lolos uji `\textit{conformance}`; konsolidatif -> terpadu; keluwesan ->
 fleksibilitas; kebergantungan -> ketergantungan; peleburan -> penggabungan;
 regu keamanan -> tim keamanan; dirambatkan -> diteruskan; runtutan -> deret.
-Checked and KEPT as common: dirunut (8 uses, standard academic), pendaratan data, penaung,
-lekukan, terusir, luaran, tataran, serempak, merembet, reproduksibel,
-volatil, multimoda, lazim, menjembatani.
+Checked and KEPT as common: dirunut (8 uses, standard academic) and
+menjembatani; the rest of this round-6 keep list was superseded by the
+round-7 replacements above.
 - tunak (steady state) avoided as uncommon: use plain phrasing (sesudah tahun pertama, alokasi tetap) or `\textit{steady-state}` for the technical latency sense.
 - Deliberately kept: bare "log" (naturalized document-wide; italicizing one
-  triad line would create inconsistency), konformansi, skalabel, multimoda,
+  triad line would create inconsistency), skalabel,
   `\textit{sub-sistem}`, `\textit{image container}` word order.
 
 
@@ -477,9 +539,12 @@ Additional locked pairs (register-audit round 2):
 - grafik (for graph data structure) -> graf ("grafik" only for charts)
 - pengembalian (for rollback) -> `\textit{rollback}`
 - inferensi -> `\textit{inference}` (majority register)
-- `\textit{control plane}` in prose -> bidang kendali (never italic English)
+- (reversed by round 8) the old round-2 lock "control plane -> bidang
+  kendali" no longer applies; write `\textit{control plane}`
 - `\textit{promotion}` -> promosi; `\textit{materialization}` -> materialisasi;
-  `\textit{retraining}` -> pelatihan ulang; konektor `\textit{ingestion}` -> ingestasi
+  (reversed by round 8) `\textit{retraining}` and `\textit{ingestion}` are
+  now the locked forms; the old pelatihan-ulang / ingestasi directions no
+  longer apply
 - menutup/ditutup for "covers/rounds out" -> melengkapi/tercakup;
   menjatuhkan for "taking down a pipeline" -> menghentikan;
   ditempelkan for "bolted onto" -> digabungkan langsung
@@ -488,7 +553,7 @@ Additional locked pairs (register-audit round 2):
 
 Also accepted (do NOT convert to English): alat (tool; `\textit{tool}` where
 already present is fine), pelacakan (tracking), penemuan (discovery), registri,
-promosi, materialisasi, pelatihan ulang, indikator, beban uji. Requirement
+promosi, materialisasi, indikator, beban uji. Requirement
 titles in kebutuhan_fungsional.tex stay Indonesian by design even when their
 descriptions use the italic English term.
 

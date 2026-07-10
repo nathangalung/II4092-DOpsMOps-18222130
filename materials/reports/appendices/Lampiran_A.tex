@@ -16,7 +16,7 @@ kubectl apply -f experiments/namespace.yaml
 \section{Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
 \label{sec:appx-t1}
 
-Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi siklus hidup model setara MLOps \textit{level} 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
+Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi \textit{model lifecycle} setara MLOps \textit{level} 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-1 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t1},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-01/KF-01: rekonsiliasi feature view Feast
@@ -94,10 +94,10 @@ kubectl get vulnerabilityreports -A
 testssl.sh <public-endpoint>
 \end{lstlisting}
 
-\section{Tujuan T-3: Deteksi \textit{Drift} dan Pelatihan Ulang}
+\section{Tujuan T-3: Deteksi \textit{Drift} dan \textit{Retraining}}
 \label{sec:appx-t3}
 
-Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu pelatihan ulang dan penyusunan fitur pelatihan menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
+Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu \textit{retraining} dan penyusunan fitur pelatihan menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-3 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t3},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-03/KF-03: point-in-time correctness gold
@@ -118,7 +118,7 @@ kubectl -n model-lifecycle get cronworkflow,workflow
 \section{Tujuan T-4: Layanan Fitur \textit{Dual-Store}}
 \label{sec:appx-t4}
 
-Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan fitur tabular, agregat, dan vektor dengan kontrak konsisten antara pelatihan dan penyajian, beserta latensi dan \textit{throughput} jalur penyajian. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
+Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector feature} dengan kontrak konsisten antara \textit{training} dan \textit{serving}, beserta latensi dan \textit{throughput} jalur \textit{serving}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-4 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t4},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-02/KF-02: online Feast offline ClickHouse
@@ -144,4 +144,4 @@ kafka-producer-perf-test --topic crypto.validated --num-records 1000000 \
   --producer.config <sasl.properties>
 \end{lstlisting}
 
-Setiap perintah pada katalog ini berpasangan satu-satu dengan baris Tabel~\ref{tab:uji_penerimaan} dan Tabel~\ref{tab:evaluasi_target} pada Bab~\ref{chap:evaluasi}, sehingga klaim pemenuhan kebutuhan dapat dilacak langsung ke perintah yang menghasilkan buktinya. Untuk \textit{use case} lain, cukup berkas \texttt{config.crypto.env} yang disalin dan disesuaikan blok DOMAIN-nya; kode skenario tetap \textit{domain-agnostic} dan tidak perlu diubah.
+Setiap perintah pada katalog ini berpasangan satu-satu dengan baris Tabel~\ref{tab:uji_penerimaan} dan Tabel~\ref{tab:evaluasi_target} pada Bab~\ref{chap:evaluasi}, sehingga klaim pemenuhan kebutuhan dapat dilacak langsung ke perintah yang menghasilkan buktinya. Untuk \textit{use case} lain, cukup berkas \texttt{config.crypto.env} yang disalin dan disesuaikan blok DOMAIN-nya. Kode skenario tetap \textit{domain-agnostic} dan tidak perlu diubah.

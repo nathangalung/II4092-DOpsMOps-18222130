@@ -1,24 +1,27 @@
-// Layer_Data — Lapisan Ingestasi, Pemrosesan, dan Penyimpanan Fitur
+// Layer_Data — Data Ingestion Layer, Processing Layer, dan Storage and Feature Store Layer
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
 // Ekspor PNG ke materials/reports/figures/Layer_Data.png
-// Acuan: Subbab IV.2.2 (subsec:lapisan-data); rincian Lapis 2-4 dari Gambar IV.1.
+// Acuan: Subbab IV.2.2 (subsec:lapisan-data); rincian Layer 2-4 dari Gambar IV.1.
 // Fokus: jalur data dari sumber eksternal menuju penyimpanan dan layanan fitur,
 // dengan dua jalur pemrosesan batch dan stream.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis)
+// yaitu data curation (dipecah data collector + data preprocessor) dan
+// storage and versioning; penataan ulang dinyatakan pada prosa IV.2.
 
 direction right
 
 Sumber Data Eksternal [icon: cloud, color: gray]
 
-// Lapis Ingestasi
-Lapisan Ingestasi Data [icon: download, color: orange] {
+// Data Ingestion Layer
+Data Ingestion Layer [icon: download, color: orange, label: "Data Ingestion Layer (data curation: data collector)"] {
   Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
   Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
   Karapace [icon: file-text, label: "Karapace (schema registry)"]
   Kafbat UI [icon: monitor, label: "Kafbat UI"]
 }
 
-// Lapis Pemrosesan
-Lapisan Pemrosesan [icon: cpu, color: yellow] {
+// Processing Layer
+Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (data curation: data preprocessor)"] {
   Flink [icon: zap, label: "Apache Flink (stream)"]
   Spark [icon: sun, label: "Apache Spark (batch)"]
   dbt [icon: code, label: "dbt (transformasi SQL)"]
@@ -26,8 +29,8 @@ Lapisan Pemrosesan [icon: cpu, color: yellow] {
   Trino [icon: search, label: "Trino (federasi kueri)"]
 }
 
-// Lapis Penyimpanan dan Fitur
-Lapisan Penyimpanan Fitur [icon: database, color: green] {
+// Storage and Feature Store Layer
+Storage and Feature Store Layer [icon: database, color: green, label: "Storage and Feature Store Layer (storage and versioning)"] {
   Lakehouse [icon: layers] {
     MinIO [icon: hard-drive, label: "MinIO (objek + KES)"]
     lakeFS [icon: git-branch, label: "lakeFS (versi data)"]
@@ -48,9 +51,9 @@ Lapisan Penyimpanan Fitur [icon: database, color: green] {
 }
 
 // Konsumen fitur (batas)
-Lapisan Siklus Hidup Model [icon: refresh-cw, color: purple, label: "Lapisan Siklus Hidup Model (konsumen fitur)"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (konsumen fitur)"]
 
-// Alur ingestasi
+// Alur ingestion
 Sumber Data Eksternal > Kafka Connect: REST + CDC
 Kafka Connect > Kafka
 Kafka <> Karapace: validasi skema
@@ -76,6 +79,6 @@ ClickHouse > Feast: sumber offline
 Feast > Valkey: materialisasi online
 Flink > Valkey: fitur stream
 Flink > Qdrant: embedding stream
-Feast > Lapisan Siklus Hidup Model: fitur pelatihan
-Valkey > Lapisan Siklus Hidup Model: fitur online
-Qdrant > Lapisan Siklus Hidup Model: fitur vektor
+Feast > Model Lifecycle Layer: fitur pelatihan
+Valkey > Model Lifecycle Layer: online feature
+Qdrant > Model Lifecycle Layer: vector feature
