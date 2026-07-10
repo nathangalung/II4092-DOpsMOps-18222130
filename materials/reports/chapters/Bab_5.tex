@@ -16,6 +16,20 @@ Kode dan konfigurasi proyek ditata pada beberapa direktori utama dengan batas ta
 
 \input{tables/struktur_direktori.tex}
 
+\subsection{Batasan Implementasi}
+\label{subsec:batasan-implementasi}
+
+Perwujudan platform pada bab ini berjalan di dalam dua batasan implementasi yang dibedakan dari batasan penelitian pada Bab~\ref{chap:pendahuluan}. Batasan implementasi menyangkut pilihan perwujudan yang dapat diganti tanpa mengubah sifat kontribusi selama fungsi yang sama tetap terpenuhi, karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, bukan implementasi untuk satu lingkungan tertentu. Kedua batasan menetapkan lingkungan \textit{k3s} satu \textit{node} dan patokan versi April 2026 sebagai kondisi pengujian yang dapat direproduksi. Kedua butir berikut selanjutnya dirujuk dengan singkatan BI-1 dan BI-2, terutama pada pembahasan hasil di Bab~\ref{chap:evaluasi}.
+
+\vspace{0.5em}
+\begin{enumerate}
+    \item Platform berjalan di atas \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian, dengan skala diatur oleh HPA, VPA, dan KEDA ketika beban nyata muncul, sedangkan \textit{overlay} Kustomize untuk \textit{environment} multi-\textit{node} tetap dapat ditambahkan tanpa modifikasi basis kode sehingga jumlah \textit{node} bersifat perwujudan dan bukan bagian dari kontribusi.
+
+    \item Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026 agar pengujian dapat direproduksi pada lingkungan yang sama, dan patokan versi maupun pilihan serta sintaks komponen tertentu dapat diganti dengan komponen lain berkapabilitas setara tanpa mengubah rancangan.
+\end{enumerate}
+
+Kedua batasan implementasi tersebut menjadi konteks pembacaan seluruh subbab implementasi pada bab ini. Penggantian jumlah \textit{node}, versi komponen, atau sintaks alat dengan padanan berkapabilitas setara tidak mengubah rancangan pada Bab~\ref{chap:perancangan}. Batasan BI-1 dipetakan kembali pada pelaporan hasil evaluasi lingkungan \textit{node} tunggal, sedangkan BI-2 menjadi acuan reproduksi lingkungan pengujian pada Bab~\ref{chap:evaluasi}. Pemisahan dari batasan penelitian menegaskan bahwa keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
+
 \subsection{Konfigurasi Dasar \textit{Cluster}}
 \label{subsec:cluster}
 
@@ -177,7 +191,7 @@ Materialisasi dijalankan berkala oleh DAG Airflow melalui \textit{task} \texttt{
 \section{Verifikasi Implementasi}
 \label{sec:verifikasi}
 
-Verifikasi jalur eksekusi dilakukan dengan satu \textit{use case} domain nyata sebagai kasus pengujian, yang struktur layanan, konfigurasi, dan datanya dirinci pada Bab~\ref{chap:evaluasi}. Pemilihan ini tidak mengubah sifat domain-agnostik dari platform, karena seluruh kode dan konfigurasi platform tetap berada pada repositori \texttt{platform/}, sedangkan kode dan konfigurasi spesifik domain tinggal pada direktori \textit{use case} tersendiri yang terpisah dari platform. Manifes Kubernetes domain mengikuti pola \textit{base} dan \textit{overlays} \textit{Kustomize} sehingga parameter spesifik lingkungan cukup disetel pada \textit{overlay layer} tanpa menyentuh definisi dasar. Pola yang sama berlaku untuk \textit{use case} lain, karena berkas konfigurasi domain cukup disalin dan disesuaikan tanpa mengubah kode platform.
+Verifikasi jalur eksekusi dilakukan dengan satu \textit{use case} domain nyata sebagai kasus pengujian, yang struktur layanan, konfigurasi, dan datanya dirinci pada Bab~\ref{chap:evaluasi}. Pemilihan ini tidak mengubah sifat domain-agnostik dari platform, karena seluruh kode dan konfigurasi platform tetap berada pada repositori \texttt{platform/}, sedangkan kode dan konfigurasi spesifik domain tinggal pada direktori \textit{use case} tersendiri yang terpisah dari platform. Manifes Kubernetes domain mengikuti pola \textit{base} dan \textit{overlays} \textit{Kustomize} sehingga parameter spesifik lingkungan cukup disetel pada \textit{overlay layer} tanpa menyentuh definisi dasar. Pola yang sama berlaku untuk \textit{use case} lain, karena berkas konfigurasi domain cukup disalin dan disesuaikan tanpa mengubah kode platform. \textit{Use case} ini dipilih sebagai kasus pengujian karena menjalankan seluruh sembilan kelompok layanan representatif yang ditetapkan pada Subbab~\ref{sec:layanan-industri}, mulai dari \textit{data ingestion} dan pemrosesan data hingga \textit{model serving}, tata kelola, observabilitas, pengiriman GitOps, dan keamanan platform. Dengan cakupan tersebut, verifikasi fungsional menyentuh himpunan layanan yang sama dengan yang terbukti berulang pada praktik industri, bukan sekadar sebagian jalur. Sifat lepas-domain kesembilan kelompok itulah yang membuat pemilihan \textit{use case} ini tidak mengurangi keberlakuan platform pada domain lain.
 
 \subsection{Lingkup Verifikasi}
 \label{subsec:lingkup-verifikasi}

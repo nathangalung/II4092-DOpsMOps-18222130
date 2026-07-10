@@ -1,0 +1,36 @@
+% Tabel legenda tahap model evolusi DataOps (Munappy dkk.), portrait, lintas halaman
+% Non-berskor; mengikuti gaya longtable mlops_maturity_comparison.tex + rubrik Lampiran A
+% Nama tahap dan karakteristik verbatim dari munappy2020adhoc (Bagian 4.3, hal. 170-173)
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{|>{\raggedright\arraybackslash}m{2.5cm}|>{\raggedright\arraybackslash}m{5.6cm}|>{\raggedright\arraybackslash}m{4.4cm}|}
+\caption{Rincian Karakteristik dan Kebutuhan Tiap Tahap Model Evolusi DataOps}
+\label{tab:dataops_stage_legend} \\
+\hline
+\textbf{Tahap} & \textbf{Karakteristik} & \textbf{Kebutuhan Kunci} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Tahap} & \textbf{Karakteristik} & \textbf{Kebutuhan Kunci} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+\textbf{1.}\newline \textit{Ad-hoc data analysis} & Laporan dan \textit{insight} dibuat \textit{on-demand} serta sangat disesuaikan untuk menjawab satu pertanyaan bisnis spesifik. Pengumpulan data masih manual dan bergantung pada templat departemen teknologi informasi, sehingga muncul \textit{data silos} dan keputusan bisnis bertumpu pada sebagian kecil data. & Teknologi untuk mengumpulkan data \textit{real-time} dari banyak sumber data. \\
+\hline
+\textbf{2.}\newline \textit{Semi-automated data analysis} & \textit{Data pipelines} mengumpulkan dan memproses data secara lebih efisien dan otomatis, didukung \textit{data technologies} (\textit{data engineering}, \textit{data preparation}, \textit{data storage}, \textit{data visualization}) dan \textit{data processes}. Sebagian aktivitas belum otomatis dan pemantauan masih manual. & \textit{Data pipelines} yang dirancang baik untuk mengevaluasi, menguji, memuat, mentransformasi, memvalidasi, dan mempublikasikan data pada skala besar, beserta \textit{data technologies} dan \textit{data processes} untuk mengoordinasikannya. \\
+\hline
+\textbf{3.}\newline \textit{Agile data science} & \textit{Development} dan \textit{deployment} diatur metodologi \textit{agile} dan DevOps sehingga kode teruji penuh dihasilkan dalam waktu singkat dan disimpan pada repositori pusat bersama. \textit{Insight} dikirim dalam \textit{sprint} pendek dengan umpan balik pelanggan berkala. & \textit{Continuous delivery} nilai bisnis ke pelanggan serta penanganan kebutuhan pelanggan yang berkembang melalui komunikasi langsung dengan tim data. \\
+\hline
+\textbf{4.}\newline \textit{Continuous testing and monitoring} & Pengujian dan pemantauan \textit{pipeline} berkelanjutan untuk mendeteksi masalah lebih awal sebelum menjalar ke tahap berikutnya. Dilengkapi \textit{automated unit tests}, pengujian tingkat lebih tinggi, dan \textit{automated alerts} saat \textit{pipeline} rusak. & \textit{Test cases} untuk menguji kualitas data, mekanisme pemantauan berkelanjutan dan \textit{alerting} otomatis, serta strategi mitigasi untuk menangani \textit{pipeline breakage}. \\
+\hline
+\textbf{5.}\newline \textit{DataOps} & Memperpendek \textit{end-to-end cycle time} analitik data dari ide hingga \textit{insight} dengan menggabungkan praktik \textit{agile} dan prinsip DevOps untuk mengelola artefak berupa data, metadata, dan kode. Memadukan \textit{value pipelines} dan \textit{innovation pipelines} yang menuntut orkestrasi, otomasi, dan kolaborasi. & \textit{Continuous integration} dan \textit{continuous delivery} untuk analitik data, mekanisme memantau dan mengendalikan seluruh \textit{data life cycle}, serta orkestrasi dengan otomasi lanjutan dan praktik \textit{agile}. \\
+\hline
+\end{longtable}
+\par{\footnotesize Sumber: \textcite{munappy2020adhoc}. Nama tahap dipertahankan dalam bahasa asli sesuai dokumen sumber.}
+}

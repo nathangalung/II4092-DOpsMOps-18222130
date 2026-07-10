@@ -1,182 +1,147 @@
-% Lampiran B parameter rubrik skor
-% Kriteria lintas tabel lalu spesifik
-% Dirujuk makro skorlegendtools
+% Lampiran B katalog perintah verifikasi
+% Skenario SK-F/SK-N per tujuan
+% Sumber experiments/ sejajar platform/
 \cleardoublepage
-\chapter{PARAMETER PENILAIAN KRITERIA EVALUASI ALTERNATIF}
-\label{appx:rubrik}
+\chapter{KATALOG PERINTAH VERIFIKASI USE CASE}
+\label{appx:verifikasi}
 
-Lampiran ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2, dan parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
+Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk memverifikasi alur ujung ke ujung pada \textit{use case} pasar aset kripto. Seluruh perintah dijalankan secara manual dari direktori akar repositori \texttt{\textasciitilde/documents/ta/}, kecuali \textit{listing} menyertakan perintah \texttt{cd} eksplisit. Katalog ini terpisah dari \texttt{make phase-full} maupun rekonsiliasi Argo CD sehingga bukan bagian dari alur produksi. Sebagian besar perintah hanya membaca klaster, sedangkan skenario ketahanan (SK-N-04), skalabilitas (SK-N-03), dan rekonstruksi (SK-N-11) menerapkan gangguan terkendali yang dapat dipulihkan pada \textit{namespace} \texttt{experiments} yang terpisah dari produksi, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}. Rincian argumen tiap skenario tersedia pada \texttt{README.md} di \texttt{experiments/} beserta subdirektori terkait. Prasyarat menjalankannya: platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum skenario dijalankan, konfigurasi domain dimuat dan \textit{namespace} beban dibuat melalui langkah persiapan berikut.
 
-Parameter dibagi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu \textit{layer}, dikelompokkan menurut \textit{layer} arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
+\begin{lstlisting}[caption={Langkah persiapan pemuatan konfigurasi domain dan \textit{namespace} pembangkit beban (dari \texttt{\textasciitilde/documents/ta/})},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# Muat DOMAIN; ganti berkas ini
+set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
+kubectl apply -f experiments/namespace.yaml
+\end{lstlisting}
 
-\section{Kriteria Lintas Tabel}
-\label{sec:appx-rubrik-lintas}
+\section{Tujuan T-1: Arsitektur Terintegrasi dan GitOps}
+\label{sec:appx-t1}
 
-{
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.2}
-\setlength{\LTpost}{0pt}
-\begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
-\caption{Parameter Penilaian Kriteria Lintas Tabel}
-\label{tab:rubrik_lintas} \\
-\hline
-\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
-\hline
-\endfirsthead
-\hline
-\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
-\hline
-\endhead
-\endfoot
-\hline
-\endlastfoot
+Kelompok T-1 membuktikan pemasangan deklaratif dari satu sumber Git, otomasi \textit{model lifecycle} setara MLOps \textit{level} 2, serta atribut kualitas lintas komponen. Perintahnya dirangkum pada Listing~\ref{lst:cat-t1}.
 
-Kematangan & Belum ada rilis stabil atau pengembangan berhenti dua belas bulan terakhir & Rilis stabil tersedia namun versi mayor masih muda atau adopsi produksi terbatas & Rilis stabil dengan ritme rilis teratur dan rekam jejak produksi bertahun-tahun \\
-\hline
-Komunitas & Kontributor efektif tunggal atau aktivitas kontribusi minim & Komunitas aktif namun lebih kecil atau terpusat pada satu organisasi & Komunitas kontributor lintas organisasi terluas pada kategori fungsinya \\
-\hline
-Ekstensibilitas & Tanpa titik ekstensi resmi & Ekstensi terbatas pada sebagian antarmuka atau menuntut perubahan inti & Antarmuka \textit{plugin} atau \textit{provider} resmi terdokumentasi tanpa mengubah inti \\
-\hline
-Lisensi Terbuka, Lisensi \textit{Open} & Lisensi tidak diakui OSI, seperti BSL, BUSL, atau \textit{source-available} & Lisensi OSI dengan \textit{copyleft} kuat seperti AGPL & Lisensi OSI permisif atau \textit{copyleft} lemah seperti Apache 2.0, BSD, MPL \\
-\hline
-Integrasi K8s, Opera\-bilitas K8s, Duku\-ngan K8s & Tanpa dukungan resmi untuk berjalan pada Kubernetes & Berjalan melalui \textit{chart} atau manifes tanpa pengelolaan siklus hidup, atau mensyaratkan komponen infrastruktur eksternal tetap seperti etcd atau antrean pesan & Dukungan kelas satu berupa \textit{operator}, CRD, atau \textit{chart} resmi terkelola \\
-\hline
-K8s-Native & Tidak dirancang berjalan pada Kubernetes & Berjalan pada Kubernetes namun model eksekusinya tidak berbasis CRD & Model eksekusi berbasis CRD sebagai antarmuka utama \\
-\hline
-Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem alat itu sendiri & Integrasi tersedia untuk sebagian alat data dan ML & Integrasi luas lintas ekosistem data dan ML yang terdokumentasi \\
-\hline
-\end{longtable}
-}
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-1 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t1},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-01/KF-01: rekonsiliasi feature view Feast
+argocd app get crypto-use-case-local
+kubectl -n use-case-crypto get configmap crypto-feast-feature-repo \
+  -o jsonpath='{.data.definitions\.py}' | grep 'FeatureView('
 
-\section{Kriteria Spesifik per \textit{Layer}}
-\label{sec:appx-rubrik-spesifik}
+# SK-F-12/KF-12: konvergensi deklaratif tanpa drift
+argocd app diff crypto-use-case-local
+kubectl -n use-case-crypto get deploy
 
-{
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.2}
-\setlength{\LTpost}{0pt}
-\begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
-\caption{Parameter Penilaian Kriteria Spesifik per \textit{Layer}}
-\label{tab:rubrik_spesifik} \\
-\hline
-\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
-\hline
-\endfirsthead
-\hline
-\textbf{Kriteria} & \textbf{Skor 0} & \textbf{Skor 1} & \textbf{Skor 2} \\
-\hline
-\endhead
-\endfoot
-\hline
-\endlastfoot
+# SK-F-06/KF-06: canary dan rollback Rollouts
+kubectl -n use-case-crypto get rollouts
+kubectl argo rollouts -n use-case-crypto get rollout crypto-ml-bridge --watch
 
-\multicolumn{4}{|l|}{\textbf{Distribusi Kubernetes}} \\
-\hline
-\textit{Footprint} Ringan & Kebutuhan sumber daya setara distribusi penuh & Ringan namun bergantung paket sistem tambahan & Biner tunggal dengan kebutuhan memori minimal terdokumentasi \\
-\hline
-Siap Produksi & Ditujukan untuk pengujian, bukan produksi & Dapat dipakai produksi dengan batasan tertentu & Didukung resmi untuk beban produksi \\
-\hline
-Tanpa Dependensi & Memerlukan beberapa komponen eksternal & Memerlukan satu \textit{runtime} atau paket eksternal & \textit{Runtime} kontainer tertanam tanpa dependensi eksternal \\
-\hline
-Ekosistem \textit{Add-on} & Tanpa mekanisme \textit{add-on} & \textit{Add-on} bawaan terbatas & \textit{Add-on} bawaan luas termasuk \textit{controller} Helm \\
-\hline
-\multicolumn{4}{|l|}{\textbf{\textit{Message Broker} dan \textit{Schema Registry}}} \\
-\hline
-Ekosistem Konektor & Konektor minim & Konektor tersedia namun cakupannya jauh lebih sempit & Ekosistem konektor terluas melalui Kafka Connect \textit{native} \\
-\hline
-Operator K8s & Tanpa \textit{operator} & \textit{Operator} tersedia dengan cakupan terbatas & \textit{Operator} matang mencakup klaster, pengguna, dan \textit{topic} \\
-\hline
-Protokol Kafka & Protokol berbeda tanpa kompatibilitas & Kompatibel melalui \textit{layer} protokol tambahan & Kompatibel penuh pada level protokol \textit{native} \\
-\hline
-Kompati\-bilitas Confluent & API tidak kompatibel & Kompatibel pada sebagian \textit{endpoint} & Kompatibel penuh dengan API Confluent \\
-\hline
-Duku\-ngan Format & Satu format skema & Dua format atau dukungan parsial & Avro, JSON Schema, dan Protobuf penuh \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Pemrosesan Data}} \\
-\hline
-Kapa\-bilitas \textit{Batch} & Tanpa mode \textit{batch} & \textit{Batch} tersedia namun bukan kekuatan utama & \textit{Batch} skala besar sebagai kapabilitas inti \\
-\hline
-Kapa\-bilitas \textit{Streaming} & Tanpa \textit{streaming} \textit{native} & \textit{Streaming} melalui \textit{micro-batch} & \textit{Streaming} \textit{event-time} dengan \textit{exactly-once} \textit{native} \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Format Tabel \textit{Lakehouse}}} \\
-\hline
-Transaksi ACID & Tanpa jaminan transaksi & Transaksi dengan batasan mode tulis & Transaksi atomik penuh terdokumentasi \\
-\hline
-Evolusi Skema & Tanpa evolusi skema & Evolusi terbatas atau bergantung \textit{engine} & Evolusi penuh pada level format tanpa menulis ulang data \\
-\hline
-Integrasi \textit{Engine} & Terikat satu \textit{engine} & Dukungan multi-\textit{engine} tidak setara antar \textit{engine} & Netral multi-\textit{engine} dengan dukungan setara \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Penyimpanan Objek dan Versi Data}} \\
-\hline
-Kompati\-bilitas S3 & Tanpa API S3 & Subset API S3 & Cakupan API S3 luas termasuk fitur lanjutan \\
-\hline
-\textit{Footprint} Satu \textit{Node} & Arsitektur menuntut banyak \textit{node} & Dapat satu \textit{node} dengan komponen berat & Berjalan ringan pada satu \textit{node} \\
-\hline
-Enkripsi KMS & Tanpa enkripsi sisi \textit{server} berbasis KMS & Enkripsi tanpa integrasi KMS eksternal & Enkripsi sisi \textit{server} dengan integrasi KMS eksternal \\
-\hline
-Per\-cabangan Tanpa Salin & Tanpa konsep percabangan & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
-\hline
-Integrasi Objek S3 & Tidak bekerja di atas penyimpanan objek & Bekerja melalui katalog atau \textit{remote} khusus & Antarmuka S3 langsung tanpa mengubah klien \\
-\hline
-Skala Data Besar & Tidak dirancang untuk data besar & Skala bergantung repositori Git atau basis data tunggal & Metadata terpisah yang menangani jutaan objek \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Layanan Fitur}} \\
-\hline
-Performa \textit{Query} & Latensi agregasi tinggi pada data besar & Agregasi cepat dengan batasan bentuk kueri & Agregasi kolumnar sub-detik pada data besar \\
-\hline
-Duku\-ngan \textit{Ingestion} & \textit{Batch} saja dengan alat eksternal & \textit{Streaming} atau \textit{batch} dengan komponen tambahan & \textit{Streaming} dan \textit{batch} \textit{native} termasuk Kafka \\
-\hline
-Latensi & Latensi baca di atas puluhan milidetik & Latensi milidetik pada penyimpanan \textit{disk} & Latensi sub-milidetik pada memori \\
-\hline
-\textit{Through\-put} & \textit{Throughput} rendah untuk \textit{lookup} masif & \textit{Throughput} tinggi dengan batasan skala vertikal & Ratusan ribu operasi per detik terdokumentasi \\
-\hline
-Latensi Rendah & Kueri ANN berlatensi tinggi & Latensi rendah dengan batasan indeks atau skala & HNSW dalam memori dengan jalur gRPC berlatensi rendah \\
-\hline
-\multicolumn{4}{|l|}{\textbf{\textit{Model Lifecycle}}} \\
-\hline
-\textit{Pipeline} ML & Tanpa abstraksi \textit{pipeline} ML & \textit{Pipeline} generik yang dapat dipakai untuk ML & Abstraksi \textit{pipeline} ML khusus dengan kontrak artefak \\
-\hline
-Skala\-bilitas & Replika statis tanpa \textit{autoscaling} & \textit{Autoscaling} tanpa \textit{scale-to-zero} & \textit{Autoscaling} termasuk \textit{scale-to-zero} \\
-\hline
-\textit{Frame\-work} & Terikat satu kerangka model & Beberapa kerangka melalui penyesuaian manual & Multi-kerangka melalui \textit{runtime} yang dapat diganti \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Observabilitas dan BI}} \\
-\hline
-Konektor SQL & Konektor terbatas satu keluarga basis data & Konektor untuk beberapa basis data umum & Puluhan dialek SQL melalui \textit{layer} konektor standar \\
-\hline
-Multi-Tenant K8s & Tanpa dukungan Kubernetes resmi & Berjalan pada Kubernetes tanpa isolasi peran & \textit{Chart} resmi dengan RBAC multi-\textit{tenant} \\
-\hline
-\multicolumn{4}{|l|}{\textbf{GitOps}} \\
-\hline
-Antar\-muka & Tanpa antarmuka pemantauan & Antarmuka terbatas atau lewat alat pihak ketiga & Antarmuka web penuh untuk sinkronisasi dan \textit{diff} \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Keamanan Platform}} \\
-\hline
-Bobot \textit{Footprint} & Kebutuhan sumber daya besar dengan banyak komponen & Layanan tunggal namun berat pada memori & Proses tunggal ringan tanpa basis data wajib \\
-\hline
-Federasi OIDC & Tanpa federasi ke penyedia hulu & Federasi terbatas pada sebagian protokol & Federasi luas ke penyedia identitas hulu \\
-\hline
-Rotasi Dinamis & Rahasia statis tanpa rotasi & Rotasi manual atau terbatas & Kredensial dinamis dengan masa hidup otomatis \\
-\hline
-Integrasi ESO & Tanpa \textit{provider} External Secrets Operator & Integrasi tidak langsung melalui \textit{provider} generik & \textit{Provider} External Secrets Operator resmi \\
-\hline
-Fitur L7 & Fokus L3 dan L4 tanpa kontrol aplikasi & Kontrol L7 dasar & Kontrol L7 penuh termasuk \textit{routing} dan otorisasi \\
-\hline
-Ekosistem CRD & Tanpa CRD & CRD terbatas pada sebagian fungsi & CRD kaya untuk lalu lintas, otorisasi, dan telemetri \\
-\hline
-Plugin/\allowbreak Ekstensi & Tanpa mekanisme \textit{plugin} & \textit{Plugin} terbatas pada edisi terbuka & Ekosistem \textit{plugin} luas dengan muat ulang dinamis \\
-\hline
-Sintaks \textit{Native} & Bahasa kebijakan eksternal terpisah dari Kubernetes & Bahasa khusus dengan integrasi Kubernetes & Kebijakan ditulis sebagai YAML \textit{native} Kubernetes \\
-\hline
-Mode \textit{Mutate} & Validasi saja & Mutasi terbatas & \textit{Validate}, \textit{mutate}, dan \textit{generate} penuh \\
-\hline
-Pela\-poran Pelang\-garan & Log saja & Metrik atau status tanpa laporan standar & \texttt{PolicyReport} standar per sumber daya \\
-\hline
-Cakupan eBPF/\allowbreak Kernel & Tanpa visibilitas kernel & Visibilitas kernel pada subset peristiwa & \textit{Probe} eBPF modern mencakup \textit{syscall} luas \\
-\hline
-Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan bawaan siap pakai yang luas \\
-\hline
-\end{longtable}
-}
+# SK-F-13/KF-13: satu environment uv multi-SDK
+cd use-case-crypto/notebooks
+uv sync
+uv run jupyter nbconvert --to notebook --execute unified_sdk_walkthrough.ipynb
+kubectl get inferenceservice -A | grep predictor
+
+# SK-F-14/KF-14: kuota Kueue, job Pending
+kubectl get clusterqueue,localqueue,workloads -A
+
+# SK-N-03/KNF-03: skalabilitas HPA dan KEDA
+k6 run experiments/load/hpa-keda-rampup.js
+kubectl -n use-case-crypto get hpa,scaledobject,pods -w
+
+# SK-N-04/KNF-04: injeksi fault pod/jaringan
+envsubst < experiments/chaos/pod-chaos.yaml | kubectl apply -f -
+kubectl apply -f experiments/chaos/network-chaos.yaml
+
+# SK-N-08/KNF-08: ganti runtime via overlay
+kubectl apply -k use-case-crypto/manifests/overlays/local
+
+# SK-N-09/KNF-09: SSO satu sesi dex
+kubectl get pods -A | grep -E 'dex|oauth2-proxy'
+
+# SK-N-10/KNF-10: atribusi biaya OpenCost
+kubectl get pods -A | grep -i opencost
+
+# SK-N-11/KNF-11: rekonstruksi penuh dari Git
+make phase-full
+
+# SK-N-12/KNF-12: cakupan uji, konvergensi phase-full
+make usecase-crypto-test
+time make phase-full
+\end{lstlisting}
+
+\section{Tujuan T-2: Tata Kelola Data}
+\label{sec:appx-t2}
+
+Kelompok T-2 membuktikan katalog metadata, \textit{lineage}, kontrak kualitas, observabilitas, dan keamanan berjalan otomatis sepanjang \textit{pipeline}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t2}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-2 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t2},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-08/KF-08: lineage end-to-end DataHub
+experiments/lineage/lineage-walk.sh discover
+experiments/lineage/lineage-walk.sh walk '<urn>'
+
+# SK-F-09/KF-09: dua run, delta <1%
+kubectl -n model-lifecycle get pods | grep mlflow
+
+# SK-F-10/KF-10: audit trail MLflow
+kubectl -n model-lifecycle get pods | grep mlflow
+
+# SK-N-05/KNF-05: GE checkpoint tolak pelanggaran
+kubectl -n use-case-crypto get cronjob | grep -iE 'quality|expect|ge-'
+kubectl -n use-case-crypto create job ge-check --from=cronjob/crypto-ge-checkpoint
+
+# SK-N-06/KNF-06: trace OTel Tempo/Grafana
+kubectl get pods -A | grep -E 'tempo|grafana'
+
+# SK-N-07/KNF-07: Trivy, TLS dan AES
+kubectl get vulnerabilityreports -A
+testssl.sh <public-endpoint>
+\end{lstlisting}
+
+\section{Tujuan T-3: Deteksi \textit{Drift} dan \textit{Retraining}}
+\label{sec:appx-t3}
+
+Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu \textit{retraining} dan penyusunan fitur pelatihan menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-3 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t3},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-03/KF-03: point-in-time correctness gold
+export CLICKHOUSE_USER=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
+  -o jsonpath='{.data.CLICKHOUSE_USER}' | base64 -d)
+export CLICKHOUSE_PASSWORD=$(kubectl -n "$CLICKHOUSE_NAMESPACE" get secret clickhouse-admin \
+  -o jsonpath='{.data.CLICKHOUSE_PASSWORD}' | base64 -d)
+experiments/etl/data-landed-check.sh
+
+# SK-F-05/KF-05: pipeline retraining KFP
+uv run --with 'kfp[kubernetes]==2.16.0' use-case-crypto/pipelines/retraining_pipeline.py
+
+# SK-F-07/KF-07: injeksi drift picu retrain
+uv run experiments/drift/inject_drift.py --sigma 2.0
+kubectl -n model-lifecycle get cronworkflow,workflow
+\end{lstlisting}
+
+\section{Tujuan T-4: Layanan Fitur \textit{Dual-Store}}
+\label{sec:appx-t4}
+
+Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector feature} dengan kontrak konsisten antara \textit{training} dan \textit{serving}, beserta latensi dan \textit{throughput} jalur \textit{serving}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
+
+\begin{lstlisting}[caption={Perintah verifikasi tujuan T-4 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t4},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+# SK-F-02/KF-02: online Feast offline ClickHouse
+kubectl -n model-lifecycle port-forward svc/feast 6566:6566 &
+FEAST_URL=http://localhost:6566 uv run experiments/feast/online-serving-check.py
+experiments/etl/data-landed-check.sh
+
+# SK-F-04/KF-04: pencarian vektor Qdrant
+k6 run experiments/load/vector-search-latency.js
+
+# SK-F-11/KF-11: paritas dbt vs Flink
+experiments/etl/data-landed-check.sh
+experiments/parity/parity-check.sh
+
+# SK-N-01/KNF-01: latensi p99 feast/vektor
+k6 run experiments/load/feast-online-latency.js
+
+# SK-N-02/KNF-02: throughput, consumer lag
+k6 run experiments/load/feast-throughput.js
+kafka-producer-perf-test --topic crypto.validated --num-records 1000000 \
+  --record-size 256 --throughput -1 \
+  --producer-props bootstrap.servers="$KAFKA_BOOTSTRAP" \
+  --producer.config <sasl.properties>
+\end{lstlisting}
+
+Setiap perintah pada katalog ini berpasangan satu-satu dengan baris Tabel~\ref{tab:uji_penerimaan} dan Tabel~\ref{tab:evaluasi_target} pada Bab~\ref{chap:evaluasi}, sehingga klaim pemenuhan kebutuhan dapat dilacak langsung ke perintah yang menghasilkan buktinya. Untuk \textit{use case} lain, cukup berkas \texttt{config.crypto.env} yang disalin dan disesuaikan blok DOMAIN-nya. Kode skenario tetap \textit{domain-agnostic} dan tidak perlu diubah.

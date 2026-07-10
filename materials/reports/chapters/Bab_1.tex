@@ -5,7 +5,7 @@
 \chapter{PENDAHULUAN}
 \label{chap:pendahuluan}
 
-Bab ini meletakkan dasar bagi keseluruhan laporan Tugas Akhir. Pembahasan dibuka dengan latar belakang yang memetakan tekanan praktik DataOps dan MLOps pada lingkungan produksi, kemudian diturunkan menjadi empat rumusan masalah dan empat tujuan yang saling berpasangan. Batasan masalah menetapkan lingkup pengerjaan, metodologi menjelaskan kerangka \textit{Design Science Research Methodology} yang diikuti, dan sistematika penulisan menutup bab dengan peta isi laporan. Penomoran RM-1 hingga RM-4 dan T-1 hingga T-4, serta batasan penelitian BP-1 hingga BP-3 dan batasan implementasi BI-1 hingga BI-2 yang diperkenalkan pada bab ini menjadi rujukan tetap bagi seluruh bab berikutnya.
+Bab ini meletakkan dasar bagi keseluruhan laporan Tugas Akhir. Pembahasan dibuka dengan latar belakang yang memetakan tekanan praktik DataOps dan MLOps pada lingkungan produksi, kemudian diturunkan menjadi empat rumusan masalah dan empat tujuan yang saling berpasangan. Batasan masalah menetapkan lingkup pengerjaan, metodologi menjelaskan kerangka \textit{Design Science Research Methodology} yang diikuti, dan sistematika penulisan menutup bab dengan peta isi laporan. Penomoran RM-1 hingga RM-4, T-1 hingga T-4, serta batasan penelitian BP-1 hingga BP-3 yang diperkenalkan pada bab ini menjadi rujukan tetap bagi seluruh bab berikutnya, sedangkan batasan implementasi BI-1 dan BI-2 diperkenalkan bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}.
 
 \section{Latar Belakang}
 \label{sec:latar-belakang}
@@ -84,47 +84,18 @@ Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-m
 \section{Batasan Masalah}
 \label{sec:batasan}
 
-Pengembangan platform pada Tugas Akhir ini dibatasi pada dua tingkatan yang perlu dibedakan agar penilaian terarah. Batasan penelitian menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi, sedangkan batasan implementasi menyangkut pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi selama fungsi yang sama tetap terpenuhi. Pembedaan ini penting karena pilihan seperti jumlah \textit{node}, patokan versi, atau sintaks komponen tertentu bukan bagian dari kontribusi rancangan, melainkan detail perwujudan pada lingkungan tertentu. Batasan penelitian dirujuk dengan singkatan BP-1 hingga BP-3 dan batasan implementasi dengan BI-1 hingga BI-2 pada bab-bab berikutnya.
-
-\vspace{0.5em}
-Batasan penelitian berikut menetapkan lingkup yang tidak dicakup oleh kontribusi rancangan. Ketiganya membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Batas ini menjaga penilaian tetap tertuju pada kontribusi arsitektur, bukan pada pengembangan model atau karakterisasi beban penuh. Konsekuensi tiap batasan pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
+Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi penelitian agar penilaian tetap tertuju pada arsitektur platform yang \textit{domain-agnostic}. Karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, pilihan perwujudan seperti jumlah \textit{node}, patokan versi, atau sintaks komponen tertentu tidak dimasukkan sebagai batasan penelitian, melainkan dinyatakan sebagai batasan implementasi bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}. Ketiga batasan di bawah ini membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Ketiga butir tersebut selanjutnya dirujuk dengan singkatan BP-1 hingga BP-3, dan konsekuensinya pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item[BP-1] \textbf{Fokus pada \textit{control plane} platform}
+    \item Fokus penelitian berada pada \textit{control plane} platform, bukan pengembangan model spesifik, sehingga \textit{use case} domain hanya dipakai sebagai kasus verifikasi rancangan dan pembahasan platform dijaga \textit{domain-agnostic}.
 
-    Fokus berada pada \textit{control plane} platform, bukan pengembangan model spesifik. \textit{Use case} domain hanya dipakai sebagai kasus verifikasi rancangan sehingga pembahasan platform dijaga \textit{domain-agnostic}.
+    \item Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} Istio, manajemen rahasia OpenBao, dan kebijakan jaringan Kubernetes, sedangkan autentikasi pengguna akhir pada \textit{application layer} berada di luar cakupan penelitian.
 
-    \vspace{0.5em}
-
-    \item[BP-2] \textbf{Cakupan keamanan pada akses antar layanan internal}
-
-    Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} Istio, manajemen rahasia OpenBao, dan kebijakan jaringan Kubernetes. Autentikasi pengguna akhir pada \textit{application layer} berada di luar cakupan penelitian.
-
-    \vspace{0.5em}
-
-    \item[BP-3] \textbf{Lingkup evaluasi pada penerimaan fungsional dan struktural}
-
-    Evaluasi difokuskan pada penerimaan fungsional dan struktural, sedangkan karakterisasi beban kuantitatif penuh seperti latensi p99, \textit{throughput} puncak, dan skalabilitas horizontal ditempatkan sebagai arah pengembangan lanjutan. Evaluasi tidak mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik.
+    \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik, sedangkan karakterisasi beban kuantitatif penuh seperti latensi p99, \textit{throughput} puncak, dan skalabilitas horizontal ditempatkan sebagai arah pengembangan lanjutan.
 \end{enumerate}
 
-\vspace{0.5em}
-Batasan implementasi berikut menyangkut pilihan perwujudan yang dapat diganti tanpa mengubah sifat kontribusi. Keduanya menetapkan lingkungan \textit{k3s} satu \textit{node} dan patokan versi April 2026 sebagai kondisi pengujian yang dapat direproduksi. Penggantian jumlah \textit{node}, versi komponen, atau sintaks alat dengan padanan berkapabilitas setara tidak mengubah rancangan. Kedua batasan ini dipetakan kembali pada pembahasan hasil di Bab~\ref{chap:evaluasi}.
-
-\vspace{0.5em}
-\begin{enumerate}
-    \item[BI-1] \textbf{Lingkungan Kubernetes \textit{k3s} satu \textit{node}}
-
-    Platform berjalan di atas \textit{k3s} pada satu \textit{node} sebagai lingkungan pengembangan dan pengujian, dengan skala diatur oleh HPA, VPA, dan KEDA ketika beban nyata muncul. \textit{Overlay} Kustomize untuk \textit{environment} multi-\textit{node} tetap dapat ditambahkan tanpa modifikasi basis kode, sehingga jumlah \textit{node} bersifat perwujudan dan bukan bagian dari kontribusi.
-
-    \vspace{0.5em}
-
-    \item[BI-2] \textbf{Komponen \textit{open source} dengan patokan versi April 2026}
-
-    Versi pustaka dan basis \textit{image container} dipatok pada rilis stabil tertinggi per April 2026 agar pengujian dapat direproduksi pada lingkungan yang sama. Patokan versi maupun pilihan serta sintaks komponen tertentu dapat diganti dengan komponen lain berkapabilitas setara tanpa mengubah rancangan.
-\end{enumerate}
-
-Batasan di atas menjadi konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}. Batasan penelitian menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic}, sedangkan batasan implementasi menandai keputusan perwujudan yang terbuka untuk diperluas ke lingkungan multi-\textit{node} dan multi-domain. Asumsi \textit{open source} dan patokan versi memberi peluang verifikasi arsitektur tanpa kontak dengan penyedia layanan berbayar. Pembedaan kedua tingkatan ini menegaskan bahwa keterbatasan \textit{node} tunggal dan patokan versi tidak membatasi keberlakuan rancangan.
+Ketiga batasan penelitian di atas menjadi konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}. Ketiganya menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan \textit{k3s} satu \textit{node} dan patokan versi April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
 
 \section{Metodologi}
 \label{sec:metodologi}
@@ -147,7 +118,7 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
     \item \textbf{Perancangan dan pengembangan artefak}
 
-    Arsitektur tujuh \textit{layer} dirancang sebagai \textit{control plane} deklaratif berbasis Kubernetes, bertolak dari alternatif arsitektur terpilih hasil matriks evaluasi multi-kriteria pada Bab~\ref{chap:analisis-masalah}. Pengembangan manifes dilakukan modular pada repositori Gitea dengan \textit{folder} per komponen dan \textit{overlay} Kustomize.
+    Himpunan layanan representatif diklasifikasikan dari praktik industri, komponen \textit{open source} dipilih untuk tiap kelompok layanan, lalu arsitektur tujuh \textit{layer} dirancang sebagai \textit{control plane} deklaratif berbasis Kubernetes, bertolak dari alternatif arsitektur terpilih hasil matriks evaluasi multi-kriteria pada Bab~\ref{chap:analisis-masalah}. Pengembangan manifes dilakukan modular pada repositori Gitea dengan \textit{folder} per komponen dan \textit{overlay} Kustomize.
 
     \vspace{0.5em}
 
@@ -197,7 +168,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps}
 
-    Menjabarkan arsitektur tujuh \textit{layer} dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan dalam gambaran umum beserta rincian per kelompok \textit{layer}.
+    Menetapkan sembilan kelompok layanan representatif dari praktik industri, memilih komponen \textit{open source} untuk tiap kelompok, lalu menjabarkan arsitektur tujuh \textit{layer} dan perancangan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan dalam gambaran umum beserta rincian per kelompok \textit{layer}.
 
     \vspace{0.5em}
 
@@ -218,4 +189,4 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
     Menyimpulkan jawaban atas T-1 hingga T-4 dan memberikan saran pengembangan lanjutan untuk lingkungan multi-\textit{node} dan multi-domain.
 \end{enumerate}
 
-Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung. Daftar Pustaka memakai gaya \textit{Chicago author-date} (\texttt{biblatex-chicago}) dengan label Indonesia agar konsisten dengan tubuh laporan. Lampiran memuat daftar artefak platform dan hasil verifikasi \textit{use case}. Penomoran lampiran mengikuti abjad (Lampiran A dan B) sebagaimana konvensi laporan Tugas Akhir di STI ITB.
+Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung. Daftar Pustaka memakai gaya \textit{Chicago author-date} (\texttt{biblatex-chicago}) dengan label Indonesia agar konsisten dengan tubuh laporan. Lampiran memuat parameter penilaian pemilihan alat \textit{open source} dan katalog perintah verifikasi \textit{use case}. Penomoran lampiran mengikuti abjad (Lampiran A dan B) sebagaimana konvensi laporan Tugas Akhir di STI ITB.

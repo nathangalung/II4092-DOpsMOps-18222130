@@ -5,7 +5,7 @@
 \chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:perancangan}
 
-Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, kemudian dilanjutkan dengan perancangan empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}: arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan \textit{retraining} otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini ditutup dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus yang dapat direproduksi.
+Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, dilanjutkan dengan analisis layanan DataOps dan MLOps pada praktik industri yang menetapkan sembilan kelompok layanan representatif, kemudian pemilihan komponen \textit{open source} untuk tiap kelompok layanan tersebut. Setelah komponen terpilih, bab ini merancang arsitektur terintegrasi beserta empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}, yaitu arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan \textit{retraining} otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini ditutup dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus yang dapat direproduksi.
 
 \section{Gambaran Umum Platform}
 \label{sec:gambaran-umum-platform}
@@ -15,7 +15,7 @@ Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal
 \begin{figure}[!htbp]
     \centering
     \rotatebox{90}{%
-        \includegraphics[width=0.9\textheight,height=0.92\textwidth,keepaspectratio]{figures/Integrate_General_Arch.png}%
+        \includegraphics[width=0.88\textheight,height=0.92\textwidth,keepaspectratio]{figures/Integrate_General_Arch.png}%
     }
     \caption[Gambaran Umum Platform DataOps dan MLOps Terintegrasi]{Gambaran Umum Platform DataOps dan MLOps Terintegrasi, memenuhi komponen MLOps \textit{level} 2 \autocite{googlecloud2024mlops} dan tahap DataOps pada model evolusi \autocite{munappy2020adhoc}, dengan label tiap \textit{layer} membawa kategori komponen sumbernya \autocite{najafabadi2024analysis}.}
     \label{fig:integrate-general}
@@ -47,6 +47,176 @@ Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang diba
 Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{tool} yang diakses, dan fungsi yang dijalankan, sehingga satu titik masuk tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke DataHub serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Penyatuan pada \textit{interface layer} inilah yang melengkapi penyatuan pada \textit{control plane}, sehingga keempat peran bekerja di atas satu platform tanpa kehilangan antarmuka yang sesuai dengan tugasnya.
 
 \input{tables/peran_akses.tex}
+
+\section{Analisis Layanan DataOps dan MLOps pada Praktik Industri}
+\label{sec:layanan-industri}
+
+Subbab ini menetapkan himpunan layanan representatif yang wajib dicakup arsitektur platform sebelum pemilihan alat dilakukan. Pembahasan dibagi menjadi dua bagian yang dibaca berurutan. Subbab~\ref{subsec:layanan-praktik} menyarikan bukti dari literatur mengenai komponen yang berulang pada praktik MLOps lebih dahulu, kemudian pada praktik DataOps. Subbab~\ref{subsec:klasifikasi-layanan} mengonsolidasikan bukti tersebut menjadi sembilan kelompok layanan yang menjadi dasar pemilihan alat dan penataan arsitektur pada subbab-subbab berikutnya.
+
+\subsection{Layanan pada Praktik MLOps dan DataOps}
+\label{subsec:layanan-praktik}
+
+\textcite{kreuzberger2023mlops} menurunkan sembilan komponen teknis MLOps melalui riset metode campuran yang memadukan tinjauan pustaka, tinjauan alat, dan wawancara pakar dari beragam domain. Kesembilan komponen tersebut adalah \textit{CI/CD component}, \textit{source code repository}, \textit{workflow orchestration component}, \textit{feature store system}, \textit{model training infrastructure}, \textit{model registry}, \textit{ML metadata stores}, \textit{model serving component}, dan \textit{monitoring component}. Bukti dari praktik industri diberikan \textcite{amershi2019software} yang mengamati sejumlah tim rekayasa perangkat lunak di Microsoft dan merangkum kerja mereka menjadi alur kerja \textit{machine learning} sembilan tahap, yaitu \textit{model requirements}, \textit{data collection}, \textit{data cleaning}, \textit{data labeling}, \textit{feature engineering}, \textit{model training}, \textit{model evaluation}, \textit{model deployment}, dan \textit{model monitoring}. Kajian tersebut memilah tahap yang berorientasi data seperti \textit{data collection}, \textit{data cleaning}, dan \textit{data labeling} dari tahap yang berorientasi model seperti \textit{feature engineering}, \textit{model training}, \textit{model evaluation}, \textit{model deployment}, dan \textit{model monitoring}. Kedua sumber yang berangkat dari metode berbeda ini menamai komponen yang sebagian besar sama sehingga memperkuat keterunutan himpunan layanan yang dibahas.
+
+\textcite{najafabadi2024analysis} melakukan pemetaan sistematis atas 43 studi primer dan mensintesis 35 komponen arsitektur MLOps ke dalam enam kategori, sekaligus mencatat jumlah kemunculan tiap komponen pada studi-studi tersebut. Komponen \textit{model registry}, yang pada kajian itu bernama \textit{model repository}, menjadi komponen paling sering muncul dengan 21 kemunculan, diikuti \textit{ML metadata repository} sebanyak 15 kemunculan serta \textit{ML experiment pipeline} sebanyak 14 kemunculan dan \textit{ML training pipeline} sebanyak 12 kemunculan. Komponen \textit{data collector}, \textit{dataset repository}, dan \textit{inference service} masing-masing muncul 10 kali, sedangkan \textit{feature store} muncul 8 kali. Tidak ada satu komponen pun yang mencapai mayoritas mutlak dari 43 studi, tetapi pola kemunculan tersebut menunjukkan bahwa komponen yang sama berulang lintas studi yang independen. Pola itu sejalan dengan dokumentasi resmi \textcite{googlecloud2024mlops} yang menyebut tujuh komponen wajib untuk MLOps \textit{level} 2, yaitu \textit{source control}, \textit{test and build services}, \textit{deployment services}, \textit{model registry}, \textit{feature store}, \textit{ML metadata store}, dan \textit{ML pipeline orchestrator}. Konvergensi empat sumber yang berbeda metode dan sudut pandang inilah yang dijadikan dasar bukti, bukan klaim bahwa satu komponen tunggal dipakai oleh mayoritas industri.
+
+Pada sisi DataOps, \textcite{munappy2020adhoc} menyusun model evolusi dari analitik data \textit{ad hoc} menuju DataOps berdasarkan studi kasus di Ericsson dan mengidentifikasi tema praktik yang berulang, antara lain \textit{data collection}, \textit{data testing}, dan \textit{data monitoring} di samping otomatisasi dan pengembangan \textit{agile}. Kajian tersebut merinci teknologi data ke dalam empat kelompok, yaitu \textit{data engineering} yang mencakup \textit{data collection} dan \textit{data ingestion}, \textit{data preparation}, \textit{data storage}, serta \textit{data visualization}. Fase lanjutan pada model itu menegaskan perlunya \textit{continuous testing and monitoring} pada \textit{pipeline} data agar masalah kualitas terdeteksi sebelum menjalar ke tahap berikutnya. Definisi DataOps yang dikutip kajian tersebut juga menekankan akses terkendali terhadap data serta perlindungan privasi dan integritas data sebagai bagian tata kelola. Dengan demikian bidang data memperluas himpunan layanan MLOps melalui fungsi \textit{data ingestion}, kualitas data, pemantauan, dan tata kelola.
+
+\textcite{rella2022mlops} menempatkan tiga area penekanan utama DataOps, yaitu \textit{data quality}, \textit{pipeline automation}, dan \textit{data governance}, dengan pemantauan dan observabilitas data sebagai fungsi pelengkap. Kajian yang sama menautkan area tersebut ke komponen konkret seperti \textit{feature store} untuk pengelolaan perubahan fitur dan \textit{model registry} untuk kendali versi model, serta menyebut deteksi \textit{drift} dan \textit{retraining} otomatis sebagai mekanisme menjaga kinerja model. \textcite{jain2025integrating} menegaskan pembagian tanggung jawab yang serupa dengan menempatkan \textit{data engineering} pada \textit{ingestion}, transformasi, dan penyimpanan data, sedangkan MLOps menangani \textit{deployment}, pemantauan, dan pengelolaan model melalui \textit{CI/CD pipeline} otomatis. Ketiga sumber DataOps ini menamai fungsi \textit{ingestion}, pemrosesan, penyimpanan, kualitas, tata kelola, dan pemantauan yang saling melengkapi dengan komponen model dari sumber MLOps. Gabungan bukti dari kedua bidang inilah yang membentuk himpunan layanan yang diklasifikasikan pada subbab berikutnya.
+
+\subsection{Klasifikasi Sembilan Kelompok Layanan}
+\label{subsec:klasifikasi-layanan}
+
+Bukti dari kedua bidang dikonsolidasikan menjadi sembilan kelompok layanan yang menjadi satuan penilaian alat pada platform. Kesembilan kelompok tersebut adalah \textit{Orchestration and Infrastructure Layer}, \textit{Data Ingestion and Processing Layer}, \textit{Data Storage Layer}, \textit{Feature Service Layer}, \textit{Model Lifecycle Layer}, \textit{Data Governance Layer}, \textit{Observability Layer}, \textit{GitOps and Continuous Delivery Layer}, dan \textit{Platform Security Layer}, sesuai urutan pembahasannya pada Subbab~\ref{sec:pemilihan-tools}. Empat kelompok di antaranya menaungi bidang data, yaitu jalur \textit{ingestion} dan pemrosesan, penyimpanan, layanan fitur, serta tata kelola data, sedangkan lima kelompok lainnya menaungi bidang model dan operasional platform. Tabel~\ref{tab:layanan_industri} memetakan tiap kelompok ke layanan dan komponen mayoritas yang menjadi cakupannya beserta sumber yang menamainya sehingga setiap kelompok dapat dirunut ke bukti terbit yang mendasarinya.
+
+\input{tables/layanan_industri.tex}
+
+Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seperti \textit{model registry}, \textit{ML metadata store}, dan \textit{model training} pada \textit{Model Lifecycle Layer}, sementara fungsi \textit{monitoring component} dan \textit{model monitoring} dikelompokkan pada \textit{Observability Layer} agar pemantauan tidak bercampur dengan \textit{serving}. Kelompok bidang data menyerap komponen \textit{data collection}, \textit{data preprocessor}, \textit{dataset repository}, dan \textit{feature store} beserta fungsi \textit{data quality} dan \textit{data governance} dari sumber DataOps. \textit{Platform Security Layer} berpijak pada dimensi tata kelola keamanan yang disebut sumber DataOps, yaitu akses terkendali serta kepatuhan terhadap privasi dan keamanan data. Landasan kelompok ini lebih ringan daripada kelompok \textit{model lifecycle} yang didukung keempat sumber MLOps sekaligus. Perbedaan bobot bukti antar kelompok ini dinyatakan terbuka agar keterunutan tiap kelompok terhadap sumbernya dapat ditimbang pembaca.
+
+Kesembilan kelompok layanan ini bersifat lepas dari domain sehingga tidak terikat pada satu kasus penggunaan tertentu. Kasus penggunaan apa pun yang menjalankan seluruh sembilan kelompok layanan dapat berperan sebagai kasus uji yang representatif bagi platform, karena verifikasi fungsionalnya akan menyentuh himpunan layanan yang sama dengan yang ditetapkan pada subbab ini. Pemilihan alat \textit{open source} untuk tiap kelompok dibahas pada Subbab~\ref{sec:pemilihan-tools}, sedangkan konsolidasi kesembilan kelompok menjadi tujuh \textit{layer} arsitektur dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}. Dengan demikian subbab ini menjadi titik tumpu yang menghubungkan bukti praktik industri ke rancangan tujuh \textit{layer} sekaligus ke pemilihan kasus uji pada Bab~\ref{chap:implementasi} dan Bab~\ref{chap:evaluasi}.
+
+\section{Analisis Pemilihan \textit{Open Source Tools}}
+\label{sec:pemilihan-tools}
+
+Subbab ini menurunkan pemilihan komponen konkret untuk Alternatif B, yaitu rangkaian alat \textit{open source} di atas Kubernetes yang terpilih pada Subbab~\ref{subsec:penentuan-solusi}. Pembahasan disusun mengikuti sembilan kelompok layanan hasil klasifikasi pada Subbab~\ref{sec:layanan-industri}, yang urutannya sejalan dengan urutan konsep pada Bab~\ref{chap:studi-literatur}, sehingga tiap alat dinilai pada konteks fungsi yang telah ditetapkan landasan buktinya. \textcite{najafabadi2024analysis} menegaskan bahwa pemetaan eksplisit antara alat dan komponen arsitektur masih menjadi celah pada literatur MLOps, dan subbab ini menyediakan pemetaan tersebut untuk konteks platform \textit{open source}. Sembilan kelompok pada subbab ini sengaja lebih rinci daripada tujuh \textit{layer} rancangan untuk keperluan penilaian alat, kemudian dikonsolidasikan menjadi tujuh \textit{layer} arsitektur pada Subbab~\ref{sec:arsitektur-terintegrasi} yang dirunut ke enam kategori komponen pada kajian yang sama.
+
+Setiap \textit{layer} yang memiliki lebih dari satu kandidat layak dinilai melalui tabel evaluasi dengan skala seragam 0 sampai 2 untuk tiap kriteria, dengan makna umum tiap nilai diberikan pada keterangan skor di bawah masing-masing tabel dan parameter penilaian tiap kriteria dirinci pada Lampiran~\ref{appx:rubrik}. Nilai 0 menandai kriteria yang tidak dipenuhi atau fitur yang tidak tersedia, nilai 1 menandai dukungan parsial yang masih menuntut komponen tambahan atau memikul keterbatasan berarti, dan nilai 2 menandai pemenuhan penuh oleh kapabilitas bawaan. Penilaian diturunkan dari dokumentasi resmi dan status pemeliharaan tiap proyek, sedangkan kolom Total menjumlahkan keempat kriteria sehingga nilai tertingginya delapan. Kolom Lisensi (Yayasan) mencantumkan lisensi resmi beserta yayasan yang menaunginya sebagai bukti keterbukaan tata kelola, bersifat informatif, dan tidak mengubah perhitungan kolom Total. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama platform untuk fungsi yang dievaluasi, sementara alat berskor lebih rendah dapat tetap dipakai sebagai pendamping dengan peran berbeda sebagaimana diuraikan pada tiap \textit{layer}.
+
+\subsection{\textit{Orchestration and Infrastructure Layer}}
+\label{subsec:pilih-orkestrasi}
+
+\textit{Layer} orkestrasi menjadi fondasi tempat seluruh komponen platform dijalankan, sebagaimana dibahas pada Subbab~\ref{subsec:k8s-peran}. Untuk lingkungan satu \textit{node}, distribusi Kubernetes ringan yang dipertimbangkan adalah \textit{k3s}, \textit{k0s}, MicroK8s, dan \textit{kind}. Keempatnya lolos uji \textit{conformance} CNCF sehingga API yang dipakai komponen tetap identik, dan kriteria penilaian menyoroti \textit{footprint}, kesiapan produksi, dependensi \textit{runtime}, serta model lisensi. Tabel~\ref{tab:k8s_distribution_comparison} merangkum perbandingan keempatnya terhadap kriteria tersebut.
+
+\textit{k3s} dipilih karena biner tunggalnya di bawah seratus megabita berjalan pada memori terbatas, kesiapannya setara Kubernetes penuh untuk beban produksi, \textit{containerd} yang tertanam menghilangkan dependensi \textit{runtime} eksternal, dan \textit{controller} Helm bawaannya mempermudah pemasangan komponen. Sebaliknya \textit{kind} ditujukan untuk pengujian CI dan bukan produksi, sedangkan \textit{k0s} dan MicroK8s dikelola masing-masing oleh satu vendor tanpa naungan yayasan netral. Nilai Total tertinggi pada \textit{k3s} mencerminkan gabungan kesiapan produksi dan \textit{footprint} ringan yang sesuai dengan batasan implementasi BI-1 pada Bab~\ref{chap:implementasi}. Pilihan ini tidak mengikat rancangan pada satu \textit{node}, sebab keempat distribusi berbagi API yang sama sehingga migrasi ke distribusi lain tidak mengubah manifes komponen.
+
+\input{tables/k8s_distribution_comparison.tex}
+\clearpage
+
+\subsection{\textit{Data Ingestion and Processing Layer}}
+\label{subsec:pilih-ingestasi}
+
+\textit{Data ingestion layer} dan \textit{processing layer} memindahkan data dari sumber ke penyimpanan analitik, dengan \textit{message broker} sebagai tulang punggung aliran peristiwa yang dijelaskan pada Subbab~\ref{subsec:kafka}. Kandidat yang dipertimbangkan adalah Apache Kafka, Redpanda, Apache Pulsar, dan NATS JetStream, dengan perbandingan pada Tabel~\ref{tab:message_broker_comparison}. Kafka dipilih karena ekosistem konektornya paling luas, \textit{operator} Strimzi menyediakan pengelolaan deklaratif yang matang pada Kubernetes, lisensinya Apache 2.0 di bawah \textit{Apache Software Foundation}, dan protokolnya dibaca langsung oleh konektor Flink, tabel \textit{Kafka engine} ClickHouse, serta \textit{scaler} KEDA. Ketergantungan silang inilah yang membuat Kafka memperoleh skor penuh pada ekosistem konektor dan kompatibilitas protokol, dua kriteria tempat sebagian alternatif tertinggal.
+
+\input{tables/message_broker_comparison.tex}
+
+Registrasi skema dinilai terpisah karena menjadi kontrak evolusi data lintas produsen dan konsumen, sebagaimana dibahas pada Subbab~\ref{subsec:kafka}. Tabel~\ref{tab:schema_registry_comparison} membandingkan beberapa \textit{schema registry} pada ekosistem Kafka. Karapace dipilih sebagai \textit{registry} kompatibel-Confluent berlisensi Apache 2.0 dengan dukungan Avro, JSON Schema, dan Protobuf serta verifikasi kompatibilitas saat publikasi. Karapace menyimpan skema pada \textit{topic} internal Kafka sehingga tidak menambah basis data baru pada platform.
+
+\input{tables/schema_registry_comparison.tex}
+
+Pemrosesan data mencakup jalur \textit{streaming} dan \textit{batch} yang dibahas pada Subbab~\ref{subsec:flink} dan Subbab~\ref{subsec:spark}. Tabel~\ref{tab:data_processing_comparison} membandingkan mesin pemrosesan menurut kriteria kelayakan platform. Apache Spark memperoleh Total tertinggi sebagai mesin pemrosesan \textit{batch} berskala besar, sedangkan Apache Flink dipilih untuk jalur \textit{streaming} karena dukungan \textit{event-time} dan \textit{exactly-once} dengan \textit{checkpointing} yang membuatnya unggul pada kriteria \textit{streaming} meski lebih rendah pada kriteria \textit{batch}. Transformasi SQL deklaratif pada \textit{warehouse layer} dikerjakan oleh dbt. Ketiganya memikul peran berbeda pada jalur data sehingga saling melengkapi tanpa tumpang tindih fungsi.
+
+\input{tables/data_processing_comparison.tex}
+\clearpage
+
+\subsection{\textit{Data Storage Layer}}
+\label{subsec:pilih-penyimpanan}
+
+\textit{Layer} penyimpanan menyimpan data jangka panjang beserta versinya, dengan format tabel \textit{lakehouse} yang menjamin transaksi dan evolusi skema, sebagaimana dibahas pada Subbab~\ref{subsec:lakehouse-format}. Kandidat format adalah Apache Iceberg, Delta Lake, dan Apache Hudi, dengan perbandingan pada Tabel~\ref{tab:lakehouse_format_comparison}. Apache Iceberg dipilih karena netralitas \textit{engine}, dukungan katalog REST melalui Lakekeeper, dan kemampuan kueri federasi melalui Trino. Netralitas \textit{engine} inilah yang membuat Iceberg unggul, sebab tabel yang sama dapat dibaca dan ditulis oleh Trino, Spark, maupun Flink tanpa migrasi data fisik.
+
+\input{tables/lakehouse_format_comparison.tex}
+
+Penyimpanan objek menjadi landasan bagi \textit{data lake}, \textit{model registry}, dan pencadangan, sebagaimana dibahas pada Subbab~\ref{subsec:storage-layer}. Tabel~\ref{tab:object_storage_comparison} membandingkan empat penyedia objek S3-kompatibel. MinIO dipilih karena \textit{footprint} ringan pada satu \textit{node}, kompatibilitas API S3 yang luas, dukungan enkripsi sisi \textit{server} berbasis KMS, dan kemampuan berjalan pada modus distribusi maupun \textit{single-node}. Kompatibilitas API S3 yang luas membuat MinIO dapat dipakai lintas komponen tanpa penyesuaian klien.
+
+\input{tables/object_storage_comparison.tex}
+
+Versi data pada \textit{layer} objek dinilai terpisah karena menyangkut ketertelusuran perubahan \textit{dataset}, sebagaimana dibahas pada Subbab~\ref{subsec:storage-layer}. Tabel~\ref{tab:data_versioning_comparison} membandingkan lakeFS, DVC, Project Nessie, dan Pachyderm. lakeFS dipilih karena percabangan \textit{zero-copy} bekerja langsung di atas MinIO tanpa terikat satu format tabel, antarmukanya tetap S3 sehingga \textit{engine} pemrosesan tidak perlu diubah, dan lisensinya Apache 2.0 sementara Pachyderm berlisensi \textit{source-available}. Model percabangan bergaya Git ini menjaga jejak versi data tanpa menggandakan berkas.
+
+\input{tables/data_versioning_comparison.tex}
+\clearpage
+
+\subsection{\textit{Feature Service Layer}}
+\label{subsec:pilih-fitur}
+
+\textit{Layer} layanan fitur menghubungkan jalur data dengan jalur model melalui definisi fitur yang sama, sebagaimana dibahas pada Subbab~\ref{subsec:konsep-feature-store}. Tabel~\ref{tab:feature_store_comparison} membandingkan beberapa kerangka \textit{feature store} \textit{open source}. Feast dipilih karena modularitas penyimpanan dan kontrak API yang konsisten lintas \textit{offline} dan \textit{online}, yang tecermin pada skor penuh di seluruh kriteria termasuk ekstensibilitas dan integrasi K8s. Hopsworks dan Featureform memperoleh skor lebih rendah pada ekstensibilitas dan komunitas sehingga Total keduanya berada di bawah Feast.
+
+\input{tables/feature_store_comparison.tex}
+
+\textit{Feature store} dipisah menjadi \textit{offline} untuk pelatihan dan \textit{online} untuk \textit{inference} berlatensi rendah, sebagaimana dibahas pada Subbab~\ref{subsec:offline-online-teori}. Tabel~\ref{tab:offline_storage_comparison} dan Tabel~\ref{tab:online_storage_comparison} menilai kandidat untuk kedua peran tersebut. ClickHouse dipilih sebagai \textit{offline store} karena kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey dipilih sebagai \textit{online store} karena kompatibilitas \textit{wire-protocol} RESP dengan ekosistem klien Redis serta lisensi BSD di bawah Linux Foundation yang tetap terbuka pasca-perubahan lisensi Redis. Kedua pilihan mencerminkan perbedaan karakter beban antara kueri agregasi pada jutaan baris dan \textit{lookup} sub-milidetik saat \textit{inference}.
+
+\input{tables/offline_storage_comparison.tex}
+
+\input{tables/online_storage_comparison.tex}
+
+Fitur \textit{embedding} berdimensi tinggi memerlukan indeks tetangga terdekat yang dibahas pada Subbab~\ref{subsec:vektor-hnsw}. Tabel~\ref{tab:vector_index_comparison} membandingkan beberapa \textit{vector index} \textit{open source}. Qdrant dipilih karena dukungan HNSW \textit{native}, mode \textit{gRPC} berlatensi rendah, dan kemampuan filter pada \textit{payload} yang menyatu dengan kueri kemiripan. Pemisahan \textit{vector index} dari \textit{online store} tabular menjaga tiap penyimpanan tetap dioptimasi untuk karakter kuerinya sendiri.
+
+\input{tables/vector_index_comparison.tex}
+\clearpage
+
+\subsection{\textit{Model Lifecycle Layer}}
+\label{subsec:pilih-model}
+
+\textit{Model lifecycle layer} mengantar model dari eksperimen sampai \textit{serving}, dimulai dari \textit{tracking} eksperimen dan \textit{registry} model pada Subbab~\ref{subsec:tracking}. Tabel~\ref{tab:tracking_comparison} membandingkan beberapa platform \textit{tracking}. MLflow dipilih karena menyatukan \textit{tracking} eksperimen, \textit{registry} model, dan API \textit{deployment} pada satu layanan dengan \textit{backend} PostgreSQL dan \textit{artifact store} MinIO. Penyatuan ketiga fungsi ini memberi MLflow keunggulan integrasi dibanding alat \textit{tracking} yang hanya menangani pencatatan metrik.
+
+\input{tables/tracking_comparison.tex}
+
+Orkestrasi pelatihan dinilai terpisah karena menyangkut eksekusi \textit{pipeline} pada Kubernetes, sebagaimana dibahas pada Subbab~\ref{subsec:orkestrasi}. Tabel~\ref{tab:orchestration_comparison} membandingkan Kubeflow Pipelines, Argo Workflows, dan Apache Airflow. Kubeflow Pipelines dipilih untuk jalur pelatihan karena \textit{component} berbasis kontainer dengan kontrak input dan output yang ditegakkan \texttt{Pipeline} IR, sedangkan Argo Workflows dipakai untuk \textit{control loop} \texttt{CronWorkflow} yang memicu \textit{retraining}. Pemisahan peran kedua \textit{orchestrator} menjaga \textit{pipeline} pelatihan dapat dipromosikan tanpa mengganggu \textit{control loop} pemantauan.
+
+\input{tables/orchestration_comparison.tex}
+
+\textit{Model serving} mengakhiri pembahasan \textit{layer} ini dengan menyajikan model sebagai layanan, sebagaimana dibahas pada Subbab~\ref{subsec:serving}. Tabel~\ref{tab:serving_comparison} membandingkan kerangka \textit{serving} menurut kriteria kelayakan platform. KServe dipilih karena dukungan banyak \textit{runtime}, penskalaan otomatis termasuk ke nol melalui Knative, dan integrasi dengan praktik GitOps. Nilai Total tertinggi pada KServe mencerminkan kematangan, skalabilitas, dan dukungan multi-\textit{framework} yang tidak dimiliki penuh oleh kerangka \textit{serving} berbasis satu \textit{framework}.
+
+\input{tables/serving_comparison.tex}
+\clearpage
+
+\subsection{\textit{Data Governance Layer}}
+\label{subsec:pilih-tata-kelola}
+
+\textit{Layer} tata kelola menegakkan katalog, kualitas, dan \textit{lineage} data sepanjang siklus, sebagaimana dibahas pada Subbab~\ref{sec:tata-kelola-teori}. Fungsi katalog metadata menjadi pusat \textit{layer} ini karena menautkan aset data lintas komponen DataOps dan MLOps. Tabel~\ref{tab:metadata_comparison} membandingkan beberapa pilihan katalog metadata. Kriteria penilaian menyoroti keluasan integrasi, dukungan \textit{lineage}, kematangan proyek, dan model lisensi.
+
+DataHub dipilih sebagai katalog metadata karena dukungan integrasi luas dengan komponen DataOps dan MLOps serta penerimaan \textit{lineage} melalui standar terbuka OpenLineage. Great Expectations melengkapi \textit{layer} ini sebagai kontrak kualitas yang dijalankan pada \textit{pipeline} produksi, sedangkan OpenLineage menjadi protokol \textit{lineage} yang menyeragamkan jejak dari \textit{ingestion} hingga model. Ketiganya bekerja sebagai satu bidang tata kelola, yaitu katalog untuk penemuan, kontrak untuk kualitas, dan protokol untuk asal-usul. Pemisahan peran ini menghindari tumpang tindih fungsi antara alat katalog dan alat kualitas.
+
+\input{tables/metadata_comparison.tex}
+\clearpage
+
+\subsection{\textit{Observability Layer}}
+\label{subsec:pilih-observabilitas}
+
+\textit{Layer} observabilitas menyatukan metrik, log, dan \textit{trace} pada satu antarmuka, sebagaimana dibahas pada Subbab~\ref{sec:observability}. Tabel~\ref{tab:monitoring_comparison} membandingkan beberapa \textit{observability stack} \textit{open source}. Kombinasi Prometheus untuk metrik, Loki untuk log, dan Grafana Tempo untuk \textit{trace} dengan OpenTelemetry sebagai \textit{collector} bersama dipilih karena korelasi antar pilar dapat ditegakkan melalui label \texttt{trace\_id} yang seragam. Grafana menjadi antarmuka visualisasi tunggal yang menyatukan ketiga pilar tersebut.
+
+\input{tables/monitoring_comparison.tex}
+
+Antarmuka \textit{business intelligence} dinilai terpisah karena menyajikan hasil kueri lintas basis data pada satu \textit{dashboard layer}, sebagaimana dibahas pada Subbab~\ref{sec:observability}. Tabel~\ref{tab:dashboarding_comparison} membandingkan beberapa pilihan BI \textit{open source}. Apache Superset dipilih karena menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu antarmuka \textit{dashboard}. Pemisahan Superset untuk \textit{dashboard} analitik dari Grafana untuk pemantauan sistem menjaga tiap antarmuka fokus pada jenis pengamatan yang berbeda.
+
+\input{tables/dashboarding_comparison.tex}
+\clearpage
+
+\subsection{\textit{GitOps and Continuous Delivery Layer}}
+\label{subsec:pilih-gitops}
+
+\textit{Layer} GitOps menempatkan repositori Git sebagai sumber kebenaran tunggal konfigurasi sistem, sebagaimana dibahas pada Subbab~\ref{sec:gitops}. Tabel~\ref{tab:gitops_comparison} membandingkan beberapa \textit{GitOps controller} \textit{open source}. Argo CD dipilih sebagai \textit{operator} GitOps karena merekonsiliasi keadaan \textit{cluster} dengan deklarasi pada Git secara berkelanjutan dan menyediakan antarmuka penelusuran sinkronisasi yang matang. Kriteria penilaian menyoroti model rekonsiliasi, dukungan multi-\textit{tenant}, dan kematangan ekosistem.
+
+Rantai \textit{continuous delivery} dilengkapi Gitea sebagai repositori \textit{self-hosted}, Tekton sebagai \textit{pipeline} CI, dan Argo Rollouts untuk \textit{deployment} progresif berbasis \textit{canary}. Keempat komponen menjaga seluruh manifes, \textit{chart}, dan \textit{overlay} berada pada satu \textit{control plane} yang ditarik Argo CD tanpa ketergantungan penyedia eksternal. Pembagian peran menempatkan Argo CD pada rekonsiliasi keadaan dan Tekton pada pembangunan artefak sehingga keduanya tidak tumpang tindih. Rantai ini menjadi mekanisme yang memicu \textit{retraining} model melalui kontrol deklaratif yang sama.
+
+\input{tables/gitops_comparison.tex}
+\clearpage
+
+\subsection{\textit{Platform Security Layer}}
+\label{subsec:pilih-keamanan}
+
+\textit{Layer} keamanan bekerja sebagai pertahanan berlapis yang dibahas pada Subbab~\ref{sec:keamanan-platform}, mencakup identitas, rahasia, \textit{service mesh}, kebijakan, dan pemantauan \textit{runtime}. Untuk identitas terpadu, Tabel~\ref{tab:identity_comparison} membandingkan beberapa \textit{identity provider} \textit{open source}. Dex dipilih sebagai \textit{identity provider} OIDC karena \textit{footprint} ringan, dukungan federasi terhadap penyedia eksternal, dan integrasi sederhana dengan Kubernetes. oauth2-proxy dan SpiceDB melengkapi \textit{layer} identitas untuk konsol tanpa OIDC \textit{native} dan otorisasi granular.
+
+\input{tables/identity_comparison.tex}
+
+Pengelolaan rahasia dinilai terpisah karena menyimpan kredensial dan kunci enkripsi platform, sebagaimana dibahas pada Subbab~\ref{subsec:identitas-rahasia}. Tabel~\ref{tab:secrets_comparison} membandingkan beberapa pengelola rahasia \textit{open source}. OpenBao dipilih sebagai \textit{fork} \textit{open source} dari HashiCorp Vault di bawah Linux Foundation karena menjamin penyimpanan terenkripsi dan penerbitan kredensial dinamis tanpa basis data eksternal berkat \textit{integrated storage} Raft. External Secrets Operator menyalurkan rahasia ke \texttt{Secret} Kubernetes dengan rotasi otomatis.
+
+\input{tables/secrets_comparison.tex}
+
+Komunikasi antar-layanan dan perbatasan \textit{mesh} dibahas pada Subbab~\ref{subsec:mesh-kebijakan}. Tabel~\ref{tab:service_mesh_comparison} dan Tabel~\ref{tab:api_gateway_comparison} menilai \textit{service mesh} dan \textit{API gateway}. Istio dipilih sebagai \textit{service mesh} karena \textit{mutual TLS} seragam, kontrol lalu lintas \textit{layer} aplikasi, dan integrasi telemetri dengan OpenTelemetry, sedangkan Apache APISIX dipilih sebagai \textit{API gateway} yang menyaring lalu lintas masuk dan menjembatani mTLS terhadap konsumen di luar \textit{mesh}. Keduanya memisahkan kontrol lalu lintas internal dari kontrol perbatasan tanpa fungsi yang tumpang tindih.
+
+\input{tables/service_mesh_comparison.tex}
+
+\input{tables/api_gateway_comparison.tex}
+
+Penegakan kebijakan \textit{admission} dinilai terpisah, sebagaimana dibahas pada Subbab~\ref{subsec:mesh-kebijakan}. Tabel~\ref{tab:policy_comparison} membandingkan beberapa \textit{policy engine} \textit{open source}. Kyverno dipilih sebagai \textit{policy engine} \textit{native} Kubernetes dengan sintaks YAML ringkas serta dukungan \textit{mutate}, \textit{validate}, dan \textit{generate}. Sintaks berbasis YAML membuat Kyverno lebih mudah diadopsi dibanding alternatif berbasis Rego pada konteks tim platform.
+
+\input{tables/policy_comparison.tex}
+
+Pemantauan ancaman pada \textit{runtime layer} melengkapi \textit{layer} keamanan, sebagaimana dibahas pada Subbab~\ref{subsec:mesh-kebijakan}. Tabel~\ref{tab:runtime_security_comparison} membandingkan beberapa alat \textit{runtime security} \textit{open source}. Falco dipilih sebagai detektor berbasis eBPF yang memantau \textit{syscall}, dilengkapi Trivy Operator untuk pemindaian \textit{image}, Velero untuk pencadangan, dan Chaos Mesh untuk uji ketahanan. Keempat alat mencakup dimensi berbeda dari keamanan \textit{runtime} sehingga tidak saling menggantikan.
+
+\input{tables/runtime_security_comparison.tex}
+\clearpage
+
+Pemetaan pada subbab ini menautkan tiap \textit{layer} arsitektur ke satu alat utama beserta pendampingnya, sehingga perancangan arsitektur pada subbab-subbab berikutnya dapat langsung merujuk komponen terpilih tanpa mengulang pertimbangan pemilihan. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama \textit{layer}-nya, sedangkan alat pendamping memikul peran yang berbeda tanpa tumpang tindih fungsi, seperti Flink untuk \textit{streaming} di samping Spark untuk \textit{batch} dan Argo Workflows untuk \textit{control loop} di samping Kubeflow Pipelines untuk pelatihan. Pemisahan konsep pada Bab~\ref{chap:studi-literatur} dari pemilihan pada subbab ini menjaga tinjauan pustaka tetap umum sementara keputusan alat ditegakkan dengan bukti skor. Dengan pemetaan ini, keputusan teknis di seluruh laporan dapat dirunut dari konsep pada Bab~\ref{chap:studi-literatur}, ke pemilihan pada subbab ini, hingga perwujudan pada Bab~\ref{chap:implementasi}.
 
 \section{Perancangan Arsitektur Terintegrasi}
 \label{sec:arsitektur-terintegrasi}

@@ -1,0 +1,34 @@
+% Tabel pemetaan sembilan kelompok layanan ke komponen mayoritas dan sumbernya.
+% Gaya mengikuti tabel non-berskor peran_akses.tex: caption di atas, [!htb],
+% \footnotesize, \setlength{\tabcolsep}{3pt}, kolom m{} raggedright, \hline penuh.
+% Nama komponen verbatim dari sumber masing-masing baris.
+\begin{table}[!htb]
+\centering
+\caption{Pemetaan Sembilan Kelompok Layanan ke Komponen Mayoritas dan Sumbernya}
+\label{tab:layanan_industri}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}m{3.2cm}|>{\raggedright\arraybackslash}m{5.9cm}|>{\raggedright\arraybackslash}m{3.4cm}|}
+\hline
+\textbf{Kelompok Layanan} & \textbf{Layanan dan Komponen Mayoritas} & \textbf{Sumber} \\
+\hline
+\textit{Orchestration and Infrastructure Layer} & \textit{workflow orchestration}, \textit{ML pipeline orchestrator}, \textit{model training infrastructure}, \textit{infrastructure and supporting services} & \autocite{kreuzberger2023mlops,najafabadi2024analysis,googlecloud2024mlops} \\
+\hline
+\textit{Data Ingestion and Processing Layer} & \textit{data collection}, \textit{data cleaning}, \textit{data preprocessor}, \textit{data ingestion} & \autocite{amershi2019software,najafabadi2024analysis,munappy2020adhoc} \\
+\hline
+\textit{Data Storage Layer} & \textit{dataset repository}, \textit{data storage}, \textit{data versioning} & \autocite{najafabadi2024analysis,munappy2020adhoc,jain2025integrating} \\
+\hline
+\textit{Feature Service Layer} & \textit{feature store} (\textit{offline} dan \textit{online}) & \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis} \\
+\hline
+\textit{Model Lifecycle Layer} & \textit{feature engineering}, \textit{model training}, \textit{model evaluation}, \textit{model registry}, \textit{ML metadata store}, \textit{model serving component}, \textit{inference service} & \autocite{kreuzberger2023mlops,amershi2019software,googlecloud2024mlops,najafabadi2024analysis} \\
+\hline
+\textit{Data Governance Layer} & \textit{data quality}, \textit{data testing}, \textit{data governance} & \autocite{munappy2020adhoc,rella2022mlops,jain2025integrating} \\
+\hline
+\textit{Observability Layer} & \textit{monitoring component}, \textit{model monitoring}, \textit{data monitoring} & \autocite{kreuzberger2023mlops,amershi2019software,najafabadi2024analysis,munappy2020adhoc} \\
+\hline
+\textit{GitOps and Continuous Delivery Layer} & \textit{CI/CD component}, \textit{source code repository}, \textit{model deployment}, \textit{deployment services} & \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis} \\
+\hline
+\textit{Platform Security Layer} & akses terkendali, kepatuhan privasi dan keamanan data, \textit{API gateway} & \autocite{munappy2020adhoc,rella2022mlops,najafabadi2024analysis} \\
+\hline
+\end{tabular}
+\end{table}

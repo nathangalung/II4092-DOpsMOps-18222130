@@ -24,7 +24,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    boleh dihapus tanpa memperbarui caption dan prosa Bab III/IV yang
    mengutip landasan tersebut.
 6. Label grup layer pada `Integrate_General_Arch` dan keempat berkas
-   `Layer_*` membawa kategori komponen sumbernya sesuai derivasi Subbab IV.2
+   `Layer_*` membawa kategori komponen sumbernya sesuai derivasi Subbab IV.4
    (najafabadi2024analysis + kreuzberger2023mlops): GitOps = kategori CI/CD,
    Infrastructure Layer = infrastructure and supporting services,
    Data Ingestion Layer = data curation: data collector, Processing Layer =
@@ -54,11 +54,11 @@ Konvensi lengkap: `WRITING_GUIDE.md` bagian 1.7 dan `TEMPLATE_BAB.md`.
   `Pemetaan Kematangan Target` merender penanda MLOps level 2 (tujuh
   komponen wajib) + tahap DataOps.
 - `Layer_Infra_Control.eraser` — rincian Infrastructure Layer dan Control
-  Plane (Subbab IV.2.1): orkestrasi, mesh, keamanan, operasional, dan GitOps.
+  Plane (Subbab IV.4.1): orkestrasi, mesh, keamanan, operasional, dan GitOps.
 - `Layer_Data.eraser` — rincian Data Ingestion Layer, Processing Layer, dan
-  Storage and Feature Store Layer (Subbab IV.2.2): dua jalur batch dan stream
+  Storage and Feature Store Layer (Subbab IV.4.2): dua jalur batch dan stream
   menuju lakehouse dan feature store.
 - `Layer_Model.eraser` — rincian Model Lifecycle Layer dan Model Serving
-  Layer (Subbab IV.2.3): eksperimen, training, registri, serving, retrain otomatis.
+  Layer (Subbab IV.4.3): eksperimen, training, registri, serving, retrain otomatis.
 - `Layer_Govern_Obs.eraser` — rincian Governance and Observability Layer
-  (Subbab IV.2.4): katalog dan lineage berdampingan dengan tiga pilar observabilitas.
+  (Subbab IV.4.4): katalog dan lineage berdampingan dengan tiga pilar observabilitas.

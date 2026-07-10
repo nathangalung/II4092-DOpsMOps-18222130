@@ -1,0 +1,32 @@
+% Tabel legenda level kematangan MLOps (Google Cloud), portrait, lintas halaman
+% Non-berskor; mengikuti gaya longtable mlops_maturity_comparison.tex + rubrik Lampiran A
+% Karakteristik dan komponen verbatim dari googlecloud2024mlops
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.5cm}|>{\raggedright\arraybackslash}m{5.6cm}|>{\raggedright\arraybackslash}m{5.4cm}|}
+\caption{Rincian Karakteristik Proses dan Komponen Tiap \textit{Level} Kematangan MLOps}
+\label{tab:mlops_level_legend} \\
+\hline
+\textbf{\textit{Level}} & \textbf{Karakteristik Proses} & \textbf{Komponen} \\
+\hline
+\endfirsthead
+\hline
+\textbf{\textit{Level}} & \textbf{Karakteristik Proses} & \textbf{Komponen} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+\textbf{\textit{Level} 0}\newline \textit{Manual process} & \textit{Manual, script-driven, and interactive process} dengan \textit{disconnection between ML and operations} serta \textit{infrequent release iterations}. Tanpa \textit{CI} dan tanpa \textit{CD}, \textit{deployment} hanya merujuk pada \textit{prediction service}, disertai \textit{lack of active performance monitoring}. & Tanpa komponen otomasi tambahan. Penyerahan model bersifat satu arah dari \textit{data scientist} ke tim operasi, dan \textit{deployment} terbatas sebagai \textit{prediction service}. \\
+\hline
+\textbf{\textit{Level} 1}\newline \textit{ML pipeline automation} & \textit{Rapid experiment}, \textit{CT of the model in production}, dan \textit{experimental-operational symmetry}. \textit{Modularized code for components and pipelines}, \textit{continuous delivery of models}, serta \textit{pipeline deployment}. & Komponen tambahan yang dituntut \textit{level} ini, yaitu \textit{data and model validation}, \textit{feature store} (opsional), \textit{metadata management}, dan \textit{ML pipeline triggers}. \\
+\hline
+\textbf{\textit{Level} 2}\newline \textit{CI/CD pipeline automation} & Enam tahap otomasi \textit{pipeline}, yaitu \textit{development and experimentation}, \textit{pipeline continuous integration}, \textit{pipeline continuous delivery}, \textit{automated triggering}, \textit{model continuous delivery}, dan \textit{monitoring}. & Tujuh komponen wajib, yaitu \textit{source control}, \textit{test and build services}, \textit{deployment services}, \textit{model registry}, \textit{feature store}, \textit{ML metadata store}, dan \textit{ML pipeline orchestrator}. \\
+\hline
+\end{longtable}
+\par{\footnotesize Sumber: \textcite{googlecloud2024mlops}. Istilah teknis dipertahankan dalam bahasa asli sesuai dokumen sumber.}
+}
