@@ -1,6 +1,11 @@
 // Layer_Data_Ingestion — Data Ingestion Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Data_Ingestion".
 // Ekspor PNG ke materials/reports/figures/Layer_Data_Ingestion.png
+// Ikon: logo kafka dari docs.eraser.io/docs/icons (diperiksa 2026-07-11),
+//   sisanya icon generik. Arah edge: Karapace menyimpan skema pada topik
+//   internal Kafka (dokumentasi Karapace), produsen memeriksa kompatibilitas
+//   skema saat publikasi, Kafbat UI membaca metrik dari Kafka.
 // Acuan: subsec:lapisan-data (Subbab IV.4.2, sec:arsitektur-terintegrasi);
 //   rincian beralat Data Ingestion Layer yang memperinci kelompok layanan pada
 //   Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
@@ -36,6 +41,7 @@ Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (batch dan 
 // Alur ingestion kiri ke kanan
 Sumber Data Eksternal > Kafka Connect: REST + CDC Debezium
 Kafka Connect > Kafka: publikasi ke topik
-Kafka <> Karapace: validasi skema
-Kafbat UI -- Kafka: pemantauan topik dan konsumen
+Kafka Connect > Karapace: cek kompatibilitas skema
+Karapace > Kafka: simpan skema pada topik internal
+Kafka > Kafbat UI: metrik topik dan konsumen
 Kafka > Processing Layer: aliran terkurasi

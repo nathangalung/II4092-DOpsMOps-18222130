@@ -42,7 +42,7 @@ Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk mel
 \section{Analisis Layanan DataOps dan MLOps pada Praktik Industri}
 \label{sec:layanan-industri}
 
-Subbab ini menetapkan himpunan layanan representatif yang wajib dicakup arsitektur platform sebelum pemilihan alat dilakukan. Pembahasan dibagi menjadi dua bagian yang dibaca berurutan. Subbab~\ref{subsec:layanan-praktik} menyarikan bukti dari literatur mengenai komponen yang berulang pada praktik MLOps lebih dahulu, kemudian pada praktik DataOps. Subbab~\ref{subsec:klasifikasi-layanan} mengonsolidasikan bukti tersebut menjadi sembilan kelompok layanan yang menjadi dasar pemilihan alat dan penataan arsitektur pada subbab-subbab berikutnya.
+Subbab ini menetapkan himpunan layanan representatif yang wajib dicakup arsitektur platform sebelum pemilihan alat dilakukan. Pembahasan dibagi menjadi tiga bagian yang dibaca berurutan. Subbab~\ref{subsec:layanan-praktik} menyarikan bukti dari literatur mengenai komponen yang berulang pada praktik MLOps lebih dahulu, kemudian pada praktik DataOps. Subbab~\ref{subsec:klasifikasi-layanan} mengonsolidasikan bukti tersebut menjadi sembilan kelompok layanan yang menjadi dasar pemilihan alat dan penataan arsitektur pada subbab-subbab berikutnya, dan Subbab~\ref{subsec:rincian-kelompok} memerinci alur layanan di dalam tiap kelompok sebagai diagram tersendiri.
 
 \subsection{Layanan pada Praktik MLOps dan DataOps}
 \label{subsec:layanan-praktik}
@@ -74,6 +74,130 @@ Gambar~\ref{fig:integrate-service} menggambarkan kesembilan kelompok layanan ter
 \end{figure}
 
 Kesembilan kelompok layanan ini bersifat lepas dari domain sehingga tidak terikat pada satu kasus penggunaan tertentu. Kasus penggunaan apa pun yang menjalankan seluruh sembilan kelompok layanan dapat berperan sebagai kasus uji yang representatif bagi platform, karena verifikasi fungsionalnya akan menyentuh himpunan layanan yang sama dengan yang ditetapkan pada subbab ini. Pemilihan alat \textit{open source} untuk tiap kelompok dibahas pada Subbab~\ref{sec:pemilihan-tools}, sedangkan konsolidasi kesembilan kelompok menjadi tujuh \textit{layer} arsitektur dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}. Dengan demikian subbab ini menjadi titik tumpu yang menghubungkan bukti praktik industri ke rancangan tujuh \textit{layer} sekaligus ke pemilihan kasus uji pada Bab~\ref{chap:implementasi} dan Bab~\ref{chap:evaluasi}.
+
+\subsection{Rincian Layanan per Kelompok}
+\label{subsec:rincian-kelompok}
+
+Gambar~\ref{fig:integrate-service} sengaja menampilkan kesembilan kelompok sekaligus sehingga alur di dalam tiap kelompok tidak leluasa dibaca pada satu bingkai. Subbab ini memerinci tiap kelompok layanan menjadi diagram tersendiri pada Gambar~\ref{fig:service-orkestrasi-infra} sampai Gambar~\ref{fig:service-security} mengikuti urutan baris Tabel~\ref{tab:layanan_industri}. Setiap diagram tetap bebas dari keterikatan alat dan hanya menamai komponen mayoritas dari tabel tersebut, dengan arah panah yang mengikuti urutan tahap atau arah aliran data pada sumber yang menamai komponennya. Kotak abu-abu pada tepi tiap diagram menandai kelompok tetangga sebagai batas konteks sehingga keterhubungan antar kelompok pada Gambar~\ref{fig:integrate-service} tetap terunut. Rincian ini menjadi rujukan fungsi ketika alat dinilai pada Subbab~\ref{sec:pemilihan-tools} dan ketika kesembilan kelompok dikonsolidasikan menjadi tujuh \textit{layer} pada Subbab~\ref{sec:arsitektur-terintegrasi}.
+
+Gambar~\ref{fig:service-orkestrasi-infra} memperinci \textit{Orchestration and Infrastructure Layer} tempat infrastruktur bersama menjalankan \textit{workflow orchestration} dan \textit{ML pipeline orchestrator} yang menjadwalkan pelatihan pada \textit{model training infrastructure}.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Orchestration_Infra.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Orchestration_Infra.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Orchestration\_Infra.eraser} \textit{dirender ke} \texttt{figures/Service\_Orchestration\_Infra.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Orchestration and Infrastructure Layer}]{Rincian layanan \textit{Orchestration and Infrastructure Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,najafabadi2024analysis,googlecloud2024mlops}}
+    \label{fig:service-orkestrasi-infra}
+\end{figure}
+
+Gambar~\ref{fig:service-ingestion-processing} memperinci \textit{Data Ingestion and Processing Layer} sebagai rantai kurasi dari \textit{data collection} sampai \textit{data preprocessor} yang keluarannya mendarat pada penyimpanan dan divalidasi tata kelola data.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Ingestion_Processing.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Ingestion_Processing.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Ingestion\_Processing.eraser} \textit{dirender ke} \texttt{figures/Service\_Ingestion\_Processing.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Data Ingestion and Processing Layer}]{Rincian layanan \textit{Data Ingestion and Processing Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{amershi2019software,najafabadi2024analysis,munappy2020adhoc}}
+    \label{fig:service-ingestion-processing}
+\end{figure}
+
+Gambar~\ref{fig:service-storage} memperinci \textit{Data Storage Layer} tempat data terkelola mendarat pada \textit{data storage}, dikurasi menjadi \textit{dataset repository}, dan riwayatnya dilacak \textit{data versioning}.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Storage.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Storage.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Storage.eraser} \textit{dirender ke} \texttt{figures/Service\_Storage.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Data Storage Layer}]{Rincian layanan \textit{Data Storage Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{najafabadi2024analysis,munappy2020adhoc,jain2025integrating}}
+    \label{fig:service-storage}
+\end{figure}
+
+Gambar~\ref{fig:service-feature} memperinci \textit{Feature Service Layer} yang mematerialisasi \textit{offline feature store} ke \textit{online feature store} untuk melayani pelatihan \textit{batch} dan inferensi berlatensi rendah.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Feature.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Feature.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Feature.eraser} \textit{dirender ke} \texttt{figures/Service\_Feature.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Feature Service Layer}]{Rincian layanan \textit{Feature Service Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis}}
+    \label{fig:service-feature}
+\end{figure}
+
+Gambar~\ref{fig:service-model-lifecycle} memperinci \textit{Model Lifecycle Layer} dari \textit{feature engineering} sampai \textit{inference service}, dengan \textit{ML metadata store} mencatat eksperimen dan evaluasi serta \textit{model registry} menjadi sumber model rilis.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Model_Lifecycle.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Model_Lifecycle.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Model\_Lifecycle.eraser} \textit{dirender ke} \texttt{figures/Service\_Model\_Lifecycle.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Model Lifecycle Layer}]{Rincian layanan \textit{Model Lifecycle Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,amershi2019software,googlecloud2024mlops,najafabadi2024analysis}}
+    \label{fig:service-model-lifecycle}
+\end{figure}
+
+Gambar~\ref{fig:service-governance} memperinci \textit{Data Governance Layer} tempat \textit{data governance} menetapkan standar bagi \textit{data testing} yang menghasilkan skor \textit{data quality} atas \textit{pipeline} data.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Data_Governance.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Data_Governance.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Data\_Governance.eraser} \textit{dirender ke} \texttt{figures/Service\_Data\_Governance.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Data Governance Layer}]{Rincian layanan \textit{Data Governance Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{munappy2020adhoc,rella2022mlops,jain2025integrating}}
+    \label{fig:service-governance}
+\end{figure}
+
+Gambar~\ref{fig:service-observability} memperinci \textit{Observability Layer} yang mengonsolidasikan \textit{model monitoring} dan \textit{data monitoring} pada \textit{monitoring component} sekaligus mengembalikan umpan balik pemicu \textit{retraining} otomatis.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Observability.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Observability.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Observability.eraser} \textit{dirender ke} \texttt{figures/Service\_Observability.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Observability Layer}]{Rincian layanan \textit{Observability Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,amershi2019software,najafabadi2024analysis,munappy2020adhoc}}
+    \label{fig:service-observability}
+\end{figure}
+
+Gambar~\ref{fig:service-gitops-cd} memperinci \textit{GitOps and Continuous Delivery Layer} sebagai rantai dari \textit{source code repository} melalui \textit{CI/CD component} dan \textit{deployment services} sampai \textit{model deployment}.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_GitOps_CD.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_GitOps_CD.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_GitOps\_CD.eraser} \textit{dirender ke} \texttt{figures/Service\_GitOps\_CD.png}.}}%
+    }
+    \caption[Rincian layanan \textit{GitOps and Continuous Delivery Layer}]{Rincian layanan \textit{GitOps and Continuous Delivery Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis}}
+    \label{fig:service-gitops-cd}
+\end{figure}
+
+Gambar~\ref{fig:service-security} memperinci \textit{Platform Security Layer} tempat \textit{API gateway} menegakkan akses terkendali di bawah kebijakan kepatuhan privasi dan keamanan data bagi seluruh kelompok layanan.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Service_Security.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Security.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Security.eraser} \textit{dirender ke} \texttt{figures/Service\_Security.png}.}}%
+    }
+    \caption[Rincian layanan \textit{Platform Security Layer}]{Rincian layanan \textit{Platform Security Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{munappy2020adhoc,rella2022mlops,najafabadi2024analysis}}
+    \label{fig:service-security}
+\end{figure}
+
+\clearpage
 
 \section{Analisis Pemilihan \textit{Open Source Tools}}
 \label{sec:pemilihan-tools}

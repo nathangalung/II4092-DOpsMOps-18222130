@@ -1,6 +1,10 @@
 // Fragment_DataOps_Flow — Alur Data Terfragmentasi pada Kondisi Saat Ini (DataOps)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Fragment_DataOps_Flow" (judul kanvas = nama
+//   berkas; sintaks cloud architecture tidak mendukung baris title).
 // Ekspor PNG ke materials/reports/figures/Fragment_DataOps_Flow.png
+// Ikon: setiap node membawa icon; nama icon diverifikasi terhadap
+//   docs.eraser.io/docs/icons (diperiksa 2026-07-11).
 // Acuan: Gambar III.1 (fig:fragment-dataops), Subbab III.1.3.
 // Diagram ini menggambarkan alur data pada kondisi SEBELUM platform (status
 // quo terfragmentasi): tiap tahap memakai tumpukan ad hoc generik yang dirakit

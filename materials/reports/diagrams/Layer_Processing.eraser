@@ -1,6 +1,10 @@
 // Layer_Processing — Processing Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Processing".
 // Ekspor PNG ke materials/reports/figures/Layer_Processing.png
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+//   kafka, airflow, spark, dbt, flink, trino. Trino memakai <> karena kueri
+//   federatif berpola permintaan dan hasil dua arah.
 // Acuan: subsec:lapisan-data (Subbab IV.4.2, sec:arsitektur-terintegrasi);
 //   rincian beralat Processing Layer yang memperinci kelompok layanan pada Gambar
 //   fig:integrate-service (Subbab IV.2, tanpa alat).
@@ -25,11 +29,11 @@ Kafka [icon: kafka, color: orange, label: "Apache Kafka (aliran masuk)"]
 
 // Processing Layer
 Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (data curation: data preprocessor)"] {
-  Airflow [icon: clock, label: "Apache Airflow (orkestrasi batch)"]
-  Spark [icon: sun, label: "Apache Spark (batch)"]
-  dbt [icon: code, label: "dbt (transformasi SQL, tugas Airflow)"]
-  Flink [icon: zap, label: "Apache Flink (stream)"]
-  Trino [icon: search, label: "Trino (kueri federatif)"]
+  Airflow [icon: airflow, label: "Apache Airflow (orkestrasi batch)"]
+  Spark [icon: spark, label: "Apache Spark (batch)"]
+  dbt [icon: dbt, label: "dbt (transformasi SQL, tugas Airflow)"]
+  Flink [icon: flink, label: "Apache Flink (stream)"]
+  Trino [icon: trino, label: "Trino (kueri federatif)"]
 }
 
 // Tempat keluaran mendarat (batas)
@@ -45,5 +49,5 @@ Airflow > dbt: transformasi terjadwal
 Spark > Storage and Feature Store Layer: tulis tabel Iceberg
 dbt > Storage and Feature Store Layer: model gold ClickHouse
 
-// Kueri federatif
-Trino -- Storage and Feature Store Layer: kueri federatif Iceberg
+// Kueri federatif (permintaan dan hasil dua arah)
+Trino <> Storage and Feature Store Layer: kueri federatif Iceberg

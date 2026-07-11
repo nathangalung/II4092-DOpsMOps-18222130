@@ -1,6 +1,12 @@
 // Layer_Infra_Control — Infrastructure Layer (control plane, autoscaling, GitOps)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Infra_Control" (sintaks cloud architecture
+//   tidak mendukung baris title; judul kanvas = nama berkas).
 // Ekspor PNG ke materials/reports/figures/Layer_Infra_Control.png
+// Ikon: logo produk dipakai bila tersedia pada daftar resmi
+//   docs.eraser.io/docs/icons (diperiksa 2026-07-11): git, docker, argo,
+//   kubernetes; sisanya icon generik. Registry memakai logo docker karena
+//   komponennya citra registry:2 (Docker Distribution).
 // Acuan: subsec:lapisan-infra (Subbab IV.4.1, sec:arsitektur-terintegrasi);
 //   rincian beralat bagian control plane Infrastructure Layer yang memperinci
 //   kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
@@ -27,11 +33,11 @@ Tim Platform [icon: users, color: gray, label: "Tim Platform (pengubah konfigura
 
 // Control Plane — rantai GitOps (kategori CI/CD)
 GitOps [icon: git-branch, color: blue, label: "GitOps (kategori CI/CD)"] {
-  Gitea [icon: git-merge, label: "Gitea (Git internal)"]
+  Gitea [icon: git, label: "Gitea (Git internal)"]
   Tekton [icon: settings, label: "Tekton (CI + build)"]
-  Registry [icon: package, label: "Image Registry"]
-  Argo CD [icon: refresh-cw, label: "Argo CD (GitOps CD)"]
-  Argo Rollouts [icon: trending-up, label: "Argo Rollouts (pengiriman bertahap)"]
+  Registry [icon: docker, label: "Image Registry (registry:2)"]
+  Argo CD [icon: argo, label: "Argo CD (GitOps CD)"]
+  Argo Rollouts [icon: argo, label: "Argo Rollouts (pengiriman bertahap)"]
 }
 
 // Infrastructure Layer — orkestrasi, penskalaan, sertifikat
@@ -58,7 +64,7 @@ Argo Rollouts > Platform Applications: pengiriman bertahap
 Registry > Kubernetes: image pull
 
 // Alur orkestrasi dan penskalaan
-Kubernetes -- Platform Applications: menjalankan beban kerja
+Kubernetes > Platform Applications: menjalankan beban kerja
 metrics-server > Autoscaler: sinyal metrik
 Autoscaler > Platform Applications: skala replica
 Kueue > Platform Applications: admisi kuota job

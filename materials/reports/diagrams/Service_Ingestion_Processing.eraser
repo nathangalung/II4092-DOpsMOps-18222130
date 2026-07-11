@@ -1,0 +1,37 @@
+// Service_Ingestion_Processing — Data Ingestion and Processing Layer (layanan, tanpa alat)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Service_Ingestion_Processing".
+// Ekspor PNG ke materials/reports/figures/Service_Ingestion_Processing.png
+// Acuan: fig:service-ingestion-processing (Subbab IV.2.3, subsec:rincian-kelompok);
+//   rincian bebas-tool kelompok baris 2 Tabel layanan_industri, komponen verbatim.
+// Sumber edge: munappy2020adhoc (data engineering: data collection lalu data
+//   ingestion), amershi2019software (data cleaning sebelum tahap berorientasi
+//   model), najafabadi2024analysis (data preprocessor pada data curation).
+// Ikon generik (bebas-tool), nama diverifikasi docs.eraser.io/docs/icons 2026-07-11.
+// Rendering WAJIB horizontal (direction right), tanpa \rotatebox pada LaTeX.
+
+direction right
+
+// Sumber (batas)
+Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+
+Data Ingestion and Processing Layer [icon: download, color: orange] {
+  data collection [icon: download]
+  data ingestion [icon: inbox]
+  data cleaning [icon: filter]
+  data preprocessor [icon: cog]
+}
+
+// Tujuan hilir (batas)
+Data Storage Layer [icon: database, color: green, label: "Data Storage Layer"]
+Data Governance Layer [icon: book, color: teal, label: "Data Governance Layer"]
+
+// Rantai kurasi data kiri ke kanan (munappy2020adhoc, amershi2019software)
+Sumber Data Eksternal > data collection: ekstraksi sumber
+data collection > data ingestion: data mentah terkumpul
+data ingestion > data cleaning: pembersihan
+data cleaning > data preprocessor: praolah
+
+// Keluaran pipeline (najafabadi2024analysis, munappy2020adhoc)
+data preprocessor > Data Storage Layer: data terkelola
+data preprocessor > Data Governance Layer: hasil praolah divalidasi

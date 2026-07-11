@@ -1,6 +1,11 @@
 // Layer_Model_Serving — Model Serving Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Model_Serving".
 // Ekspor PNG ke materials/reports/figures/Layer_Model_Serving.png
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+//   minio, argo, qdrant; Valkey tetap icon generik (bukan logo Redis, beda
+//   merek fork). Permintaan-respons inferensi memakai <> (dua arah faktual);
+//   Knative menskalakan revisi KServe (arah kendali dari Knative).
 // Acuan: subsec:lapisan-model (Subbab IV.4.3, sec:arsitektur-terintegrasi);
 //   rincian beralat Model Serving Layer yang memperinci kelompok layanan pada Gambar
 //   fig:integrate-service (Subbab IV.2, tanpa alat).
@@ -21,31 +26,30 @@
 direction right
 
 // Artefak model (batas)
-MinIO [icon: hard-drive, color: green, label: "MinIO (artefak MLflow)"]
+MinIO [icon: minio, color: green, label: "MinIO (artefak MLflow)"]
 
 // Model Serving Layer
 Model Serving Layer [icon: send, color: red, label: "Model Serving Layer (inference)"] {
   KServe [icon: server, label: "KServe (InferenceService)"]
   Knative [icon: cloud, label: "Knative (serverless)"]
-  Argo Rollouts [icon: trending-up, label: "Argo Rollouts (analisis canary)"]
+  Argo Rollouts [icon: argo, label: "Argo Rollouts (analisis canary)"]
   Inference Bridge [icon: git-merge, label: "Jembatan Inferensi (feature join)"]
 }
 
 // Sumber fitur daring dan konsumen (batas)
 Valkey [icon: zap, color: green, label: "Valkey (online feature)"]
-Qdrant [icon: target, color: green, label: "Qdrant (vector feature)"]
+Qdrant [icon: qdrant, color: green, label: "Qdrant (vector feature)"]
 Konsumen Prediksi [icon: monitor, color: gray, label: "Konsumen Prediksi (aplikasi hilir)"]
 
 // Alur muat model dan penskalaan
 MinIO > KServe: muat artefak model
-KServe -- Knative: penskalaan serverless
-Argo Rollouts -- KServe: promosi canary bertahap
+Knative > KServe: penskalaan revisi serverless
+Argo Rollouts > KServe: promosi canary bertahap
 
 // Alur fitur ke predictor
 Valkey > Inference Bridge: online feature
 Qdrant > Inference Bridge: vector feature
 Inference Bridge > KServe: fitur ke predictor
 
-// Permintaan dan respons inferensi
-Konsumen Prediksi > KServe: permintaan inferensi
-KServe > Konsumen Prediksi: respons prediksi
+// Permintaan dan respons inferensi (dua arah)
+Konsumen Prediksi <> KServe: permintaan dan respons inferensi

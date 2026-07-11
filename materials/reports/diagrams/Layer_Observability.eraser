@@ -1,6 +1,13 @@
 // Layer_Observability — bagian observabilitas dari Governance and Observability Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Observability".
 // Ekspor PNG ke materials/reports/figures/Layer_Observability.png
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+//   prometheus, tempo, grafana, superset, clickhouse, trino; sisanya icon
+//   generik (nama icon flame tidak ada pada daftar, Pyroscope memakai gauge).
+//   OpenCost <> Prometheus dua arah faktual: OpenCost membaca metrik pemakaian
+//   dari Prometheus dan mengekspor metrik biaya yang di-scrape Prometheus
+//   (dokumentasi OpenCost).
 // Acuan: subsec:lapisan-tata-kelola (Subbab IV.4.4, sec:arsitektur-terintegrasi);
 //   rincian beralat bagian observabilitas Governance and Observability Layer yang
 //   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
@@ -29,17 +36,17 @@ Observabilitas [icon: monitor, color: teal, label: "Observabilitas (Governance a
   OpenTelemetry [icon: radio, label: "OpenTelemetry (collector)"]
   Prometheus [icon: prometheus, label: "Prometheus (+ Alertmanager + Pushgateway)"]
   Loki [icon: file-text, label: "Loki (log)"]
-  Tempo [icon: clock, label: "Grafana Tempo (trace)"]
-  Pyroscope [icon: flame, label: "Pyroscope (profil)"]
+  Tempo [icon: tempo, label: "Grafana Tempo (trace)"]
+  Pyroscope [icon: gauge, label: "Pyroscope (profil)"]
   Sloth [icon: sliders, label: "Sloth (aturan SLO)"]
   OpenCost [icon: dollar-sign, label: "OpenCost (biaya)"]
   Grafana [icon: grafana, label: "Grafana (dashboard operasional)"]
-  Superset [icon: pie-chart, label: "Apache Superset (dashboard analitik)"]
+  Superset [icon: superset, label: "Apache Superset (dashboard analitik)"]
 }
 
 // Sumber analitik dan konsumen (batas)
-ClickHouse [icon: bar-chart, color: green, label: "ClickHouse (sumber analitik)"]
-Trino [icon: search, color: yellow, label: "Trino (kueri federatif)"]
+ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (sumber analitik)"]
+Trino [icon: trino, color: yellow, label: "Trino (kueri federatif)"]
 Business User [icon: user, color: gray, label: "Business User"]
 
 // Alur pengumpulan sinyal
@@ -55,7 +62,7 @@ Prometheus > Grafana: metrik
 Loki > Grafana: log
 Tempo > Grafana: trace
 Pyroscope > Grafana: profil
-OpenCost -- Prometheus: metrik biaya
+OpenCost <> Prometheus: metrik pemakaian dan biaya
 OpenCost > Grafana: biaya per beban
 Grafana > Business User: dashboard operasional
 

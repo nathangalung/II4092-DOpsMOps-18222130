@@ -1,0 +1,33 @@
+// Service_Observability — Observability Layer (layanan, tanpa alat)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Service_Observability".
+// Ekspor PNG ke materials/reports/figures/Service_Observability.png
+// Acuan: fig:service-observability (Subbab IV.2.3, subsec:rincian-kelompok);
+//   rincian bebas-tool kelompok baris 7 Tabel layanan_industri, komponen verbatim.
+// Sumber edge: kreuzberger2023mlops (monitoring component), amershi2019software
+//   (model monitoring pada tahap produksi), munappy2020adhoc (data monitoring
+//   berkelanjutan), googlecloud2024mlops (pemantauan memicu retraining otomatis
+//   pada level 2).
+// Ikon generik (bebas-tool), nama diverifikasi docs.eraser.io/docs/icons 2026-07-11.
+// Rendering WAJIB horizontal (direction right), tanpa \rotatebox pada LaTeX.
+
+direction right
+
+// Penghasil sinyal (batas)
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer"]
+Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer"]
+
+Observability Layer [icon: eye, color: teal] {
+  model monitoring [icon: activity]
+  data monitoring [icon: eye]
+  monitoring component [icon: monitor]
+}
+
+// Sinyal masuk (amershi2019software, munappy2020adhoc)
+Model Lifecycle Layer > model monitoring: kinerja model produksi
+Data Ingestion and Processing Layer > data monitoring: kesehatan pipeline data
+
+// Konsolidasi dan umpan balik (kreuzberger2023mlops, googlecloud2024mlops)
+model monitoring > monitoring component: konsolidasi sinyal
+data monitoring > monitoring component: konsolidasi sinyal
+monitoring component > Model Lifecycle Layer: pemicu retraining otomatis

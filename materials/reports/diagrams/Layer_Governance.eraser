@@ -1,6 +1,11 @@
 // Layer_Governance — bagian tata kelola data dari Governance and Observability Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Governance".
 // Ekspor PNG ke materials/reports/figures/Layer_Governance.png
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+//   airflow, spark, clickhouse, postgres, minio, kafka, dbt, opensearch;
+//   sisanya icon generik. Edge ingest mengikuti arah aliran metadata dari
+//   sumber menuju katalog; DataHub menulis indeks pencariannya ke OpenSearch.
 // Acuan: subsec:lapisan-tata-kelola (Subbab IV.4.4, sec:arsitektur-terintegrasi);
 //   rincian beralat bagian tata kelola data Governance and Observability Layer yang
 //   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
@@ -23,17 +28,17 @@
 direction right
 
 // Sumber pipeline pemancar lineage (batas)
-Airflow [icon: clock, color: yellow, label: "Apache Airflow (pipeline data)"]
-Spark [icon: sun, color: yellow, label: "Apache Spark (batch)"]
+Airflow [icon: airflow, color: yellow, label: "Apache Airflow (pipeline data)"]
+Spark [icon: spark, color: yellow, label: "Apache Spark (batch)"]
 
 // Sumber metadata ingest (batas)
 Sumber Metadata [icon: database, color: green, label: "Sumber Metadata Platform"] {
-  ClickHouse [icon: bar-chart, label: "ClickHouse"]
-  PostgreSQL [icon: postgresql, label: "PostgreSQL"]
-  MinIO [icon: hard-drive, label: "MinIO + Iceberg"]
+  ClickHouse [icon: clickhouse, label: "ClickHouse"]
+  PostgreSQL [icon: postgres, label: "PostgreSQL"]
+  MinIO [icon: minio, label: "MinIO + Iceberg"]
   Kafka [icon: kafka, label: "Kafka"]
   Feast [icon: package, label: "Feast"]
-  dbt [icon: code, label: "dbt"]
+  dbt [icon: dbt, label: "dbt"]
 }
 
 // Bagian tata kelola data
@@ -44,7 +49,7 @@ Tata Kelola Data [icon: book, color: teal, label: "Tata Kelola Data (Governance 
 }
 
 // Indeks dan batas hilir
-OpenSearch [icon: search, color: green, label: "OpenSearch (indeks katalog)"]
+OpenSearch [icon: opensearch, color: green, label: "OpenSearch (indeks katalog)"]
 Observability Layer [icon: monitor, color: teal, label: "Observability Layer"]
 
 // Alur lineage
@@ -63,5 +68,5 @@ dbt > DataHub: ingest model transform
 // Alur kualitas dan indeks
 Airflow > Great Expectations: gerbang kualitas dalam pipeline
 Great Expectations > DataHub: status validasi
-DataHub -- OpenSearch: indeks pencarian
+DataHub > OpenSearch: tulis indeks pencarian
 DataHub > Observability Layer: sinyal tata kelola

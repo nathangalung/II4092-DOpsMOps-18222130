@@ -1,0 +1,38 @@
+// Service_Orchestration_Infra — Orchestration and Infrastructure Layer (layanan, tanpa alat)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Service_Orchestration_Infra".
+// Ekspor PNG ke materials/reports/figures/Service_Orchestration_Infra.png
+// Acuan: fig:service-orkestrasi-infra (Subbab IV.2.3, subsec:rincian-kelompok);
+//   rincian bebas-tool kelompok baris 1 Tabel layanan_industri, komponen verbatim.
+// Sumber edge: googlecloud2024mlops (ML pipeline orchestrator menjadwalkan
+//   pelatihan), kreuzberger2023mlops (workflow orchestration), najafabadi2024analysis
+//   (infrastructure and supporting services menopang komponen lain).
+// Ikon generik (bebas-tool), nama diverifikasi docs.eraser.io/docs/icons 2026-07-11.
+// Rendering WAJIB horizontal (direction right), tanpa \rotatebox pada LaTeX.
+
+direction right
+
+// Fondasi bersama (asosiasi non-alur, garis putus)
+Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (satu control plane)"]
+
+Orchestration and Infrastructure Layer [icon: kubernetes, color: blue] {
+  infrastructure and supporting services [icon: server]
+  workflow orchestration [icon: workflow]
+  ML pipeline orchestrator [icon: play]
+  model training infrastructure [icon: boxes]
+}
+
+// Konsumen orkestrasi (batas)
+Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer"]
+
+// Infrastruktur menjalankan kedua orkestrator (najafabadi2024analysis)
+infrastructure and supporting services > workflow orchestration: menjalankan
+infrastructure and supporting services > ML pipeline orchestrator: menjalankan
+Kubernetes Control Plane -- infrastructure and supporting services: berjalan pada satu control plane
+
+// Orkestrasi pipeline data dan pipeline ML (kreuzberger2023mlops, googlecloud2024mlops)
+workflow orchestration > Data Ingestion and Processing Layer: menjadwalkan pipeline data
+ML pipeline orchestrator > model training infrastructure: menjadwalkan pelatihan
+ML pipeline orchestrator > Model Lifecycle Layer: menjalankan pipeline ML
+model training infrastructure > Model Lifecycle Layer: kapasitas pelatihan model

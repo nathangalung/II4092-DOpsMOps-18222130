@@ -1,0 +1,35 @@
+// Service_Storage — Data Storage Layer (layanan, tanpa alat)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Service_Storage".
+// Ekspor PNG ke materials/reports/figures/Service_Storage.png
+// Acuan: fig:service-storage (Subbab IV.2.3, subsec:rincian-kelompok);
+//   rincian bebas-tool kelompok baris 3 Tabel layanan_industri, komponen verbatim.
+// Sumber edge: najafabadi2024analysis (dataset repository menyimpan dataset
+//   pelatihan), munappy2020adhoc (data storage pada kelompok teknologi data),
+//   jain2025integrating (data versioning pada tanggung jawab data engineering).
+// Ikon generik (bebas-tool), nama diverifikasi docs.eraser.io/docs/icons 2026-07-11.
+// Rendering WAJIB horizontal (direction right), tanpa \rotatebox pada LaTeX.
+
+direction right
+
+// Produsen data terkelola (batas)
+Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer"]
+
+Data Storage Layer [icon: database, color: green] {
+  data storage [icon: database]
+  dataset repository [icon: folder]
+  data versioning [icon: history]
+}
+
+// Konsumen (batas)
+Feature Service Layer [icon: package, color: green, label: "Feature Service Layer"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer"]
+
+// Data mendarat, dikurasi, dan diversikan (najafabadi2024analysis, jain2025integrating)
+Data Ingestion and Processing Layer > data storage: data terkelola mendarat
+data storage > dataset repository: kurasi dataset
+dataset repository > data versioning: riwayat versi dataset
+
+// Keluaran penyimpanan
+data storage > Feature Service Layer: sumber fitur
+dataset repository > Model Lifecycle Layer: dataset pelatihan
