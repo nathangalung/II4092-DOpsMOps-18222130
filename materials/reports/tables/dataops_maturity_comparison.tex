@@ -1,0 +1,32 @@
+% Tabel portrait, boleh lintas halaman, caption di atas header
+% Perbandingan deskriptif tiga model kematangan DataOps. Tanpa skor lintas model
+% karena ketiganya menilai objek berbeda (lihat prosa II.1.3)
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{|>{\raggedright\arraybackslash}m{2.8cm}|>{\raggedright\arraybackslash}m{4.4cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{2.4cm}|}
+\caption{Perbandingan Model Kematangan DataOps}
+\label{tab:dataops_maturity_comparison} \\
+\hline
+\textbf{Model} & \textbf{Tahap atau \textit{Level}} & \textbf{Fokus Penilaian} & \textbf{Lingkup dan Jenis Sumber} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Model} & \textbf{Tahap atau \textit{Level}} & \textbf{Fokus Penilaian} & \textbf{Lingkup dan Jenis Sumber} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+Model evolusi DataOps \autocite{munappy2020adhoc} & Lima tahap: \textit{ad-hoc data analysis}, \textit{semi-automated data analysis}, \textit{agile data science}, \textit{continuous testing and monitoring}, dan DataOps & Evolusi kapabilitas \textit{data pipeline}, dari pengumpulan data manual hingga orkestrasi dan pemantauan seluruh \textit{data lifecycle} & Lintas domain, studi kasus telekomunikasi, makalah telaah sejawat \\
+\hline
+\textit{DataOps Maturity Model} \autocite{datakitchen2020maturity} & Lima \textit{level} per dimensi: \textit{struggle}, \textit{basic}, \textit{consistent}, \textit{quantitative}, dan \textit{optimized} & Asesmen organisasi pada enam dimensi: \textit{error rates}, \textit{cycle time}, \textit{collaboration}, \textit{measurement}, \textit{team culture}, dan \textit{customer happiness} & Analitik data umum, \textit{white paper} vendor \\
+\hline
+Model kematangan DataOps industrial \autocite{harrington2021highbyte} & Empat tahap: \textit{data access}, \textit{data contextualization}, \textit{site visibility}, dan \textit{enterprise visibility} & Cakupan integrasi data operasional, dari akses data mesin, kontekstualisasi dan normalisasi data, hingga visibilitas lintas situs dengan \textit{data governance} & Data industrial manufaktur, artikel vendor \\
+\hline
+\end{longtable}
+\par{\footnotesize Ketiga model menilai objek yang berbeda sehingga pemetaan skor kapabilitas lintas model seperti pada Tabel~\ref{tab:mlops_maturity_comparison} tidak diterapkan. Perbedaan fokus tiap model dibahas pada teks.}
+}

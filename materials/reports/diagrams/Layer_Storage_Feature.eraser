@@ -1,0 +1,75 @@
+// Layer_Storage_Feature — Storage and Feature Store Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Storage_Feature.png
+// Acuan: subsec:lapisan-data (Subbab IV.4.2, sec:arsitektur-terintegrasi);
+//   rincian beralat Storage and Feature Store Layer yang memperinci kelompok layanan
+//   pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-storage-feature.
+// Fokus: tiga subgrup berdampingan. Lakehouse {MinIO (+KES), lakeFS, Apache Iceberg,
+//   Lakekeeper}, Basis Data {ClickHouse, PostgreSQL (CNPG), MySQL, OpenSearch},
+//   Layanan Fitur {Feast, Valkey, Qdrant}. Iceberg--MinIO, lakeFS--MinIO,
+//   Lakekeeper--Iceberg, ClickHouse > Feast (sumber offline), Feast > Valkey
+//   (materialisasi online), Feast--MinIO (registry berkas), plus batas konsumen.
+// Rendering WAJIB horizontal (direction right): tiga subgrup ditata BERDAMPINGAN
+//   (bukan tumpukan vertikal), maksimum dua baris node per grup, agar diagram melebar
+//   dan muat pada pita height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu storage and versioning.
+// Verifikasi implementasi: semua node ada di platform/components/storage/ (minio,
+//   security/kes, lakefs, lakekeeper, clickhouse, cnpg + postgresql, mysql, qdrant,
+//   valkey), data-governance/opensearch, model-lifecycle/feast. Iceberg = format
+//   tabel primitif yang direalisasikan katalog Lakekeeper di atas MinIO.
+
+direction right
+
+// Produsen keluaran (batas)
+Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (Spark, dbt, Flink)"]
+
+// Storage and Feature Store Layer
+Storage and Feature Store Layer [icon: database, color: green, label: "Storage and Feature Store Layer (storage and versioning)"] {
+  Lakehouse [icon: layers] {
+    MinIO [icon: hard-drive, label: "MinIO (objek + KES)"]
+    lakeFS [icon: git-branch, label: "lakeFS (versi data)"]
+    Iceberg [icon: layers, label: "Apache Iceberg (format tabel)"]
+    Lakekeeper [icon: book, label: "Lakekeeper (katalog REST)"]
+  }
+  Basis Data [icon: database] {
+    ClickHouse [icon: bar-chart, label: "ClickHouse (OLAP)"]
+    PostgreSQL [icon: postgresql, label: "PostgreSQL (CNPG)"]
+    MySQL [icon: mysql, label: "MySQL"]
+    OpenSearch [icon: search, label: "OpenSearch (log + teks)"]
+  }
+  Layanan Fitur [icon: package] {
+    Feast [icon: package, label: "Feast (feature store)"]
+    Valkey [icon: zap, label: "Valkey (online store)"]
+    Qdrant [icon: target, label: "Qdrant (indeks vektor)"]
+  }
+}
+
+// Konsumen (batas)
+Model Lifecycle and Serving Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle and Serving Layer (konsumen)"]
+Governance and Observability Layer [icon: eye, color: teal, label: "Governance and Observability Layer"]
+
+// Alur penyimpanan lakehouse
+Iceberg -- MinIO: penyimpanan objek
+lakeFS -- MinIO: versi data
+Lakekeeper -- Iceberg: katalog tabel
+
+// Keluaran pemrosesan mendarat
+Processing Layer > Iceberg: tulis tabel batch
+Processing Layer > ClickHouse: model gold dan agregasi
+Processing Layer > Valkey: fitur stream
+Processing Layer > Qdrant: embedding stream
+
+// Alur fitur
+ClickHouse > Feast: sumber offline
+Feast > Valkey: materialisasi online
+Feast -- MinIO: registry berkas
+Feast > Model Lifecycle and Serving Layer: fitur pelatihan
+Valkey > Model Lifecycle and Serving Layer: online feature
+Qdrant > Model Lifecycle and Serving Layer: vector feature
+
+// Metadata dan indeks (batas)
+Model Lifecycle and Serving Layer -- PostgreSQL: metadata MLflow
+Model Lifecycle and Serving Layer -- MySQL: metadata Kubeflow Pipelines dan Katib
+Governance and Observability Layer -- OpenSearch: indeks pencarian

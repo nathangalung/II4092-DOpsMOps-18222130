@@ -75,11 +75,11 @@ Tables and figures are not rivals. A dashboard that shows a chart and the underl
 
 ### 1.7 Architecture diagrams as code
 
-All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`): `diagrams/Integrate_General_Arch.eraser` is the source of truth for `figures/Integrate_General_Arch.png` (Gambar IV.1). The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. The source groups nodes by the seven Bab IV layers plus the four user roles and the GitOps chain, and every node must name a tool that actually exists in `platform/components/`. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents. Beyond the master Gambar IV.1, four per-group detail sources (`Layer_Infra_Control`, `Layer_Data`, `Layer_Model`, `Layer_Govern_Obs`) split the same seven layers across the four §IV.4 subsections so each layer group can be read at full size; every chapter figure uses the self-healing `\IfFileExists{figures/X.png}{\includegraphics...}{placeholder box}` pattern so the build stays green until the PNG is rendered, and the placeholder auto-disappears once the figure exists.
+All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`). Every diagram must render wide (horizontal) and is included WITHOUT `\rotatebox`; content too large for one wide frame is split across several diagrams rather than rotated 90°, using the uniform `\includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{...}` pattern. The sources are organised in three narrative sections: Section 1 (kondisi saat ini, Subbab III.1.3) `Fragment_DataOps_Flow` (Gambar III.1) and `Fragment_MLOps_Flow` (Gambar III.2), services only and deliberately disconnected; Section 2 (sasaran layanan, Subbab IV.2, before the IV.3 selection) `Integrate_Service_Arch` (Gambar IV.1), the nine service groups from `tab:layanan_industri` on one Kubernetes control plane, tool-free; Section 3 (arsitektur dengan alat terpilih, Subbab IV.4) the nine `Layer_*` sources naming the concrete tools. The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. Every node in the Section 3 (`Layer_*`) diagrams must name a tool that actually exists in `platform/components/`, while the Section 1 and Section 2 diagrams are deliberately tool-free and name only generic services. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents. The nine Section 3 detail sources (`Layer_Infra_Control`, `Layer_Infra_Security`, `Layer_Data_Ingestion`, `Layer_Processing`, `Layer_Storage_Feature`, `Layer_Model_Lifecycle`, `Layer_Model_Serving`, `Layer_Governance`, `Layer_Observability`) split the seven layers across the four §IV.4 subsections, two figures each for §IV.4.1, §IV.4.3, and §IV.4.4 and three for §IV.4.2, so each layer group can be read at full size, and they keep the self-healing `\IfFileExists{figures/X.png}{\includegraphics...}{placeholder box}` pattern so the build stays green until the PNG is rendered, and the placeholder auto-disappears once the figure exists.
 
-Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). `Fragment_General_Arch` renders a marker group for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring — googlecloud2024mlops) plus the early DataOps evolution stages (data silos, manual pipeline monitoring — munappy2020adhoc). `Integrate_General_Arch` renders a mapping group for MLOps level 2 (the seven required components mapped to Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) plus the DataOps stage (CI/CD for data analytics, orchestration, continuous testing and monitoring). The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/IV.1 cite both sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
+Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). Section 1 renders the before state as two separate service flows: `Fragment_DataOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for the early DataOps evolution stages (data silos, manual pipeline monitoring, munappy2020adhoc) and `Fragment_MLOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring, googlecloud2024mlops), and the two files share no edge. Section 2 `Integrate_Service_Arch` renders a `Pemetaan Kematangan Target` mapping group for MLOps level 2 (googlecloud2024mlops) plus the DataOps stage (munappy2020adhoc), tool-free, since the mapping of the seven required components to concrete tools (Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) lives in the IV.1 prose and the four Layer_* diagrams. The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/III.2/IV.1 cite the relevant sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
 
-Layer-derivation labels (2026-07): every layer group in `Integrate_General_Arch` and the four `Layer_*` sources carries its source-category annotation in the group label, mirroring the §IV.2 derivation (Najafabadi's six categories + Kreuzberger's technical components): GitOps (kategori CI/CD), Infrastructure Layer (infrastructure and supporting services), Data Ingestion Layer (data curation: data collector), Processing Layer (data curation: data preprocessor), Storage and Feature Store Layer (storage and versioning), Model Lifecycle Layer (ML training + model registry + ML metadata), Model Serving Layer (inference), Governance and Observability Layer (monitoring + DataOps governance). The Gambar IV.1 caption cites najafabadi2024analysis for these annotations. Changing the derivation prose requires updating these labels, and vice versa; see diagrams/README.md rule 6 for the canonical list.
+Layer-derivation labels (2026-07): every layer group in the four `Layer_*` sources carries its source-category annotation in the group label, mirroring the §IV.4 derivation (Najafabadi's six categories + Kreuzberger's technical components): GitOps (kategori CI/CD), Infrastructure Layer (infrastructure and supporting services), Data Ingestion Layer (data curation: data collector), Processing Layer (data curation: data preprocessor), Storage and Feature Store Layer (storage and versioning), Model Lifecycle Layer (ML training + model registry + ML metadata), Model Serving Layer (inference), Governance and Observability Layer (monitoring + DataOps governance). The `fig:integrate-service` caption (Subbab IV.2) ties each service group back to its sources through Tabel `layanan_industri`, and these tool-level annotations live on the Layer_* labels. Changing the derivation prose requires updating these labels, and vice versa; see diagrams/README.md rule 8 for the canonical list.
 
 ## 2. Tables
 
@@ -107,7 +107,7 @@ Each architectural layer that has more than one credible open-source candidate c
 - Every scored table carries a textual **Lisensi (Yayasan)** column between the last criterion and Total: the official license plus the steward foundation in parentheses, e.g. `Apache 2.0 (CNCF)`, `MPL 2.0 (LF)`, `BUSL 1.1 (mandiri)`. `mandiri` marks vendor- or community-run projects without a neutral foundation; `komunitas` is reserved for pgvector under the PostgreSQL community. The column is informational only and never changes the Total; the §IV.3 introduction (Bab IV) says so explicitly. Verified facts to keep: Featureform = MPL 2.0; OpenMetadata = Apache 2.0 under Linux Foundation (March 2026, via Collate); DataHub, Amundsen, Feast, Feathr, Milvus, KServe = LF AI & Data; MLflow, Valkey, OpenBao = LF; SOPS = CNCF; TorchServe = PyTorch Foundation (LF).
 - Standard scored-table layout so all 24 tables render identically inside the 14 cm text width: `[!htb]`, `\footnotesize`, `\setlength{\tabcolsep}{3pt}`, columns `m{2.6cm}` (name, left-aligned, header centered via `\multicolumn`), four criteria `m{1.5cm}` centered, `m{2.3cm}` Lisensi (Yayasan), `m{0.9cm}` Total. Long criterion headers break with `\-` or `\allowbreak` instead of widening the column.
 - Highest Total = the platform primary pick for the evaluated function. A lower-scoring row may still be deployed in a complementary role (e.g. Flink for streaming beside Spark for batch); the prose around the table must say so explicitly.
-- `mlops_maturity_comparison.tex` and `architecture_comparison.tex` are non-scored (color matrix and longtable respectively) and sit outside the rubric.
+- `mlops_maturity_comparison.tex`, `dataops_maturity_comparison.tex`, and `architecture_comparison.tex` are non-scored (capability matrix, descriptive longtable, and longtable respectively) and sit outside the rubric.
 - Caption above, label `tab:<topic>_comparison`, file `tables/<topic>_comparison.tex`.
 - Placement spec is `\begin{table}[!htb]`, never `[H]`. `[H]` blocks text reflow: when the table does not fit the rest of the page it drags a large white gap with it. `[!htb]` lets body text fill the page and moves the table to the top of the next page, which is the agreed layout rule (text fills, table follows; a short last page of a section or chapter is fine). The three MLOps level figures follow the same `[!htb]` rule and sit directly after the first paragraph of the Tingkat Kematangan subsection, in level order 0, 1, 2.
 
@@ -137,6 +137,7 @@ Layers currently covered (all 24 scored tables now live in Bab IV §IV.3 `sec:pe
 - `policy_comparison.tex` — §2.10.2 (Policy engine: Kyverno vs OPA Gatekeeper vs jsPolicy vs Kubewarden)
 - `runtime_security_comparison.tex` — §2.10.2
 - `mlops_maturity_comparison.tex` — §2.1.3 (color-coded maturity matrix, non-scored, carries its own legend)
+- `dataops_maturity_comparison.tex` — §2.1.3 (descriptive comparison of three DataOps maturity models: Munappy / DataKitchen / HighByte; deliberately NOT capability-scored because the three models measure different objects — see the §2.1.3 paragraph that introduces it)
 - `architecture_comparison.tex` — §2.11 (longtable; *Aspek × Saat Ini × Diusulkan × Keuntungan × Referensi*, the only table allowed to use a different shape because it summarises across the whole architecture).
 
 When adding a new comparison table, follow the same shape and place an `\input{tables/<file>}` directive immediately after the introductory paragraph that names the alternatives.
@@ -257,7 +258,7 @@ Penjelasan tool: setiap tool pada platform/components diberi definisi dan citasi
 - III.1 Analisis Kondisi Saat Ini             : tiga sumber tekanan, diurutkan sesuai pemicu pada Bab I
   - III.1.1 Beban Konfigurasi Platform dari Nol     : configure-from-0
   - III.1.2 Biaya Berlangganan Layanan Terkelola    : cloud subscription + trade-off waktu lawan anggaran
-  - III.1.3 Efek Domino Fragmentasi Lintas Peran    : pandangan umum fragmentasi DataOps + MLOps (Gambar III.1 saja, tanpa rincian per peran)
+  - III.1.3 Efek Domino Fragmentasi Lintas Peran    : dua alur layanan terfragmentasi DataOps dan MLOps (Gambar III.1 dan III.2, sengaja tidak tersambung, tanpa rincian per peran)
 - III.2 Analisis Kebutuhan                    : identifikasi + KF + KNF (satu lawan satu sub-sistem)
 - III.3 Analisis Pemilihan Solusi             : alternatif + penentuan solusi (menutup bab)
 Catatan:
@@ -269,7 +270,7 @@ Catatan:
   - Tabel KF (kolom: ID, Kebutuhan, Deskripsi, Tujuan) dan KNF (kolom: ID, Kebutuhan, Deskripsi, Target Metrik, Tujuan) sama-sama memuat kolom Tujuan yang menautkan tiap kebutuhan ke salah satu dari empat tujuan (T-1..T-4), mengikuti pengelompokan uji penerimaan pada Bab VI; untuk KNF kolom ini menunjuk tujuan utama karena KNF bersifat lintas-bidang.
   - Urutan baris (sort subject) yang wajib dijaga: KF diurut menurut layer arsitektur (KF-01..04 layanan fitur, KF-05..10 model lifecycle dan tata kelola, KF-11..14 operasional); KNF diurut menurut taksonomi atribut kualitas (kinerja, skalabilitas, keandalan, konsistensi, observability, keamanan, ekstensibilitas, lalu atribut operasional jangka panjang). Urutan ID sengaja tidak mengikuti Tujuan karena keterunutan ke T sudah ditampung kolom Tujuan secara terpisah.
   - ID KF-NN/KNF-NN terkunci satu lawan satu pada SK-F-NN/SK-N-NN di Bab VI dan dirujuk lintas bab; nomor tidak boleh diubah, perubahan urutan dilakukan lewat narasi pengelompokan bukan penomoran ulang.
-  - Fragmentasi cukup ditampilkan sebagai pandangan umum pada Gambar III.1; rincian per peran tidak ditulis karena tesis bersifat layer-centric (lihat TEMPLATE_BAB.md §5). Lampiran C dan keempat diagram fragmentasi per peran sudah dihapus.
+  - Fragmentasi ditampilkan sebagai dua alur layanan terfragmentasi yang sengaja tidak tersambung pada Gambar III.1 (DataOps) dan Gambar III.2 (MLOps); rincian per peran tidak ditulis karena tesis bersifat layer-centric (lihat TEMPLATE_BAB.md §5). Lampiran C dan keempat diagram fragmentasi per peran sudah dihapus.
 ```
 
 **Bab IV — Perancangan Arsitektur Platform DataOps dan MLOps**
@@ -496,8 +497,19 @@ Round 9 (user directive 2026-07-10, structural reflow):
   googlecloud2024mlops) and `tables/dataops_stage_legend.tex` (five Munappy
   evolution stages + per-stage requirements, verbatim from munappy2020adhoc
   §4.3), each introduced by a 4-sentence paragraph inside the maturity
-  subsection. DataOps source verdict: no citable leveled model beats Munappy
-  (DataKitchen, HighByte, Gartner rejected as vendor or non-leveled sources).
+  subsection. DataOps source verdict (revised 2026-07 after user supplied the
+  whitepaper): Munappy stays the anchor (peer-reviewed, pipeline-capability
+  focus); DataKitchen (datakitchen2020maturity, five levels struggle..optimized
+  across six org dimensions) and HighByte (harrington2021highbyte, four
+  industrial stages) are cited as vendor context in
+  `tables/dataops_maturity_comparison.tex` — descriptive only, no cross-model
+  capability scores, because the three models measure different objects.
+  Munappy Fig. 2 and Fig. 3 are reproduced as `figures/DataOps_Maturity.png`
+  (fig:dataops-maturity, §2.1.3) and
+  `figures/Big_Data_Analytics_Pipeline_Ericson.png` (fig:pipeline-ericsson,
+  §2.1.1) with \autocite{munappy2020adhoc} in the captions.
+  salama2021practitioners (GCP Practitioners Guide, May 2021) corroborates the
+  IV.2.1 service evidence with its core-MLOps-capability list.
 - Daftar Singkatan first-use repoints: AGPL, ASF, BSD, BSL, BUSL, ESO, LF,
   MPL, OLAP moved Bab III → Bab IV (they live in the moved tables); HPA, VPA,
   KEDA moved Bab I → Bab II (stale since the BP/BI split relocated batasan
@@ -507,6 +519,21 @@ Round 9 (user directive 2026-07-10, structural reflow):
   old "short sections stay flat" exemption no longer applies to Bab II, and
   subsection naming is unified to straight-to-topic titles (no bare "Konsep X"
   headings). The final Bab II outline lives in the §3 outline block.
+- Diagram set reorganised into three narrative sections, all rendered wide
+  (horizontal) and included WITHOUT `\rotatebox` (large content split across
+  diagrams, not rotated). Section 1 (kondisi saat ini) splits the retired
+  `fig:fragment-general`/`Fragment_General_Arch` into two service-only,
+  deliberately disconnected flows `fig:fragment-dataops`/`Fragment_DataOps_Flow`
+  (Gambar III.1) and `fig:fragment-mlops`/`Fragment_MLOps_Flow` (Gambar III.2).
+  Section 2 adds a new tool-free service architecture
+  `fig:integrate-service`/`Integrate_Service_Arch` (Gambar IV.1, Subbab IV.2,
+  nine groups from `tab:layanan_industri`) placed before the IV.3 selection.
+  Section 3 keeps the four `Layer_*` sources (Subbab IV.4, tooled,
+  source-category annotations) but un-rotated. The old overview
+  `fig:integrate-general`/`Integrate_General_Arch` is retired (its `.eraser`
+  deleted, PNG left on disk), as is `Fragment_General_Arch`. Seven PNGs
+  re-export; the three new PNG filenames temporarily hold placeholder copies of
+  the old exports.
 
 Round 8 (user override 2026-07, final English-term scheme):
 - ORDER RULE: multiword English technical NPs are written in proper English
@@ -519,8 +546,10 @@ Round 8 (user override 2026-07, final English-term scheme):
 - lapis/lapisan (architecture, stratum, medallion, defense senses) ->
   `\textit{layer}`; named layers use the canonical set below; medallion ->
   "\textit{bronze layer}" / "\textit{silver layer}" / "\textit{gold layer}";
-  LaTeX labels (subsec:lapisan-*) stay unchanged; the Abstrak triad became
-  "tiga pilar: metrik, log, dan \textit{trace}".
+  LaTeX labels (subsec:lapisan-*) stay unchanged; the Abstrak triad now reads
+  "melengkapi observabilitas metrik, log, dan \textit{trace}" (the "tiga
+  pilar:" lead was dropped in the 2026-07 abstract compression for one-page
+  fit).
 - ingestasi -> `\textit{ingestion}` / `\textit{data ingestion}`; bidang
   kendali -> `\textit{control plane}` (KEEP bidang orkestrasi, bidang
   serverless, bidang identitas, bidang data, and jalur kendali).

@@ -1,0 +1,68 @@
+// Layer_Model_Lifecycle — Model Lifecycle Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Model_Lifecycle.png
+// Acuan: subsec:lapisan-model (Subbab IV.4.3, sec:arsitektur-terintegrasi);
+//   rincian beralat Model Lifecycle Layer yang memperinci kelompok layanan pada
+//   Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-lifecycle.
+// Fokus: Feast (fitur training) > Kubeflow Pipelines (orkestrasi training, metadata
+//   MySQL) + Katib (tuning); MLflow (tracking + model registry, backend PostgreSQL,
+//   artefak MinIO); pemicu drift (Evidently > Prometheus, ambang terlampaui memicu
+//   Argo CronWorkflow > retrain Kubeflow Pipelines).
+// Rendering WAJIB horizontal (direction right): rantai kiri ke kanan, maksimum dua
+//   baris node per grup, agar diagram melebar dan muat pada pita
+//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu ML training ditambah model registry dan ML metadata.
+// Verifikasi implementasi: node ada di platform/components/model-lifecycle/
+//   (feast, kubeflow-pipelines, kubeflow-katib, kubeflow-notebooks, kubeflow-trainer,
+//   mlflow), observability/evidently, observability/kube-prometheus-stack. Argo
+//   Workflows/CronWorkflow adalah mesin eksekusi bawaan Kubeflow Pipelines (tanpa
+//   direktori komponen mandiri).
+
+direction right
+
+// Sumber fitur (batas)
+Layanan Fitur [icon: package, color: green, label: "Layanan Fitur (Feast, Valkey, Qdrant)"]
+
+// Model Lifecycle Layer
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (ML training + model registry + ML metadata)"] {
+  Kubeflow Notebooks [icon: book-open, label: "Kubeflow Notebooks"]
+  Kubeflow Pipelines [icon: workflow, label: "Kubeflow Pipelines (orkestrasi training)"]
+  Katib [icon: sliders, label: "Katib (HPO)"]
+  Kubeflow Trainer [icon: cpu, label: "Kubeflow Trainer"]
+  MLflow [icon: package, label: "MLflow (tracking + registry)"]
+  Argo Workflows [icon: workflow, label: "Argo Workflows (CronWorkflow)"]
+}
+
+// Basis metadata dan artefak (batas)
+MySQL [icon: mysql, color: green, label: "MySQL (metadata KFP + Katib)"]
+PostgreSQL [icon: postgresql, color: green, label: "PostgreSQL (backend MLflow)"]
+MinIO [icon: hard-drive, color: green, label: "MinIO (artefak MLflow)"]
+
+// Pemicu drift dan konsumen (batas)
+Evidently [icon: activity, color: teal, label: "Evidently (deteksi drift)"]
+Prometheus [icon: prometheus, color: teal, label: "Prometheus (ambang drift)"]
+Model Serving Layer [icon: send, color: red, label: "Model Serving Layer (inference)"]
+
+// Alur eksperimen dan training
+Layanan Fitur > Kubeflow Pipelines: fitur pelatihan
+Kubeflow Notebooks > Kubeflow Pipelines: eksperimen ke pipeline
+Kubeflow Pipelines <> Katib: HPO
+Kubeflow Pipelines > Kubeflow Trainer: training job
+Kubeflow Pipelines > MLflow: log run + registrasi model
+
+// Metadata dan artefak
+Kubeflow Pipelines -- MySQL: metadata pipeline
+Katib -- MySQL: metadata tuning
+MLflow -- PostgreSQL: backend metadata
+MLflow -- MinIO: artefak model
+
+// Registri ke serving
+MLflow > Model Serving Layer: model dari registry
+
+// Alur retraining otomatis berbasis drift
+Model Serving Layer > Evidently: distribusi prediksi
+Evidently > Prometheus: metrik drift
+Prometheus > Argo Workflows: ambang drift terlampaui
+Argo Workflows > Kubeflow Pipelines: retrain otomatis

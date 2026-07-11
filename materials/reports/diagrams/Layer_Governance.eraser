@@ -1,0 +1,67 @@
+// Layer_Governance — bagian tata kelola data dari Governance and Observability Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Governance.png
+// Acuan: subsec:lapisan-tata-kelola (Subbab IV.4.4, sec:arsitektur-terintegrasi);
+//   rincian beralat bagian tata kelola data Governance and Observability Layer yang
+//   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
+//   Disertakan pada LaTeX sebagai fig:layer-governance.
+// Fokus: DataHub (katalog + lineage GMS) menerima peristiwa OpenLineage dari Airflow
+//   dan Spark serta ingest dari ClickHouse, PostgreSQL, MinIO, Kafka, Feast, dan dbt;
+//   Great Expectations sebagai gerbang kualitas di dalam pipeline yang mengalirkan
+//   status ke katalog; batas menuju Observability.
+// Rendering WAJIB horizontal (direction right): sumber metadata sebagai kolom kiri,
+//   DataHub di tengah, maksimum dua baris node per grup, agar diagram melebar dan
+//   muat pada pita height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa anotasi sumbernya, yaitu bagian tata kelola data
+//   dari kategori monitoring najafabadi2024analysis yang dituntut integrasi DataOps
+//   (munappy2020adhoc).
+// Verifikasi implementasi: DataHub = data-governance/datahub + datahub-ingestion,
+//   Great Expectations = data-processing/great-expectations, OpenSearch =
+//   data-governance/opensearch. OpenLineage = protokol peristiwa lineage yang
+//   dipancarkan Airflow dan Spark (bukan direktori komponen mandiri, dicite openlineage2025).
+
+direction right
+
+// Sumber pipeline pemancar lineage (batas)
+Airflow [icon: clock, color: yellow, label: "Apache Airflow (pipeline data)"]
+Spark [icon: sun, color: yellow, label: "Apache Spark (batch)"]
+
+// Sumber metadata ingest (batas)
+Sumber Metadata [icon: database, color: green, label: "Sumber Metadata Platform"] {
+  ClickHouse [icon: bar-chart, label: "ClickHouse"]
+  PostgreSQL [icon: postgresql, label: "PostgreSQL"]
+  MinIO [icon: hard-drive, label: "MinIO + Iceberg"]
+  Kafka [icon: kafka, label: "Kafka"]
+  Feast [icon: package, label: "Feast"]
+  dbt [icon: code, label: "dbt"]
+}
+
+// Bagian tata kelola data
+Tata Kelola Data [icon: book, color: teal, label: "Tata Kelola Data (Governance and Observability Layer, DataOps governance)"] {
+  DataHub [icon: book-open, label: "DataHub (katalog + lineage GMS)"]
+  OpenLineage [icon: git-merge, label: "OpenLineage (peristiwa lineage)"]
+  Great Expectations [icon: check-square, label: "Great Expectations (gerbang kualitas)"]
+}
+
+// Indeks dan batas hilir
+OpenSearch [icon: search, color: green, label: "OpenSearch (indeks katalog)"]
+Observability Layer [icon: monitor, color: teal, label: "Observability Layer"]
+
+// Alur lineage
+Airflow > OpenLineage: peristiwa lineage
+Spark > OpenLineage: peristiwa lineage
+OpenLineage > DataHub: graf lineage
+
+// Alur ingest metadata
+ClickHouse > DataHub: ingest tabel
+PostgreSQL > DataHub: ingest skema
+MinIO > DataHub: ingest dataset
+Kafka > DataHub: ingest topik
+Feast > DataHub: ingest definisi fitur
+dbt > DataHub: ingest model transform
+
+// Alur kualitas dan indeks
+Airflow > Great Expectations: gerbang kualitas dalam pipeline
+Great Expectations > DataHub: status validasi
+DataHub -- OpenSearch: indeks pencarian
+DataHub > Observability Layer: sinyal tata kelola

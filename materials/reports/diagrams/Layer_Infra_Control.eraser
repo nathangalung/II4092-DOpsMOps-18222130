@@ -1,83 +1,65 @@
-// Layer_Infra_Control — Infrastructure Layer dan Control Plane
+// Layer_Infra_Control — Infrastructure Layer (control plane, autoscaling, GitOps)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
 // Ekspor PNG ke materials/reports/figures/Layer_Infra_Control.png
-// Acuan: Subbab IV.2.1 (subsec:lapisan-infra); rincian Layer 1 dari Gambar IV.1.
-// Fokus: orkestrasi Kubernetes, mesh dan keamanan, operasional, serta
-// control plane GitOps sebagai satu-satunya jalur perubahan.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis)
-// yaitu infrastructure and supporting services + CI/CD; penataan ulang
-// dinyatakan pada prosa IV.2.
+// Acuan: subsec:lapisan-infra (Subbab IV.4.1, sec:arsitektur-terintegrasi);
+//   rincian beralat bagian control plane Infrastructure Layer yang memperinci
+//   kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-infra-control.
+// Fokus: bidang orkestrasi k3s/Kubernetes, penskalaan otomatis (HPA, VPA, KEDA,
+//   Kueue), cert-manager, serta rantai GitOps (Gitea > Tekton > image registry >
+//   Argo CD merekonsiliasi seluruh Application platform, Argo Rollouts sebagai
+//   operator pengiriman bertahap). Bagian keamanan dipisah ke Layer_Infra_Security.
+// Rendering WAJIB horizontal (direction right): grup disusun sebagai rantai kiri ke
+//   kanan, maksimum dua baris node per grup, agar diagram melebar dan muat pada pita
+//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu infrastructure and supporting services ditambah kategori CI/CD pada rantai
+//   GitOps. Penataan ulang dinyatakan pada prosa IV.4.
+// Verifikasi implementasi: setiap node ada di platform/components/ (gitops/gitea,
+//   gitops/tekton, common/registry, gitops/argo-cd, gitops/argo-rollouts,
+//   common/keda, common/kueue, observability/vertical-pod-autoscaler,
+//   common/metrics-server, common/cert-manager) atau primitif k3s/Kubernetes (HPA).
 
 direction right
 
-// Aktor
-Pengguna [icon: users, color: gray] {
-  Business User [icon: user]
-  Data Engineer [icon: user]
-  Data Scientist [icon: user]
-  ML Engineer [icon: user]
-}
+// Aktor pengubah (batas)
+Tim Platform [icon: users, color: gray, label: "Tim Platform (pengubah konfigurasi)"]
 
-// Control Plane — GitOps
+// Control Plane — rantai GitOps (kategori CI/CD)
 GitOps [icon: git-branch, color: blue, label: "GitOps (kategori CI/CD)"] {
   Gitea [icon: git-merge, label: "Gitea (Git internal)"]
-  Tekton [icon: settings, label: "Tekton (CI)"]
+  Tekton [icon: settings, label: "Tekton (CI + build)"]
+  Registry [icon: package, label: "Image Registry"]
   Argo CD [icon: refresh-cw, label: "Argo CD (GitOps CD)"]
+  Argo Rollouts [icon: trending-up, label: "Argo Rollouts (pengiriman bertahap)"]
 }
 
-// Infrastructure Layer
+// Infrastructure Layer — orkestrasi, penskalaan, sertifikat
 Infrastructure Layer [icon: kubernetes, color: blue, label: "Infrastructure Layer (infrastructure and supporting services)"] {
-  Kubernetes [icon: kubernetes, label: "Kubernetes (k3s)"]
-  Istio [icon: network, label: "Istio (mesh + mTLS)"]
-  APISIX [icon: globe, label: "APISIX (API gateway)"]
-  Keamanan [icon: shield] {
-    Dex [icon: key, label: "Dex (OIDC SSO)"]
-    oauth2-proxy [icon: lock, label: "oauth2-proxy"]
-    SpiceDB [icon: shield, label: "SpiceDB (otorisasi)"]
-    OpenBao [icon: lock, label: "OpenBao (rahasia)"]
-    ESO [icon: refresh-cw, label: "External Secrets Operator"]
-    Kyverno [icon: check-circle, label: "Kyverno (policy)"]
-    Falco [icon: eye, label: "Falco (runtime security)"]
-    Trivy Operator [icon: search, label: "Trivy Operator (pemindaian)"]
-  }
-  Operasional [icon: settings] {
-    cert-manager [icon: award, label: "cert-manager (TLS)"]
-    Velero [icon: archive, label: "Velero (cadangan)"]
-    Chaos Mesh [icon: zap, label: "Chaos Mesh (uji ketahanan)"]
-    Autoscaler [icon: trending-up, label: "HPA + VPA + KEDA"]
-    Kueue [icon: list, label: "Kueue (antrean job)"]
-  }
+  Kubernetes [icon: kubernetes, label: "Kubernetes (k3s control plane)"]
+  metrics-server [icon: activity, label: "metrics-server"]
+  Autoscaler [icon: trending-up, label: "HPA + VPA + KEDA"]
+  Kueue [icon: list, label: "Kueue (antrean job)"]
+  cert-manager [icon: award, label: "cert-manager (TLS)"]
 }
 
-// Beban kerja yang dikelola (batas)
-Workload Layer [icon: layers, color: gray, label: "Workload Layer (data, model, governance)"]
-
-// Alur akses pengguna dan identitas
-Business User > APISIX
-Data Engineer > APISIX
-Data Scientist > APISIX
-ML Engineer > APISIX
-APISIX > Dex: OIDC SSO tunggal
-Dex > SpiceDB: otorisasi relasi
-Istio > oauth2-proxy: ext_authz
-oauth2-proxy > Dex: OIDC
-cert-manager > APISIX: sertifikat TLS
+// Beban kerja yang direkonsiliasi (batas)
+Platform Applications [icon: layers, color: gray, label: "Platform Applications (data, model, governance, observability)"]
 
 // Alur GitOps
-Data Engineer > Gitea: commit konfigurasi
+Tim Platform > Gitea: commit manifes
 Gitea > Tekton: webhook CI
-Tekton > Gitea: image + manifest baru
-Gitea > Argo CD: pull manifest
+Tekton > Registry: build dan push image
+Tekton > Gitea: commit tag manifes
+Gitea > Argo CD: sumber manifes
 Argo CD > Kubernetes: sinkronisasi deklaratif
-Argo CD > Workload Layer: terapkan manifest
-OpenBao > ESO: distribusi rahasia
-ESO > Workload Layer: rahasia tersinkron
+Argo CD > Platform Applications: rekonsiliasi Application
+Argo Rollouts > Platform Applications: pengiriman bertahap
+Registry > Kubernetes: image pull
 
-// Kebijakan, keamanan, dan keandalan lintas-layer
-Kyverno > Kubernetes: kebijakan admisi
-Falco -- Kubernetes: keamanan runtime
-Trivy Operator -- Kubernetes: pemindaian kerentanan
-Chaos Mesh > Kubernetes: injeksi gangguan
-Velero > Workload Layer: cadangan terjadwal
-Autoscaler > Workload Layer: skala replica
-Kueue > Workload Layer: admisi kuota job
+// Alur orkestrasi dan penskalaan
+Kubernetes -- Platform Applications: menjalankan beban kerja
+metrics-server > Autoscaler: sinyal metrik
+Autoscaler > Platform Applications: skala replica
+Kueue > Platform Applications: admisi kuota job
+cert-manager > Platform Applications: sertifikat TLS

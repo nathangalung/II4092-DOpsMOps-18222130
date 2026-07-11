@@ -1,0 +1,78 @@
+// Layer_Infra_Security — bagian keamanan dari Infrastructure Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Infra_Security.png
+// Acuan: subsec:lapisan-infra (Subbab IV.4.1, sec:arsitektur-terintegrasi);
+//   rincian beralat bagian keamanan Infrastructure Layer yang memperinci kelompok
+//   layanan pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-infra-security.
+// Fokus: identitas (Dex OIDC, oauth2-proxy, SpiceDB), rahasia (OpenBao + External
+//   Secrets Operator), perbatasan (APISIX gateway) dan mesh mTLS (Istio), kebijakan
+//   dan deteksi (Kyverno admisi, Falco runtime, Trivy Operator pemindaian, Chaos
+//   Mesh uji ketahanan), serta pemulihan (Velero cadangan ke MinIO).
+// Rendering WAJIB horizontal (direction right): subgrup ditata berdampingan, maksimum
+//   dua baris node per grup, agar diagram melebar dan muat pada pita
+//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu bagian keamanan dari infrastructure and supporting services.
+// Verifikasi implementasi: semua node ada di platform/components/ (common/auth =
+//   Dex + oauth2-proxy, storage/spicedb, security/openbao, security/external-secrets,
+//   common/istio, security/apisix, security/kyverno, security/falco,
+//   security/trivy-operator, security/chaos-mesh, security/velero). Chaos Mesh
+//   ditambahkan dari grup komponen security (sebelumnya pada operasional Infra_Control).
+
+direction right
+
+// Pengguna (batas)
+Pengguna [icon: users, color: gray, label: "Pengguna (business, data, model)"]
+
+// Bagian keamanan dari Infrastructure Layer
+Infrastructure Layer [icon: shield, color: red, label: "Infrastructure Layer (bagian keamanan, infrastructure and supporting services)"] {
+  Perbatasan dan Mesh [icon: network] {
+    APISIX [icon: globe, label: "APISIX (API gateway tepi)"]
+    Istio [icon: network, label: "Istio (mesh mTLS)"]
+  }
+  Identitas dan Otorisasi [icon: key] {
+    Dex [icon: key, label: "Dex (OIDC SSO)"]
+    oauth2-proxy [icon: lock, label: "oauth2-proxy (SSO konsol)"]
+    SpiceDB [icon: shield, label: "SpiceDB (otorisasi relasi)"]
+  }
+  Rahasia [icon: lock] {
+    OpenBao [icon: lock, label: "OpenBao (brankas rahasia)"]
+    ESO [icon: refresh-cw, label: "External Secrets Operator"]
+  }
+  Kebijakan dan Deteksi [icon: check-circle] {
+    Kyverno [icon: check-circle, label: "Kyverno (policy admisi)"]
+    Falco [icon: eye, label: "Falco (deteksi runtime)"]
+    Trivy Operator [icon: search, label: "Trivy Operator (pemindaian)"]
+    Chaos Mesh [icon: zap, label: "Chaos Mesh (uji ketahanan)"]
+  }
+  Pemulihan [icon: archive] {
+    Velero [icon: archive, label: "Velero (cadangan)"]
+  }
+}
+
+// Batas keamanan lintas layer
+Kubernetes [icon: kubernetes, color: gray, label: "Kubernetes (k3s)"]
+Beban Kerja Platform [icon: layers, color: gray, label: "Beban Kerja Platform"]
+MinIO [icon: hard-drive, color: green, label: "MinIO (target cadangan)"]
+
+// Alur identitas dan otorisasi
+Pengguna > APISIX: akses tepi
+APISIX > Istio: masuk ke mesh
+APISIX > Dex: OIDC SSO tunggal
+Istio > oauth2-proxy: ext_authz
+oauth2-proxy > Dex: OIDC
+Dex > SpiceDB: otorisasi relasi
+Istio -- Beban Kerja Platform: mTLS antar layanan
+
+// Alur rahasia
+OpenBao > ESO: distribusi rahasia
+ESO > Beban Kerja Platform: rahasia tersinkron
+
+// Alur kebijakan, deteksi, dan pemulihan
+Kyverno > Kubernetes: kebijakan admisi
+Falco -- Kubernetes: deteksi runtime
+Trivy Operator -- Kubernetes: pemindaian kerentanan
+Chaos Mesh > Kubernetes: injeksi gangguan
+Velero -- Beban Kerja Platform: cadangan sumber daya
+Velero > MinIO: cadangan ke objek

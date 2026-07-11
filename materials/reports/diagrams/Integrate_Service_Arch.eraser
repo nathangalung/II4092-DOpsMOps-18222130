@@ -1,0 +1,127 @@
+// Integrate_Service_Arch — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Alat)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Integrate_Service_Arch.png
+// Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.2
+//   (sec:layanan-industri) setelah klasifikasi sembilan kelompok layanan dan
+//   sebelum pemilihan alat pada Subbab IV.3 (sec:pemilihan-tools).
+// Diagram ini menampilkan LAYANAN saja: sembilan kelompok layanan sebagai kotak
+//   grup dengan komponen mayoritasnya sebagai node dalam, TANPA menamai alat
+//   atau komponen platform/components/ mana pun (aturan bebas-tool), agar
+//   sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
+// Rendering WAJIB horizontal (direction right), dua band mendatar. Disertakan
+//   tanpa \rotatebox pada LaTeX.
+// Sumber komponen tiap kelompok: Tabel layanan_industri (tab:layanan_industri),
+//   nama komponen verbatim dari baris tabel tersebut.
+// Landasan kematangan (Subbab II.1.3, subsec:maturity):
+// - MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc).
+// Grup "Pemetaan Kematangan Target" merender penanda tersebut pada PNG.
+
+direction right
+
+Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+
+// Band atas: kelompok layanan bidang data
+Kelompok Layanan Bidang Data [icon: database, color: blue] {
+  Data Ingestion and Processing Layer [icon: download, color: orange] {
+    data collection
+    data cleaning
+    data preprocessor
+    data ingestion
+  }
+  Data Storage Layer [icon: database, color: green] {
+    dataset repository
+    data storage
+    data versioning
+  }
+  Feature Service Layer [icon: package, color: green] {
+    offline feature store
+    online feature store
+  }
+  Data Governance Layer [icon: book, color: teal] {
+    data quality
+    data testing
+    data governance
+  }
+}
+
+// Band bawah: kelompok layanan bidang model dan operasional
+Kelompok Layanan Bidang Model dan Operasional [icon: layers, color: purple] {
+  Orchestration and Infrastructure Layer [icon: kubernetes, color: blue] {
+    workflow orchestration
+    ML pipeline orchestrator
+    model training infrastructure
+    infrastructure and supporting services
+  }
+  Model Lifecycle Layer [icon: refresh-cw, color: purple] {
+    feature engineering
+    model training
+    model evaluation
+    model registry
+    ML metadata store
+    model serving component
+    inference service
+  }
+  Observability Layer [icon: eye, color: teal] {
+    monitoring component
+    model monitoring
+    data monitoring
+  }
+  GitOps and Continuous Delivery Layer [icon: git-branch, color: blue] {
+    CICD component [label: "CI/CD component"]
+    source code repository
+    model deployment
+    deployment services
+  }
+  Platform Security Layer [icon: shield, color: red] {
+    controlled access
+    privacy and security compliance
+    API gateway
+  }
+}
+
+// Bidang kendali tunggal (bar tipis di bawah kedua band)
+Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (satu control plane untuk seluruh kelompok)"]
+
+// Penanda kematangan sasaran, ringkas di ujung kanan
+Pemetaan Kematangan Target [icon: check-circle, color: gray] {
+  Penanda Target L2 [icon: check-circle, label: "MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc)"]
+}
+
+// Alur maju sederhana antar kelompok layanan
+Sumber Data Eksternal > Data Ingestion and Processing Layer: masuknya data eksternal
+Data Ingestion and Processing Layer > Data Storage Layer: data terkelola
+Data Storage Layer > Feature Service Layer: sumber fitur
+Feature Service Layer > Model Lifecycle Layer: fitur pelatihan dan inferensi
+Model Lifecycle Layer > Observability Layer: sinyal pemantauan model
+Observability Layer > Model Lifecycle Layer: umpan balik retraining otomatis
+
+// Satu control plane menaungi kedua band (edge asosiasi)
+Kubernetes Control Plane -- Kelompok Layanan Bidang Data: satu control plane
+Kubernetes Control Plane -- Kelompok Layanan Bidang Model dan Operasional: satu control plane
+
+// Konektivitas intra-kelompok: tiap komponen anggota memiliki minimal satu edge
+// (aturan konektivitas), berupa rantai fungsi di dalam kelompok layanannya.
+data collection > data ingestion
+data ingestion > data cleaning
+data cleaning > data preprocessor
+dataset repository -- data storage
+data storage -- data versioning
+offline feature store > online feature store
+data quality -- data testing
+data testing -- data governance
+infrastructure and supporting services -- workflow orchestration
+workflow orchestration -- ML pipeline orchestrator
+ML pipeline orchestrator -- model training infrastructure
+feature engineering > model training
+model training > model evaluation
+model evaluation > model registry
+model registry > model serving component
+model serving component > inference service
+ML metadata store -- model registry
+monitoring component -- model monitoring
+monitoring component -- data monitoring
+source code repository > CICD component
+CICD component > model deployment
+model deployment > deployment services
+controlled access -- privacy and security compliance
+privacy and security compliance -- API gateway

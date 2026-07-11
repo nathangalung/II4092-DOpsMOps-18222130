@@ -1,0 +1,41 @@
+// Layer_Data_Ingestion — Data Ingestion Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Data_Ingestion.png
+// Acuan: subsec:lapisan-data (Subbab IV.4.2, sec:arsitektur-terintegrasi);
+//   rincian beralat Data Ingestion Layer yang memperinci kelompok layanan pada
+//   Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-ingestion.
+// Fokus: sumber data eksternal masuk melalui Kafka Connect (dengan konektor
+//   Debezium untuk change data capture) ke Apache Kafka (operator Strimzi) yang
+//   skemanya divalidasi Karapace, dengan Kafbat UI sebagai pemantau topik.
+// Rendering WAJIB horizontal (direction right): satu rantai kiri ke kanan, maksimum
+//   dua baris node per grup, agar diagram melebar dan muat pada pita
+//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu data curation bagian data collector.
+// Verifikasi implementasi: semua node ada di platform/components/data-ingestion/
+//   (kafka-connect dengan Debezium-PostgreSQL CDC pada Dockerfile, kafka +
+//   kafka-operator = Strimzi, karapace, kafka-ui = Kafbat UI).
+
+direction right
+
+// Sumber (batas)
+Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+
+// Data Ingestion Layer
+Data Ingestion Layer [icon: download, color: orange, label: "Data Ingestion Layer (data curation: data collector)"] {
+  Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
+  Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
+  Karapace [icon: file-text, label: "Karapace (validasi skema)"]
+  Kafbat UI [icon: monitor, label: "Kafbat UI (pemantauan)"]
+}
+
+// Konsumen hilir (batas)
+Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (batch dan stream)"]
+
+// Alur ingestion kiri ke kanan
+Sumber Data Eksternal > Kafka Connect: REST + CDC Debezium
+Kafka Connect > Kafka: publikasi ke topik
+Kafka <> Karapace: validasi skema
+Kafbat UI -- Kafka: pemantauan topik dan konsumen
+Kafka > Processing Layer: aliran terkurasi

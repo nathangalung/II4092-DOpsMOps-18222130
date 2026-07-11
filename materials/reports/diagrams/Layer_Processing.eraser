@@ -1,0 +1,49 @@
+// Layer_Processing — Processing Layer
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture)
+// Ekspor PNG ke materials/reports/figures/Layer_Processing.png
+// Acuan: subsec:lapisan-data (Subbab IV.4.2, sec:arsitektur-terintegrasi);
+//   rincian beralat Processing Layer yang memperinci kelompok layanan pada Gambar
+//   fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-processing.
+// Fokus: dua jalur pemrosesan. Jalur stream Kafka > Apache Flink; jalur batch
+//   dijadwalkan Apache Airflow yang menjalankan Apache Spark dan dbt, dengan Spark
+//   menulis tabel Iceberg dan dbt menulis model gold ClickHouse; Trino melakukan
+//   kueri federatif atas Iceberg. Node batas menandai tempat keluaran mendarat.
+// Rendering WAJIB horizontal (direction right): rantai kiri ke kanan, maksimum dua
+//   baris node per grup, agar diagram melebar dan muat pada pita
+//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu data curation bagian data preprocessor.
+// Verifikasi implementasi: semua node ada di platform/components/data-processing/
+//   (flink, airflow, spark, trino) dan data-processing/airflow menjalankan tugas
+//   dbt_run atas subtree dbt/ (dbt tertanam pada Airflow, bukan komponen mandiri).
+
+direction right
+
+// Sumber stream (batas)
+Kafka [icon: kafka, color: orange, label: "Apache Kafka (aliran masuk)"]
+
+// Processing Layer
+Processing Layer [icon: cpu, color: yellow, label: "Processing Layer (data curation: data preprocessor)"] {
+  Airflow [icon: clock, label: "Apache Airflow (orkestrasi batch)"]
+  Spark [icon: sun, label: "Apache Spark (batch)"]
+  dbt [icon: code, label: "dbt (transformasi SQL, tugas Airflow)"]
+  Flink [icon: zap, label: "Apache Flink (stream)"]
+  Trino [icon: search, label: "Trino (kueri federatif)"]
+}
+
+// Tempat keluaran mendarat (batas)
+Storage and Feature Store Layer [icon: database, color: green, label: "Storage and Feature Store Layer (Iceberg, ClickHouse, Valkey, Qdrant)"]
+
+// Jalur stream
+Kafka > Flink: jalur stream
+Flink > Storage and Feature Store Layer: agregasi dan fitur stream
+
+// Jalur batch dijadwalkan Airflow
+Airflow > Spark: penjadwalan batch
+Airflow > dbt: transformasi terjadwal
+Spark > Storage and Feature Store Layer: tulis tabel Iceberg
+dbt > Storage and Feature Store Layer: model gold ClickHouse
+
+// Kueri federatif
+Trino -- Storage and Feature Store Layer: kueri federatif Iceberg

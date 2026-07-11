@@ -1582,6 +1582,37 @@
       \verb https://datahubproject.io/docs/
       \endverb
     \endentry
+    \entry{datakitchen2020maturity}{report}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=d30228913c5ffc4d472a9f483fcbd542}{%
+           family={{DataKitchen}},
+           familyi={D\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {DataKitchen}%
+      }
+      \strng{namehash}{d30228913c5ffc4d472a9f483fcbd542}
+      \strng{fullhash}{d30228913c5ffc4d472a9f483fcbd542}
+      \strng{bibnamehash}{d30228913c5ffc4d472a9f483fcbd542}
+      \strng{authorbibnamehash}{d30228913c5ffc4d472a9f483fcbd542}
+      \strng{authornamehash}{d30228913c5ffc4d472a9f483fcbd542}
+      \strng{authorfullhash}{d30228913c5ffc4d472a9f483fcbd542}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Diakses 10 Juli 2026}
+      \field{title}{Launch Your DataOps Journey with the DataOps Maturity Model}
+      \field{year}{2020}
+      \verb{urlraw}
+      \verb https://tdwi.org/whitepapers/2020/11/diq-all-datakitchen-dataops-maturity-model.aspx
+      \endverb
+      \verb{url}
+      \verb https://tdwi.org/whitepapers/2020/11/diq-all-datakitchen-dataops-maturity-model.aspx
+      \endverb
+    \endentry
     \entry{dbt2025}{misc}{}
       \name{author}{1}{}{%
         {{un=0,uniquepart=base,hash=22ff9be0746331cd14a49b056da5518b}{%
@@ -2385,6 +2416,38 @@
       \endverb
       \verb{url}
       \verb https://doi.org/10.1007/978-3-031-53227-6_32
+      \endverb
+    \endentry
+    \entry{harrington2021highbyte}{misc}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=3d15869a84c4f92960591f576a1f5deb}{%
+           family={Harrington},
+           familyi={H\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{3d15869a84c4f92960591f576a1f5deb}
+      \strng{fullhash}{3d15869a84c4f92960591f576a1f5deb}
+      \strng{bibnamehash}{3d15869a84c4f92960591f576a1f5deb}
+      \strng{authorbibnamehash}{3d15869a84c4f92960591f576a1f5deb}
+      \strng{authornamehash}{3d15869a84c4f92960591f576a1f5deb}
+      \strng{authorfullhash}{3d15869a84c4f92960591f576a1f5deb}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{howpublished}{HighByte Blog}
+      \field{note}{Diakses 10 Juli 2026}
+      \field{title}{DataOps for Manufacturing: A 4-Stage Maturity Model}
+      \field{year}{2021}
+      \verb{urlraw}
+      \verb https://www.highbyte.com/blog/dataops-for-manufacturing-a-4-stage-maturity-model
+      \endverb
+      \verb{url}
+      \verb https://www.highbyte.com/blog/dataops-for-manufacturing-a-4-stage-maturity-model
       \endverb
     \endentry
     \entry{hetzner2026}{misc}{}
@@ -5218,6 +5281,52 @@
       \endverb
       \verb{url}
       \verb https://doi.org/10.6028/NIST.SP.800-160v1r1
+      \endverb
+    \endentry
+    \entry{salama2021practitioners}{report}{}
+      \name{author}{3}{}{%
+        {{un=0,uniquepart=base,hash=5a9bc0c50c485e0a913ee3af2bbc655a}{%
+           family={Salama},
+           familyi={S\bibinitperiod},
+           given={Khalid},
+           giveni={K\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=92495f8a737c1c9a887d1fe264b781d8}{%
+           family={Kazmierczak},
+           familyi={K\bibinitperiod},
+           given={Jarek},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=6dfa19d8355f6647fb016f77ad14181a}{%
+           family={Schut},
+           familyi={S\bibinitperiod},
+           given={Donna},
+           giveni={D\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{institution}{1}{%
+        {Google Cloud}%
+      }
+      \strng{namehash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \strng{fullhash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \strng{bibnamehash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \strng{authorbibnamehash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \strng{authornamehash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \strng{authorfullhash}{6edcbd3e1406ad1bfd3572d1ca7a0693}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Diakses 10 Juli 2026}
+      \field{title}{Practitioners Guide to MLOps: A Framework for Continuous Delivery and Automation of Machine Learning}
+      \field{year}{2021}
+      \verb{urlraw}
+      \verb https://services.google.com/fh/files/misc/practitioners_guide_to_mlops_whitepaper.pdf
+      \endverb
+      \verb{url}
+      \verb https://services.google.com/fh/files/misc/practitioners_guide_to_mlops_whitepaper.pdf
       \endverb
     \endentry
     \entry{sculley2015hidden}{inproceedings}{}
