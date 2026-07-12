@@ -1,0 +1,28 @@
+% Konfigurasi jalur ingestion Kafka pada V.2.1 dalam bentuk tabel agar
+% paragraf implementasi tidak menjadi tumpukan sintaks. Fakta dari
+% platform/components/data-ingestion. Lebar total = 2.6+5.3+5.4 = 13.3cm
+% + 6*tabcolsep(3pt) ~= 13.93cm (< \textwidth 14.0cm).
+\begin{table}[!htb]
+\centering
+\caption{Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}
+\label{tab:impl-kafka-config}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{5.3cm}|>{\raggedright\arraybackslash}m{5.4cm}|}
+\hline
+\textbf{Aspek} & \textbf{Konfigurasi} & \textbf{Alasan} \\
+\hline
+Mode \textit{cluster} & \textit{KRaft} murni tanpa ZooKeeper & Topologi tetap ringan pada satu \textit{node} \\
+\hline
+Protokol klien & SASL\_SSL dengan SCRAM-SHA-512, kredensial dari OpenBao melalui External Secrets Operator & Autentikasi dan enkripsi seragam tanpa rahasia pada manifes \\
+\hline
+Kontrak \textit{ingestion} & \texttt{KafkaTopic} dan \texttt{KafkaUser} CR beserta ACL & Kontrak tersimpan sebagai sumber daya Kubernetes yang dapat diaudit \\
+\hline
+Topologi \textit{topic} & Enam \textit{partition}, faktor replikasi satu, dinaikkan tiga pada multi-\textit{node} & Paralelisme konsumen tanpa melampaui kapasitas satu \textit{node} \\
+\hline
+Penskalaan konsumen & KEDA \texttt{ScaledObject} membaca \textit{lag} dari Kafka Exporter melalui Prometheus & Skala konsumen mengikuti panjang antrean nyata \\
+\hline
+Akses luar \textit{mesh} & \textit{Broker} di luar \textit{mesh} Istio (\texttt{sidecar.istio.io/inject: false}) dengan \textit{DestinationRule} menonaktifkan mTLS menuju \textit{bootstrap} & Produsen tanpa \textit{sidecar} tetap terlayani, enkripsi ditangani SASL\_SSL Kafka \\
+\hline
+\end{tabular}
+\end{table}

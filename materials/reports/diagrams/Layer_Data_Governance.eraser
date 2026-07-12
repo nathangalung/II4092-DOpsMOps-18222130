@@ -6,9 +6,9 @@
 //   airflow, spark, clickhouse, postgres, minio, kafka, dbt, opensearch;
 //   sisanya icon generik. Edge ingest mengikuti arah aliran metadata dari
 //   sumber menuju katalog; DataHub menulis indeks pencariannya ke OpenSearch.
-// Acuan: subsec:lapisan-tata-kelola (Subbab IV.4, sec:arsitektur-terintegrasi);
+// Acuan: subsec:lapisan-tata-kelola (Subbab IV.3, sec:arsitektur-terintegrasi);
 //   rincian beralat layer baris 6 tab:layanan_industri yang memperinci layer
-//   yang sama pada Gambar fig:integrate-service (Subbab IV.2).
+//   yang sama pada Gambar fig:integrate-service (Subbab IV.1).
 //   Disertakan pada LaTeX sebagai fig:layer-governance.
 // Fokus: DataHub (katalog + lineage GMS) menerima peristiwa OpenLineage dari Airflow
 //   dan Spark serta ingest dari ClickHouse, PostgreSQL, MinIO, Kafka, Feast, dan dbt;

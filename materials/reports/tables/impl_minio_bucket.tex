@@ -1,0 +1,25 @@
+% Tata letak bucket MinIO pada V.2.2 dalam bentuk tabel agar enumerasi
+% bucket tidak memanjang di prosa. Fakta dari platform/components/storage.
+% Lebar total = 3.4+10.12 = 13.52cm + 4*tabcolsep(3pt) ~= 13.94cm (< \textwidth).
+\begin{table}[!htb]
+\centering
+\caption{Tata Letak \textit{Bucket} MinIO per Kepentingan}
+\label{tab:impl-minio-bucket}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{10.12cm}|}
+\hline
+\textbf{\textit{Bucket}} & \textbf{Kepentingan} \\
+\hline
+\texttt{mlflow} & Artefak eksperimen dan model dari \textit{tracking} MLflow \\
+\hline
+\texttt{feast} & Registri fitur berbasis berkas (\texttt{registry.db}) yang dibagikan seluruh klien Feast \\
+\hline
+\texttt{warehouse} & Data \textit{lakehouse} berformat Iceberg di bawah katalog Lakekeeper \\
+\hline
+\texttt{flink-checkpoints} & \textit{Checkpoint} dan \textit{savepoint} \textit{job} \textit{streaming} Flink \\
+\hline
+\texttt{velero-backups} & Pencadangan terjadwal sumber daya \textit{cluster} dan \textit{persistent volume} \\
+\hline
+\end{tabular}
+\end{table}

@@ -6,7 +6,7 @@
 //   mlflow, argo, mysql, postgres, minio, prometheus; sisanya icon generik.
 //   Edge metadata dan artefak diarahkan mengikuti arah tulis data; KFP <> Katib
 //   dua arah karena eksperimen HPO mengembalikan hasil trial ke pipeline.
-// Acuan: subsec:lapisan-model (Subbab IV.4, sec:arsitektur-terintegrasi); gambar
+// Acuan: subsec:lapisan-model (Subbab IV.3, sec:arsitektur-terintegrasi); gambar
 //   pertama layer baris 5 tab:layanan_industri (bagian pelatihan; bagian model
 //   serving pada Layer_Model_Serving) yang memperinci Gambar fig:integrate-service.
 //   Disertakan pada LaTeX sebagai fig:layer-lifecycle.

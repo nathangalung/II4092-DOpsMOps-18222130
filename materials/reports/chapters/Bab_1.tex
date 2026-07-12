@@ -78,7 +78,7 @@ Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-m
 
     \item Mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi (T-3).
 
-    \item \textit{Tabular feature}, \textit{aggregate feature}, dan \textit{embedding} tersaji melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online} (T-4).
+    \item \textit{Tabular feature} dan \textit{aggregate feature} tersaji melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online}, sedangkan \textit{embedding} tersaji pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten antara fase \textit{training} dan \textit{serving} (T-4).
 \end{enumerate}
 
 \section{Batasan Masalah}
@@ -92,7 +92,7 @@ Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak
 
     \item Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} pada \textit{service mesh}, manajemen rahasia terpusat, dan kebijakan jaringan Kubernetes, sedangkan autentikasi pengguna akhir pada \textit{application layer} berada di luar cakupan penelitian.
 
-    \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik, sedangkan karakterisasi beban kuantitatif penuh seperti latensi p99, \textit{throughput} puncak, dan skalabilitas horizontal ditempatkan sebagai arah pengembangan lanjutan.
+    \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik. Pengukuran latensi dan \textit{throughput} pada Bab~\ref{chap:evaluasi} bersifat indikatif pada lingkungan \textit{node} tunggal, sedangkan karakterisasi beban kuantitatif penuh pada skala produksi, seperti titik jenuh \textit{throughput} dan verifikasi skalabilitas horizontal lintas \textit{node}, ditempatkan sebagai arah pengembangan lanjutan.
 \end{enumerate}
 
 Ketiga batasan penelitian di atas menjadi konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}. Ketiganya menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan \textit{k3s} satu \textit{node} dan patokan versi April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
@@ -130,7 +130,7 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
     \item \textbf{Evaluasi}
 
-    Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional, nonfungsional (skalabilitas, ketersediaan, observabilitas, keamanan, biaya), serta tata kelola (\textit{lineage} tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif evaluasi dilaporkan pada Bab~\ref{chap:evaluasi}.
+    Evaluasi dilaksanakan pada akhir siklus implementasi dengan tiga dimensi: fungsional, nonfungsional (latensi indikatif, skalabilitas struktural, ketersediaan, observabilitas, keamanan, biaya), serta tata kelola (\textit{lineage} tertelusur, kontrak data ditegakkan, kebijakan akses dapat diaudit). Angka kuantitatif evaluasi dilaporkan pada Bab~\ref{chap:evaluasi}.
 
     \vspace{0.5em}
 
@@ -168,7 +168,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab IV Perancangan Arsitektur Platform DataOps dan MLOps}
 
-    Menetapkan sembilan \textit{layer} platform representatif dari praktik industri, memilih komponen \textit{open source} untuk tiap \textit{layer}, lalu menjabarkan perancangan arsitektur kesembilan \textit{layer} dan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan dalam gambaran umum beserta rincian per \textit{layer}.
+    Menetapkan sembilan \textit{layer} platform representatif dari praktik industri, memilih komponen \textit{open source} untuk tiap \textit{layer}, lalu menjabarkan perancangan arsitektur kesembilan \textit{layer} dan empat \textit{sub-sistem} yang menjawab T-1 hingga T-4. Diagram arsitektur disajikan sebagai satu arsitektur layanan terintegrasi beserta rincian beralat per \textit{layer}.
 
     \vspace{0.5em}
 

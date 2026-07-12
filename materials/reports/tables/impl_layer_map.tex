@@ -1,0 +1,34 @@
+% Tabel pemetaan implementasi V.2: sembilan layer -> komponen terpasang ->
+% namespace. Nama namespace diverifikasi dari platform/components/*
+% (kustomization + manifes). Gaya mengikuti struktur_direktori.tex
+% (border penuh, footnotesize, tabcolsep 3pt, lebar total ~ \textwidth).
+\begin{table}[!htb]
+\centering
+\caption{Pemetaan Sembilan \textit{Layer} ke Komponen Terpasang dan \textit{Namespace}}
+\label{tab:impl-layer-map}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{5.9cm}|>{\raggedright\arraybackslash}m{4.0cm}|}
+\hline
+\textbf{\textit{Layer}} & \textbf{Komponen Terpasang} & \textbf{\textit{Namespace}} \\
+\hline
+\textit{Orchestration and Infrastructure} & k3s, metrics-server, HPA, VPA, KEDA, Kueue, cert-manager & \texttt{kube-system}, \texttt{common}, \texttt{cert-manager} \\
+\hline
+\textit{Data Ingestion and Processing} & Kafka (Strimzi), Kafka Connect, Debezium, Karapace, Flink, Spark, dbt, Airflow & \texttt{data-ingestion}, \texttt{data-processing} \\
+\hline
+\textit{Data Storage} & MinIO, Iceberg, Lakekeeper, lakeFS, ClickHouse, Trino, PostgreSQL (CNPG), MySQL & \texttt{storage} \\
+\hline
+\textit{Feature Service} & Feast, Valkey, Qdrant & \texttt{model-lifecycle}, \texttt{storage} \\
+\hline
+\textit{Model Lifecycle} & MLflow, Kubeflow Pipelines, Katib, Kubeflow Trainer, Argo Workflows, KServe, Knative, Argo Rollouts & \texttt{model-lifecycle}, \texttt{model-serving}, \texttt{knative-serving} \\
+\hline
+\textit{Data Governance} & DataHub, OpenLineage, Great Expectations, OpenSearch & \texttt{data-governance} \\
+\hline
+\textit{Observability} & Prometheus, Alertmanager, Loki, Tempo, Grafana, OpenTelemetry, Superset, Evidently & \texttt{observability} \\
+\hline
+\textit{GitOps and Continuous Delivery} & Gitea, Tekton, Argo CD, registri \textit{image} lokal & \texttt{gitops}, \texttt{tekton-pipelines}, \texttt{platform-registry} \\
+\hline
+\textit{Platform Security} & Istio, APISIX, Dex, oauth2-proxy, SpiceDB, OpenBao, ESO, Kyverno, Falco, Trivy, Velero, Chaos Mesh & \texttt{security}, \texttt{istio-system}, \texttt{external-secrets}, \texttt{velero} \\
+\hline
+\end{tabular}
+\end{table}

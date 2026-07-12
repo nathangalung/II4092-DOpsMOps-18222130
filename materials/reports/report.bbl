@@ -1498,6 +1498,35 @@
       \verb https://github.com/cncf/tag-observability/blob/main/whitepaper.md
       \endverb
     \endentry
+    \entry{cncf2026conformance}{misc}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=0cb2a59444ef04aeca44654441071c35}{%
+           family={{Cloud Native Computing Foundation}},
+           familyi={C\bibinitperiod}}}%
+      }
+      \strng{namehash}{0cb2a59444ef04aeca44654441071c35}
+      \strng{fullhash}{0cb2a59444ef04aeca44654441071c35}
+      \strng{bibnamehash}{0cb2a59444ef04aeca44654441071c35}
+      \strng{authorbibnamehash}{0cb2a59444ef04aeca44654441071c35}
+      \strng{authornamehash}{0cb2a59444ef04aeca44654441071c35}
+      \strng{authorfullhash}{0cb2a59444ef04aeca44654441071c35}
+      \field{extraname}{3}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Diakses 12 Juli 2026}
+      \field{title}{Certified Kubernetes Software Conformance}
+      \field{year}{2026}
+      \verb{urlraw}
+      \verb https://www.cncf.io/training/certification/software-conformance/
+      \endverb
+      \verb{url}
+      \verb https://www.cncf.io/training/certification/software-conformance/
+      \endverb
+    \endentry
     \entry{cnpg2025}{misc}{}
       \name{author}{1}{}{%
         {{un=0,uniquepart=base,hash=85433fbc5c7b43f6ea3a22c81b89607c}{%
@@ -3007,6 +3036,43 @@
       \verb https://aws.amazon.com/blogs/machine-learning/mlops-foundation-roadmap-for-enterprises-with-amazon-sagemaker/
       \endverb
     \endentry
+    \entry{katsiampa2017volatility}{article}{}
+      \name{author}{1}{}{%
+        {{un=0,uniquepart=base,hash=0d3c18ba8a8eb1b7b691e122e79a3f77}{%
+           family={Katsiampa},
+           familyi={K\bibinitperiod},
+           given={Paraskevi},
+           giveni={P\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \strng{fullhash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \strng{bibnamehash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \strng{authorbibnamehash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \strng{authornamehash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \strng{authorfullhash}{0d3c18ba8a8eb1b7b691e122e79a3f77}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{author}
+      \field{journaltitle}{Economics Letters}
+      \field{title}{Volatility Estimation for Bitcoin: A Comparison of GARCH Models}
+      \field{volume}{158}
+      \field{year}{2017}
+      \field{pages}{3\bibrangedash 6}
+      \range{pages}{4}
+      \verb{doi}
+      \verb 10.1016/j.econlet.2017.06.023
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1016/j.econlet.2017.06.023
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1016/j.econlet.2017.06.023
+      \endverb
+    \endentry
     \entry{kaufman2012leakage}{article}{}
       \name{author}{4}{}{%
         {{un=0,uniquepart=base,hash=a63501185d4f0efbf451c58b68955177}{%
@@ -3870,6 +3936,50 @@
       \endverb
       \verb{url}
       \verb https://arxiv.org/abs/2004.05785
+      \endverb
+    \endentry
+    \entry{makarov2020trading}{article}{}
+      \name{author}{2}{}{%
+        {{un=0,uniquepart=base,hash=b66d967f1b4d160ab2af5d4fb46fbd31}{%
+           family={Makarov},
+           familyi={M\bibinitperiod},
+           given={Igor},
+           giveni={I\bibinitperiod},
+           givenun=0}}%
+        {{un=0,uniquepart=base,hash=6fef22905d62024d45fe52823eb2c78d}{%
+           family={Schoar},
+           familyi={S\bibinitperiod},
+           given={Antoinette},
+           giveni={A\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \strng{fullhash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \strng{bibnamehash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \strng{authorbibnamehash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \strng{authornamehash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \strng{authorfullhash}{785a5108f23d07c3b3a4b1916e3d9b57}
+      \field{sortinit}{M}
+      \field{sortinithash}{4625c616857f13d17ce56f7d4f97d451}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{author}
+      \field{journaltitle}{Journal of Financial Economics}
+      \field{number}{2}
+      \field{title}{Trading and Arbitrage in Cryptocurrency Markets}
+      \field{volume}{135}
+      \field{year}{2020}
+      \field{pages}{293\bibrangedash 319}
+      \range{pages}{27}
+      \verb{doi}
+      \verb 10.1016/j.jfineco.2019.07.001
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1016/j.jfineco.2019.07.001
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1016/j.jfineco.2019.07.001
       \endverb
     \endentry
     \entry{malkov2020efficient}{article}{}

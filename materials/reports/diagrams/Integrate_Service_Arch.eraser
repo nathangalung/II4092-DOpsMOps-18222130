@@ -4,11 +4,11 @@
 //   sintaks cloud architecture tidak mendukung baris title, jadi judul diatur
 //   lewat nama kanvas). Jangan menimpa kanvas lama berjudul lain.
 // Ekspor PNG ke materials/reports/figures/Integrate_Service_Arch.png
-// Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.2
+// Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.1
 //   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
-//   sebelum pemilihan alat pada Subbab IV.3 (sec:pemilihan-tools). Rincian
+//   sebelum pemilihan alat pada Subbab IV.2 (sec:pemilihan-tools). Rincian
 //   beralat tiap layer digambar pada kesepuluh berkas Layer_*.eraser
-//   (Subbab IV.4, sec:arsitektur-terintegrasi).
+//   (Subbab IV.3, sec:arsitektur-terintegrasi).
 // Diagram ini menampilkan LAYANAN saja: sembilan layer platform sebagai kotak
 //   grup dengan komponen mayoritasnya sebagai node dalam, TANPA menamai alat
 //   atau komponen platform/components/ mana pun (aturan bebas-tool), agar

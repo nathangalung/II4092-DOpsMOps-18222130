@@ -1,22 +1,22 @@
 {
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\begin{longtable}{|>{\centering\arraybackslash}m{1cm}|m{2.5cm}|m{5cm}|m{3cm}|>{\centering\arraybackslash}m{1.2cm}|}
+\begin{longtable}{|>{\centering\arraybackslash}m{1cm}|m{2.5cm}|m{5.1cm}|m{3cm}|>{\centering\arraybackslash}m{1.2cm}|}
 \caption{Kebutuhan Nonfungsional Sistem}
 \label{tab:kebutuhan_nonfungsional} \\
 \hline
-\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{5cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.2cm}|}{\textbf{Tujuan}} \\
+\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{5.1cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.2cm}|}{\textbf{Tujuan}} \\
 \hline
 \endfirsthead
 \hline
-\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{5cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.2cm}|}{\textbf{Tujuan}} \\
+\multicolumn{1}{|>{\centering\arraybackslash}m{1cm}|}{\textbf{ID}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Kebutuhan Nonfungsional}} & \multicolumn{1}{>{\centering\arraybackslash}m{5.1cm}|}{\textbf{Deskripsi}} & \multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Target Metrik}} & \multicolumn{1}{>{\centering\arraybackslash}m{1.2cm}|}{\textbf{Tujuan}} \\
 \hline
 \endhead
 \endfoot
 \hline
 \endlastfoot
 
-KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} berbasis Valkey dan \textit{vector similarity search} berbasis Qdrant harus memberikan latensi yang stabil dan rendah untuk mendukung \textit{inference} waktu nyata pada berbagai domain aplikasi, termasuk pada saat beban tinggi. & Latensi p99 sub-detik pada \textit{feature serving} dan \textit{vector search}, dengan ambang spesifik per layanan diukur dan dipantau melalui SLO Sloth & T-4 \\
+KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} berbasis Valkey dan \textit{vector similarity search} berbasis Qdrant harus memberikan latensi yang stabil dan rendah untuk mendukung \textit{inference} waktu nyata pada berbagai domain aplikasi, termasuk pada saat beban tinggi. & Latensi p99 sub-detik indikatif pada lingkungan \textit{node} tunggal untuk \textit{feature serving} dan \textit{vector search}, dengan ambang spesifik per layanan diukur dan dipantau melalui SLO Sloth & T-4 \\
 \hline
 KNF-02 & \textit{Throughput} Tinggi & Sistem harus mampu menangani \textit{workload} dengan \textit{throughput} tinggi yang umum pada beban kerja \textit{streaming} dan \textit{serving} bervolume tinggi, dengan karakteristik skalabilitas mendekati linear ketika sumber daya ditambah. & \textit{Throughput} \textit{ingest} dan \textit{serving} tumbuh proporsional terhadap jumlah \textit{partition} Kafka serta \textit{replica} Feast melalui \textit{autoscaling} KEDA dan HPA & T-4 \\
 \hline

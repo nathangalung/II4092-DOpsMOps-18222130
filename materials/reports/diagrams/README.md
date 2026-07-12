@@ -25,11 +25,11 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
      dan `Fragment_MLOps_Flow`, hanya menampilkan LAYANAN (tanpa nama alat),
      sengaja tidak tersambung satu sama lain (keterputusan alur data dari alur
      model itulah pesannya), penanda MLOps level 0 + tahap awal evolusi DataOps.
-   - **Seksi 2 — sasaran layanan** (Subbab IV.2, setelah klasifikasi dan
-     sebelum pemilihan alat IV.3): `Integrate_Service_Arch`, kesembilan *layer*
+   - **Seksi 2 — sasaran layanan** (Subbab IV.1, setelah klasifikasi dan
+     sebelum pemilihan alat IV.2): `Integrate_Service_Arch`, kesembilan *layer*
      dari `tab:layanan_industri` pada satu *control plane* Kubernetes, tanpa
      nama alat, penanda MLOps level 2 + tahap DataOps.
-   - **Seksi 3 — arsitektur dengan alat terpilih** (Subbab IV.4, sembilan
+   - **Seksi 3 — arsitektur dengan alat terpilih** (Subbab IV.3, sembilan
      subbab satu-per-layer): SEPULUH berkas `Layer_*`, satu per *layer* dalam
      urutan baris tabel, dengan *layer* kelima (Model Lifecycle, memuat *model
      serving component* + *inference service*) dipecah menjadi dua gambar:
@@ -54,7 +54,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    memperbarui caption dan prosa Bab III/IV yang mengutip landasan tersebut,
    konsisten dengan Subbab II.1.3 (`subsec:maturity`).
 8. Label grup pada kesepuluh berkas `Layer_*` membawa anotasi kategori
-   sumbernya sesuai baris `tab:layanan_industri` dan derivasi Subbab IV.4
+   sumbernya sesuai baris `tab:layanan_industri` dan derivasi Subbab IV.3
    (najafabadi2024analysis + kreuzberger2023mlops + munappy2020adhoc):
    Orchestration and Infrastructure = infrastructure and supporting services;
    Data Ingestion and Processing = data curation (collector + preprocessor);
@@ -64,7 +64,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    quality + data testing + data governance; Observability = monitoring;
    GitOps and Continuous Delivery = kategori CI/CD; Platform Security = sisi
    keamanan infrastruktur + akses terkendali DataOps. Jangan mengubah anotasi
-   ini tanpa menyunting prosa derivasi IV.4 dan tabel.
+   ini tanpa menyunting prosa derivasi IV.3 dan tabel.
 9. **Ikon wajib pada SETIAP node** (termasuk node dalam grup); node tanpa
    `icon:` merender kotak polos tanpa logo. Nama ikon HANYA dari daftar resmi
    https://docs.eraser.io/docs/icons (diverifikasi 2026-07-11; daftar berisi

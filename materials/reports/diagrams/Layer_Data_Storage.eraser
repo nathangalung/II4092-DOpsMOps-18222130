@@ -2,7 +2,7 @@
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
 //   Buat kanvas BARU bernama "Layer_Data_Storage".
 // Ekspor PNG ke materials/reports/figures/Layer_Data_Storage.png
-// Acuan: subsec:lapisan-storage (Subbab IV.4, sec:arsitektur-terintegrasi); rincian
+// Acuan: subsec:lapisan-storage (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
 //   beralat layer baris 3 tab:layanan_industri. Disertakan sebagai fig:layer-storage.
 // Fokus: Lakehouse {MinIO (+KES), lakeFS, Apache Iceberg, Lakekeeper} dan Basis
 //   Data {ClickHouse, PostgreSQL (CNPG), MySQL, OpenSearch}; layanan fitur kini

@@ -8,9 +8,9 @@
 //   OpenCost <> Prometheus dua arah faktual: OpenCost membaca metrik pemakaian
 //   dari Prometheus dan mengekspor metrik biaya yang di-scrape Prometheus
 //   (dokumentasi OpenCost).
-// Acuan: subsec:lapisan-observabilitas (Subbab IV.4, sec:arsitektur-terintegrasi);
+// Acuan: subsec:lapisan-observabilitas (Subbab IV.3, sec:arsitektur-terintegrasi);
 //   rincian beralat layer baris 7 tab:layanan_industri yang
-//   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
+//   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.1).
 //   Disertakan pada LaTeX sebagai fig:layer-observability.
 // Fokus: OpenTelemetry mengumpulkan sinyal ke Grafana Tempo (trace), Prometheus
 //   (metrik, dengan Alertmanager + Pushgateway), dan Loki (log); Grafana menyatukan

@@ -1,22 +1,22 @@
 {
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{longtable}{|m{2cm}|m{2.5cm}|m{2.5cm}|m{2.8cm}|m{2cm}|}
+\begin{longtable}{|m{2cm}|m{2.7cm}|m{2.7cm}|m{3.05cm}|m{2cm}|}
 \caption{Perbandingan Detail Arsitektur Saat Ini dengan yang Diusulkan}
 \label{tab:architecture_comparison} \\
 \hline
 \multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Manfaat yang Diharapkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.7cm}|}{\textbf{Arsitektur Saat Ini}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.7cm}|}{\textbf{Arsitektur Diusulkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3.05cm}|}{\textbf{Manfaat yang Diharapkan}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
 \hline
 \endfirsthead
 \hline
 \multicolumn{1}{|>{\centering\arraybackslash}m{2cm}|}{\textbf{Aspek}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Saat Ini}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{2.5cm}|}{\textbf{Arsitektur Diusulkan}} &
-\multicolumn{1}{>{\centering\arraybackslash}m{3cm}|}{\textbf{Manfaat yang Diharapkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.7cm}|}{\textbf{Arsitektur Saat Ini}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{2.7cm}|}{\textbf{Arsitektur Diusulkan}} &
+\multicolumn{1}{>{\centering\arraybackslash}m{3.05cm}|}{\textbf{Manfaat yang Diharapkan}} &
 \multicolumn{1}{>{\centering\arraybackslash}m{2cm}|}{\textbf{Referensi}} \\
 \hline
 \endhead
@@ -40,8 +40,8 @@ Duplikasi fitur dapat ditekan, \textit{training-serving skew} berkurang melalui 
 \textit{Vector Embeddings} &
 Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
 Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, \textit{API} \textit{gRPC}, dan filter \textit{payload}. &
-\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis HNSW maupun FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
-\citereset\autocite{johnson2021billion,qdrant2025} \\
+\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah, sedangkan \textcite{malkov2020efficient} menunjukkan pencarian tetangga terdekat hampiran yang efisien pada indeks HNSW. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
+\citereset\autocite{johnson2021billion,malkov2020efficient,qdrant2025} \\
 \hline
 Validitas Temporal &
 \textit{Point-in-time} \textit{join} dilakukan manual dan rentan kesalahan, sehingga banyak tim mengalami \textit{data leakage}. &

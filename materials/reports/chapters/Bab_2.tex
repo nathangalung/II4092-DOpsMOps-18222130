@@ -24,7 +24,7 @@ DataOps merupakan adaptasi praktik DevOps untuk \textit{data lifecycle}. \textci
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=0.95\textwidth]{figures/Big_Data_Analytics_Pipeline_Ericson.png}
-  \caption[\textit{Big data analytics pipeline} pada studi kasus Ericsson]{\textit{Big data analytics pipeline} pada studi kasus Ericsson \autocite{munappy2020adhoc}.}
+  \caption[\textit{Big data analytics pipeline} pada studi kasus Ericsson]{\textit{Big data analytics pipeline} pada Ericsson \autocite{munappy2020adhoc}.}
   \label{fig:pipeline-ericsson}
 \end{figure}
 
@@ -45,21 +45,21 @@ Beberapa kerangka kematangan diusulkan untuk menggambarkan jenjang kapabilitas t
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=0.9\textwidth]{figures/MLOps_0.jpg}
-  \caption[MLOps \textit{level} 0: proses manual]{MLOps \textit{level} 0: proses manual dengan penyerahan model satu arah \autocite{googlecloud2024mlops}.}
+  \caption[MLOps \textit{level} 0: proses manual]{MLOps \textit{level} 0: proses manual \autocite{googlecloud2024mlops}.}
   \label{fig:mlops-level-0}
 \end{figure}
 
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=0.9\textwidth]{figures/MLOps_1.jpg}
-  \caption[MLOps \textit{level} 1: otomasi \textit{training pipeline}]{MLOps \textit{level} 1: otomasi \textit{training pipeline} dengan komponen yang dapat dipakai ulang \autocite{googlecloud2024mlops}.}
+  \caption[MLOps \textit{level} 1: otomasi \textit{training pipeline}]{MLOps \textit{level} 1: otomasi \textit{training pipeline} \autocite{googlecloud2024mlops}.}
   \label{fig:mlops-level-1}
 \end{figure}
 
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=0.9\textwidth]{figures/MLOps_2.jpg}
-  \caption[MLOps \textit{level} 2: orkestrasi CI/CD/CT]{MLOps \textit{level} 2: orkestrasi CI/CD/CT dengan deteksi \textit{drift} sebagai pemicu \textit{retraining} \autocite{googlecloud2024mlops}.}
+  \caption[MLOps \textit{level} 2: orkestrasi CI/CD/CT]{MLOps \textit{level} 2: orkestrasi CI/CD/CT \autocite{googlecloud2024mlops}.}
   \label{fig:mlops-level-2}
 \end{figure}
 
@@ -95,7 +95,7 @@ Tabel~\ref{tab:mlops_maturity_comparison} merangkum posisi keempat kerangka kema
 
 \input{tables/mlops_maturity_comparison.tex}
 
-Padanan kerangka pada sisi data diberikan oleh model evolusi DataOps yang disusun \textcite{munappy2020adhoc} dari studi kasus industri telekomunikasi, berbentuk tangga lima tahap: analisis data ad hoc, analisis data semi-otomatis dengan \textit{pipeline} data, praktik \textit{agile data science}, pengujian dan pemantauan berkelanjutan, lalu DataOps. Tangga evolusi tersebut beserta komponen studi kasus yang terakumulasi pada tiap tahapnya diperlihatkan pada Gambar~\ref{fig:dataops-maturity}. Tahap awal model tersebut ditandai silo data, keputusan bisnis yang hanya bertumpu pada sebagian kecil data, dan pemantauan \textit{pipeline} yang masih manual, sedangkan tahap akhirnya menuntut CI/CD untuk analitik data, orkestrasi \textit{pipeline}, dan pemantauan seluruh \textit{data lifecycle}. Laporan ini memakai kedua kerangka secara berpasangan untuk membingkai kondisi awal dan target: kondisi terfragmentasi pada Gambar~\ref{fig:fragment-dataops} dan Gambar~\ref{fig:fragment-mlops} di Bab~\ref{chap:analisis-masalah} setara dengan \textit{level} 0 sekaligus tahap awal evolusi DataOps, sedangkan arsitektur pada Bab~\ref{chap:perancangan} menargetkan \textit{level} 2 sekaligus tahap DataOps. Dengan pasangan tersebut, perpindahan kapabilitas dapat dinilai pada sisi data dan sisi model sekaligus, bukan hanya pada salah satunya.
+Padanan kerangka pada sisi data diberikan oleh model evolusi DataOps yang disusun \textcite{munappy2020adhoc} dari studi kasus industri telekomunikasi, berbentuk tangga lima tahap: analisis data ad hoc, analisis data semi-otomatis dengan \textit{pipeline} data, praktik \textit{agile data science}, pengujian dan pemantauan berkelanjutan, lalu DataOps. Tangga evolusi tersebut beserta komponen studi kasus yang terakumulasi pada tiap tahapnya diperlihatkan pada Gambar~\ref{fig:dataops-maturity}. Kelima tahap terangkum dalam satu diagram tangga pada sumbernya, berbeda dari dokumentasi MLOps yang menerbitkan tiga diagram terpisah untuk \textit{level} 0 sampai 2, sehingga sisi data cukup diwakili satu gambar evolusi di samping gambar \textit{pipeline} pada Gambar~\ref{fig:pipeline-ericsson}. Tahap awal model tersebut ditandai silo data, keputusan bisnis yang hanya bertumpu pada sebagian kecil data, dan pemantauan \textit{pipeline} yang masih manual, sedangkan tahap akhirnya menuntut CI/CD untuk analitik data, orkestrasi \textit{pipeline}, dan pemantauan seluruh \textit{data lifecycle}. Laporan ini memakai kedua kerangka secara berpasangan untuk membingkai kondisi awal dan target: kondisi terfragmentasi pada Gambar~\ref{fig:fragment-dataops} dan Gambar~\ref{fig:fragment-mlops} di Bab~\ref{chap:analisis-masalah} setara dengan \textit{level} 0 sekaligus tahap awal evolusi DataOps, sedangkan arsitektur pada Bab~\ref{chap:perancangan} menargetkan \textit{level} 2 sekaligus tahap DataOps. Dengan pasangan tersebut, perpindahan kapabilitas dapat dinilai pada sisi data dan sisi model sekaligus, bukan hanya pada salah satunya.
 
 \begin{figure}[!htb]
   \centering
@@ -150,7 +150,7 @@ Kubernetes berperan sebagai bidang orkestrasi yang menjalankan beban kerja terko
 
 Pemilihan Kubernetes sebagai bidang dasar memberi tiga keuntungan teknis: orkestrasi beban kerja melalui objek deklaratif, mekanisme penskalaan otomatis, dan ekosistem \textit{operator} yang memperluas API \textit{cluster} dengan \textit{Custom Resource Definition} (CRD). Distribusi \textit{lightweight} seperti \textit{k3s} mengakomodasi pengembangan dan pengujian pada satu \textit{node} tanpa mengorbankan kompatibilitas API. Pilihan distribusi tersebut sejalan dengan batasan implementasi BI-1 pada Bab~\ref{chap:implementasi} bahwa lingkungan pengujian memakai satu \textit{node} dengan \textit{footprint} sumber daya yang ringkas. Mekanisme \textit{cluster autoscaler} tidak diaktifkan pada lingkungan satu \textit{node}, sedangkan HPA, VPA, dan KEDA menjadi mekanisme penskalaan beban kerja yang dipakai.
 
-Selain \textit{k3s}, distribusi Kubernetes ringan lain yang umum dipertimbangkan untuk lingkungan satu \textit{node} adalah \textit{k0s}, MicroK8s, dan \textit{kind}. Keempat distribusi lolos uji \textit{conformance} CNCF sehingga API Kubernetes yang dipakai komponen platform tetap identik, sedangkan perbedaannya terletak pada \textit{footprint}, kesiapan produksi, dan dependensi \textit{runtime}. Perbedaan itu antara lain \textit{containerd} yang tertanam pada \textit{k3s} dan \textit{k0s}, ketergantungan MicroK8s pada \textit{snap}, serta \textit{kind} yang menjalankan \textit{node} di dalam kontainer Docker. Perbandingan berskor keempat distribusi terhadap kriteria kelayakan platform beserta alasan pemilihan \textit{k3s} dibahas pada Subbab~\ref{sec:pemilihan-tools}.
+Selain \textit{k3s}, distribusi Kubernetes ringan lain yang umum dipertimbangkan untuk lingkungan satu \textit{node} adalah \textit{k0s}, MicroK8s, dan \textit{kind}. Keempat distribusi lolos uji \textit{conformance} CNCF \autocite{cncf2026conformance} sehingga API Kubernetes yang dipakai komponen platform tetap identik, sedangkan perbedaannya terletak pada \textit{footprint}, kesiapan produksi, dan dependensi \textit{runtime}. Perbedaan itu antara lain \textit{containerd} yang tertanam pada \textit{k3s} dan \textit{k0s}, ketergantungan MicroK8s pada \textit{snap}, serta \textit{kind} yang menjalankan \textit{node} di dalam kontainer Docker. Perbandingan berskor keempat distribusi terhadap kriteria kelayakan platform beserta alasan pemilihan \textit{k3s} dibahas pada Subbab~\ref{sec:pemilihan-tools}.
 
 
 

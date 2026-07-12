@@ -6,9 +6,9 @@
 //   minio, argo, qdrant; Valkey tetap icon generik (bukan logo Redis, beda
 //   merek fork). Permintaan-respons inferensi memakai <> (dua arah faktual);
 //   Knative menskalakan revisi KServe (arah kendali dari Knative).
-// Acuan: subsec:lapisan-model (Subbab IV.4, sec:arsitektur-terintegrasi);
+// Acuan: subsec:lapisan-model (Subbab IV.3, sec:arsitektur-terintegrasi);
 //   gambar kedua layer baris 5 tab:layanan_industri (bagian model serving) yang
-//   memperinci layer yang sama pada Gambar fig:integrate-service (Subbab IV.2).
+//   memperinci layer yang sama pada Gambar fig:integrate-service (Subbab IV.1).
 //   Disertakan pada LaTeX sebagai fig:layer-serving.
 // Fokus: artefak MLflow (MinIO) > InferenceService KServe di atas Knative; Argo
 //   Rollouts menjalankan analisis canary; jembatan inferensi membaca fitur online

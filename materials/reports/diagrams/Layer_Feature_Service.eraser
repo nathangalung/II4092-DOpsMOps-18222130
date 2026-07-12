@@ -2,7 +2,7 @@
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
 //   Buat kanvas BARU bernama "Layer_Feature_Service".
 // Ekspor PNG ke materials/reports/figures/Layer_Feature_Service.png
-// Acuan: subsec:lapisan-feature (Subbab IV.4, sec:arsitektur-terintegrasi); rincian
+// Acuan: subsec:lapisan-feature (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
 //   beralat layer baris 4 tab:layanan_industri. Disertakan sebagai fig:layer-feature.
 // Fokus: Feast sebagai feature store dengan ClickHouse sebagai sumber offline,
 //   Valkey sebagai online store hasil materialisasi, Qdrant sebagai indeks vektor,
