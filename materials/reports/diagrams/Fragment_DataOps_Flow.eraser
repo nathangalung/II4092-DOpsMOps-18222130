@@ -13,7 +13,7 @@
 // domain tertentu.
 // Rendering WAJIB horizontal (direction right), satu rantai kiri ke kanan,
 // tanpa tumpukan vertikal dalam. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan kematangan (Subbab II.1.3, subsec:maturity):
+// Landasan kematangan (Subbab II.1.2, subsec:maturity):
 // - Tahap awal model evolusi DataOps (munappy2020adhoc): analisis data ad hoc
 //   dan semi-otomatis, silo data, pemantauan pipeline manual.
 // Grup "Ciri Kematangan Kondisi Saat Ini" merender penanda tersebut pada PNG.

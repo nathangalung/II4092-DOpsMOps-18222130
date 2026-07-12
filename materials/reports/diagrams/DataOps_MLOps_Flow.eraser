@@ -28,7 +28,7 @@
 //   Arah edge intra-kelompok mengikuti urutan tahap pada sumbernya
 //   (amershi2019software, munappy2020adhoc, kreuzberger2023mlops,
 //   googlecloud2024mlops, najafabadi2024analysis).
-// Landasan kematangan (Subbab II.1.3, subsec:maturity):
+// Landasan kematangan (Subbab II.1.2, subsec:maturity):
 // - MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc).
 // Grup "Pemetaan Kematangan Target" merender penanda tersebut pada PNG dan
 //   sengaja tanpa edge (legenda, dikecualikan dari aturan konektivitas).

@@ -30,9 +30,7 @@ Bukti dari kedua bidang dikonsolidasikan menjadi sembilan \textit{layer} platfor
 
 \input{tables/layanan_industri.tex}
 
-Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seperti \textit{model registry}, \textit{ML metadata store}, dan \textit{model training} pada \textit{Model Lifecycle Layer}, sementara fungsi \textit{monitoring component} dan \textit{model monitoring} ditempatkan pada \textit{Observability Layer} agar pemantauan tidak bercampur dengan \textit{serving}. \textit{Layer} bidang data menyerap komponen \textit{data collection}, \textit{data preprocessor}, \textit{dataset repository}, dan \textit{feature store} beserta fungsi \textit{data quality} dan \textit{data governance} dari sumber DataOps. \textit{Platform Security Layer} berpijak pada dimensi tata kelola keamanan yang disebut sumber DataOps, yaitu akses terkendali serta kepatuhan terhadap privasi dan keamanan data. Landasan \textit{layer} ini lebih ringan daripada \textit{layer} \textit{model lifecycle} yang didukung keempat sumber MLOps sekaligus. Perbedaan bobot bukti antar \textit{layer} ini dinyatakan terbuka agar keterunutan tiap \textit{layer} terhadap sumbernya dapat ditimbang pembaca.
-
-Gambar~\ref{fig:integrate-service} menggambarkan kesembilan \textit{layer} tersebut sebagai satu arsitektur layanan terintegrasi pada satu \textit{control plane} Kubernetes, tanpa mengikat diri pada alat tertentu, sehingga sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
+Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seperti \textit{model registry}, \textit{ML metadata store}, dan \textit{model training} pada \textit{Model Lifecycle Layer}, sementara fungsi \textit{monitoring component} dan \textit{model monitoring} ditempatkan pada \textit{Observability Layer} agar pemantauan tidak bercampur dengan \textit{serving}. \textit{Layer} bidang data menyerap komponen \textit{data collection}, \textit{data preprocessor}, \textit{dataset repository}, dan \textit{feature store} beserta fungsi \textit{data quality} dan \textit{data governance} dari sumber DataOps. \textit{Platform Security Layer} berpijak pada dimensi tata kelola keamanan yang disebut sumber DataOps, yaitu akses terkendali serta kepatuhan terhadap privasi dan keamanan data. Landasan \textit{layer} ini lebih ringan daripada \textit{layer} \textit{model lifecycle} yang didukung keempat sumber MLOps sekaligus. Perbedaan bobot bukti antar \textit{layer} ini dinyatakan terbuka agar keterunutan tiap \textit{layer} terhadap sumbernya dapat ditimbang pembaca. Gambar~\ref{fig:integrate-service} menggambarkan kesembilan \textit{layer} tersebut sebagai satu arsitektur layanan terintegrasi pada satu \textit{control plane} Kubernetes, tanpa mengikat diri pada alat tertentu, sehingga sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
 
 \begin{figure}[!htb]
   \centering
@@ -62,7 +60,6 @@ Setiap \textit{layer} yang memiliki lebih dari satu kandidat layak dinilai melal
 \textit{k3s} dipilih karena biner tunggalnya yang menurut dokumentasi resminya berukuran di bawah seratus megabita berjalan pada memori terbatas, kesiapannya setara Kubernetes penuh untuk beban produksi, \textit{containerd} yang tertanam menghilangkan dependensi \textit{runtime} eksternal, dan \textit{controller} Helm bawaannya mempermudah pemasangan komponen. Sebaliknya \textit{kind} ditujukan untuk pengujian CI dan bukan produksi, sedangkan \textit{k0s} dan MicroK8s dikelola masing-masing oleh satu vendor tanpa naungan yayasan netral. Nilai Total tertinggi pada \textit{k3s} mencerminkan gabungan kesiapan produksi dan \textit{footprint} ringan yang sesuai dengan batasan implementasi BI-1 pada Bab~\ref{chap:implementasi}. Pilihan ini tidak mengikat rancangan pada satu \textit{node}, sebab keempat distribusi berbagi API yang sama sehingga migrasi ke distribusi lain tidak mengubah manifes komponen.
 
 \input{tables/k8s_distribution_comparison.tex}
-\clearpage
 
 \subsection{\textit{Data Ingestion and Processing Layer}}
 \label{subsec:pilih-ingestasi}
@@ -78,7 +75,6 @@ Registrasi skema dinilai terpisah karena menjadi kontrak evolusi data lintas pro
 Pemrosesan data mencakup jalur \textit{streaming} dan \textit{batch} yang dibahas pada Subbab~\ref{subsec:flink} dan Subbab~\ref{subsec:spark}. Tabel~\ref{tab:data_processing_comparison} membandingkan mesin pemrosesan menurut kriteria kelayakan platform. Apache Spark memperoleh Total tertinggi sebagai mesin pemrosesan \textit{batch} berskala besar, sedangkan Apache Flink dipilih untuk jalur \textit{streaming} karena dukungan \textit{event-time} dan \textit{exactly-once} dengan \textit{checkpointing} yang membuatnya unggul pada kriteria \textit{streaming} meski lebih rendah pada kriteria \textit{batch}. Transformasi SQL deklaratif pada \textit{warehouse layer} dikerjakan oleh dbt. Ketiganya memikul peran berbeda pada jalur data sehingga saling melengkapi tanpa tumpang tindih fungsi.
 
 \input{tables/data_processing_comparison.tex}
-\clearpage
 
 \subsection{\textit{Data Storage Layer}}
 \label{subsec:pilih-penyimpanan}
@@ -94,7 +90,6 @@ Penyimpanan objek menjadi landasan bagi \textit{data lake}, \textit{model regist
 Versi data pada \textit{layer} objek dinilai terpisah karena menyangkut ketertelusuran perubahan \textit{dataset}, sebagaimana dibahas pada Subbab~\ref{subsec:storage-layer}. Tabel~\ref{tab:data_versioning_comparison} membandingkan lakeFS, DVC, Project Nessie, dan Pachyderm. lakeFS dipilih karena percabangan \textit{zero-copy} bekerja langsung di atas MinIO tanpa terikat satu format tabel, antarmukanya tetap S3 sehingga \textit{engine} pemrosesan tidak perlu diubah, dan lisensinya Apache 2.0 sementara Pachyderm berlisensi \textit{source-available}. Model percabangan bergaya Git ini menjaga jejak versi data tanpa menggandakan berkas.
 
 \input{tables/data_versioning_comparison.tex}
-\clearpage
 
 \subsection{\textit{Feature Service Layer}}
 \label{subsec:pilih-fitur}
@@ -112,7 +107,6 @@ Versi data pada \textit{layer} objek dinilai terpisah karena menyangkut ketertel
 Fitur \textit{embedding} berdimensi tinggi memerlukan indeks tetangga terdekat yang dibahas pada Subbab~\ref{subsec:vektor-hnsw}. Tabel~\ref{tab:vector_index_comparison} membandingkan beberapa \textit{vector index} \textit{open source}. Qdrant dipilih karena dukungan HNSW \textit{native}, mode \textit{gRPC} berlatensi rendah, dan kemampuan filter pada \textit{payload} yang menyatu dengan kueri kemiripan. Pemisahan \textit{vector index} dari \textit{online store} tabular menjaga tiap penyimpanan tetap dioptimasi untuk karakter kuerinya sendiri.
 
 \input{tables/vector_index_comparison.tex}
-\clearpage
 
 \subsection{\textit{Model Lifecycle Layer}}
 \label{subsec:pilih-model}
@@ -128,7 +122,6 @@ Orkestrasi pelatihan dinilai terpisah karena menyangkut eksekusi \textit{pipelin
 \textit{Model serving} mengakhiri pembahasan \textit{layer} ini dengan menyajikan model sebagai layanan, sebagaimana dibahas pada Subbab~\ref{subsec:serving}. Tabel~\ref{tab:serving_comparison} membandingkan kerangka \textit{serving} menurut kriteria kelayakan platform. KServe dipilih karena dukungan banyak \textit{runtime}, penskalaan otomatis termasuk ke nol melalui Knative, dan integrasi dengan praktik GitOps. Nilai Total tertinggi pada KServe mencerminkan kematangan, skalabilitas, dan dukungan multi-\textit{framework} yang tidak dimiliki penuh oleh kerangka \textit{serving} berbasis satu \textit{framework}.
 
 \input{tables/serving_comparison.tex}
-\clearpage
 
 \subsection{\textit{Data Governance Layer}}
 \label{subsec:pilih-tata-kelola}
@@ -138,7 +131,6 @@ Orkestrasi pelatihan dinilai terpisah karena menyangkut eksekusi \textit{pipelin
 DataHub dipilih sebagai katalog metadata karena dukungan integrasi luas dengan komponen DataOps dan MLOps serta penerimaan \textit{lineage} melalui standar terbuka OpenLineage. Great Expectations melengkapi \textit{layer} ini sebagai kontrak kualitas yang dijalankan pada \textit{pipeline} produksi, sedangkan OpenLineage menjadi protokol \textit{lineage} yang menyeragamkan jejak dari \textit{ingestion} hingga model. Ketiganya bekerja sebagai satu bidang tata kelola, yaitu katalog untuk penemuan, kontrak untuk kualitas, dan protokol untuk asal-usul. Pemisahan peran ini menghindari tumpang tindih fungsi antara alat katalog dan alat kualitas.
 
 \input{tables/metadata_comparison.tex}
-\clearpage
 
 \subsection{\textit{Observability Layer}}
 \label{subsec:pilih-observabilitas}
@@ -150,7 +142,6 @@ DataHub dipilih sebagai katalog metadata karena dukungan integrasi luas dengan k
 Antarmuka \textit{business intelligence} dinilai terpisah karena menyajikan hasil kueri lintas basis data pada satu \textit{dashboard layer}, sebagaimana dibahas pada Subbab~\ref{sec:observability}. Tabel~\ref{tab:dashboarding_comparison} membandingkan beberapa pilihan BI \textit{open source}. Apache Superset dipilih karena menyatukan kueri SQL lintas ClickHouse, Trino, dan MySQL pada satu antarmuka \textit{dashboard}. Pemisahan Superset untuk \textit{dashboard} analitik dari Grafana untuk pemantauan sistem menjaga tiap antarmuka fokus pada jenis pengamatan yang berbeda.
 
 \input{tables/dashboarding_comparison.tex}
-\clearpage
 
 \subsection{\textit{GitOps and Continuous Delivery Layer}}
 \label{subsec:pilih-gitops}
@@ -160,7 +151,6 @@ Antarmuka \textit{business intelligence} dinilai terpisah karena menyajikan hasi
 Rantai \textit{continuous delivery} dilengkapi Gitea sebagai repositori \textit{self-hosted}, Tekton sebagai \textit{pipeline} CI, dan Argo Rollouts untuk \textit{deployment} progresif berbasis \textit{canary}. Keempat komponen menjaga seluruh manifes, \textit{chart}, dan \textit{overlay} berada pada satu \textit{control plane} yang ditarik Argo CD tanpa ketergantungan penyedia eksternal. Pembagian peran menempatkan Argo CD pada rekonsiliasi keadaan dan Tekton pada pembangunan artefak sehingga keduanya tidak tumpang tindih. Rantai ini menjadi mekanisme yang memicu \textit{retraining} model melalui kontrol deklaratif yang sama.
 
 \input{tables/gitops_comparison.tex}
-\clearpage
 
 \subsection{\textit{Platform Security Layer}}
 \label{subsec:pilih-keamanan}
@@ -186,7 +176,6 @@ Penegakan kebijakan \textit{admission} dinilai terpisah, sebagaimana dibahas pad
 Pemantauan ancaman pada \textit{runtime layer} melengkapi \textit{layer} keamanan, sebagaimana dibahas pada Subbab~\ref{subsec:mesh-kebijakan}. Tabel~\ref{tab:runtime_security_comparison} membandingkan beberapa alat \textit{runtime security} \textit{open source}. Falco dipilih sebagai detektor berbasis eBPF yang memantau \textit{syscall}, dilengkapi Trivy Operator untuk pemindaian \textit{image}, Velero untuk pencadangan, dan Chaos Mesh untuk uji ketahanan. Keempat alat mencakup dimensi berbeda dari keamanan \textit{runtime} sehingga tidak saling menggantikan.
 
 \input{tables/runtime_security_comparison.tex}
-\clearpage
 
 Pemetaan pada subbab ini menautkan tiap \textit{layer} arsitektur ke satu alat utama beserta pendampingnya, sehingga perancangan arsitektur pada subbab-subbab berikutnya dapat langsung merujuk komponen terpilih tanpa mengulang pertimbangan pemilihan. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama \textit{layer}-nya, sedangkan alat pendamping memikul peran yang berbeda tanpa tumpang tindih fungsi, seperti Flink untuk \textit{streaming} di samping Spark untuk \textit{batch} dan Argo Workflows untuk \textit{control loop} di samping Kubeflow Pipelines untuk pelatihan. Pemisahan konsep pada Bab~\ref{chap:studi-literatur} dari pemilihan pada subbab ini menjaga tinjauan pustaka tetap umum sementara keputusan alat ditegakkan dengan bukti skor. Dengan pemetaan ini, keputusan teknis di seluruh laporan dapat dirunut dari konsep pada Bab~\ref{chap:studi-literatur}, ke pemilihan pada subbab ini, hingga perwujudan pada Bab~\ref{chap:implementasi}.
 
@@ -200,7 +189,9 @@ Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps t
 \subsection{\textit{Orchestration and Infrastructure Layer}}
 \label{subsec:lapisan-infra}
 
-\textit{Orchestration and Infrastructure Layer} menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Penskalaan otomatis dijalankan oleh tiga komponen yang saling melengkapi yaitu HPA Kubernetes pada level Pod yang membaca metrik dari metrics-server, VPA \textit{recommender} untuk rekomendasi \textit{resource request}, dan KEDA \autocite{keda2025} untuk penskalaan berbasis peristiwa dari Kafka atau Prometheus. Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} melalui \textit{ClusterQueue} sehingga sumber daya komputasi terbagi adil antar-\textit{tenant} sesuai prioritas, dengan \textit{job} di luar kuota berstatus \textit{Pending} hingga kuota tersedia. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS sehingga identitas mesin diperbarui otomatis, dan Gambar~\ref{fig:layer-orkestrasi-infra} merinci bidang orkestrasi, penskalaan otomatis, serta cert-manager pada \textit{layer} fondasi ini. Perubahan konfigurasi menuju \textit{layer} ini mengalir dari \textit{GitOps and Continuous Delivery Layer} yang dirinci pada Subbab~\ref{subsec:lapisan-gitops}.
+\textit{Orchestration and Infrastructure Layer} menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Karena bidang orkestrasi ini memakai API Kubernetes standar, rancangan tidak terikat pada satu distribusi maupun satu \textit{node}, dan komponen yang sama dapat dijalankan ulang pada \textit{cluster} berskala lebih besar tanpa mengubah manifes. Penskalaan otomatis dijalankan oleh tiga komponen yang saling melengkapi yaitu HPA Kubernetes pada level Pod yang membaca metrik dari metrics-server, VPA \textit{recommender} untuk rekomendasi \textit{resource request}, dan KEDA \autocite{keda2025} untuk penskalaan berbasis peristiwa dari Kafka atau Prometheus. Ketiga mekanisme itu menutup sudut penskalaan yang berbeda, yaitu HPA dan VPA menimbang tekanan sumber daya pada Pod sedangkan KEDA menimbang panjang antrean peristiwa, sehingga beban terukur maupun lonjakan peristiwa sama-sama tertangani.
+
+Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} melalui \textit{ClusterQueue} sehingga sumber daya komputasi terbagi adil antar-\textit{tenant} sesuai prioritas, dengan \textit{job} di luar kuota berstatus \textit{Pending} hingga kuota tersedia. Perubahan konfigurasi menuju \textit{layer} ini mengalir dari \textit{GitOps and Continuous Delivery Layer} yang dirinci pada Subbab~\ref{subsec:lapisan-gitops}. Karena konfigurasi \textit{layer} ini ditarik dari repositori Git oleh layanan rekonsiliasi GitOps, keadaan bidang orkestrasi selalu dapat direproduksi dari isi repositori tanpa penyetelan manual. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS sehingga identitas mesin diperbarui otomatis, dan Gambar~\ref{fig:layer-orkestrasi-infra} merinci bidang orkestrasi, penskalaan otomatis, serta cert-manager pada \textit{layer} fondasi ini.
 
 \begin{figure}[!htbp]
     \centering
@@ -234,7 +225,9 @@ Jalur pemrosesan dibagi menjadi dua, yaitu jalur \textit{batch} dan jalur \texti
 \subsection{\textit{Data Storage Layer}}
 \label{subsec:lapisan-storage}
 
-Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan enkripsi sisi \textit{server} melalui KES dan format Apache Iceberg sebagai \textit{table format}. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai \textit{version control layer} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk \textit{dashboard} maupun materialisasi fitur. Basis data pendampingnya adalah PostgreSQL yang dikelola operator CNPG dan MySQL untuk metadata layanan platform, serta OpenSearch untuk pencarian log dan teks. Gambar~\ref{fig:layer-storage} merinci subgrup \textit{lakehouse} dan basis data beserta konsumennya.
+Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan enkripsi sisi \textit{server} melalui KES dan format Apache Iceberg sebagai \textit{table format}. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai \textit{version control layer} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. Netralitas \textit{engine} Iceberg membuat tabel yang sama dapat dibaca dan ditulis oleh Spark, Trino, maupun Flink tanpa penyalinan data fisik, sedangkan percabangan lakeFS berjalan \textit{zero-copy} di atas MinIO sehingga jejak versi terjaga tanpa menggandakan berkas.
+
+ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk \textit{dashboard} maupun materialisasi fitur. Basis data pendampingnya adalah PostgreSQL yang dikelola operator CNPG dan MySQL untuk metadata layanan platform, serta OpenSearch untuk pencarian log dan teks. ClickHouse yang sama menjadi sumber \textit{offline} bagi \textit{Feature Service Layer}, sedangkan PostgreSQL menyimpan metadata MLflow dan MySQL menyimpan metadata Kubeflow Pipelines, sehingga satu kelompok penyimpanan melayani kebutuhan analitik dan metadata beberapa \textit{layer} sekaligus. Gambar~\ref{fig:layer-storage} merinci subgrup \textit{lakehouse} dan basis data beserta konsumennya.
 
 \begin{figure}[!htbp]
     \centering
@@ -251,6 +244,8 @@ Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \te
 \label{subsec:lapisan-feature}
 
 \textit{Feature Service Layer} ditopang Feast \autocite{feast2024} sebagai \textit{feature store} yang menyatukan definisi fitur untuk pelatihan dan inferensi. ClickHouse pada \textit{Data Storage Layer} menjadi sumber \textit{offline} tempat fitur historis dibaca untuk pelatihan \textit{batch}, sedangkan Valkey menjadi penyimpan \textit{online} berlatensi rendah hasil materialisasi untuk inferensi. Qdrant melengkapi keduanya sebagai indeks vektor bagi \textit{vector feature}, dan registri fitur disimpan sebagai berkas pada MinIO sehingga definisi fitur ikut terversi pada penyimpanan objek. Rincian mekanisme \textit{dual-store} beserta jaminan \textit{point-in-time correctness}-nya dirancang sebagai sub-sistem tersendiri pada Subbab~\ref{sec:feature-store-dual}, dan Gambar~\ref{fig:layer-feature} merinci \textit{layer} ini beserta sumber dan konsumennya.
+
+Pemisahan penyimpanan pada \textit{layer} ini mengikuti perbedaan karakter beban antar penyimpanan. ClickHouse melayani pembacaan \textit{offline} untuk pelatihan dengan kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey melayani pembacaan \textit{online} dengan \textit{lookup} kunci-nilai dalam memori berlatensi rendah saat \textit{inference}. Qdrant berdiri sebagai indeks vektor terpisah dengan HNSW \textit{native}, kueri \textit{gRPC} berlatensi rendah, dan penyaringan \textit{payload} yang menyatu dengan kueri kemiripan, sehingga beban pencarian vektor tidak bercampur dengan \textit{lookup} tabular. \textit{Tabular feature} diakses melalui API Feast, sedangkan \textit{vector feature} diambil langsung melalui klien \textit{native} Qdrant pada saat \textit{inference}, sehingga penyetelan sumber daya tiap penyimpanan dapat dilakukan sendiri-sendiri tanpa menduplikasi definisi fitur.
 
 \begin{figure}[!htbp]
     \centering
@@ -297,6 +292,8 @@ Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{m
 
 \textit{Data Governance Layer} menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada \textit{batch layer} dan \textit{stream layer} dan mengalirkan status validasi ke katalog, sehingga kualitas data tertampil bersama metadata aset yang diujinya. Penelusuran katalog ditopang indeks OpenSearch sehingga aset lintas \textit{layer} dapat dicari dari satu tempat. Rincian sumber metadata per komponen, jadwal \textit{ingestion}, dan kontrol akses berbasis identitas dirancang sebagai sub-sistem tata kelola pada Subbab~\ref{sec:tata-kelola}, dan Gambar~\ref{fig:layer-governance} merinci penerimaan peristiwa \textit{lineage} dan \textit{ingest} metadata pada DataHub beserta batasnya menuju observabilitas.
 
+Ketiga komponen tersebut bekerja sebagai satu bidang tata kelola, yaitu katalog untuk penemuan, kontrak untuk kualitas, dan protokol untuk asal-usul aset. DataHub menghimpun metadata dari Kafka, ClickHouse, MinIO dengan katalog Iceberg, Feast, MLflow, dan Kubeflow Pipelines sehingga aset lintas \textit{layer} terdaftar pada satu tempat. OpenLineage menyeragamkan jejak \textit{lineage} dari \textit{ingestion} sampai model sehingga DataHub dapat merangkai graf ketertelusuran dengan kosakata yang sama. Identitas pengguna katalog diteruskan dari \textit{identity provider} pusat yang dipakai bersama seluruh antarmuka platform, sehingga akses ke metadata tunduk pada sesi identitas yang sama dengan komponen lain.
+
 \begin{figure}[!htbp]
     \centering
     \IfFileExists{figures/Layer_Data_Governance.png}{%
@@ -311,7 +308,9 @@ Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{m
 \subsection{\textit{Observability Layer}}
 \label{subsec:lapisan-observabilitas}
 
-\textit{Observability Layer} menggunakan Prometheus untuk metrik dengan Alertmanager sebagai penyalur peringatan, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan \textit{dashboard} khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost melengkapi pemantauan biaya per beban kerja. Pushgateway dipakai untuk mengumpulkan metrik \textit{job} berdurasi pendek, antara lain CronJob validasi data dan CronWorkflow pengukur \textit{drift}, agar metrik mereka tidak hilang setelah \textit{job} selesai. Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke \textit{dashboard} Grafana. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan \textit{dashboard} di atas ClickHouse dan Trino. Gambar~\ref{fig:layer-observability} merinci ketiga pilar observabilitas pada satu antarmuka Grafana beserta \textit{dashboard} analitik Superset.
+\textit{Observability Layer} menggunakan Prometheus untuk metrik dengan Alertmanager sebagai penyalur peringatan, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan \textit{dashboard} khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost melengkapi pemantauan biaya per beban kerja. Pushgateway dipakai untuk mengumpulkan metrik \textit{job} berdurasi pendek, antara lain CronJob validasi data dan CronWorkflow pengukur \textit{drift}, agar metrik mereka tidak hilang setelah \textit{job} selesai.
+
+Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke \textit{dashboard} Grafana. \textit{Report} Evidently disimpan pada MinIO dan ditautkan dari katalog DataHub sehingga penurunan kinerja model dapat ditelusuri bersama metadata asetnya. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan \textit{dashboard} di atas ClickHouse dan Trino. Gambar~\ref{fig:layer-observability} merinci ketiga pilar observabilitas pada satu antarmuka Grafana beserta \textit{dashboard} analitik Superset.
 
 \begin{figure}[!htbp]
     \centering
@@ -327,7 +326,9 @@ Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{m
 \subsection{\textit{GitOps and Continuous Delivery Layer}}
 \label{subsec:lapisan-gitops}
 
-\textit{GitOps and Continuous Delivery Layer} menjadikan Git satu-satunya sumber kebenaran konfigurasi platform. Argo CD menjadi satu-satunya jalur perubahan yang menarik konfigurasi dari Git dan menerapkannya ke \textit{cluster} melalui prinsip rekonsiliasi deklaratif GitOps \autocite{limoncelli2022gitops}, sehingga keadaan \textit{cluster} selalu dapat direproduksi dari isi repositori. Gitea berperan sebagai \textit{repository} Git internal, Tekton sebagai \textit{build pipeline} yang menguji dan membangun \textit{image}, dan \textit{image registry} internal sebagai penyimpan artefak hasil \textit{build}. Argo Rollouts melengkapi jalur pengiriman sebagai operator pengiriman bertahap yang mempromosikan versi baru berdasarkan metrik, termasuk untuk rilis model pada bagian \textit{model serving}. Gambar~\ref{fig:layer-gitops} merinci rantai dari \textit{commit} sampai rekonsiliasi pada seluruh \textit{layer} platform.
+\textit{GitOps and Continuous Delivery Layer} menjadikan Git satu-satunya sumber kebenaran konfigurasi platform. Argo CD menjadi satu-satunya jalur perubahan yang menarik konfigurasi dari Git dan menerapkannya ke \textit{cluster} melalui prinsip rekonsiliasi deklaratif GitOps \autocite{limoncelli2022gitops}, sehingga keadaan \textit{cluster} selalu dapat direproduksi dari isi repositori. Seluruh manifes, \textit{chart}, dan \textit{overlay} berada pada satu \textit{control plane} yang ditarik Argo CD tanpa ketergantungan pada penyedia eksternal. Argo CD juga menyediakan antarmuka penelusuran sinkronisasi yang matang sehingga penyimpangan antara Git dan \textit{cluster} terlihat dan direkonsiliasi secara berkelanjutan.
+
+Gitea berperan sebagai \textit{repository} Git internal, Tekton sebagai \textit{build pipeline} yang menguji dan membangun \textit{image}, dan \textit{image registry} internal sebagai penyimpan artefak hasil \textit{build}. Argo Rollouts melengkapi jalur pengiriman sebagai operator pengiriman bertahap yang mempromosikan versi baru berdasarkan metrik, termasuk untuk rilis model pada bagian \textit{model serving}. Pembagian peran menempatkan Tekton pada pembangunan artefak dan Argo CD pada rekonsiliasi keadaan, sehingga rantai yang sama menjadi mekanisme yang memicu \textit{retraining} model melalui kontrol deklaratif tanpa jalur manual. Gambar~\ref{fig:layer-gitops} merinci rantai dari \textit{commit} sampai rekonsiliasi pada seluruh \textit{layer} platform.
 
 \begin{figure}[!htbp]
     \centering
@@ -343,7 +344,9 @@ Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{m
 \subsection{\textit{Platform Security Layer}}
 \label{subsec:lapisan-keamanan}
 
-\textit{Platform Security Layer} menegakkan akses terkendali serta kepatuhan privasi dan keamanan data pada seluruh \textit{layer} lain. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. Kebijakan \textit{PeerAuthentication} bawaan ditetapkan \textit{strict}, dengan dua bentuk pengecualian terbatas untuk titik masuk yang menerima klien di luar \textit{mesh}, yaitu mode \texttt{PERMISSIVE} pada komponen seperti Pushgateway dan registri skema, serta penempatan \textit{broker} Kafka di luar \textit{mesh} dengan enkripsi dan autentikasi yang ditangani SASL\_SSL bawaan Kafka, sehingga jalur produsen eksternal tetap terbuka tanpa melemahkan bawaan internal. Identitas terpusat disediakan Dex sebagai penyedia OIDC, oauth2-proxy sebagai penjaga \textit{single sign-on} bagi konsol web, dan SpiceDB sebagai mesin otorisasi berbasis relasi. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas manifes. Kebijakan keamanan dijalankan pada dua titik, yaitu Kyverno \autocite{kyverno2024} pada admisi Kubernetes dan Falco \autocite{falco2025} pada \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai \textit{image} dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal ke MinIO, dan Chaos Mesh menyuntikkan gangguan terkendali untuk menguji ketahanan platform. Gambar~\ref{fig:layer-security} merinci seluruh komponen keamanan ini dari perbatasan sampai pemulihan.
+\textit{Platform Security Layer} menegakkan akses terkendali serta kepatuhan privasi dan keamanan data pada seluruh \textit{layer} lain. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. Kebijakan \textit{PeerAuthentication} bawaan ditetapkan \textit{strict}, dengan dua bentuk pengecualian terbatas untuk titik masuk yang menerima klien di luar \textit{mesh}, yaitu mode \texttt{PERMISSIVE} pada komponen seperti Pushgateway dan registri skema, serta penempatan \textit{broker} Kafka di luar \textit{mesh} dengan enkripsi dan autentikasi yang ditangani SASL\_SSL bawaan Kafka, sehingga jalur produsen eksternal tetap terbuka tanpa melemahkan bawaan internal. Identitas terpusat disediakan Dex sebagai penyedia OIDC, oauth2-proxy sebagai penjaga \textit{single sign-on} bagi konsol web, dan SpiceDB sebagai mesin otorisasi berbasis relasi.
+
+OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas manifes. Kebijakan keamanan dijalankan pada dua titik, yaitu Kyverno \autocite{kyverno2024} pada admisi Kubernetes dan Falco \autocite{falco2025} pada \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai \textit{image} dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal ke MinIO, dan Chaos Mesh menyuntikkan gangguan terkendali untuk menguji ketahanan platform. Gambar~\ref{fig:layer-security} merinci seluruh komponen keamanan ini dari perbatasan sampai pemulihan.
 
 \begin{figure}[!htbp]
     \centering
@@ -463,7 +466,7 @@ Jadwal materialisasi \textit{batch} dipasang pada DAG Airflow melalui \textit{ta
 \section{Alur Kerja \textit{End-to-End}}
 \label{sec:alur-e2e}
 
-Alur kerja menyatukan empat sub-sistem ke dalam satu siklus berkelanjutan dengan urutan tahap sebagai berikut.
+Alur kerja menyatukan keempat sub-sistem yang dirancang pada subbab-subbab sebelumnya ke dalam satu siklus berkelanjutan pada satu \textit{control plane} Kubernetes. Siklus bergerak dari \textit{ingestion} data, melewati komputasi dan materialisasi fitur, pengukuran \textit{drift}, sampai promosi model, lalu berputar kembali ketika data baru tiba. Tiap tahap memakai komponen yang sama dengan yang dirinci pada perancangan arsitektur dan ketiga sub-sistem lain, sehingga alur ini menautkan komponen yang sudah ada tanpa menambah komponen baru. Kelima tahap tersebut berurutan sebagai berikut.
 
 \vspace{0.5em}
 \begin{enumerate}
