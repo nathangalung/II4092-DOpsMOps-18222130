@@ -1,0 +1,37 @@
+% Biaya Opsi B (kustom dari nol, VPS + Kubernetes): infrastruktur, tenaga, total per opsi.
+% Harga infrastruktur verbatim dari halaman resmi penyedia; asumsi tenaga ilustratif (lihat prosa).
+% [H] posisi tetap: tabel duduk pada batas paragraf, tidak pernah menyilang paragraf. Prosa sumber dipindah ke atas tabel agar halaman terisi.
+\begin{table}[H]
+\centering
+\caption{Biaya Opsi B: Kustom dari Nol pada VPS dan Kubernetes}
+\label{tab:biaya-b}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}|>{\raggedright\arraybackslash}m{4.2cm}|>{\raggedright\arraybackslash}m{4.4cm}|>{\centering\arraybackslash}m{2.2cm}|>{\centering\arraybackslash}m{2.0cm}|}
+\hline
+\centering\arraybackslash\textbf{Komponen} & \centering\arraybackslash\textbf{Konfigurasi} & \textbf{Biaya per Bulan} & \textbf{Sumber} \\
+\hline
+Contabo Cloud VPS 50 & 16 vCPU \textit{shared}, 64 GB, NVMe 300 GB & EUR 37,00 & \autocite{contabo2026} \\
+\hline
+Hetzner CCX43 & 16 vCPU \textit{dedicated} AMD, 64 GB, SSD 360 GB & EUR 275,99 & \autocite{hetzner2026} \\
+\hline
+OVHcloud B3-64 & 16 vCore \textit{dedicated}, 64 GB, NVMe 400 GB & USD 352,52 & \autocite{ovhcloud2026} \\
+\hline
+Akamai Linode 64 GB & 16 vCPU \textit{shared}, 64 GB, SSD 1.280 GB & USD 384,00 & \autocite{linode2026} \\
+\hline
+Vultr Optimized Cloud Compute & 16 vCPU \textit{dedicated}, 64 GB, NVMe 320 GB & USD 480,00 & \autocite{vultr2026} \\
+\hline
+DigitalOcean General Purpose & 16 vCPU \textit{dedicated}, 64 GB, SSD 200 GB dan \textit{volume} 200 GB & USD 524,00 & \autocite{digitalocean2026} \\
+\hline
+\multicolumn{2}{|l|}{Kisaran infrastruktur, satu penyedia dipilih} & \textbf{USD 43 sampai 524} & \\
+\hline
+\multicolumn{2}{|l|}{Infrastruktur acuan, median penyedia \textit{dedicated}} & \textbf{USD 416,26} & \\
+\hline
+\multicolumn{2}{|l|}{Biaya tenaga 12 bulan, 1,0 FTE tetap} & USD 10.158,60 & \\
+\hline
+\multicolumn{2}{|l|}{\textbf{Total tahun pertama}} & \textbf{USD 15.153,72} & \\
+\hline
+\multicolumn{2}{|l|}{\textbf{Total tiga tahun}} & \textbf{USD 45.461,16} & \\
+\hline
+\end{tabular*}
+\end{table}

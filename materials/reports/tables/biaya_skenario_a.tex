@@ -1,0 +1,37 @@
+% Biaya Opsi A (layanan terkelola penuh GCP): infrastruktur, tenaga, total per opsi.
+% Harga infrastruktur verbatim dari halaman resmi Google Cloud; asumsi tenaga ilustratif (lihat prosa).
+% [H] posisi tetap: tabel duduk pada batas paragraf, tidak pernah menyilang paragraf. Prosa sumber dipindah ke atas tabel agar halaman terisi.
+\begin{table}[H]
+\centering
+\caption{Biaya Opsi A: Layanan Terkelola Penuh pada GCP}
+\label{tab:biaya-a}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}|>{\raggedright\arraybackslash}m{4.2cm}|>{\raggedright\arraybackslash}m{4.4cm}|>{\centering\arraybackslash}m{2.2cm}|>{\centering\arraybackslash}m{2.0cm}|}
+\hline
+\centering\arraybackslash\textbf{Komponen} & \centering\arraybackslash\textbf{Konfigurasi} & \textbf{Biaya per Bulan} & \textbf{Sumber} \\
+\hline
+Pengelolaan klaster GKE & Satu klaster \textit{Standard} & USD 73,00 & \autocite{gkepricing2026} \\
+\hline
+Node Compute Engine & e2-standard-16, 16 vCPU, 64 GB & USD 391,35 & \autocite{gcecompute2026} \\
+\hline
+\textit{Persistent disk} pd-balanced & 400 GB & USD 40,00 & \autocite{gcpdisks2026} \\
+\hline
+Cloud SQL for PostgreSQL & 4 vCPU, 16 GB, tanpa \textit{high availability} & USD 202,36 & \autocite{cloudsql2026} \\
+\hline
+Memorystore for Redis & \textit{Basic tier}, 5 GB & USD 98,55 & \autocite{memorystore2026} \\
+\hline
+Managed Service for Apache Kafka & Minimum 3 vCPU pada 3 \textit{broker} & USD 197,10 & \autocite{managedkafka2026} \\
+\hline
+Cloud Storage \textit{Standard} & 100 GB & USD 2,00 & \autocite{gcs2026} \\
+\hline
+\multicolumn{2}{|l|}{Infrastruktur per bulan} & \textbf{USD 1.004,36} & \\
+\hline
+\multicolumn{2}{|l|}{Biaya tenaga 12 bulan, 0,5 lalu 0,1 FTE} & USD 1.354,48 & \\
+\hline
+\multicolumn{2}{|l|}{\textbf{Total tahun pertama}} & \textbf{USD 13.406,80} & \\
+\hline
+\multicolumn{2}{|l|}{\textbf{Total tiga tahun}} & \textbf{USD 39.543,16} & \\
+\hline
+\end{tabular*}
+\end{table}

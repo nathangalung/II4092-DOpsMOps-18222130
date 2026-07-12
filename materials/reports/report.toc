@@ -1189,7 +1189,8 @@
 \contentsline {subsection}{\numberline {VI.1.5}Evaluasi Tujuan T-4: Layanan Fitur \textit {Dual-Store}}{131}{subsection.6.1.5}%
 \contentsline {subsection}{\numberline {VI.1.6}Matriks Cakupan dan Uji Penerimaan}{132}{subsection.6.1.6}%
 \contentsline {section}{\numberline {VI.2}Hasil Evaluasi}{133}{section.6.2}%
-\contentsline {section}{\numberline {VI.3}Perbandingan Biaya Infrastruktur dan Tenaga Kerja}{138}{section.6.3}%
+\contentsline {subsection}{\numberline {VI.2.1}Pemenuhan Tujuan Platform}{133}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {VI.2.2}Perbandingan Biaya Infrastruktur dan Tenaga Kerja}{138}{subsection.6.2.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1228,11 +1229,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {VI.4}Pembahasan Hasil Evaluasi}{141}{section.6.4}%
+\contentsline {section}{\numberline {VI.3}Pembahasan}{141}{section.6.3}%
 \contentsline {chapter}{\numberline {VII}PENUTUP}{145}{chapter.7}%
 \contentsline {section}{\numberline {VII.1}Kesimpulan}{145}{section.7.1}%
 \contentsline {section}{\numberline {VII.2}Saran}{146}{section.7.2}%

@@ -1091,7 +1091,9 @@
 \contentsline {table}{\numberline {VI.6}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-2}}{134}{table.6.6}%
 \contentsline {table}{\numberline {VI.7}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-3}}{135}{table.6.7}%
 \contentsline {table}{\numberline {VI.8}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-4}}{136}{table.6.8}%
-\contentsline {table}{\numberline {VI.9}{\ignorespaces Perbandingan Biaya Bulanan Infrastruktur per 16 Juni 2026}}{139}{table.caption.68}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {table}{\numberline {VI.9}{\ignorespaces Biaya Opsi A: Layanan Terkelola Penuh pada GCP}}{139}{table.caption.68}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1106,6 +1108,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {table}{\numberline {VI.10}{\ignorespaces Biaya Opsi B: Kustom dari Nol pada VPS dan Kubernetes}}{140}{table.caption.69}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1118,19 +1121,13 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {table}{\numberline {VI.11}{\ignorespaces Biaya Opsi C: Open Source pada VPS dan Kubernetes}}{140}{table.caption.70}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.10}{\ignorespaces Ilustrasi Biaya Infrastruktur dan Tenaga Kerja per Skenario}}{140}{table.caption.69}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1465,8 +1462,8 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Nilai Evaluasi Pemilihan Solusi}}{165}{table.caption.72}%
+\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Nilai Evaluasi Pemilihan Solusi}}{165}{table.caption.73}%
 \contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{166}{table.a.A.2}%
 \contentsline {table}{\numberline {A.3}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{167}{table.a.A.3}%
-\contentsline {table}{\numberline {A.4}{\ignorespaces Parameter Pemetaan Skor Perbandingan Kematangan MLOps}}{171}{table.caption.73}%
+\contentsline {table}{\numberline {A.4}{\ignorespaces Parameter Pemetaan Skor Perbandingan Kematangan MLOps}}{171}{table.caption.74}%
 \addvspace {10\p@ }
