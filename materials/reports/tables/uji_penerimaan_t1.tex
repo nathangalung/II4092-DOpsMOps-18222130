@@ -1,0 +1,46 @@
+% Skenario uji tujuan T-1, pecahan uji_penerimaan
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{10\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.75cm}|m{5.9cm}|m{4cm}|}
+\caption{Skenario Uji Penerimaan Tujuan T-1}
+\label{tab:uji_penerimaan_t1} \\
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+SK-F-01 & KF-01 & Mengubah definisi \textit{feature view} pada repositori Gitea lalu mengamati rekonsiliasi Argo CD, kemudian memverifikasi \texttt{feast feature-views list}. & \textit{Feature view} baru aktif tanpa intervensi manual dan perubahan terlacak pada riwayat Git. \\
+\hline
+SK-F-06 & KF-06 & Mempromosikan model melalui Argo Rollouts dengan strategi \textit{canary}, lalu menyuntikkan model bermasalah untuk memicu \textit{rollback}. & Model valid dipromosikan dan model bermasalah memicu \textit{rollback} otomatis tanpa kehilangan permintaan. \\
+\hline
+SK-F-12 & KF-12 & Mengubah jumlah \textit{replica} pada manifes YAML di Gitea, lalu mengamati rekonsiliasi Argo CD. & Status \textit{cluster} konvergen ke definisi Git dan tidak menyisakan \textit{drift}. \\
+\hline
+SK-F-13 & KF-13 & Menjalankan \textit{notebook} satu \textit{environment} uv yang memuat SDK Feast, MLflow, dan klien \textit{inference} KServe v2, lalu memanggil ketiganya sebagai operasi baca independen. & Ketiga klien termuat dan berjalan dari satu \textit{environment} uv tanpa konfigurasi tambahan per layanan. \\
+\hline
+SK-F-14 & KF-14 & Mengirim sejumlah \textit{training job} melebihi kuota \textit{ClusterQueue} Kueue, lalu mengamati status admisi. & \textit{Job} di luar anggaran kuota berstatus \textit{Pending}. Admisi mengikuti \textit{nominalQuota} dan \textit{borrowingLimit}. \\
+\hline
+SK-N-03 & KNF-03 & Menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} sambil mengamati HPA, KEDA \textit{ScaledObject}, dan jumlah \textit{pod}. & Jumlah \textit{replica} naik mengikuti beban dan \textit{throughput} bertambah mendekati linear. \\
+\hline
+SK-N-04 & KNF-04 & Menyuntikkan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & Beban kerja pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
+\hline
+SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{serving runtime}) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
+\hline
+SK-N-09 & KNF-09 & Mengakses seluruh konsol platform melalui satu sesi identitas dex serta memeriksa ketersediaan dokumentasi operasional pada repositori Gitea. & Seluruh konsol dapat dicapai melalui satu jalur autentikasi tanpa login ulang dan dokumentasi prosedur inti tersedia. \\
+\hline
+SK-N-10 & KNF-10 & Mengukur rasio kompresi ClickHouse, utilisasi sumber daya, dan atribusi biaya \textit{workload} pada OpenCost. & Rasio kompresi dan utilisasi memenuhi target serta biaya per \textit{workload} dapat diatribusikan. \\
+\hline
+SK-N-11 & KNF-11 & Menerapkan ulang seluruh manifes GitOps pada \textit{node} k3s baru dari satu sumber Git. & Seluruh komponen terekonstruksi tanpa intervensi manual selain \textit{bootstrap} Argo CD. \\
+\hline
+SK-N-12 & KNF-12 & Menjalankan \texttt{make usecase-crypto-test} untuk cakupan uji dan \texttt{make phase-full} pada \textit{cluster} bersih sambil mengukur waktu konvergensi. & Cakupan uji melewati ambang yang ditetapkan dan \texttt{phase-full} konvergen tanpa langkah manual. \\
+\hline
+\end{longtable}
+}

@@ -1083,9 +1083,15 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.1}{\ignorespaces Skenario Uji Penerimaan per Tujuan Platform}}{129}{table.6.1}%
-\contentsline {table}{\numberline {VI.2}{\ignorespaces Target Metrik, Instrumen Ukur, dan Status Evaluasi per Kebutuhan}}{134}{table.6.2}%
-\contentsline {table}{\numberline {VI.3}{\ignorespaces Perbandingan Biaya Bulanan Infrastruktur per 16 Juni 2026}}{138}{table.caption.68}%
+\contentsline {table}{\numberline {VI.1}{\ignorespaces Skenario Uji Penerimaan Tujuan T-1}}{127}{table.6.1}%
+\contentsline {table}{\numberline {VI.2}{\ignorespaces Skenario Uji Penerimaan Tujuan T-2}}{129}{table.6.2}%
+\contentsline {table}{\numberline {VI.3}{\ignorespaces Skenario Uji Penerimaan Tujuan T-3}}{130}{table.6.3}%
+\contentsline {table}{\numberline {VI.4}{\ignorespaces Skenario Uji Penerimaan Tujuan T-4}}{132}{table.6.4}%
+\contentsline {table}{\numberline {VI.5}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-1}}{133}{table.6.5}%
+\contentsline {table}{\numberline {VI.6}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-2}}{134}{table.6.6}%
+\contentsline {table}{\numberline {VI.7}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-3}}{135}{table.6.7}%
+\contentsline {table}{\numberline {VI.8}{\ignorespaces Status Evaluasi Kebutuhan Tujuan T-4}}{136}{table.6.8}%
+\contentsline {table}{\numberline {VI.9}{\ignorespaces Perbandingan Biaya Bulanan Infrastruktur per 16 Juni 2026}}{139}{table.caption.68}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1124,7 +1130,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.4}{\ignorespaces Ilustrasi Biaya Infrastruktur dan Tenaga Kerja per Skenario}}{140}{table.caption.69}%
+\contentsline {table}{\numberline {VI.10}{\ignorespaces Ilustrasi Biaya Infrastruktur dan Tenaga Kerja per Skenario}}{140}{table.caption.69}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1459,6 +1465,8 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{163}{table.a.A.1}%
-\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{164}{table.a.A.2}%
+\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Nilai Evaluasi Pemilihan Solusi}}{165}{table.caption.72}%
+\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{166}{table.a.A.2}%
+\contentsline {table}{\numberline {A.3}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{167}{table.a.A.3}%
+\contentsline {table}{\numberline {A.4}{\ignorespaces Parameter Pemetaan Skor Perbandingan Kematangan MLOps}}{171}{table.caption.73}%
 \addvspace {10\p@ }

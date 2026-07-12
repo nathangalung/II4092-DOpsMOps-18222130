@@ -1,0 +1,28 @@
+% Status evaluasi kebutuhan tujuan T-3, pecahan evaluasi_target
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{9\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.7cm}|m{3.9cm}|m{2.8cm}|m{4.4cm}|}
+\caption{Status Evaluasi Kebutuhan Tujuan T-3}
+\label{tab:evaluasi_target_t3} \\
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{3.9cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.8cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.4cm}|}{\textbf{Status dan Bukti Teramati}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{3.9cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.8cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.4cm}|}{\textbf{Status dan Bukti Teramati}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KF-03 & \textit{Zero leakage} pada \textit{point-in-time join} & Feast PIT, probe \textit{leakage} & Terverifikasi struktural. Probe \textit{timestamp} masa depan menolak baris bocor. \\
+\hline
+KF-05 & \textit{Pipeline end-to-end}, \textit{run} tercatat di MLflow & Kubeflow Pipelines, MLflow & Terverifikasi struktural. \textit{Pipeline} Kubeflow merangkai deteksi \textit{drift}, pelatihan dari tabel \textit{gold}, dan \textit{deploy} ke KServe. Definisinya terkompilasi dan terdaftar pada KFP dengan jalur pencatatan ke MLflow. \\
+\hline
+KF-07 & \textit{Drift} memicu \textit{retraining} & \textit{drift-detector}, Argo CronWorkflow & Terverifikasi fungsional. PSI 18,107 dan KS 0,815 melampaui ambang sehingga \textit{retraining} terpicu. \\
+\hline
+\end{longtable}
+}

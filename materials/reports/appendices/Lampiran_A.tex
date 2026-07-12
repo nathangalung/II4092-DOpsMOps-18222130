@@ -1,15 +1,27 @@
-% Lampiran A parameter rubrik skor
-% Kriteria lintas tabel lalu spesifik
-% Dirujuk makro skorlegendtools
+% Lampiran A parameter skala 0-2
+% Tiga bagian solusi, tools, kematangan
+% Dirujuk makro skorlegend dan skorlegendtools
 \cleardoublepage
-\chapter{PARAMETER PENILAIAN KRITERIA EVALUASI ALTERNATIF}
+\chapter{PARAMETER PENILAIAN KRITERIA EVALUASI}
 \label{appx:rubrik}
 
-Lampiran ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2, dan parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
+Lampiran ini merinci parameter untuk seluruh penilaian berskala 0 sampai 2 yang dipakai pada laporan agar setiap angka dapat dirunut ke definisi nilainya. Bagian~\ref{sec:appx-rubrik-solusi} memuat parameter evaluasi pemilihan solusi yang mendasari skor kebutuhan fungsional dan nonfungsional pada Subbab~\ref{subsec:penentuan-solusi}. Bagian~\ref{sec:appx-rubrik-tools} memuat parameter evaluasi pemilihan \textit{open source tools} yang mendasari tabel berskor pada Subbab~\ref{sec:pemilihan-tools}. Bagian~\ref{sec:appx-rubrik-maturity} memuat parameter pemetaan skor pada perbandingan kerangka kematangan MLOps di Subbab~\ref{subsec:maturity}, sekaligus menegaskan batas antara definisi \textit{level} yang diterbitkan tiap kerangka dan kuantisasi yang dilakukan laporan ini.
+
+\section{Parameter Evaluasi Pemilihan Solusi}
+\label{sec:appx-rubrik-solusi}
+
+Skor pada Tabel~\ref{tab:evaluasi_kf} dan Tabel~\ref{tab:evaluasi_knf} menilai pemenuhan tiap kebutuhan oleh empat alternatif solusi pada Subbab~\ref{subsec:penentuan-solusi}. Penilaian diturunkan dari dokumentasi resmi dan penawaran publik tiap kategori alternatif, misalnya katalog layanan penyedia \textit{cloud} untuk Alternatif A serta dokumentasi proyek \textit{open source} untuk Alternatif B, sehingga nilainya dapat diperiksa ulang dari sumber yang sama. Tabel~\ref{tab:rubrik_solusi} merinci makna tiap nilai untuk sisi kebutuhan fungsional dan sisi kebutuhan nonfungsional. Nilai bersifat komparatif antar keempat alternatif pada kebutuhan yang sama dan tidak memakai pembobotan.
+
+\input{tables/rubrik_solusi.tex}
+
+\section{Parameter Evaluasi Pemilihan \textit{Open Source Tools}}
+\label{sec:appx-rubrik-tools}
+
+Bagian ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2, dan parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
 
 Parameter dibagi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu \textit{layer}, dikelompokkan menurut \textit{layer} arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
 
-\section{Kriteria Lintas Tabel}
+\subsection{Kriteria Lintas Tabel}
 \label{sec:appx-rubrik-lintas}
 
 {
@@ -17,6 +29,7 @@ Parameter dibagi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas}
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.2}
 \setlength{\LTpost}{0pt}
+\Needspace{9\baselineskip}
 \begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
 \caption{Parameter Penilaian Kriteria Lintas Tabel}
 \label{tab:rubrik_lintas} \\
@@ -49,7 +62,7 @@ Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem alat
 \end{longtable}
 }
 
-\section{Kriteria Spesifik per \textit{Layer}}
+\subsection{Kriteria Spesifik per \textit{Layer}}
 \label{sec:appx-rubrik-spesifik}
 
 {
@@ -57,6 +70,7 @@ Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem alat
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.2}
 \setlength{\LTpost}{0pt}
+\Needspace{9\baselineskip}
 \begin{longtable}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{3.5cm}|}
 \caption{Parameter Penilaian Kriteria Spesifik per \textit{Layer}}
 \label{tab:rubrik_spesifik} \\
@@ -180,3 +194,10 @@ Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan ba
 \hline
 \end{longtable}
 }
+
+\section{Parameter Pemetaan Kematangan MLOps}
+\label{sec:appx-rubrik-maturity}
+
+Perbandingan kerangka kematangan MLOps pada Subbab~\ref{subsec:maturity} memakai skor 0 sampai 2 untuk enam praktik pada empat kerangka terbit. Definisi \textit{level} itu sendiri bukan buatan laporan ini, sebab tiap kerangka menerbitkan deskripsi resmi levelnya masing-masing, seperti \textit{level} 0 sampai 2 pada Google Cloud yang dirinci pada Subbab~\ref{subsec:maturity}. Kuantisasi menjadi angka justru dilakukan laporan ini dengan membaca deskripsi terbit tiap \textit{level} lalu memetakan kehadiran tiap praktik pada kolom tabel ke salah satu dari tiga nilai. Tabel~\ref{tab:rubrik_maturity} merinci parameter pemetaan tersebut sehingga pembaca dapat mengulangi pemetaan dari sumber yang sama dan memeriksa nilainya.
+
+\input{tables/rubrik_maturity.tex}

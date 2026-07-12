@@ -1,0 +1,32 @@
+% Status evaluasi kebutuhan tujuan T-4, pecahan evaluasi_target
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{9\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.7cm}|m{3.9cm}|m{2.8cm}|m{4.4cm}|}
+\caption{Status Evaluasi Kebutuhan Tujuan T-4}
+\label{tab:evaluasi_target_t4} \\
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{3.9cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.8cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.4cm}|}{\textbf{Status dan Bukti Teramati}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{3.9cm}|}{\textbf{Target atau Kriteria}} & \multicolumn{1}{>{\centering\arraybackslash}m{2.8cm}|}{\textbf{Instrumen Ukur}} & \multicolumn{1}{>{\centering\arraybackslash}m{4.4cm}|}{\textbf{Status dan Bukti Teramati}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+KF-02 & Konsistensi nilai \textit{online} dan \textit{offline} & Feast SDK, materialisasi & Terverifikasi struktural. Nilai \textit{online} dan \textit{offline} sama melalui materialisasi Feast. \\
+\hline
+KF-04 & Pencarian vektor HNSW berfungsi, latensi sub-detik & Qdrant, k6 & Terinstrumentasi. Latensi p50 4,25 ms dan p95 5,02 ms pada 100 iterasi. \textit{Recall} belum diuji karena koleksi kosong. \\
+\hline
+KF-11 & Paritas fitur \textit{batch} dan \textit{stream} & dbt, Flink & Terverifikasi struktural. Definisi fitur \textit{batch} dan \textit{stream} konsisten. \\
+\hline
+KNF-01 & Latensi p99 sub-detik \textit{feature serving} dan \textit{vector search} & k6, SLO Sloth & Terinstrumentasi. Jalur \textit{feature serving} dan \textit{vector search} terukur. Nilai p99 pada beban tinggi belum diukur. \\
+\hline
+KNF-02 & \textit{Throughput} jalur \textit{serving} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-}\allowbreak\texttt{perf-test}, KEDA & Terinstrumentasi. Instrumen beban k6 dan KEDA terpasang. \textit{Throughput} puncak belum diukur. \\
+\hline
+\end{longtable}
+}

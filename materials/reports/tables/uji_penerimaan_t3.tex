@@ -1,0 +1,28 @@
+% Skenario uji tujuan T-3, pecahan uji_penerimaan
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{10\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.75cm}|m{5.9cm}|m{4cm}|}
+\caption{Skenario Uji Penerimaan Tujuan T-3}
+\label{tab:uji_penerimaan_t3} \\
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+SK-F-03 & KF-03 & Mengaudit \texttt{get\_historical\_features} pada \textit{training dataset} untuk memastikan jendela \textit{point-in-time} dipatuhi. & Tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. \\
+\hline
+SK-F-05 & KF-05 & Menjalankan \textit{training pipeline} pada Kubeflow Pipelines yang membaca fitur dari tabel \textit{gold} dan menulis model ke MLflow. & \textit{Pipeline} berjalan dari ujung ke ujung dan model tercatat sebagai artefak \textit{run} pada MLflow yang dapat disajikan KServe. \\
+\hline
+SK-F-07 & KF-07 & Menyuntikkan \textit{drift} terkendali pada satu fitur data nyata, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow retrain-on-drift}. & \textit{Drift} terdeteksi saat ambang PSI atau KS terlampaui dan \textit{retraining pipeline} terpicu otomatis. \\
+\hline
+\end{longtable}
+}

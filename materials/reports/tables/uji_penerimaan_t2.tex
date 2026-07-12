@@ -1,0 +1,34 @@
+% Skenario uji tujuan T-2, pecahan uji_penerimaan
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{10\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.75cm}|m{5.9cm}|m{4cm}|}
+\caption{Skenario Uji Penerimaan Tujuan T-2}
+\label{tab:uji_penerimaan_t2} \\
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+SK-F-08 & KF-08 & Menelusuri \textit{lineage} pada DataHub dari \textit{topic} sumber hingga keluaran prediksi melalui antarmuka katalog. & Rantai \textit{lineage} utuh dari sumber data sampai prediksi tersaji pada satu graf metadata. \\
+\hline
+SK-F-09 & KF-09 & Menjalankan dua \textit{training run} lalu mencatatnya pada MLflow, kemudian memutar ulang \textit{run} dari \textit{snapshot} data dan parameter tercatat. & \textit{Run} tercatat lengkap dan pemutaran ulang menghasilkan selisih metrik di bawah satu persen. \\
+\hline
+SK-F-10 & KF-10 & Memindahkan model melalui status \textit{none}, \textit{staging}, \textit{production}, dan \textit{archived} pada registri MLflow. & Transisi mengikuti aturan yang ditetapkan dan \textit{audit trail} terekam lengkap. \\
+\hline
+SK-N-05 & KNF-05 & Menjalankan \textit{checkpoint} Great Expectations pada \textit{batch} data, lalu menyuntikkan pelanggaran skema, rentang nilai, dan kelengkapan untuk menguji penegakan kontrak. & Setiap pelanggaran kontrak kualitas terdeteksi dan \textit{batch} cacat ditolak sebelum masuk \textit{layer} hilir. \\
+\hline
+SK-N-06 & KNF-06 & Menelusuri satu \textit{trace} OpenTelemetry pada Grafana Tempo dari \textit{ingestion} hingga prediksi. & Satu \textit{trace} menautkan lintasan kritis dan metrik, log, serta \textit{trace} dapat dirujuk silang. \\
+\hline
+SK-N-07 & KNF-07 & Memindai \textit{cluster} dengan Trivy dan memeriksa konfigurasi TLS pada \textit{endpoint} layanan. & TLS 1.3 \textit{in transit} dan AES-256 \textit{at rest} terverifikasi tanpa kerentanan kritis terbuka. \\
+\hline
+\end{longtable}
+}

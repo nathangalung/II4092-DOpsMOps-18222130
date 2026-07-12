@@ -1,0 +1,32 @@
+% Skenario uji tujuan T-4, pecahan uji_penerimaan
+{
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\Needspace{10\baselineskip}
+\begin{longtable}{|>{\centering\arraybackslash}m{1.4cm}|>{\centering\arraybackslash}m{1.75cm}|m{5.9cm}|m{4cm}|}
+\caption{Skenario Uji Penerimaan Tujuan T-4}
+\label{tab:uji_penerimaan_t4} \\
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Skenario} & \textbf{Kebutuhan} & \multicolumn{1}{>{\centering\arraybackslash}m{5.9cm}|}{\textbf{Prosedur Uji}} & \multicolumn{1}{>{\centering\arraybackslash}m{4cm}|}{\textbf{Kriteria Penerimaan}} \\
+\hline
+\endhead
+\endfoot
+\hline
+\endlastfoot
+
+SK-F-02 & KF-02 & Memeriksa \textit{online feature serving} pada Valkey mengembalikan nilai non-\textit{null} melalui \texttt{online-serving-check.py}. & \textit{Online serving} mengembalikan nilai non-\textit{null} dan kesetaraan nilai \textit{online} dan \textit{offline} terpenuhi secara struktural melalui materialisasi. \\
+\hline
+SK-F-04 & KF-04 & Menjalankan beban pencarian vektor pada Qdrant melalui \texttt{load/vector-search-latency.js} dengan k6. & Latensi pencarian vektor berada pada orde sub-detik. Pengujian \textit{recall} dilakukan saat koleksi vektor terisi. \\
+\hline
+SK-F-11 & KF-11 & Membandingkan fitur hasil \textit{batch} (dbt) dan hasil \textit{stream} (Flink) untuk indikator yang sama. & Nilai fitur \textit{batch} dan \textit{stream} setara dalam toleransi yang ditetapkan. \\
+\hline
+SK-N-01 & KNF-01 & Menjalankan \texttt{load/feast-online-latency.js} dan beban pencarian vektor dengan k6 sambil memantau SLO Sloth. & Latensi p99 berada pada orde sub-detik pada \textit{feature serving} dan \textit{vector search}. \\
+\hline
+SK-N-02 & KNF-02 & Menjalankan \texttt{load/feast-throughput.js} untuk \textit{serving} dan \texttt{kafka-producer-perf-test} untuk \textit{stream}, sambil memantau \textit{lag}. & \textit{Throughput} mencapai target dan \textit{lag} konsumen tetap terkendali pada beban puncak. \\
+\hline
+\end{longtable}
+}
