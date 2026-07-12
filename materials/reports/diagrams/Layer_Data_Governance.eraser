@@ -1,14 +1,14 @@
-// Layer_Governance — bagian tata kelola data dari Governance and Observability Layer
+// Layer_Data_Governance — Data Governance Layer (layer 6 dari 9)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Governance".
-// Ekspor PNG ke materials/reports/figures/Layer_Governance.png
+//   Buat kanvas BARU bernama "Layer_Data_Governance".
+// Ekspor PNG ke materials/reports/figures/Layer_Data_Governance.png
 // Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
 //   airflow, spark, clickhouse, postgres, minio, kafka, dbt, opensearch;
 //   sisanya icon generik. Edge ingest mengikuti arah aliran metadata dari
 //   sumber menuju katalog; DataHub menulis indeks pencariannya ke OpenSearch.
-// Acuan: subsec:lapisan-tata-kelola (Subbab IV.4.4, sec:arsitektur-terintegrasi);
-//   rincian beralat bagian tata kelola data Governance and Observability Layer yang
-//   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
+// Acuan: subsec:lapisan-tata-kelola (Subbab IV.4, sec:arsitektur-terintegrasi);
+//   rincian beralat layer baris 6 tab:layanan_industri yang memperinci layer
+//   yang sama pada Gambar fig:integrate-service (Subbab IV.2).
 //   Disertakan pada LaTeX sebagai fig:layer-governance.
 // Fokus: DataHub (katalog + lineage GMS) menerima peristiwa OpenLineage dari Airflow
 //   dan Spark serta ingest dari ClickHouse, PostgreSQL, MinIO, Kafka, Feast, dan dbt;
@@ -17,9 +17,9 @@
 // Rendering WAJIB horizontal (direction right): sumber metadata sebagai kolom kiri,
 //   DataHub di tengah, maksimum dua baris node per grup, agar diagram melebar dan
 //   muat pada pita height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa anotasi sumbernya, yaitu bagian tata kelola data
-//   dari kategori monitoring najafabadi2024analysis yang dituntut integrasi DataOps
-//   (munappy2020adhoc).
+// Landasan layer: label grup membawa anotasi sumbernya, yaitu data quality, data
+//   testing, dan data governance (munappy2020adhoc, rella2022mlops,
+//   jain2025integrating) sesuai baris 6 tab:layanan_industri.
 // Verifikasi implementasi: DataHub = data-governance/datahub + datahub-ingestion,
 //   Great Expectations = data-processing/great-expectations, OpenSearch =
 //   data-governance/opensearch. OpenLineage = protokol peristiwa lineage yang
@@ -42,7 +42,7 @@ Sumber Metadata [icon: database, color: green, label: "Sumber Metadata Platform"
 }
 
 // Bagian tata kelola data
-Tata Kelola Data [icon: book, color: teal, label: "Tata Kelola Data (Governance and Observability Layer, DataOps governance)"] {
+Data Governance Layer [icon: book, color: teal, label: "Data Governance Layer (data quality + data testing + data governance)"] {
   DataHub [icon: book-open, label: "DataHub (katalog + lineage GMS)"]
   OpenLineage [icon: git-merge, label: "OpenLineage (peristiwa lineage)"]
   Great Expectations [icon: check-square, label: "Great Expectations (gerbang kualitas)"]

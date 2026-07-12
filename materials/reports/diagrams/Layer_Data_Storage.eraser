@@ -1,0 +1,60 @@
+// Layer_Data_Storage — Data Storage Layer (layer 3 dari 9)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Data_Storage".
+// Ekspor PNG ke materials/reports/figures/Layer_Data_Storage.png
+// Acuan: subsec:lapisan-storage (Subbab IV.4, sec:arsitektur-terintegrasi); rincian
+//   beralat layer baris 3 tab:layanan_industri. Disertakan sebagai fig:layer-storage.
+// Fokus: Lakehouse {MinIO (+KES), lakeFS, Apache Iceberg, Lakekeeper} dan Basis
+//   Data {ClickHouse, PostgreSQL (CNPG), MySQL, OpenSearch}; layanan fitur kini
+//   layer tersendiri (Layer_Feature_Service).
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+//   minio, clickhouse, postgres, mysql, opensearch; sisanya icon generik.
+//   Semua edge penyimpanan diarahkan mengikuti arah tulis data.
+// Rendering WAJIB horizontal (direction right), dua subgrup BERDAMPINGAN, maksimum
+//   dua baris node per grup, tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu storage and versioning.
+// Verifikasi implementasi: storage/ (minio + security/kes, lakefs, lakekeeper,
+//   clickhouse, cnpg + postgresql, mysql), data-governance/opensearch. Iceberg =
+//   format tabel yang direalisasikan katalog Lakekeeper di atas MinIO.
+
+direction right
+
+// Produsen keluaran (batas)
+Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer (Spark, dbt)"]
+
+// Data Storage Layer
+Data Storage Layer [icon: database, color: green, label: "Data Storage Layer (storage and versioning)"] {
+  Lakehouse [icon: layers] {
+    MinIO [icon: minio, label: "MinIO (objek + KES)"]
+    lakeFS [icon: git-branch, label: "lakeFS (versi data)"]
+    Iceberg [icon: layers, label: "Apache Iceberg (format tabel)"]
+    Lakekeeper [icon: book, label: "Lakekeeper (katalog REST)"]
+  }
+  Basis Data [icon: database] {
+    ClickHouse [icon: clickhouse, label: "ClickHouse (OLAP)"]
+    PostgreSQL [icon: postgres, label: "PostgreSQL (CNPG)"]
+    MySQL [icon: mysql, label: "MySQL"]
+    OpenSearch [icon: opensearch, label: "OpenSearch (log + teks)"]
+  }
+}
+
+// Konsumen (batas)
+Feature Service Layer [icon: package, color: green, label: "Feature Service Layer"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer"]
+Data Governance Layer [icon: book, color: teal, label: "Data Governance Layer"]
+
+// Alur penyimpanan lakehouse (arah tulis data)
+Iceberg > MinIO: berkas tabel pada objek
+lakeFS > MinIO: objek versi
+Lakekeeper > Iceberg: katalog metadata tabel
+
+// Keluaran pemrosesan mendarat
+Data Ingestion and Processing Layer > Iceberg: tulis tabel batch
+Data Ingestion and Processing Layer > ClickHouse: model gold dan agregasi
+
+// Konsumen penyimpanan (arah baca dan tulis data)
+ClickHouse > Feature Service Layer: sumber offline fitur
+Model Lifecycle Layer > PostgreSQL: metadata MLflow
+Model Lifecycle Layer > MySQL: metadata Kubeflow Pipelines dan Katib
+Data Governance Layer > OpenSearch: tulis indeks pencarian

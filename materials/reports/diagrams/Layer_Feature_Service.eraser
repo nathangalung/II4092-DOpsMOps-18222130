@@ -1,0 +1,45 @@
+// Layer_Feature_Service — Feature Service Layer (layer 4 dari 9)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_Feature_Service".
+// Ekspor PNG ke materials/reports/figures/Layer_Feature_Service.png
+// Acuan: subsec:lapisan-feature (Subbab IV.4, sec:arsitektur-terintegrasi); rincian
+//   beralat layer baris 4 tab:layanan_industri. Disertakan sebagai fig:layer-feature.
+// Fokus: Feast sebagai feature store dengan ClickHouse sebagai sumber offline,
+//   Valkey sebagai online store hasil materialisasi, Qdrant sebagai indeks vektor,
+//   registry berkas pada MinIO; fitur stream dari Flink mendarat langsung pada
+//   Valkey dan Qdrant. Sub-sistem dual-store dirinci pada sec:feature-store-dual.
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11): minio,
+//   clickhouse, qdrant; Valkey icon generik (bukan logo Redis, beda merek fork).
+// Rendering WAJIB horizontal (direction right), maksimum dua baris node per grup,
+//   tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu feature store pada storage and versioning.
+// Verifikasi implementasi: model-lifecycle/feast, storage/valkey, storage/qdrant,
+//   storage/clickhouse, storage/minio; fitur stream Flink -> Valkey/Qdrant.
+
+direction right
+
+// Sumber fitur (batas)
+ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (sumber offline)"]
+Flink [icon: flink, color: orange, label: "Apache Flink (fitur stream)"]
+
+// Feature Service Layer
+Feature Service Layer [icon: package, color: green, label: "Feature Service Layer (feature store, storage and versioning)"] {
+  Feast [icon: package, label: "Feast (feature store)"]
+  Valkey [icon: zap, label: "Valkey (online store)"]
+  Qdrant [icon: qdrant, label: "Qdrant (indeks vektor)"]
+}
+
+// Registry dan konsumen (batas)
+MinIO [icon: minio, color: green, label: "MinIO (registry berkas Feast)"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (pelatihan dan inference)"]
+
+// Alur fitur
+ClickHouse > Feast: sumber offline
+Feast > Valkey: materialisasi online
+Feast > MinIO: registry berkas
+Flink > Valkey: fitur stream
+Flink > Qdrant: embedding stream
+Feast > Model Lifecycle Layer: fitur pelatihan
+Valkey > Model Lifecycle Layer: online feature
+Qdrant > Model Lifecycle Layer: vector feature

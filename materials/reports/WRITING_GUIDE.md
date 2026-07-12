@@ -75,11 +75,11 @@ Tables and figures are not rivals. A dashboard that shows a chart and the underl
 
 ### 1.7 Architecture diagrams as code
 
-All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`). Every diagram must render wide (horizontal) and is included WITHOUT `\rotatebox`; content too large for one wide frame is split across several diagrams rather than rotated 90°, using the uniform `\includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{...}` pattern. The sources are organised in three narrative sections: Section 1 (kondisi saat ini, Subbab III.1.3) `Fragment_DataOps_Flow` (Gambar III.1) and `Fragment_MLOps_Flow` (Gambar III.2), services only and deliberately disconnected; Section 2 (sasaran layanan, Subbab IV.2, before the IV.3 selection) `Integrate_Service_Arch` (Gambar IV.1, the nine service groups from `tab:layanan_industri` on one Kubernetes control plane, tool-free) plus the nine per-group detail sources `Service_Orchestration_Infra` .. `Service_Security` (Subbab IV.2.3, `subsec:rincian-kelompok`, one figure per group in table-row order, tool-free, gray boundary nodes marking neighbour groups); Section 3 (arsitektur dengan alat terpilih, Subbab IV.4) the nine `Layer_*` sources naming the concrete tools. The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. Every node in the Section 3 (`Layer_*`) diagrams must name a tool that actually exists in `platform/components/`, while the Section 1 and Section 2 diagrams are deliberately tool-free and name only generic services. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents. The nine Section 3 detail sources (`Layer_Infra_Control`, `Layer_Infra_Security`, `Layer_Data_Ingestion`, `Layer_Processing`, `Layer_Storage_Feature`, `Layer_Model_Lifecycle`, `Layer_Model_Serving`, `Layer_Governance`, `Layer_Observability`) split the seven layers across the four §IV.4 subsections, two figures each for §IV.4.1, §IV.4.3, and §IV.4.4 and three for §IV.4.2, so each layer group can be read at full size, and they keep the self-healing `\IfFileExists{figures/X.png}{\includegraphics...}{placeholder box}` pattern so the build stays green until the PNG is rendered, and the placeholder auto-disappears once the figure exists (the nine Section 2 `Service_*` figures use the same pattern). Every node carries an `icon:` from the verified docs.eraser.io/docs/icons list — brand logos in Section 3 where the list has them (`postgres` not `postgresql`; `flame` is not a valid name; forks keep generic icons: Valkey is not `redis`, OpenBao is not `vault`), generic icons only in Sections 1-2 — and every edge uses `>`/`<`/`<>` per the factual direction in the papers, the tool documentation, or `platform/components/`, with `--` (eraser renders it dotted) reserved for non-flow associations; the eraser cloud-architecture syntax has no `title` line, so each render happens on a fresh canvas named after the file. Full rules: `diagrams/README.md` 9-11.
+All diagram-as-code sources live in `diagrams/` (one `.eraser` file per figure, same basename as the rendered PNG in `figures/`; see `diagrams/README.md`). Every diagram must render wide (horizontal) and is included WITHOUT `\rotatebox`; content too large for one wide frame is split across several diagrams rather than rotated 90°, using the uniform `\includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{...}` pattern. The sources are organised in three narrative sections under ONE nine-layer taxonomy (Round 11): Section 1 (kondisi saat ini, Subbab III.1.3) `Fragment_DataOps_Flow` (Gambar III.1) and `Fragment_MLOps_Flow` (Gambar III.2), services only and deliberately disconnected; Section 2 (sasaran layanan, Subbab IV.2, before the IV.3 selection) `Integrate_Service_Arch` (Gambar IV.1, the nine layers from `tab:layanan_industri` on one Kubernetes control plane, tool-free); Section 3 (arsitektur dengan alat terpilih, Subbab IV.4, nine one-per-layer subsections) the TEN `Layer_*` sources naming the concrete tools, one per layer in table-row order with layer 5 (Model Lifecycle, which includes the model serving components per its table row) split across two figures. The folder is chapter-agnostic — any chapter's architecture figure may keep its source there, mirroring how `tables/` holds every chapter's tables. Every node in the Section 3 (`Layer_*`) diagrams must name a tool that actually exists in `platform/components/`, while the Section 1 and Section 2 diagrams are deliberately tool-free and name only generic services. Re-render manually: paste the file into https://app.eraser.io (diagram-as-code), export PNG, overwrite the figure file, rebuild the PDF. Never edit the PNG without updating the `.eraser` source first; stale Raystack/Kong/Redis-Stack/Jaeger nodes from the proposal era are exactly the drift this rule prevents. The ten Section 3 sources (`Layer_Orchestration_Infra`, `Layer_Ingestion_Processing`, `Layer_Data_Storage`, `Layer_Feature_Service`, `Layer_Model_Lifecycle`, `Layer_Model_Serving`, `Layer_Data_Governance`, `Layer_Observability`, `Layer_GitOps_CD`, `Layer_Security`) map 1:1 to the nine §IV.4 subsections (labels fig:layer-orkestrasi-infra, -ingestion-processing, -storage, -feature, -lifecycle, -serving, -governance, -observability, -gitops, -security), and they keep the self-healing `\IfFileExists{figures/X.png}{\includegraphics...}{placeholder box}` pattern so the build stays green until the PNG is rendered, and the placeholder auto-disappears once the figure exists. Every node carries an `icon:` from the verified docs.eraser.io/docs/icons list — brand logos in Section 3 where the list has them (`postgres` not `postgresql`; `flame` is not a valid name; forks keep generic icons: Valkey is not `redis`, OpenBao is not `vault`), generic icons only in Sections 1-2 — and every edge uses `>`/`<`/`<>` per the factual direction in the papers, the tool documentation, or `platform/components/`, with `--` (eraser renders it dotted) reserved for non-flow associations; the eraser cloud-architecture syntax has no `title` line, so each render happens on a fresh canvas named after the file. Full rules: `diagrams/README.md` 9-11.
 
-Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). Section 1 renders the before state as two separate service flows: `Fragment_DataOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for the early DataOps evolution stages (data silos, manual pipeline monitoring, munappy2020adhoc) and `Fragment_MLOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring, googlecloud2024mlops), and the two files share no edge. Section 2 `Integrate_Service_Arch` renders a `Pemetaan Kematangan Target` mapping group for MLOps level 2 (googlecloud2024mlops) plus the DataOps stage (munappy2020adhoc), tool-free, since the mapping of the seven required components to concrete tools (Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) lives in the IV.1 prose and the nine Layer_* diagrams; the tool-free per-group flows live in the nine Service_* diagrams (Subbab IV.2.3). The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/III.2/IV.1 cite the relevant sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
+Maturity grounding (2026-07): the before/after pair is anchored to published maturity frames, mirroring Subbab II.1.3 (`subsec:maturity`, retitled "Tingkat Kematangan MLOps dan DataOps"). Section 1 renders the before state as two separate service flows: `Fragment_DataOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for the early DataOps evolution stages (data silos, manual pipeline monitoring, munappy2020adhoc) and `Fragment_MLOps_Flow` carries a `Ciri Kematangan Kondisi Saat Ini` marker for MLOps level 0 (manual script-driven process, one-way model handoff, no CI/CD, no active performance monitoring, googlecloud2024mlops), and the two files share no edge. Section 2 `Integrate_Service_Arch` renders a `Pemetaan Kematangan Target` mapping group for MLOps level 2 (googlecloud2024mlops) plus the DataOps stage (munappy2020adhoc), tool-free, since the mapping of the seven required components to concrete tools (Gitea, Tekton, Argo CD, MLflow, Feast, MLflow+MLMD, Kubeflow Pipelines) lives at the end of the IV.4 derivation paragraph (after selection, per the tool-free-before-IV.3 rule) and in the ten Layer_* diagrams. The five-stage DataOps evolution model (ad hoc, semi-automated, agile data science, continuous testing and monitoring, DataOps) is introduced in the closing paragraph of Subbab II.1.3; the captions of Gambar III.1/III.2/IV.1 cite the relevant sources. Keep the three views — eraser source, figure captions, and the II.1.3/III.1.3/IV.1 prose — in sync whenever any of them changes.
 
-Layer-derivation labels (2026-07): every layer group in the nine `Layer_*` sources carries its source-category annotation in the group label, mirroring the §IV.4 derivation (Najafabadi's six categories + Kreuzberger's technical components): GitOps (kategori CI/CD), Infrastructure Layer (infrastructure and supporting services), Data Ingestion Layer (data curation: data collector), Processing Layer (data curation: data preprocessor), Storage and Feature Store Layer (storage and versioning), Model Lifecycle Layer (ML training + model registry + ML metadata), Model Serving Layer (inference), Governance and Observability Layer (monitoring + DataOps governance). The `fig:integrate-service` caption (Subbab IV.2) ties each service group back to its sources through Tabel `layanan_industri`, and these tool-level annotations live on the Layer_* labels. Changing the derivation prose requires updating these labels, and vice versa; see diagrams/README.md rule 8 for the canonical list.
+Layer-derivation labels (2026-07, nine-layer single taxonomy): every layer group in the ten `Layer_*` sources carries its source-category annotation in the group label, mirroring the §IV.4 per-layer annotation (Najafabadi's six categories + Kreuzberger's components + Munappy's DataOps demands): Orchestration and Infrastructure (infrastructure and supporting services), Data Ingestion and Processing (data curation: collector + preprocessor), Data Storage (storage and versioning), Feature Service (feature store on storage and versioning), Model Lifecycle (ML training + model registry + ML metadata + inference on its model-serving part), Data Governance (data quality + data testing + data governance), Observability (monitoring), GitOps and Continuous Delivery (kategori CI/CD), Platform Security (security side of supporting services + controlled access). The `fig:integrate-service` caption (Subbab IV.2) ties each layer back to its sources through Tabel `layanan_industri`. Changing the derivation prose requires updating these labels, and vice versa; see diagrams/README.md rule 8 for the canonical list.
 
 ## 2. Tables
 
@@ -464,7 +464,42 @@ Opus 4.8 sign-off round (round 5) verdicts:
   Singkatan + lampiran rubrik, kini Lampiran A), `\textit{ambient}/\textit{sidecar}`.
 - "tuning resource" -> "penyetelan \textit{resource}" (register match with
   "penyetelan sumber daya").
-Round 10 (user directive 2026-07-11, diagram logos + Section-2 per-group split):
+Round 11 (user directive 2026-07-11, single nine-layer taxonomy):
+- User: "just choose 1, layer or service so it not redundant". Decision: the
+  NINE literature-derived layers are the single taxonomy end-to-end; the
+  seven-layer consolidation and the nine tool-free `Service_*` detail
+  diagrams from Round 10 are deleted as the redundancy. `tab:layanan_industri`
+  rows ARE the nine layers (caption and header column now say Layer); IV.2.2
+  retitled "Klasifikasi Sembilan Layer Platform"; IV.2.3 removed; IV.3
+  subsection titles unchanged (they already were the nine layer names); IV.4
+  restructured from four subsections to NINE, 1:1 with the table rows in
+  table-row order (Model Lifecycle Layer includes model serving per row 5 and
+  carries two figures), the derivation paragraph rewritten as per-layer
+  source-category annotation (najafabadi + kreuzberger + munappy) with the
+  L2 component-to-tool mapping kept at its end. "kelompok layanan"
+  terminology replaced by "layer" across Bab 1/4/5/6 and both tables; the
+  abstract now lists the nine layer names; Bab 5 V.2 merged the
+  ingestion+processing subsections into "Data Ingestion and Processing
+  Layer", retitled "Data Storage Layer" and "Model Lifecycle Layer", and its
+  lead maps the remaining layers to V.1 (orchestration, security, GitOps),
+  V.3 (governance), and V.5 (feature service). Bab 6 already used the nine
+  layer names; only "kelompok" wording swept. New IV.4 subsection labels:
+  subsec:lapisan-{infra,data,storage,feature,model,tata-kelola,observabilitas,
+  gitops,keamanan}.
+- Diagram set now 13 files: 2 Fragment + Integrate_Service_Arch + 10 Layer_*
+  (one per layer; layer 5 split into lifecycle + serving figures). New or
+  renamed: Layer_Orchestration_Infra + Layer_GitOps_CD (split of
+  Layer_Infra_Control), Layer_Ingestion_Processing (merge of
+  Layer_Data_Ingestion + Layer_Processing), Layer_Data_Storage +
+  Layer_Feature_Service (split of Layer_Storage_Feature), Layer_Security
+  (rename of Layer_Infra_Security), Layer_Data_Governance (rename of
+  Layer_Governance). The six old Layer_* files, the nine Service_* files, and
+  their orphan or stale placeholder PNGs are deleted; export list is 13 PNGs
+  (diagrams/README.md). Figure labels: fig:layer-orkestrasi-infra,
+  -ingestion-processing, -storage, -feature, -lifecycle, -serving,
+  -governance, -observability, -gitops, -security.
+
+Round 10 (user directive 2026-07-11, diagram logos + Section-2 per-group split; the Service_* set it introduced was removed again in Round 11):
 - Every node in every `.eraser` now carries an `icon:` — bare nodes render
   logo-less boxes, the exact symptom the user reported on
   `Integrate_Service_Arch` inner nodes. Icon names verified against the
@@ -512,6 +547,25 @@ Round 10 (user directive 2026-07-11, diagram logos + Section-2 per-group split):
   `Layer_Data`, `Layer_Model`, `Layer_Govern_Obs`) are now DELETED from
   `figures/` (Round 9 had left them on disk); `figures/` holds only
   referenced files.
+- Tool-free rule before §IV.3 (user directive 2026-07-11): Bab 4 names NO open
+  source tool before `sec:pemilihan-tools` (Kubernetes excepted as the thesis
+  title premise; Bab 2 closing-paragraph examples stay allowed). IV.1
+  rewritten to service level: the seven L2 components are listed generically
+  with an explicit three-step pointer (services IV.2, selection IV.3, mapping
+  IV.4); Argo CD / Grafana+Prometheus+Loki+Tempo / DataHub mentions became
+  "layanan rekonsiliasi GitOps" / "satu antarmuka dashboard dengan penyimpan
+  khusus tiap pilar" / "satu katalog metadata ber-lineage"; `tab:peran-akses`
+  now maps roles to generic interfaces + service groups (tool column removed).
+  The explicit seven-component-to-tool mapping sentence lives at the end of
+  the IV.4 derivation paragraph, after selection.
+- Bab 2 to nine-group traceability made explicit (IV.2.2): group order follows
+  the Bab 2 concept-section order (`sec:kubernetes`; `sec:manajemen-data`
+  covering both the ingestion+processing and storage groups;
+  `sec:feature-store`; `sec:siklus-model`; `sec:tata-kelola-teori`;
+  `sec:observability`; `sec:gitops`; `sec:keamanan-platform`), with
+  `sec:drift` stated as cross-cutting and realised as the IV.6 sub-system
+  (`sec:drift-ct`); the IV.4 opening adds the layers-to-groups-to-Bab-2 chain
+  sentence so all three taxonomies trace to the same literature sections.
 
 Round 9 (user directive 2026-07-10, structural reflow):
 - Section move: Analisis Pemilihan Open Source Tools (`sec:pemilihan-tools`,

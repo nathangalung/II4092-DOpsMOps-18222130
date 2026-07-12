@@ -5,11 +5,11 @@
 //   lewat nama kanvas). Jangan menimpa kanvas lama berjudul lain.
 // Ekspor PNG ke materials/reports/figures/Integrate_Service_Arch.png
 // Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.2
-//   (sec:layanan-industri) setelah klasifikasi sembilan kelompok layanan dan
-//   sebelum pemilihan alat pada Subbab IV.3 (sec:pemilihan-tools). Rincian tiap
-//   kelompok digambar terpisah pada sembilan berkas Service_*.eraser
-//   (Subbab IV.2.3, subsec:rincian-kelompok).
-// Diagram ini menampilkan LAYANAN saja: sembilan kelompok layanan sebagai kotak
+//   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
+//   sebelum pemilihan alat pada Subbab IV.3 (sec:pemilihan-tools). Rincian
+//   beralat tiap layer digambar pada kesepuluh berkas Layer_*.eraser
+//   (Subbab IV.4, sec:arsitektur-terintegrasi).
+// Diagram ini menampilkan LAYANAN saja: sembilan layer platform sebagai kotak
 //   grup dengan komponen mayoritasnya sebagai node dalam, TANPA menamai alat
 //   atau komponen platform/components/ mana pun (aturan bebas-tool), agar
 //   sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
@@ -39,7 +39,7 @@ Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (
 Pengguna Platform [icon: users, color: gray, label: "Pengguna Platform (data, model, bisnis)"]
 
 // Band atas: kelompok layanan bidang data
-Kelompok Layanan Bidang Data [icon: database, color: blue] {
+Bidang Data [icon: database, color: blue] {
   Data Ingestion and Processing Layer [icon: download, color: orange] {
     data collection [icon: download]
     data ingestion [icon: inbox]
@@ -63,7 +63,7 @@ Kelompok Layanan Bidang Data [icon: database, color: blue] {
 }
 
 // Band bawah: kelompok layanan bidang model dan operasional
-Kelompok Layanan Bidang Model dan Operasional [icon: layers, color: purple] {
+Bidang Model dan Operasional [icon: layers, color: purple] {
   Orchestration and Infrastructure Layer [icon: kubernetes, color: blue] {
     infrastructure and supporting services [icon: server]
     workflow orchestration [icon: workflow]
@@ -121,8 +121,8 @@ GitOps and Continuous Delivery Layer > Model Lifecycle Layer: rilis model dan la
 Pengguna Platform > Platform Security Layer: akses melalui API gateway
 
 // Satu control plane menaungi kedua band (asosiasi non-alur, garis putus)
-Kubernetes Control Plane -- Kelompok Layanan Bidang Data: satu control plane
-Kubernetes Control Plane -- Kelompok Layanan Bidang Model dan Operasional: satu control plane
+Kubernetes Control Plane -- Bidang Data: satu control plane
+Kubernetes Control Plane -- Bidang Model dan Operasional: satu control plane
 
 // Konektivitas intra-kelompok: rantai fungsi mengikuti urutan tahap sumbernya.
 // Ingestion: collection lalu ingestion (munappy2020adhoc data engineering),

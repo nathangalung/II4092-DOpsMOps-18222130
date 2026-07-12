@@ -1,16 +1,16 @@
-// Layer_Infra_Security — bagian keamanan dari Infrastructure Layer
+// Layer_Security — Platform Security Layer (layer 9 dari 9)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Infra_Security".
-// Ekspor PNG ke materials/reports/figures/Layer_Infra_Security.png
+//   Buat kanvas BARU bernama "Layer_Security".
+// Ekspor PNG ke materials/reports/figures/Layer_Security.png
 // Ikon: logo produk bila tersedia pada docs.eraser.io/docs/icons (diperiksa
 //   2026-07-11): istio, trivy, minio, kubernetes; sisanya icon generik
 //   (OpenBao dan Valkey tidak memakai logo Vault/Redis karena beda merek fork).
 // Konektor: <> untuk hubungan dua arah faktual (mTLS mutual, AdmissionReview
 //   permintaan-putusan, pindai-tulis laporan CR); > untuk alur satu arah.
-// Acuan: subsec:lapisan-infra (Subbab IV.4.1, sec:arsitektur-terintegrasi);
-//   rincian beralat bagian keamanan Infrastructure Layer yang memperinci kelompok
-//   layanan pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
-//   Disertakan pada LaTeX sebagai fig:layer-infra-security.
+// Acuan: subsec:lapisan-keamanan (Subbab IV.4, sec:arsitektur-terintegrasi);
+//   rincian beralat layer baris 9 tab:layanan_industri yang memperinci layer
+//   yang sama pada Gambar fig:integrate-service (Subbab IV.2, tanpa alat).
+//   Disertakan pada LaTeX sebagai fig:layer-security.
 // Fokus: identitas (Dex OIDC, oauth2-proxy, SpiceDB), rahasia (OpenBao + External
 //   Secrets Operator), perbatasan (APISIX gateway) dan mesh mTLS (Istio), kebijakan
 //   dan deteksi (Kyverno admisi, Falco runtime, Trivy Operator pemindaian, Chaos
@@ -18,8 +18,10 @@
 // Rendering WAJIB horizontal (direction right): subgrup ditata berdampingan, maksimum
 //   dua baris node per grup, agar diagram melebar dan muat pada pita
 //   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu bagian keamanan dari infrastructure and supporting services.
+// Landasan layer: label grup membawa kategori sumbernya, yaitu sisi keamanan
+//   kategori infrastructure and supporting services (najafabadi2024analysis)
+//   bersama akses terkendali serta kepatuhan privasi dan keamanan data pada
+//   definisi DataOps (munappy2020adhoc), sesuai baris 9 tab:layanan_industri.
 // Verifikasi implementasi: semua node ada di platform/components/ (common/auth =
 //   Dex + oauth2-proxy, storage/spicedb, security/openbao, security/external-secrets,
 //   common/istio, security/apisix, security/kyverno, security/falco,
@@ -31,8 +33,8 @@ direction right
 // Pengguna (batas)
 Pengguna [icon: users, color: gray, label: "Pengguna (business, data, model)"]
 
-// Bagian keamanan dari Infrastructure Layer
-Infrastructure Layer [icon: shield, color: red, label: "Infrastructure Layer (bagian keamanan, infrastructure and supporting services)"] {
+// Platform Security Layer
+Platform Security Layer [icon: shield, color: red, label: "Platform Security Layer (akses terkendali + kepatuhan privasi dan keamanan data)"] {
   Perbatasan dan Mesh [icon: network] {
     APISIX [icon: globe, label: "APISIX (API gateway tepi)"]
     Istio [icon: istio, label: "Istio (mesh mTLS)"]

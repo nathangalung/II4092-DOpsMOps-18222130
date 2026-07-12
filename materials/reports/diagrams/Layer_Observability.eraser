@@ -1,4 +1,4 @@
-// Layer_Observability — bagian observabilitas dari Governance and Observability Layer
+// Layer_Observability — Observability Layer (layer 7 dari 9)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
 //   Buat kanvas BARU bernama "Layer_Observability".
 // Ekspor PNG ke materials/reports/figures/Layer_Observability.png
@@ -8,8 +8,8 @@
 //   OpenCost <> Prometheus dua arah faktual: OpenCost membaca metrik pemakaian
 //   dari Prometheus dan mengekspor metrik biaya yang di-scrape Prometheus
 //   (dokumentasi OpenCost).
-// Acuan: subsec:lapisan-tata-kelola (Subbab IV.4.4, sec:arsitektur-terintegrasi);
-//   rincian beralat bagian observabilitas Governance and Observability Layer yang
+// Acuan: subsec:lapisan-observabilitas (Subbab IV.4, sec:arsitektur-terintegrasi);
+//   rincian beralat layer baris 7 tab:layanan_industri yang
 //   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.2).
 //   Disertakan pada LaTeX sebagai fig:layer-observability.
 // Fokus: OpenTelemetry mengumpulkan sinyal ke Grafana Tempo (trace), Prometheus
@@ -32,7 +32,7 @@ direction right
 Beban Kerja Platform [icon: layers, color: gray, label: "Beban Kerja Platform (data, feature, model)"]
 
 // Bagian observabilitas
-Observabilitas [icon: monitor, color: teal, label: "Observabilitas (Governance and Observability Layer, kategori monitoring)"] {
+Observability Layer [icon: monitor, color: teal, label: "Observability Layer (kategori monitoring)"] {
   OpenTelemetry [icon: radio, label: "OpenTelemetry (collector)"]
   Prometheus [icon: prometheus, label: "Prometheus (+ Alertmanager + Pushgateway)"]
   Loki [icon: file-text, label: "Loki (log)"]

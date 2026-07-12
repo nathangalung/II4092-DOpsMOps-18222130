@@ -5,12 +5,12 @@
 \chapter{PERANCANGAN ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}
 \label{chap:perancangan}
 
-Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, dilanjutkan dengan analisis layanan DataOps dan MLOps pada praktik industri yang menetapkan sembilan kelompok layanan representatif, kemudian pemilihan komponen \textit{open source} untuk tiap kelompok layanan tersebut. Setelah komponen terpilih, bab ini merancang arsitektur terintegrasi beserta empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}, yaitu arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan \textit{retraining} otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini ditutup dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus yang dapat direproduksi.
+Bab ini menyajikan perancangan arsitektur platform yang mengintegrasikan DataOps dan MLOps pada Kubernetes. Pembahasan dimulai dari gambaran umum yang merangkum perbedaan kondisi sebelum dan sesudah integrasi, dilanjutkan dengan analisis layanan DataOps dan MLOps pada praktik industri yang menetapkan sembilan \textit{layer} platform representatif, kemudian pemilihan komponen \textit{open source} untuk tiap \textit{layer} tersebut. Setelah komponen terpilih, bab ini merancang arsitektur terintegrasi beserta empat sub-sistem yang masing-masing memenuhi satu tujuan dari Bab~\ref{chap:pendahuluan}, yaitu arsitektur platform terintegrasi sebagai pemenuhan T-1, sub-sistem tata kelola data sebagai pemenuhan T-2, sub-sistem deteksi \textit{drift} dengan \textit{retraining} otomatis sebagai pemenuhan T-3, dan sub-sistem layanan fitur \textit{dual-store} sebagai pemenuhan T-4. Bab ini ditutup dengan alur kerja \textit{end-to-end} yang menghubungkan keempat sub-sistem dalam satu siklus yang dapat direproduksi.
 
 \section{Gambaran Umum Platform}
 \label{sec:gambaran-umum-platform}
 
-Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal dan menyatukan komponen DataOps dan MLOps di atasnya. Platform ini menggantikan kondisi fragmentasi pada Gambar~\ref{fig:fragment-dataops} dan Gambar~\ref{fig:fragment-mlops} dari Bab~\ref{chap:analisis-masalah}, sedangkan arsitektur layanan terintegrasi digambarkan pada Gambar~\ref{fig:integrate-service} di Subbab~\ref{sec:layanan-industri} dan rincian komponen tiap \textit{layer} digambarkan pada Gambar~\ref{fig:layer-infra-control} hingga Gambar~\ref{fig:layer-observability} di Subbab~\ref{sec:arsitektur-terintegrasi}. Komponen yang sebelumnya berdiri sendiri pada perangkat lunak yang berbeda kini terhubung melalui satu \textit{control plane}, satu sumber kebenaran berbasis Git, dan satu antarmuka observabilitas. Penyatuan \textit{control plane} memungkinkan tim platform menerapkan perubahan dengan satu mekanisme \textit{deploy} yang sama untuk seluruh komponen, sehingga jalur integrasi yang sebelumnya tersebar dapat disederhanakan. Susunan platform ini sekaligus dirancang memenuhi tujuh komponen yang dipersyaratkan \textcite{googlecloud2024mlops} untuk MLOps \textit{level} 2, yaitu kendali versi pada Gitea, layanan uji dan \textit{build} pada Tekton, layanan \textit{deployment} pada Argo CD, \textit{model registry} pada MLflow, \textit{feature store} pada Feast, penyimpan metadata ML pada MLflow dan basis metadata Kubeflow Pipelines, serta orkestrator \textit{pipeline} pada Kubeflow Pipelines dengan pemicu \textit{retraining} otomatis dari deteksi \textit{drift}, dengan pemilihan tiap komponen dijustifikasi melalui penilaian berskor pada Subbab~\ref{sec:pemilihan-tools}. Rantai yang sama menempatkan platform pada tahap DataOps dalam model evolusi \textcite{munappy2020adhoc} karena CI/CD, orkestrasi, pengujian kualitas, dan pemantauan berlaku juga pada \textit{pipeline} data, bukan hanya pada model.
+Platform yang dirancang menempatkan Kubernetes sebagai bidang orkestrasi tunggal dan menyatukan komponen DataOps dan MLOps di atasnya. Platform ini menggantikan kondisi fragmentasi pada Gambar~\ref{fig:fragment-dataops} dan Gambar~\ref{fig:fragment-mlops} dari Bab~\ref{chap:analisis-masalah}, sedangkan arsitektur layanan terintegrasi digambarkan pada Gambar~\ref{fig:integrate-service} di Subbab~\ref{sec:layanan-industri} dan rincian komponen tiap \textit{layer} digambarkan pada Gambar~\ref{fig:layer-orkestrasi-infra} hingga Gambar~\ref{fig:layer-security} di Subbab~\ref{sec:arsitektur-terintegrasi}. Komponen yang sebelumnya berdiri sendiri pada perangkat lunak yang berbeda kini terhubung melalui satu \textit{control plane}, satu sumber kebenaran berbasis Git, dan satu antarmuka observabilitas. Penyatuan \textit{control plane} memungkinkan tim platform menerapkan perubahan dengan satu mekanisme \textit{deploy} yang sama untuk seluruh komponen, sehingga jalur integrasi yang sebelumnya tersebar dapat disederhanakan. Susunan platform ini sekaligus dirancang memenuhi tujuh komponen yang dipersyaratkan \textcite{googlecloud2024mlops} untuk MLOps \textit{level} 2, yaitu \textit{source control}, layanan uji dan \textit{build}, layanan \textit{deployment}, \textit{model registry}, \textit{feature store}, penyimpan metadata ML, serta orkestrator \textit{pipeline} dengan pemicu \textit{retraining} otomatis dari deteksi \textit{drift}. Gambaran umum ini sengaja belum menamai alat \textit{open source} mana pun karena himpunan layanan pada sembilan \textit{layer} platform ditetapkan lebih dahulu pada Subbab~\ref{sec:layanan-industri}, alat untuk tiap \textit{layer} baru dipilih melalui penilaian berskor pada Subbab~\ref{sec:pemilihan-tools}, dan pemetaan ketujuh komponen wajib tersebut ke alat terpilih dirangkum pada Subbab~\ref{sec:arsitektur-terintegrasi}. Rantai yang sama menempatkan platform pada tahap DataOps dalam model evolusi \textcite{munappy2020adhoc} karena CI/CD, orkestrasi, pengujian kualitas, dan pemantauan berlaku juga pada \textit{pipeline} data, bukan hanya pada model.
 
 Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek berikut.
 
@@ -24,25 +24,25 @@ Perbedaan utama terhadap kondisi sebelum integrasi terletak pada tiga aspek beri
 
     \item \textbf{Sumber kebenaran konfigurasi tunggal di Git}
 
-    Sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh Argo CD \autocite{argocd2024}.
+    Sumber kebenaran konfigurasi yang sebelumnya berada pada berkas konfigurasi terpisah disatukan pada repositori Git yang dijaga oleh layanan rekonsiliasi GitOps.
 
     \vspace{0.5em}
 
     \item \textbf{Penyatuan antarmuka observabilitas}
 
-    Antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan di Grafana dengan Prometheus \autocite{prometheus2024}, Loki \autocite{loki2024}, dan Grafana Tempo \autocite{tempo2024} sebagai sumber tiga pilar observabilitas.
+    Antarmuka observabilitas yang sebelumnya berbeda untuk metrik, log, dan \textit{trace} disatukan pada satu antarmuka \textit{dashboard} dengan penyimpan khusus untuk tiap pilar sebagai sumber tiga pilar observabilitas.
 \end{enumerate}
 
-Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}. Kontrak antar \textit{layer} yang seragam membuat kerusakan pada satu \textit{layer} tertahan pada batas kontraknya dan tidak menjalar bebas ke \textit{layer} di atasnya. Aset pada tiap \textit{layer} dapat dirujuk silang melalui DataHub sehingga pemeriksaan lintas \textit{layer} berlangsung dari satu katalog. Rincian tiap \textit{layer} beserta landasan kategorinya dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}.
+Ketiga perbedaan tersebut bersama-sama memutus efek domino fragmentasi yang dibahas pada Subbab~\ref{subsec:efek-domino-fragmentasi}. Kontrak antar \textit{layer} yang seragam membuat kerusakan pada satu \textit{layer} tertahan pada batas kontraknya dan tidak menjalar bebas ke \textit{layer} di atasnya. Aset pada tiap \textit{layer} dapat dirujuk silang melalui satu katalog metadata ber-\textit{lineage} sehingga pemeriksaan lintas \textit{layer} berlangsung dari satu tempat. Rincian tiap \textit{layer} beserta landasan kategorinya dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}.
 
-Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{tool} yang diakses, dan fungsi yang dijalankan, sehingga satu titik masuk tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke DataHub serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Penyatuan pada \textit{interface layer} inilah yang melengkapi penyatuan pada \textit{control plane}, sehingga keempat peran bekerja di atas satu platform tanpa kehilangan antarmuka yang sesuai dengan tugasnya.
+Platform tunggal ini dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{layer} yang diakses, dan fungsi yang dijalankan, sehingga satu titik masuk tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke satu katalog metadata bersama serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Penyatuan pada \textit{interface layer} inilah yang melengkapi penyatuan pada \textit{control plane}, sehingga keempat peran bekerja di atas satu platform tanpa kehilangan antarmuka yang sesuai dengan tugasnya.
 
 \input{tables/peran_akses.tex}
 
 \section{Analisis Layanan DataOps dan MLOps pada Praktik Industri}
 \label{sec:layanan-industri}
 
-Subbab ini menetapkan himpunan layanan representatif yang wajib dicakup arsitektur platform sebelum pemilihan alat dilakukan. Pembahasan dibagi menjadi tiga bagian yang dibaca berurutan. Subbab~\ref{subsec:layanan-praktik} menyarikan bukti dari literatur mengenai komponen yang berulang pada praktik MLOps lebih dahulu, kemudian pada praktik DataOps. Subbab~\ref{subsec:klasifikasi-layanan} mengonsolidasikan bukti tersebut menjadi sembilan kelompok layanan yang menjadi dasar pemilihan alat dan penataan arsitektur pada subbab-subbab berikutnya, dan Subbab~\ref{subsec:rincian-kelompok} memerinci alur layanan di dalam tiap kelompok sebagai diagram tersendiri.
+Subbab ini menetapkan himpunan layanan representatif yang wajib dicakup arsitektur platform sebelum pemilihan alat dilakukan. Pembahasan dibagi menjadi dua bagian yang dibaca berurutan. Subbab~\ref{subsec:layanan-praktik} menyarikan bukti dari literatur mengenai komponen yang berulang pada praktik MLOps lebih dahulu, kemudian pada praktik DataOps. Subbab~\ref{subsec:klasifikasi-layanan} mengonsolidasikan bukti tersebut menjadi sembilan \textit{layer} platform yang menjadi satuan pemilihan alat sekaligus satuan perancangan arsitektur pada subbab-subbab berikutnya.
 
 \subsection{Layanan pada Praktik MLOps dan DataOps}
 \label{subsec:layanan-praktik}
@@ -55,154 +55,30 @@ Pada sisi DataOps, \textcite{munappy2020adhoc} menyusun model evolusi dari anali
 
 \textcite{rella2022mlops} menempatkan tiga area penekanan utama DataOps, yaitu \textit{data quality}, \textit{pipeline automation}, dan \textit{data governance}, dengan pemantauan dan observabilitas data sebagai fungsi pelengkap. Kajian yang sama menautkan area tersebut ke komponen konkret seperti \textit{feature store} untuk pengelolaan perubahan fitur dan \textit{model registry} untuk kendali versi model, serta menyebut deteksi \textit{drift} dan \textit{retraining} otomatis sebagai mekanisme menjaga kinerja model. \textcite{jain2025integrating} menegaskan pembagian tanggung jawab yang serupa dengan menempatkan \textit{data engineering} pada \textit{ingestion}, transformasi, dan penyimpanan data, sedangkan MLOps menangani \textit{deployment}, pemantauan, dan pengelolaan model melalui \textit{CI/CD pipeline} otomatis. Ketiga sumber DataOps ini menamai fungsi \textit{ingestion}, pemrosesan, penyimpanan, kualitas, tata kelola, dan pemantauan yang saling melengkapi dengan komponen model dari sumber MLOps. Gabungan bukti dari kedua bidang inilah yang membentuk himpunan layanan yang diklasifikasikan pada subbab berikutnya.
 
-\subsection{Klasifikasi Sembilan Kelompok Layanan}
+\subsection{Klasifikasi Sembilan \textit{Layer} Platform}
 \label{subsec:klasifikasi-layanan}
 
-Bukti dari kedua bidang dikonsolidasikan menjadi sembilan kelompok layanan yang menjadi satuan penilaian alat pada platform. Kesembilan kelompok tersebut adalah \textit{Orchestration and Infrastructure Layer}, \textit{Data Ingestion and Processing Layer}, \textit{Data Storage Layer}, \textit{Feature Service Layer}, \textit{Model Lifecycle Layer}, \textit{Data Governance Layer}, \textit{Observability Layer}, \textit{GitOps and Continuous Delivery Layer}, dan \textit{Platform Security Layer}, sesuai urutan pembahasannya pada Subbab~\ref{sec:pemilihan-tools}. Empat kelompok di antaranya menaungi bidang data, yaitu jalur \textit{ingestion} dan pemrosesan, penyimpanan, layanan fitur, serta tata kelola data, sedangkan lima kelompok lainnya menaungi bidang model dan operasional platform. Tabel~\ref{tab:layanan_industri} memetakan tiap kelompok ke layanan dan komponen mayoritas yang menjadi cakupannya beserta sumber yang menamainya sehingga setiap kelompok dapat dirunut ke bukti terbit yang mendasarinya.
+Bukti dari kedua bidang dikonsolidasikan menjadi sembilan \textit{layer} platform yang menjadi satuan penilaian alat sekaligus satuan perancangan arsitektur. Kesembilan \textit{layer} tersebut adalah \textit{Orchestration and Infrastructure Layer}, \textit{Data Ingestion and Processing Layer}, \textit{Data Storage Layer}, \textit{Feature Service Layer}, \textit{Model Lifecycle Layer}, \textit{Data Governance Layer}, \textit{Observability Layer}, \textit{GitOps and Continuous Delivery Layer}, dan \textit{Platform Security Layer}, sesuai urutan pembahasannya pada Subbab~\ref{sec:pemilihan-tools} dan Subbab~\ref{sec:arsitektur-terintegrasi}. Empat \textit{layer} di antaranya menaungi bidang data, yaitu jalur \textit{ingestion} dan pemrosesan, penyimpanan, layanan fitur, serta tata kelola data, sedangkan lima \textit{layer} lainnya menaungi bidang model dan operasional platform. Tabel~\ref{tab:layanan_industri} memetakan tiap \textit{layer} ke layanan dan komponen mayoritas yang menjadi cakupannya beserta sumber yang menamainya sehingga setiap \textit{layer} dapat dirunut ke bukti terbit yang mendasarinya. Urutan kesembilan \textit{layer} juga mengikuti urutan subbab konsep pada Bab~\ref{chap:studi-literatur}: \textit{layer} orkestrasi dan infrastruktur berpijak pada Subbab~\ref{sec:kubernetes}, \textit{layer} \textit{ingestion} dan pemrosesan serta \textit{layer} penyimpanan data pada Subbab~\ref{sec:manajemen-data}, layanan fitur pada Subbab~\ref{sec:feature-store}, \textit{model lifecycle} pada Subbab~\ref{sec:siklus-model}, tata kelola data pada Subbab~\ref{sec:tata-kelola-teori}, observabilitas pada Subbab~\ref{sec:observability}, GitOps pada Subbab~\ref{sec:gitops}, dan keamanan platform pada Subbab~\ref{sec:keamanan-platform}. Konsep deteksi \textit{drift} pada Subbab~\ref{sec:drift} tidak menjadi \textit{layer} tersendiri karena merupakan mekanisme lintas \textit{layer} yang menghubungkan fungsi pemantauan dengan siklus model, dan diwujudkan sebagai sub-sistem pada Subbab~\ref{sec:drift-ct}. Dengan demikian pemisahan \textit{layer} pada bab ini konsisten dengan pemisahan konsep pada studi literatur, bukan taksonomi baru yang berdiri sendiri.
 
 \input{tables/layanan_industri.tex}
 
-Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seperti \textit{model registry}, \textit{ML metadata store}, dan \textit{model training} pada \textit{Model Lifecycle Layer}, sementara fungsi \textit{monitoring component} dan \textit{model monitoring} dikelompokkan pada \textit{Observability Layer} agar pemantauan tidak bercampur dengan \textit{serving}. Kelompok bidang data menyerap komponen \textit{data collection}, \textit{data preprocessor}, \textit{dataset repository}, dan \textit{feature store} beserta fungsi \textit{data quality} dan \textit{data governance} dari sumber DataOps. \textit{Platform Security Layer} berpijak pada dimensi tata kelola keamanan yang disebut sumber DataOps, yaitu akses terkendali serta kepatuhan terhadap privasi dan keamanan data. Landasan kelompok ini lebih ringan daripada kelompok \textit{model lifecycle} yang didukung keempat sumber MLOps sekaligus. Perbedaan bobot bukti antar kelompok ini dinyatakan terbuka agar keterunutan tiap kelompok terhadap sumbernya dapat ditimbang pembaca.
+Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seperti \textit{model registry}, \textit{ML metadata store}, dan \textit{model training} pada \textit{Model Lifecycle Layer}, sementara fungsi \textit{monitoring component} dan \textit{model monitoring} ditempatkan pada \textit{Observability Layer} agar pemantauan tidak bercampur dengan \textit{serving}. \textit{Layer} bidang data menyerap komponen \textit{data collection}, \textit{data preprocessor}, \textit{dataset repository}, dan \textit{feature store} beserta fungsi \textit{data quality} dan \textit{data governance} dari sumber DataOps. \textit{Platform Security Layer} berpijak pada dimensi tata kelola keamanan yang disebut sumber DataOps, yaitu akses terkendali serta kepatuhan terhadap privasi dan keamanan data. Landasan \textit{layer} ini lebih ringan daripada \textit{layer} \textit{model lifecycle} yang didukung keempat sumber MLOps sekaligus. Perbedaan bobot bukti antar \textit{layer} ini dinyatakan terbuka agar keterunutan tiap \textit{layer} terhadap sumbernya dapat ditimbang pembaca.
 
-Gambar~\ref{fig:integrate-service} menggambarkan kesembilan kelompok layanan tersebut sebagai satu arsitektur layanan terintegrasi pada satu \textit{control plane} Kubernetes, tanpa mengikat diri pada alat tertentu, sehingga sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
+Gambar~\ref{fig:integrate-service} menggambarkan kesembilan \textit{layer} tersebut sebagai satu arsitektur layanan terintegrasi pada satu \textit{control plane} Kubernetes, tanpa mengikat diri pada alat tertentu, sehingga sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
 
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Integrate_Service_Arch.png}
-  \caption[Arsitektur layanan terintegrasi tanpa keterikatan alat]{Arsitektur layanan terintegrasi pada satu \textit{control plane} tanpa keterikatan alat, memenuhi sasaran MLOps \textit{level} 2 \autocite{googlecloud2024mlops} dan tahap DataOps \autocite{munappy2020adhoc}, dengan komponen tiap kelompok bersumber pada Tabel~\ref{tab:layanan_industri}.}
+  \caption[Arsitektur layanan terintegrasi tanpa keterikatan alat]{Arsitektur layanan terintegrasi pada satu \textit{control plane} tanpa keterikatan alat, memenuhi sasaran MLOps \textit{level} 2 \autocite{googlecloud2024mlops} dan tahap DataOps \autocite{munappy2020adhoc}, dengan komponen tiap \textit{layer} bersumber pada Tabel~\ref{tab:layanan_industri}.}
   \label{fig:integrate-service}
 \end{figure}
 
-Kesembilan kelompok layanan ini bersifat lepas dari domain sehingga tidak terikat pada satu kasus penggunaan tertentu. Kasus penggunaan apa pun yang menjalankan seluruh sembilan kelompok layanan dapat berperan sebagai kasus uji yang representatif bagi platform, karena verifikasi fungsionalnya akan menyentuh himpunan layanan yang sama dengan yang ditetapkan pada subbab ini. Pemilihan alat \textit{open source} untuk tiap kelompok dibahas pada Subbab~\ref{sec:pemilihan-tools}, sedangkan konsolidasi kesembilan kelompok menjadi tujuh \textit{layer} arsitektur dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}. Dengan demikian subbab ini menjadi titik tumpu yang menghubungkan bukti praktik industri ke rancangan tujuh \textit{layer} sekaligus ke pemilihan kasus uji pada Bab~\ref{chap:implementasi} dan Bab~\ref{chap:evaluasi}.
-
-\subsection{Rincian Layanan per Kelompok}
-\label{subsec:rincian-kelompok}
-
-Gambar~\ref{fig:integrate-service} sengaja menampilkan kesembilan kelompok sekaligus sehingga alur di dalam tiap kelompok tidak leluasa dibaca pada satu bingkai. Subbab ini memerinci tiap kelompok layanan menjadi diagram tersendiri pada Gambar~\ref{fig:service-orkestrasi-infra} sampai Gambar~\ref{fig:service-security} mengikuti urutan baris Tabel~\ref{tab:layanan_industri}. Setiap diagram tetap bebas dari keterikatan alat dan hanya menamai komponen mayoritas dari tabel tersebut, dengan arah panah yang mengikuti urutan tahap atau arah aliran data pada sumber yang menamai komponennya. Kotak abu-abu pada tepi tiap diagram menandai kelompok tetangga sebagai batas konteks sehingga keterhubungan antar kelompok pada Gambar~\ref{fig:integrate-service} tetap terunut. Rincian ini menjadi rujukan fungsi ketika alat dinilai pada Subbab~\ref{sec:pemilihan-tools} dan ketika kesembilan kelompok dikonsolidasikan menjadi tujuh \textit{layer} pada Subbab~\ref{sec:arsitektur-terintegrasi}.
-
-Gambar~\ref{fig:service-orkestrasi-infra} memperinci \textit{Orchestration and Infrastructure Layer} tempat infrastruktur bersama menjalankan \textit{workflow orchestration} dan \textit{ML pipeline orchestrator} yang menjadwalkan pelatihan pada \textit{model training infrastructure}.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Orchestration_Infra.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Orchestration_Infra.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Orchestration\_Infra.eraser} \textit{dirender ke} \texttt{figures/Service\_Orchestration\_Infra.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Orchestration and Infrastructure Layer}]{Rincian layanan \textit{Orchestration and Infrastructure Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,najafabadi2024analysis,googlecloud2024mlops}}
-    \label{fig:service-orkestrasi-infra}
-\end{figure}
-
-Gambar~\ref{fig:service-ingestion-processing} memperinci \textit{Data Ingestion and Processing Layer} sebagai rantai kurasi dari \textit{data collection} sampai \textit{data preprocessor} yang keluarannya mendarat pada penyimpanan dan divalidasi tata kelola data.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Ingestion_Processing.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Ingestion_Processing.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Ingestion\_Processing.eraser} \textit{dirender ke} \texttt{figures/Service\_Ingestion\_Processing.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Data Ingestion and Processing Layer}]{Rincian layanan \textit{Data Ingestion and Processing Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{amershi2019software,najafabadi2024analysis,munappy2020adhoc}}
-    \label{fig:service-ingestion-processing}
-\end{figure}
-
-Gambar~\ref{fig:service-storage} memperinci \textit{Data Storage Layer} tempat data terkelola mendarat pada \textit{data storage}, dikurasi menjadi \textit{dataset repository}, dan riwayatnya dilacak \textit{data versioning}.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Storage.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Storage.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Storage.eraser} \textit{dirender ke} \texttt{figures/Service\_Storage.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Data Storage Layer}]{Rincian layanan \textit{Data Storage Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{najafabadi2024analysis,munappy2020adhoc,jain2025integrating}}
-    \label{fig:service-storage}
-\end{figure}
-
-Gambar~\ref{fig:service-feature} memperinci \textit{Feature Service Layer} yang mematerialisasi \textit{offline feature store} ke \textit{online feature store} untuk melayani pelatihan \textit{batch} dan inferensi berlatensi rendah.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Feature.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Feature.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Feature.eraser} \textit{dirender ke} \texttt{figures/Service\_Feature.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Feature Service Layer}]{Rincian layanan \textit{Feature Service Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis}}
-    \label{fig:service-feature}
-\end{figure}
-
-Gambar~\ref{fig:service-model-lifecycle} memperinci \textit{Model Lifecycle Layer} dari \textit{feature engineering} sampai \textit{inference service}, dengan \textit{ML metadata store} mencatat eksperimen dan evaluasi serta \textit{model registry} menjadi sumber model rilis.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Model_Lifecycle.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Model_Lifecycle.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Model\_Lifecycle.eraser} \textit{dirender ke} \texttt{figures/Service\_Model\_Lifecycle.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Model Lifecycle Layer}]{Rincian layanan \textit{Model Lifecycle Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,amershi2019software,googlecloud2024mlops,najafabadi2024analysis}}
-    \label{fig:service-model-lifecycle}
-\end{figure}
-
-Gambar~\ref{fig:service-governance} memperinci \textit{Data Governance Layer} tempat \textit{data governance} menetapkan standar bagi \textit{data testing} yang menghasilkan skor \textit{data quality} atas \textit{pipeline} data.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Data_Governance.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Data_Governance.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Data\_Governance.eraser} \textit{dirender ke} \texttt{figures/Service\_Data\_Governance.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Data Governance Layer}]{Rincian layanan \textit{Data Governance Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{munappy2020adhoc,rella2022mlops,jain2025integrating}}
-    \label{fig:service-governance}
-\end{figure}
-
-Gambar~\ref{fig:service-observability} memperinci \textit{Observability Layer} yang mengonsolidasikan \textit{model monitoring} dan \textit{data monitoring} pada \textit{monitoring component} sekaligus mengembalikan umpan balik pemicu \textit{retraining} otomatis.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Observability.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Observability.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Observability.eraser} \textit{dirender ke} \texttt{figures/Service\_Observability.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Observability Layer}]{Rincian layanan \textit{Observability Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,amershi2019software,najafabadi2024analysis,munappy2020adhoc}}
-    \label{fig:service-observability}
-\end{figure}
-
-Gambar~\ref{fig:service-gitops-cd} memperinci \textit{GitOps and Continuous Delivery Layer} sebagai rantai dari \textit{source code repository} melalui \textit{CI/CD component} dan \textit{deployment services} sampai \textit{model deployment}.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_GitOps_CD.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_GitOps_CD.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_GitOps\_CD.eraser} \textit{dirender ke} \texttt{figures/Service\_GitOps\_CD.png}.}}%
-    }
-    \caption[Rincian layanan \textit{GitOps and Continuous Delivery Layer}]{Rincian layanan \textit{GitOps and Continuous Delivery Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{kreuzberger2023mlops,googlecloud2024mlops,najafabadi2024analysis}}
-    \label{fig:service-gitops-cd}
-\end{figure}
-
-Gambar~\ref{fig:service-security} memperinci \textit{Platform Security Layer} tempat \textit{API gateway} menegakkan akses terkendali di bawah kebijakan kepatuhan privasi dan keamanan data bagi seluruh kelompok layanan.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Service_Security.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Service_Security.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Service\_Security.eraser} \textit{dirender ke} \texttt{figures/Service\_Security.png}.}}%
-    }
-    \caption[Rincian layanan \textit{Platform Security Layer}]{Rincian layanan \textit{Platform Security Layer} tanpa keterikatan alat, dengan komponen dari Tabel~\ref{tab:layanan_industri} \autocite{munappy2020adhoc,rella2022mlops,najafabadi2024analysis}}
-    \label{fig:service-security}
-\end{figure}
-
-\clearpage
+Kesembilan \textit{layer} ini bersifat lepas dari domain sehingga tidak terikat pada satu kasus penggunaan tertentu. Kasus penggunaan apa pun yang menjalankan seluruh sembilan \textit{layer} dapat berperan sebagai kasus uji yang representatif bagi platform, karena verifikasi fungsionalnya akan menyentuh himpunan layanan yang sama dengan yang ditetapkan pada subbab ini. Pemilihan alat \textit{open source} untuk tiap \textit{layer} dibahas pada Subbab~\ref{sec:pemilihan-tools}, sedangkan perancangan arsitektur kesembilan \textit{layer} yang sama dibahas pada Subbab~\ref{sec:arsitektur-terintegrasi}. Dengan demikian subbab ini menjadi titik tumpu yang menghubungkan bukti praktik industri ke rancangan sembilan \textit{layer} sekaligus ke pemilihan kasus uji pada Bab~\ref{chap:implementasi} dan Bab~\ref{chap:evaluasi}.
 
 \section{Analisis Pemilihan \textit{Open Source Tools}}
 \label{sec:pemilihan-tools}
 
-Subbab ini menurunkan pemilihan komponen konkret untuk Alternatif B, yaitu rangkaian alat \textit{open source} di atas Kubernetes yang terpilih pada Subbab~\ref{subsec:penentuan-solusi}. Pembahasan disusun mengikuti sembilan kelompok layanan hasil klasifikasi pada Subbab~\ref{sec:layanan-industri}, yang urutannya sejalan dengan urutan konsep pada Bab~\ref{chap:studi-literatur}, sehingga tiap alat dinilai pada konteks fungsi yang telah ditetapkan landasan buktinya. \textcite{najafabadi2024analysis} menegaskan bahwa pemetaan eksplisit antara alat dan komponen arsitektur masih menjadi celah pada literatur MLOps, dan subbab ini menyediakan pemetaan tersebut untuk konteks platform \textit{open source}. Sembilan kelompok pada subbab ini sengaja lebih rinci daripada tujuh \textit{layer} rancangan untuk keperluan penilaian alat, kemudian dikonsolidasikan menjadi tujuh \textit{layer} arsitektur pada Subbab~\ref{sec:arsitektur-terintegrasi} yang dirunut ke enam kategori komponen pada kajian yang sama.
+Subbab ini menurunkan pemilihan komponen konkret untuk Alternatif B, yaitu rangkaian alat \textit{open source} di atas Kubernetes yang terpilih pada Subbab~\ref{subsec:penentuan-solusi}. Pembahasan disusun mengikuti sembilan \textit{layer} hasil klasifikasi pada Subbab~\ref{sec:layanan-industri}, yang urutannya sejalan dengan urutan konsep pada Bab~\ref{chap:studi-literatur}, sehingga tiap alat dinilai pada konteks fungsi yang telah ditetapkan landasan buktinya. \textcite{najafabadi2024analysis} menegaskan bahwa pemetaan eksplisit antara alat dan komponen arsitektur masih menjadi celah pada literatur MLOps, dan subbab ini menyediakan pemetaan tersebut untuk konteks platform \textit{open source}. Kesembilan \textit{layer} yang sama kemudian menjadi kerangka perancangan arsitektur pada Subbab~\ref{sec:arsitektur-terintegrasi}, dengan tiap \textit{layer} dirunut ke enam kategori komponen pada kajian yang sama.
 
 Setiap \textit{layer} yang memiliki lebih dari satu kandidat layak dinilai melalui tabel evaluasi dengan skala seragam 0 sampai 2 untuk tiap kriteria, dengan makna umum tiap nilai diberikan pada keterangan skor di bawah masing-masing tabel dan parameter penilaian tiap kriteria dirinci pada Lampiran~\ref{appx:rubrik}. Nilai 0 menandai kriteria yang tidak dipenuhi atau fitur yang tidak tersedia, nilai 1 menandai dukungan parsial yang masih menuntut komponen tambahan atau memikul keterbatasan berarti, dan nilai 2 menandai pemenuhan penuh oleh kapabilitas bawaan. Penilaian diturunkan dari dokumentasi resmi dan status pemeliharaan tiap proyek, sedangkan kolom Total menjumlahkan keempat kriteria sehingga nilai tertingginya delapan. Kolom Lisensi (Yayasan) mencantumkan lisensi resmi beserta yayasan yang menaunginya sebagai bukti keterbukaan tata kelola, bersifat informatif, dan tidak mengubah perhitungan kolom Total. Alat dengan nilai Total tertinggi pada tiap tabel menjadi pilihan utama platform untuk fungsi yang dievaluasi, sementara alat berskor lebih rendah dapat tetap dipakai sebagai pendamping dengan peran berbeda sebagaimana diuraikan pada tiap \textit{layer}.
 
@@ -345,82 +221,77 @@ Pemetaan pada subbab ini menautkan tiap \textit{layer} arsitektur ke satu alat u
 \section{Perancangan Arsitektur Terintegrasi}
 \label{sec:arsitektur-terintegrasi}
 
-Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps terintegrasi pada Kubernetes. Arsitektur disusun dalam tujuh \textit{layer} yang saling terhubung melalui kontrak antarmuka eksplisit. Tujuh \textit{layer} yang dimaksud adalah \textit{Infrastructure Layer}, \textit{Data Ingestion Layer}, \textit{Processing Layer}, \textit{Storage and Feature Store Layer}, \textit{Model Lifecycle Layer}, \textit{Model Serving Layer}, serta \textit{Governance and Observability Layer}. Jumlah tujuh bukan taksonomi baru, melainkan hasil penataan ulang kategori komponen arsitektur MLOps dari dua rujukan sehingga setiap \textit{layer} dapat dirunut ke kategori sumbernya. Penataan ini sekaligus merangkum sembilan kelompok layanan pada Subbab~\ref{sec:layanan-industri}: kelompok orkestrasi dan infrastruktur, GitOps, serta keamanan platform bergabung menjadi \textit{Infrastructure Layer}, kelompok \textit{ingestion} dan pemrosesan terpecah menjadi \textit{Data Ingestion Layer} dan \textit{Processing Layer}, kelompok penyimpanan data dan layanan fitur bergabung menjadi \textit{Storage and Feature Store Layer}, kelompok \textit{model lifecycle} terpecah menjadi \textit{Model Lifecycle Layer} dan \textit{Model Serving Layer}, dan kelompok tata kelola data serta observabilitas bergabung menjadi \textit{Governance and Observability Layer}.
+Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps terintegrasi pada Kubernetes. Arsitektur disusun langsung dalam sembilan \textit{layer} hasil klasifikasi Subbab~\ref{sec:layanan-industri} yang saling terhubung melalui kontrak antarmuka eksplisit, yaitu \textit{Orchestration and Infrastructure Layer}, \textit{Data Ingestion and Processing Layer}, \textit{Data Storage Layer}, \textit{Feature Service Layer}, \textit{Model Lifecycle Layer}, \textit{Data Governance Layer}, \textit{Observability Layer}, \textit{GitOps and Continuous Delivery Layer}, serta \textit{Platform Security Layer}. Satu pemisahan yang sama dengan demikian dipakai dari klasifikasi layanan, penilaian alat pada Subbab~\ref{sec:pemilihan-tools}, sampai perancangan pada subbab ini, tanpa taksonomi perantara. Susunan ini bukan taksonomi baru karena setiap \textit{layer} berpijak pada baris bersumber Tabel~\ref{tab:layanan_industri} dan mengikuti urutan subbab konsep Bab~\ref{chap:studi-literatur} sebagaimana dipetakan pada Subbab~\ref{subsec:klasifikasi-layanan}. Subbab berikut merinci kesembilan \textit{layer} tersebut satu per satu beserta diagram beralatnya.
 
-\textcite{najafabadi2024analysis} mengelompokkan komponen arsitektur MLOps yang telah diperkenalkan pada Subbab~\ref{sec:layanan-industri} ke dalam enam kategori, yaitu \textit{data curation}, \textit{storage and versioning}, \textit{ML training}, CI/CD, \textit{inference}, serta \textit{infrastructure and supporting services}, sedangkan \textcite{kreuzberger2023mlops} merinci sembilan komponen teknis mulai dari komponen CI/CD dan \textit{feature store} hingga \textit{model registry} dan komponen pemantauan. \textit{Data Ingestion Layer} dan \textit{Processing Layer} merupakan pecahan kategori \textit{data curation}, dengan komponen \textit{data collector} pada \textit{Data Ingestion Layer} dan \textit{data preprocessor} pada \textit{Processing Layer}, karena platform memisahkan jalur \textit{batch} dan \textit{stream}. \textit{Storage and Feature Store Layer} menampung komponen penyimpanan dan versi data serta \textit{feature store} dari kategori \textit{storage and versioning}, dan \textit{Model Lifecycle Layer} menampung kategori \textit{ML training} bersama \textit{model registry} serta penyimpan metadata ML dari kategori yang sama. \textit{Model Serving Layer} menampung kategori \textit{inference}, sedangkan \textit{Infrastructure Layer} menggabungkan kategori \textit{infrastructure and supporting services} dengan CI/CD pada satu \textit{control plane} GitOps. Penyesuaian terakhir memindahkan komponen pemantauan, yang pada kategori \textit{inference} berada satu kelompok dengan \textit{serving}, ke \textit{Governance and Observability Layer}, sekaligus menambahkan katalog, \textit{lineage}, dan kualitas data pada \textit{layer} tersebut karena integrasi DataOps menuntut tata kelola data sebagai fungsi lintas \textit{layer} \autocite{munappy2020adhoc}.
+\textcite{najafabadi2024analysis} mengelompokkan komponen arsitektur MLOps yang telah diperkenalkan pada Subbab~\ref{sec:layanan-industri} ke dalam enam kategori, yaitu \textit{data curation}, \textit{storage and versioning}, \textit{ML training}, CI/CD, \textit{inference}, serta \textit{infrastructure and supporting services}, sedangkan \textcite{kreuzberger2023mlops} merinci sembilan komponen teknis mulai dari komponen CI/CD dan \textit{feature store} hingga \textit{model registry} dan komponen pemantauan. Kedua rujukan itu menjadi anotasi sumber bagi tiap \textit{layer}: \textit{Data Ingestion and Processing Layer} menampung kategori \textit{data curation} dengan komponen \textit{data collector} pada jalur masuk dan \textit{data preprocessor} pada jalur pemrosesan, \textit{Data Storage Layer} menampung komponen penyimpanan dan versi data dari kategori \textit{storage and versioning}, dan \textit{Feature Service Layer} menampung \textit{feature store} dari kategori yang sama sebagai layanan tersendiri karena melayani pelatihan sekaligus inferensi. \textit{Model Lifecycle Layer} menampung kategori \textit{ML training} bersama \textit{model registry}, penyimpan metadata ML, serta kategori \textit{inference} pada bagian \textit{model serving}-nya, sesuai baris kelimanya pada Tabel~\ref{tab:layanan_industri} yang memuat \textit{model serving component} dan \textit{inference service}. \textit{Orchestration and Infrastructure Layer} menampung kategori \textit{infrastructure and supporting services}, \textit{GitOps and Continuous Delivery Layer} menampung kategori CI/CD, dan \textit{Platform Security Layer} menampung sisi keamanan kategori pendukung tersebut bersama tuntutan akses terkendali pada definisi DataOps \autocite{munappy2020adhoc}. \textit{Observability Layer} menampung komponen pemantauan, sedangkan \textit{Data Governance Layer} memisahkan katalog, \textit{lineage}, dan kualitas data dari pemantauan operasional karena integrasi DataOps menuntut tata kelola data sebagai fungsi lintas \textit{layer} \autocite{munappy2020adhoc}. Dengan alat hasil pemilihan pada Subbab~\ref{sec:pemilihan-tools}, tujuh komponen wajib MLOps \textit{level} 2 yang dijanjikan pada Subbab~\ref{sec:gambaran-umum-platform} kini terpetakan lengkap, yaitu \textit{source control} pada Gitea, layanan uji dan \textit{build} pada Tekton, layanan \textit{deployment} pada Argo CD, \textit{model registry} pada MLflow, \textit{feature store} pada Feast, penyimpan metadata ML pada MLflow dan basis metadata Kubeflow Pipelines, serta orkestrator \textit{pipeline} pada Kubeflow Pipelines dengan pemicu \textit{retraining} otomatis dari deteksi \textit{drift} \autocite{googlecloud2024mlops}.
 
-\subsection{\textit{Infrastructure Layer} dan \textit{Control Plane}}
+\subsection{\textit{Orchestration and Infrastructure Layer}}
 \label{subsec:lapisan-infra}
 
-\textit{Infrastructure layer} menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Argo CD menjadi satu-satunya jalur perubahan yang menarik konfigurasi dari Git dan menerapkan ke \textit{cluster} melalui prinsip GitOps \autocite{limoncelli2022gitops}, dengan Gitea sebagai \textit{repository}, Tekton sebagai \textit{build pipeline}, \textit{image registry} internal sebagai penyimpan artefak, dan Argo Rollouts sebagai operator pengiriman bertahap. Penskalaan otomatis dijalankan oleh tiga komponen yang saling melengkapi yaitu HPA Kubernetes pada level Pod yang membaca metrik dari metrics-server, VPA \textit{recommender} untuk rekomendasi \textit{resource request}, dan KEDA \autocite{keda2025} untuk penskalaan berbasis peristiwa dari Kafka atau Prometheus. Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} melalui \textit{ClusterQueue} sehingga sumber daya komputasi terbagi adil antar-\textit{tenant} sesuai prioritas, dengan \textit{job} di luar kuota berstatus \textit{Pending} hingga kuota tersedia. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS sehingga identitas mesin diperbarui otomatis, dan Gambar~\ref{fig:layer-infra-control} merinci bidang orkestrasi, rantai GitOps, penskalaan otomatis, serta cert-manager pada \textit{control plane} ini.
+\textit{Orchestration and Infrastructure Layer} menggunakan Kubernetes \autocite{kubernetes2024} sebagai bidang orkestrasi untuk seluruh komponen platform. Penskalaan otomatis dijalankan oleh tiga komponen yang saling melengkapi yaitu HPA Kubernetes pada level Pod yang membaca metrik dari metrics-server, VPA \textit{recommender} untuk rekomendasi \textit{resource request}, dan KEDA \autocite{keda2025} untuk penskalaan berbasis peristiwa dari Kafka atau Prometheus. Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} melalui \textit{ClusterQueue} sehingga sumber daya komputasi terbagi adil antar-\textit{tenant} sesuai prioritas, dengan \textit{job} di luar kuota berstatus \textit{Pending} hingga kuota tersedia. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS sehingga identitas mesin diperbarui otomatis, dan Gambar~\ref{fig:layer-orkestrasi-infra} merinci bidang orkestrasi, penskalaan otomatis, serta cert-manager pada \textit{layer} fondasi ini. Perubahan konfigurasi menuju \textit{layer} ini mengalir dari \textit{GitOps and Continuous Delivery Layer} yang dirinci pada Subbab~\ref{subsec:lapisan-gitops}.
 
 \begin{figure}[!htbp]
     \centering
-    \IfFileExists{figures/Layer_Infra_Control.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Infra_Control.png}%
+    \IfFileExists{figures/Layer_Orchestration_Infra.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Orchestration_Infra.png}%
     }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Infra\_Control.eraser} \textit{dirender ke} \texttt{figures/Layer\_Infra\_Control.png}.}}%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Orchestration\_Infra.eraser} \textit{dirender ke} \texttt{figures/Layer\_Orchestration\_Infra.png}.}}%
     }
-    \caption[Rincian \textit{Infrastructure Layer} bagian \textit{control plane}]{Rincian \textit{Infrastructure Layer} bagian \textit{control plane}, penskalaan otomatis, dan rantai GitOps}
-    \label{fig:layer-infra-control}
+    \caption[Rincian \textit{Orchestration and Infrastructure Layer}]{Rincian \textit{Orchestration and Infrastructure Layer} dengan bidang orkestrasi dan penskalaan otomatis}
+    \label{fig:layer-orkestrasi-infra}
 \end{figure}
 
-Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. Identitas terpusat disediakan Dex sebagai penyedia OIDC, oauth2-proxy sebagai penjaga \textit{single sign-on} bagi konsol web, dan SpiceDB sebagai mesin otorisasi berbasis relasi. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas manifes. Kebijakan keamanan dijalankan dalam dua \textit{layer}: Kyverno \autocite{kyverno2024} pada \textit{admission layer} Kubernetes, dan Falco \autocite{falco2025} pada \textit{runtime layer}. Trivy Operator \autocite{trivy2025} memindai \textit{image} dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal ke MinIO, dan Chaos Mesh menyuntikkan gangguan terkendali untuk menguji ketahanan platform. Gambar~\ref{fig:layer-infra-security} merinci seluruh komponen keamanan ini dari perbatasan sampai pemulihan.
-
-\begin{figure}[!htbp]
-    \centering
-    \IfFileExists{figures/Layer_Infra_Security.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Infra_Security.png}%
-    }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Infra\_Security.eraser} \textit{dirender ke} \texttt{figures/Layer\_Infra\_Security.png}.}}%
-    }
-    \caption[Rincian \textit{Infrastructure Layer} bagian keamanan]{Rincian \textit{Infrastructure Layer} bagian keamanan}
-    \label{fig:layer-infra-security}
-\end{figure}
-
-\subsection{\textit{Data Ingestion Layer}, \textit{Processing Layer}, dan \textit{Storage and Feature Store Layer}}
+\subsection{\textit{Data Ingestion and Processing Layer}}
 \label{subsec:lapisan-data}
 
-\textit{Data ingestion layer} menggunakan Apache Kafka \autocite{apachekafka2024} sebagai \textit{message broker} utama dengan operator Strimzi pada \textit{cluster} Kubernetes. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal melalui konektor Debezium untuk \textit{change data capture}, dan \textit{Karapace} digunakan sebagai registri skema yang memvalidasi kompatibilitas setiap pesan. Kafbat UI menyediakan pemantauan \textit{topic} dan konsumen sehingga tim data dapat mengawasi kesehatan aliran masuk. Gambar~\ref{fig:layer-ingestion} merinci jalur \textit{ingestion} dari sumber eksternal sampai \textit{topic} Kafka yang tervalidasi skema.
+Jalur masuk pada \textit{Data Ingestion and Processing Layer} menggunakan Apache Kafka \autocite{apachekafka2024} sebagai \textit{message broker} utama dengan operator Strimzi pada \textit{cluster} Kubernetes. \textit{Kafka Connect} digunakan untuk integrasi dengan sumber data eksternal melalui konektor Debezium untuk \textit{change data capture}, dan \textit{Karapace} digunakan sebagai registri skema yang memvalidasi kompatibilitas setiap pesan. Kafbat UI menyediakan pemantauan \textit{topic} dan konsumen sehingga tim data dapat mengawasi kesehatan aliran masuk. Dari \textit{topic} yang tervalidasi skema itulah jalur pemrosesan pada \textit{layer} yang sama mengambil alih.
+
+Jalur pemrosesan dibagi menjadi dua, yaitu jalur \textit{batch} dan jalur \textit{stream}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola. Orkestrasi jalur \textit{batch} dirancang menggunakan Apache Airflow \autocite{airflow2024} sebagai \textit{scheduler} DAG yang merangkai langkah validasi, transformasi, dan materialisasi fitur menjadi satu \textit{pipeline} data terjadwal. Definisi DAG ditarik dari Git melalui mekanisme \textit{git-sync} sehingga perubahan \textit{pipeline} mengikuti alur GitOps yang sama dengan komponen platform lain. Setiap langkah transformasi dijalankan sebagai \textit{pod} terisolasi melalui \texttt{KubernetesPodOperator} agar batas sumber daya dapat ditetapkan per langkah dan kegagalan satu langkah tidak menjalar ke langkah lain. Pembagian peran ini menempatkan Airflow sebagai \textit{orchestrator} bidang data dan Kubeflow Pipelines sebagai \textit{orchestrator} \textit{model training}, sehingga tanggung jawab DataOps dan MLOps tidak bercampur dalam satu \textit{controller}. Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus, dan Gambar~\ref{fig:layer-ingestion-processing} merinci jalur masuk beserta kedua jalur pemrosesan, orkestrasi Airflow, dan kueri federatif Trino pada satu \textit{layer}.
 
 \begin{figure}[!htbp]
     \centering
-    \IfFileExists{figures/Layer_Data_Ingestion.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Data_Ingestion.png}%
+    \IfFileExists{figures/Layer_Ingestion_Processing.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Ingestion_Processing.png}%
     }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Data\_Ingestion.eraser} \textit{dirender ke} \texttt{figures/Layer\_Data\_Ingestion.png}.}}%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Ingestion\_Processing.eraser} \textit{dirender ke} \texttt{figures/Layer\_Ingestion\_Processing.png}.}}%
     }
-    \caption[Rincian \textit{Data Ingestion Layer}]{Rincian \textit{Data Ingestion Layer}}
-    \label{fig:layer-ingestion}
+    \caption[Rincian \textit{Data Ingestion and Processing Layer}]{Rincian \textit{Data Ingestion and Processing Layer} dengan jalur masuk, jalur \textit{batch}, dan jalur \textit{stream}}
+    \label{fig:layer-ingestion-processing}
 \end{figure}
 
-\textit{Processing layer} dibagi menjadi dua jalur, yaitu jalur \textit{batch} dan jalur \textit{stream}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. Jalur \textit{batch} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan jalur \textit{stream} menggunakan Apache Flink \autocite{apacheflink2024} untuk pemrosesan jendela waktu, agregasi, dan deteksi pola. Orkestrasi jalur \textit{batch} dirancang menggunakan Apache Airflow \autocite{airflow2024} sebagai \textit{scheduler} DAG yang merangkai langkah validasi, transformasi, dan materialisasi fitur menjadi satu \textit{pipeline} data terjadwal. Definisi DAG ditarik dari Git melalui mekanisme \textit{git-sync} sehingga perubahan \textit{pipeline} mengikuti alur GitOps yang sama dengan komponen platform lain. Setiap langkah transformasi dijalankan sebagai \textit{pod} terisolasi melalui \texttt{KubernetesPodOperator} agar batas sumber daya dapat ditetapkan per langkah dan kegagalan satu langkah tidak menjalar ke langkah lain. Pembagian peran ini menempatkan Airflow sebagai \textit{orchestrator} bidang data dan Kubeflow Pipelines sebagai \textit{orchestrator} \textit{model training}, sehingga tanggung jawab DataOps dan MLOps tidak bercampur dalam satu \textit{controller}. Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus, dan Gambar~\ref{fig:layer-processing} merinci kedua jalur pemrosesan beserta orkestrasi Airflow dan kueri federatif Trino.
+\subsection{\textit{Data Storage Layer}}
+\label{subsec:lapisan-storage}
+
+Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan enkripsi sisi \textit{server} melalui KES dan format Apache Iceberg sebagai \textit{table format}. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai \textit{version control layer} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk \textit{dashboard} maupun materialisasi fitur. Basis data pendampingnya adalah PostgreSQL yang dikelola operator CNPG dan MySQL untuk metadata layanan platform, serta OpenSearch untuk pencarian log dan teks. Gambar~\ref{fig:layer-storage} merinci subgrup \textit{lakehouse} dan basis data beserta konsumennya.
 
 \begin{figure}[!htbp]
     \centering
-    \IfFileExists{figures/Layer_Processing.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Processing.png}%
+    \IfFileExists{figures/Layer_Data_Storage.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Data_Storage.png}%
     }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Processing.eraser} \textit{dirender ke} \texttt{figures/Layer\_Processing.png}.}}%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Data\_Storage.eraser} \textit{dirender ke} \texttt{figures/Layer\_Data\_Storage.png}.}}%
     }
-    \caption[Rincian \textit{Processing Layer}]{Rincian \textit{Processing Layer} dengan jalur \textit{batch} dan \textit{stream}}
-    \label{fig:layer-processing}
+    \caption[Rincian \textit{Data Storage Layer}]{Rincian \textit{Data Storage Layer} dengan subgrup \textit{lakehouse} dan basis data}
+    \label{fig:layer-storage}
 \end{figure}
 
-Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \textit{object store} dengan enkripsi sisi \textit{server} melalui KES dan format Apache Iceberg sebagai \textit{table format}. Katalog Iceberg dikelola oleh Lakekeeper \autocite{lakekeeper2025} yang memberikan \textit{REST API} kompatibel dengan klien Iceberg standar dan dapat dipakai oleh Spark, Trino, dan Flink secara seragam. lakeFS \autocite{lakefs2025} ditambahkan sebagai \textit{version control layer} untuk \textit{data lake} sehingga eksperimen pada cabang data dapat dilakukan tanpa mengganggu cabang utama. ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk \textit{dashboard} maupun materialisasi fitur. Basis data pendampingnya adalah PostgreSQL yang dikelola operator CNPG dan MySQL untuk metadata layanan platform, serta OpenSearch untuk pencarian log dan teks. Layanan fitur ditopang Feast \autocite{feast2024} sebagai \textit{feature store} dengan ClickHouse sebagai sumber \textit{offline}, Valkey sebagai penyimpan \textit{online}, dan Qdrant sebagai indeks vektor, sedangkan registri fitur disimpan sebagai berkas pada MinIO. Gambar~\ref{fig:layer-storage-feature} merinci ketiga subgrup \textit{lakehouse}, basis data, dan layanan fitur beserta konsumennya.
+\subsection{\textit{Feature Service Layer}}
+\label{subsec:lapisan-feature}
+
+\textit{Feature Service Layer} ditopang Feast \autocite{feast2024} sebagai \textit{feature store} yang menyatukan definisi fitur untuk pelatihan dan inferensi. ClickHouse pada \textit{Data Storage Layer} menjadi sumber \textit{offline} tempat fitur historis dibaca untuk pelatihan \textit{batch}, sedangkan Valkey menjadi penyimpan \textit{online} berlatensi rendah hasil materialisasi untuk inferensi. Qdrant melengkapi keduanya sebagai indeks vektor bagi \textit{vector feature}, dan registri fitur disimpan sebagai berkas pada MinIO sehingga definisi fitur ikut terversi pada penyimpanan objek. Rincian mekanisme \textit{dual-store} beserta jaminan \textit{point-in-time correctness}-nya dirancang sebagai sub-sistem tersendiri pada Subbab~\ref{sec:feature-store-dual}, dan Gambar~\ref{fig:layer-feature} merinci \textit{layer} ini beserta sumber dan konsumennya.
 
 \begin{figure}[!htbp]
     \centering
-    \IfFileExists{figures/Layer_Storage_Feature.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Storage_Feature.png}%
+    \IfFileExists{figures/Layer_Feature_Service.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Feature_Service.png}%
     }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Storage\_Feature.eraser} \textit{dirender ke} \texttt{figures/Layer\_Storage\_Feature.png}.}}%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Feature\_Service.eraser} \textit{dirender ke} \texttt{figures/Layer\_Feature\_Service.png}.}}%
     }
-    \caption[Rincian \textit{Storage and Feature Store Layer}]{Rincian \textit{Storage and Feature Store Layer}}
-    \label{fig:layer-storage-feature}
+    \caption[Rincian \textit{Feature Service Layer}]{Rincian \textit{Feature Service Layer} dengan penyimpanan \textit{offline}, \textit{online}, dan indeks vektor}
+    \label{fig:layer-feature}
 \end{figure}
 
-\subsection{\textit{Model Lifecycle Layer} dan \textit{Model Serving Layer}}
+\subsection{\textit{Model Lifecycle Layer}}
 \label{subsec:lapisan-model}
 
 \textit{Model lifecycle layer} menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} pelatihan, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Kubeflow Notebooks menjadi titik masuk eksperimen interaktif yang mengirimkan definisi \textit{pipeline} ke Kubeflow Pipelines. Kubeflow Trainer \autocite{kubeflowtrainer2025} menjalankan pelatihan terdistribusi melalui \texttt{TrainJob} yang dipanggil dari \textit{pipeline} Kubeflow Pipelines, sehingga pelatihan \textit{multi-replica} tidak memerlukan \textit{custom controller}. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan pelatihan, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu \textit{retraining}. Basis data relasional untuk metadata MLflow disediakan oleh PostgreSQL yang dikelola operator CNPG, sedangkan metadata Kubeflow Pipelines dan Katib disimpan pada MySQL, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten. Gambar~\ref{fig:layer-lifecycle} merinci alur dari eksperimen dan pelatihan menuju registri model beserta pemicu \textit{retraining} otomatis dari deteksi \textit{drift}.
@@ -436,7 +307,7 @@ Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \te
     \label{fig:layer-lifecycle}
 \end{figure}
 
-\textit{Model serving layer} menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. \textit{Model serving} multimodal didukung KServe dengan \textit{runtime} bawaan untuk \textit{scikit-learn}, XGBoost, PyTorch, dan ONNX, ditambah \textit{runtime} kustom untuk model yang memerlukan dependensi spesifik. Knative \autocite{knative2025} berperan sebagai bidang \textit{serverless} bagi KServe, sehingga penskalaan dari nol dapat dilakukan tanpa menahan sumber daya saat trafik rendah. \textit{Runtime} kustom didaftarkan sebagai \texttt{ClusterServingRuntime} sehingga penambahan kerangka model baru tidak mengubah definisi \texttt{InferenceService} yang sudah berjalan. Argo Rollouts menjalankan analisis \textit{canary} pada \texttt{InferenceService} sehingga versi model baru dipromosikan bertahap berdasarkan metrik, sedangkan jembatan inferensi membaca fitur \textit{online} dari Valkey dan fitur vektor dari Qdrant untuk melengkapi masukan \textit{predictor}. Gambar~\ref{fig:layer-serving} merinci jalur \textit{serving} dari artefak model sampai konsumen prediksi.
+Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{model serving component} dan \textit{inference service} pada baris kelimanya di Tabel~\ref{tab:layanan_industri}, menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi penskalaan, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. \textit{Model serving} multimodal didukung KServe dengan \textit{runtime} bawaan untuk \textit{scikit-learn}, XGBoost, PyTorch, dan ONNX, ditambah \textit{runtime} kustom untuk model yang memerlukan dependensi spesifik. Knative \autocite{knative2025} berperan sebagai bidang \textit{serverless} bagi KServe, sehingga penskalaan dari nol dapat dilakukan tanpa menahan sumber daya saat trafik rendah. \textit{Runtime} kustom didaftarkan sebagai \texttt{ClusterServingRuntime} sehingga penambahan kerangka model baru tidak mengubah definisi \texttt{InferenceService} yang sudah berjalan. Argo Rollouts menjalankan analisis \textit{canary} pada \texttt{InferenceService} sehingga versi model baru dipromosikan bertahap berdasarkan metrik, sedangkan jembatan inferensi membaca fitur \textit{online} dari Valkey dan fitur vektor dari Qdrant untuk melengkapi masukan \textit{predictor}. Gambar~\ref{fig:layer-serving} merinci jalur \textit{serving} dari artefak model sampai konsumen prediksi.
 
 \begin{figure}[!htbp]
     \centering
@@ -445,27 +316,30 @@ Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \te
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Model\_Serving.eraser} \textit{dirender ke} \texttt{figures/Layer\_Model\_Serving.png}.}}%
     }
-    \caption[Rincian \textit{Model Serving Layer}]{Rincian \textit{Model Serving Layer}}
+    \caption[Rincian bagian \textit{model serving}]{Rincian bagian \textit{model serving} pada \textit{Model Lifecycle Layer}}
     \label{fig:layer-serving}
 \end{figure}
 
-\subsection{\textit{Governance and Observability Layer}}
+\subsection{\textit{Data Governance Layer}}
 \label{subsec:lapisan-tata-kelola}
 
-\textit{Governance layer} menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Sumber metadata mencakup Kafka untuk \textit{topic} dan skema, ClickHouse untuk tabel \textit{warehouse}, MinIO dengan katalog Iceberg untuk \textit{dataset} \textit{data lake}, PostgreSQL untuk metadata layanan, Feast untuk definisi fitur, serta dbt untuk model transformasi, sehingga aset lintas \textit{layer} terindeks dalam satu katalog yang penelusurannya ditopang indeks OpenSearch. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada \textit{batch layer} dan \textit{stream layer} dan mengalirkan status validasi ke katalog. Gambar~\ref{fig:layer-governance} merinci penerimaan peristiwa \textit{lineage} dan \textit{ingest} metadata pada DataHub beserta batasnya menuju observabilitas.
+\textit{Data Governance Layer} menggunakan DataHub \autocite{datahub2024} sebagai katalog metadata yang mengumpulkan informasi dari komponen lain melalui mekanisme \textit{push} dan \textit{pull}, dengan OpenLineage \autocite{openlineage2025} sebagai protokol pengirim peristiwa \textit{lineage} dari komponen \textit{pipeline}. Sumber metadata mencakup Kafka untuk \textit{topic} dan skema, ClickHouse untuk tabel \textit{warehouse}, MinIO dengan katalog Iceberg untuk \textit{dataset} \textit{data lake}, PostgreSQL untuk metadata layanan, Feast untuk definisi fitur, serta dbt untuk model transformasi, sehingga aset lintas \textit{layer} terindeks dalam satu katalog yang penelusurannya ditopang indeks OpenSearch. Great Expectations \autocite{greatexpectations2024} menjalankan pengujian kontrak data pada \textit{batch layer} dan \textit{stream layer} dan mengalirkan status validasi ke katalog. Gambar~\ref{fig:layer-governance} merinci penerimaan peristiwa \textit{lineage} dan \textit{ingest} metadata pada DataHub beserta batasnya menuju observabilitas.
 
 \begin{figure}[!htbp]
     \centering
-    \IfFileExists{figures/Layer_Governance.png}{%
-        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Governance.png}%
+    \IfFileExists{figures/Layer_Data_Governance.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Data_Governance.png}%
     }{%
-        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Governance.eraser} \textit{dirender ke} \texttt{figures/Layer\_Governance.png}.}}%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Data\_Governance.eraser} \textit{dirender ke} \texttt{figures/Layer\_Data\_Governance.png}.}}%
     }
-    \caption[Rincian bagian tata kelola data]{Rincian bagian tata kelola data pada \textit{Governance and Observability Layer}}
+    \caption[Rincian \textit{Data Governance Layer}]{Rincian \textit{Data Governance Layer}}
     \label{fig:layer-governance}
 \end{figure}
 
-\textit{Observability layer} menggunakan Prometheus untuk metrik dengan Alertmanager sebagai penyalur peringatan, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan \textit{dashboard} khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost melengkapi pemantauan biaya per beban kerja. Pushgateway dipakai untuk mengumpulkan metrik \textit{job} berdurasi pendek, antara lain CronJob validasi data dan CronWorkflow pengukur \textit{drift}, agar metrik mereka tidak hilang setelah \textit{job} selesai. Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke \textit{dashboard} Grafana. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan \textit{dashboard} di atas ClickHouse dan Trino. Gambar~\ref{fig:layer-observability} merinci ketiga pilar observabilitas pada satu antarmuka Grafana beserta \textit{dashboard} analitik Superset.
+\subsection{\textit{Observability Layer}}
+\label{subsec:lapisan-observabilitas}
+
+\textit{Observability Layer} menggunakan Prometheus untuk metrik dengan Alertmanager sebagai penyalur peringatan, Loki untuk log, dan Grafana Tempo \autocite{tempo2024} untuk \textit{trace}, dengan OpenTelemetry sebagai \textit{collector} bersama. Grafana menyatukan ketiganya dan ditambahkan \textit{dashboard} khusus untuk kualitas data, \textit{drift} fitur, dan kinerja model. Sloth \autocite{sloth2025} menurunkan \textit{service-level objective} ke aturan Prometheus, sedangkan Pyroscope menyediakan profil performa berkelanjutan dan OpenCost melengkapi pemantauan biaya per beban kerja. Pushgateway dipakai untuk mengumpulkan metrik \textit{job} berdurasi pendek, antara lain CronJob validasi data dan CronWorkflow pengukur \textit{drift}, agar metrik mereka tidak hilang setelah \textit{job} selesai. Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke \textit{dashboard} Grafana. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan \textit{dashboard} di atas ClickHouse dan Trino. Gambar~\ref{fig:layer-observability} merinci ketiga pilar observabilitas pada satu antarmuka Grafana beserta \textit{dashboard} analitik Superset.
 
 \begin{figure}[!htbp]
     \centering
@@ -474,8 +348,40 @@ Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \te
     }{%
         \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Observability.eraser} \textit{dirender ke} \texttt{figures/Layer\_Observability.png}.}}%
     }
-    \caption[Rincian bagian observabilitas]{Rincian bagian observabilitas pada \textit{Governance and Observability Layer}}
+    \caption[Rincian \textit{Observability Layer}]{Rincian \textit{Observability Layer}}
     \label{fig:layer-observability}
+\end{figure}
+
+\subsection{\textit{GitOps and Continuous Delivery Layer}}
+\label{subsec:lapisan-gitops}
+
+\textit{GitOps and Continuous Delivery Layer} menjadikan Git satu-satunya sumber kebenaran konfigurasi platform. Argo CD menjadi satu-satunya jalur perubahan yang menarik konfigurasi dari Git dan menerapkannya ke \textit{cluster} melalui prinsip rekonsiliasi deklaratif GitOps \autocite{limoncelli2022gitops}, sehingga keadaan \textit{cluster} selalu dapat direproduksi dari isi repositori. Gitea berperan sebagai \textit{repository} Git internal, Tekton sebagai \textit{build pipeline} yang menguji dan membangun \textit{image}, dan \textit{image registry} internal sebagai penyimpan artefak hasil \textit{build}. Argo Rollouts melengkapi jalur pengiriman sebagai operator pengiriman bertahap yang mempromosikan versi baru berdasarkan metrik, termasuk untuk rilis model pada bagian \textit{model serving}. Gambar~\ref{fig:layer-gitops} merinci rantai dari \textit{commit} sampai rekonsiliasi pada seluruh \textit{layer} platform.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Layer_GitOps_CD.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_GitOps_CD.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_GitOps\_CD.eraser} \textit{dirender ke} \texttt{figures/Layer\_GitOps\_CD.png}.}}%
+    }
+    \caption[Rincian \textit{GitOps and Continuous Delivery Layer}]{Rincian \textit{GitOps and Continuous Delivery Layer}}
+    \label{fig:layer-gitops}
+\end{figure}
+
+\subsection{\textit{Platform Security Layer}}
+\label{subsec:lapisan-keamanan}
+
+\textit{Platform Security Layer} menegakkan akses terkendali serta kepatuhan privasi dan keamanan data pada seluruh \textit{layer} lain. Istio \autocite{istio2024} menyediakan jaringan layanan dengan mTLS yang mengamankan komunikasi antar layanan, sedangkan APISIX \autocite{apisix2025} berperan sebagai \textit{API gateway} pada perbatasan \textit{mesh}. Identitas terpusat disediakan Dex sebagai penyedia OIDC, oauth2-proxy sebagai penjaga \textit{single sign-on} bagi konsol web, dan SpiceDB sebagai mesin otorisasi berbasis relasi. OpenBao \autocite{openbao2025} mengelola rahasia, dan \textit{External Secrets Operator} menyebarkan rahasia dari OpenBao ke \textit{namespace} target tanpa menyalin rahasia ke berkas manifes. Kebijakan keamanan dijalankan pada dua titik, yaitu Kyverno \autocite{kyverno2024} pada admisi Kubernetes dan Falco \autocite{falco2025} pada \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai \textit{image} dan beban kerja secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal ke MinIO, dan Chaos Mesh menyuntikkan gangguan terkendali untuk menguji ketahanan platform. Gambar~\ref{fig:layer-security} merinci seluruh komponen keamanan ini dari perbatasan sampai pemulihan.
+
+\begin{figure}[!htbp]
+    \centering
+    \IfFileExists{figures/Layer_Security.png}{%
+        \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Security.png}%
+    }{%
+        \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Layer\_Security.eraser} \textit{dirender ke} \texttt{figures/Layer\_Security.png}.}}%
+    }
+    \caption[Rincian \textit{Platform Security Layer}]{Rincian \textit{Platform Security Layer}}
+    \label{fig:layer-security}
 \end{figure}
 
 \section{Perancangan Sub-sistem Tata Kelola Data}

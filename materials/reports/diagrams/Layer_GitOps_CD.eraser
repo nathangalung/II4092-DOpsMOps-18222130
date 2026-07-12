@@ -1,0 +1,45 @@
+// Layer_GitOps_CD — GitOps and Continuous Delivery Layer (layer 8 dari 9)
+// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Buat kanvas BARU bernama "Layer_GitOps_CD".
+// Ekspor PNG ke materials/reports/figures/Layer_GitOps_CD.png
+// Acuan: subsec:lapisan-gitops (Subbab IV.4, sec:arsitektur-terintegrasi); rincian
+//   beralat layer baris 8 tab:layanan_industri. Disertakan sebagai fig:layer-gitops.
+// Fokus: rantai Gitea > Tekton > image registry > Argo CD merekonsiliasi seluruh
+//   Application platform, Argo Rollouts sebagai operator pengiriman bertahap.
+// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11): git,
+//   docker (registry:2 = Docker Distribution), argo, kubernetes; sisanya generik.
+// Rendering WAJIB horizontal (direction right), maksimum dua baris node per grup,
+//   tanpa \rotatebox pada LaTeX.
+// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
+//   yaitu kategori CI/CD.
+// Verifikasi implementasi: gitops/gitea, gitops/tekton, common/registry,
+//   gitops/argo-cd, gitops/argo-rollouts.
+
+direction right
+
+// Aktor pengubah (batas)
+Tim Platform [icon: users, color: gray, label: "Tim Platform (pengubah konfigurasi)"]
+
+// GitOps and Continuous Delivery Layer
+GitOps and Continuous Delivery Layer [icon: git-branch, color: blue, label: "GitOps and Continuous Delivery Layer (kategori CI/CD)"] {
+  Gitea [icon: git, label: "Gitea (Git internal)"]
+  Tekton [icon: settings, label: "Tekton (CI + build)"]
+  Registry [icon: docker, label: "Image Registry (registry:2)"]
+  Argo CD [icon: argo, label: "Argo CD (GitOps CD)"]
+  Argo Rollouts [icon: argo, label: "Argo Rollouts (pengiriman bertahap)"]
+}
+
+// Sasaran rekonsiliasi (batas)
+Kubernetes [icon: kubernetes, color: gray, label: "Kubernetes (k3s)"]
+Platform Applications [icon: layers, color: gray, label: "Platform Applications (seluruh layer)"]
+
+// Alur GitOps
+Tim Platform > Gitea: commit manifes
+Gitea > Tekton: webhook CI
+Tekton > Registry: build dan push image
+Tekton > Gitea: commit tag manifes
+Gitea > Argo CD: sumber manifes
+Argo CD > Kubernetes: sinkronisasi deklaratif
+Argo CD > Platform Applications: rekonsiliasi Application
+Argo Rollouts > Platform Applications: pengiriman bertahap
+Registry > Kubernetes: image pull
