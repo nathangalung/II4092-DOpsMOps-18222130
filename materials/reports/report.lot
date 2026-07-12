@@ -699,7 +699,9 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {IV.1}{\ignorespaces Pemetaan Sembilan \textit {Layer} Platform ke Komponen Mayoritas}}{69}{table.caption.27}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {table}{\numberline {IV.1}{\ignorespaces Pemetaan \textit {Layer} Platform ke Komponen Mayoritas}}{69}{table.caption.27}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -758,37 +760,35 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {table}{\numberline {IV.2}{\ignorespaces Pemetaan Peran Pengguna ke Antarmuka dan \textit {Layer} Platform}}{70}{table.caption.29}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {IV.2}{\ignorespaces Pemetaan Peran Pengguna ke Antarmuka dan \textit {Layer} Platform}}{71}{table.caption.29}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {IV.3}{\ignorespaces Evaluasi Alternatif Distribusi Kubernetes \textit {Open-Source}}}{73}{table.caption.30}%
-\contentsline {table}{\numberline {IV.4}{\ignorespaces Evaluasi Alternatif \textit {Message Broker} untuk \textit {Streaming}}}{74}{table.caption.31}%
-\contentsline {table}{\numberline {IV.5}{\ignorespaces Evaluasi Alternatif \textit {Schema Registry} untuk Apache Kafka}}{74}{table.caption.32}%
-\contentsline {table}{\numberline {IV.6}{\ignorespaces Evaluasi Alternatif \textit {Framework} Pemrosesan Data}}{75}{table.caption.33}%
-\contentsline {table}{\numberline {IV.7}{\ignorespaces Evaluasi Alternatif Format Tabel \textit {Lakehouse} \textit {Open-Source}}}{76}{table.caption.34}%
-\contentsline {table}{\numberline {IV.8}{\ignorespaces Evaluasi Alternatif Penyimpanan Objek S3-Kompatibel \textit {Open-Source}}}{76}{table.caption.35}%
-\contentsline {table}{\numberline {IV.9}{\ignorespaces Evaluasi Alternatif Pengelola Versi Data \textit {Open-Source}}}{77}{table.caption.36}%
-\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{77}{table.caption.37}%
-\contentsline {table}{\numberline {IV.11}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Offline} (OLAP)}}{78}{table.caption.38}%
-\contentsline {table}{\numberline {IV.12}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Online} (Latensi Rendah)}}{78}{table.caption.39}%
-\contentsline {table}{\numberline {IV.13}{\ignorespaces Evaluasi Alternatif \textit {Vector Index} \textit {Open-Source}}}{79}{table.caption.40}%
-\contentsline {table}{\numberline {IV.14}{\ignorespaces Evaluasi Alternatif \textit {Experiment Tracking} dan \textit {Model Registry}}}{79}{table.caption.41}%
-\contentsline {table}{\numberline {IV.15}{\ignorespaces Evaluasi Alternatif Orkestrasi ML \textit {Open-Source}}}{80}{table.caption.42}%
-\contentsline {table}{\numberline {IV.16}{\ignorespaces Evaluasi Alternatif \textit {Model Serving}}}{81}{table.caption.43}%
-\contentsline {table}{\numberline {IV.17}{\ignorespaces Evaluasi Alternatif Manajemen Metadata dan Tata Kelola}}{82}{table.caption.44}%
-\contentsline {table}{\numberline {IV.18}{\ignorespaces Evaluasi Alternatif \textit {Monitoring} dan \textit {Observability}}}{82}{table.caption.45}%
-\contentsline {table}{\numberline {IV.19}{\ignorespaces Evaluasi Alternatif \textit {Business Intelligence} dan \textit {Dashboarding}}}{83}{table.caption.46}%
-\contentsline {table}{\numberline {IV.20}{\ignorespaces Evaluasi Alternatif \textit {GitOps Controller} \textit {Open-Source}}}{84}{table.caption.47}%
-\contentsline {table}{\numberline {IV.21}{\ignorespaces Evaluasi Alternatif \textit {Identity Provider} \textit {Open-Source}}}{84}{table.caption.48}%
-\contentsline {table}{\numberline {IV.22}{\ignorespaces Evaluasi Alternatif Pengelola Rahasia}}{85}{table.caption.49}%
-\contentsline {table}{\numberline {IV.23}{\ignorespaces Evaluasi Alternatif \textit {Service Mesh}}}{85}{table.caption.50}%
-\contentsline {table}{\numberline {IV.24}{\ignorespaces Evaluasi Alternatif \textit {API Gateway} \textit {Open-Source}}}{86}{table.caption.51}%
-\contentsline {table}{\numberline {IV.25}{\ignorespaces Evaluasi Alternatif \textit {Policy Engine} \textit {Open-Source}}}{86}{table.caption.52}%
-\contentsline {table}{\numberline {IV.26}{\ignorespaces Evaluasi Alternatif \textit {Runtime Security} \textit {Open-Source} pada Kubernetes}}{87}{table.caption.53}%
+\contentsline {table}{\numberline {IV.3}{\ignorespaces Evaluasi Alternatif Distribusi Kubernetes \textit {Open-Source}}}{72}{table.caption.30}%
+\contentsline {table}{\numberline {IV.4}{\ignorespaces Evaluasi Alternatif \textit {Message Broker} untuk \textit {Streaming}}}{72}{table.caption.31}%
+\contentsline {table}{\numberline {IV.5}{\ignorespaces Evaluasi Alternatif \textit {Schema Registry} untuk Apache Kafka}}{73}{table.caption.32}%
+\contentsline {table}{\numberline {IV.6}{\ignorespaces Evaluasi Alternatif \textit {Framework} Pemrosesan Data}}{73}{table.caption.33}%
+\contentsline {table}{\numberline {IV.7}{\ignorespaces Evaluasi Alternatif Format Tabel \textit {Lakehouse} \textit {Open-Source}}}{74}{table.caption.34}%
+\contentsline {table}{\numberline {IV.8}{\ignorespaces Evaluasi Alternatif Penyimpanan Objek S3-Kompatibel \textit {Open-Source}}}{74}{table.caption.35}%
+\contentsline {table}{\numberline {IV.9}{\ignorespaces Evaluasi Alternatif Pengelola Versi Data \textit {Open-Source}}}{75}{table.caption.36}%
+\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{75}{table.caption.37}%
+\contentsline {table}{\numberline {IV.11}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Offline} (OLAP)}}{76}{table.caption.38}%
+\contentsline {table}{\numberline {IV.12}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Online} (Latensi Rendah)}}{76}{table.caption.39}%
+\contentsline {table}{\numberline {IV.13}{\ignorespaces Evaluasi Alternatif \textit {Vector Index} \textit {Open-Source}}}{77}{table.caption.40}%
+\contentsline {table}{\numberline {IV.14}{\ignorespaces Evaluasi Alternatif \textit {Experiment Tracking} dan \textit {Model Registry}}}{77}{table.caption.41}%
+\contentsline {table}{\numberline {IV.15}{\ignorespaces Evaluasi Alternatif Orkestrasi ML \textit {Open-Source}}}{78}{table.caption.42}%
+\contentsline {table}{\numberline {IV.16}{\ignorespaces Evaluasi Alternatif \textit {Model Serving}}}{78}{table.caption.43}%
+\contentsline {table}{\numberline {IV.17}{\ignorespaces Evaluasi Alternatif Manajemen Metadata dan Tata Kelola}}{79}{table.caption.44}%
+\contentsline {table}{\numberline {IV.18}{\ignorespaces Evaluasi Alternatif \textit {Monitoring} dan \textit {Observability}}}{79}{table.caption.45}%
+\contentsline {table}{\numberline {IV.19}{\ignorespaces Evaluasi Alternatif \textit {Business Intelligence} dan \textit {Dashboarding}}}{80}{table.caption.46}%
+\contentsline {table}{\numberline {IV.20}{\ignorespaces Evaluasi Alternatif \textit {GitOps Controller} \textit {Open-Source}}}{81}{table.caption.47}%
+\contentsline {table}{\numberline {IV.21}{\ignorespaces Evaluasi Alternatif \textit {Identity Provider} \textit {Open-Source}}}{81}{table.caption.48}%
+\contentsline {table}{\numberline {IV.22}{\ignorespaces Evaluasi Alternatif Pengelola Rahasia}}{82}{table.caption.49}%
+\contentsline {table}{\numberline {IV.23}{\ignorespaces Evaluasi Alternatif \textit {Service Mesh}}}{82}{table.caption.50}%
+\contentsline {table}{\numberline {IV.24}{\ignorespaces Evaluasi Alternatif \textit {API Gateway} \textit {Open-Source}}}{82}{table.caption.51}%
+\contentsline {table}{\numberline {IV.25}{\ignorespaces Evaluasi Alternatif \textit {Policy Engine} \textit {Open-Source}}}{83}{table.caption.52}%
+\contentsline {table}{\numberline {IV.26}{\ignorespaces Evaluasi Alternatif \textit {Runtime Security} \textit {Open-Source} pada Kubernetes}}{83}{table.caption.53}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -952,7 +952,7 @@
 \addvspace {10\p@ }
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {V.1}{\ignorespaces Struktur Direktori Utama Proyek dan Fungsinya}}{110}{table.caption.64}%
+\contentsline {table}{\numberline {V.1}{\ignorespaces Struktur Direktori Utama Proyek dan Fungsinya}}{106}{table.caption.64}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -985,7 +985,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {V.2}{\ignorespaces Pemetaan Sembilan \textit {Layer} ke Komponen Terpasang dan \textit {Namespace}}}{113}{table.caption.65}%
+\contentsline {table}{\numberline {V.2}{\ignorespaces Pemetaan \textit {Layer} Platform ke Komponen Terpasang dan \textit {Namespace}}}{109}{table.caption.65}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -994,7 +994,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {V.3}{\ignorespaces Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}}{114}{table.caption.66}%
+\contentsline {table}{\numberline {V.3}{\ignorespaces Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}}{110}{table.caption.66}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1011,7 +1011,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {V.4}{\ignorespaces Tata Letak \textit {Bucket} MinIO per Kepentingan}}{116}{table.caption.67}%
+\contentsline {table}{\numberline {V.4}{\ignorespaces Tata Letak \textit {Bucket} MinIO per Kepentingan}}{112}{table.caption.67}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1083,9 +1083,9 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.1}{\ignorespaces Skenario Uji Penerimaan per Tujuan Platform}}{133}{table.6.1}%
-\contentsline {table}{\numberline {VI.2}{\ignorespaces Target Metrik, Instrumen Ukur, dan Status Evaluasi per Kebutuhan}}{138}{table.6.2}%
-\contentsline {table}{\numberline {VI.3}{\ignorespaces Perbandingan Biaya Bulanan Infrastruktur per 16 Juni 2026}}{142}{table.caption.68}%
+\contentsline {table}{\numberline {VI.1}{\ignorespaces Skenario Uji Penerimaan per Tujuan Platform}}{129}{table.6.1}%
+\contentsline {table}{\numberline {VI.2}{\ignorespaces Target Metrik, Instrumen Ukur, dan Status Evaluasi per Kebutuhan}}{134}{table.6.2}%
+\contentsline {table}{\numberline {VI.3}{\ignorespaces Perbandingan Biaya Bulanan Infrastruktur per 16 Juni 2026}}{138}{table.caption.68}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1124,7 +1124,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.4}{\ignorespaces Ilustrasi Biaya Infrastruktur dan Tenaga Kerja Tiga Tahun}}{144}{table.caption.69}%
+\contentsline {table}{\numberline {VI.4}{\ignorespaces Ilustrasi Biaya Infrastruktur dan Tenaga Kerja per Skenario}}{140}{table.caption.69}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1459,6 +1459,6 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{169}{table.a.A.1}%
-\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{170}{table.a.A.2}%
+\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{163}{table.a.A.1}%
+\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{164}{table.a.A.2}%
 \addvspace {10\p@ }

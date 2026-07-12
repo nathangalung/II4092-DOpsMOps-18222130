@@ -2,7 +2,7 @@
 % paragraf implementasi tidak menjadi tumpukan sintaks. Fakta dari
 % platform/components/data-ingestion. Lebar total = 2.6+5.3+5.4 = 13.3cm
 % + 6*tabcolsep(3pt) ~= 13.93cm (< \textwidth 14.0cm).
-\begin{table}[H]
+\begin{table}[!htb]
 \centering
 \caption{Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}
 \label{tab:impl-kafka-config}
@@ -10,7 +10,7 @@
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{|>{\raggedright\arraybackslash}m{2.6cm}|>{\raggedright\arraybackslash}m{5.3cm}|>{\raggedright\arraybackslash}m{5.4cm}|}
 \hline
-\textbf{Aspek} & \textbf{Konfigurasi} & \textbf{Alasan} \\
+\centering\arraybackslash\textbf{Aspek} & \centering\arraybackslash\textbf{Konfigurasi} & \centering\arraybackslash\textbf{Alasan} \\
 \hline
 Mode \textit{cluster} & \textit{KRaft} murni tanpa ZooKeeper & Topologi tetap ringan pada satu \textit{node} \\
 \hline

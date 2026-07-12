@@ -696,6 +696,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.1}{\ignorespaces Arsitektur layanan terintegrasi tanpa keterikatan alat}}{68}{figure.caption.28}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -754,7 +755,6 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.1}{\ignorespaces Arsitektur layanan terintegrasi tanpa keterikatan alat}}{70}{figure.caption.28}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -783,9 +783,9 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.2}{\ignorespaces Rincian \textit {Orchestration and Infrastructure Layer}}}{86}{figure.caption.54}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.2}{\ignorespaces Rincian \textit {Orchestration and Infrastructure Layer}}}{90}{figure.caption.54}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -794,48 +794,48 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.3}{\ignorespaces Rincian \textit {Data Ingestion and Processing Layer}}}{91}{figure.caption.55}%
+\contentsline {figure}{\numberline {IV.3}{\ignorespaces Rincian \textit {Data Ingestion and Processing Layer}}}{87}{figure.caption.55}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.4}{\ignorespaces Rincian \textit {Data Storage Layer}}}{88}{figure.caption.56}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.4}{\ignorespaces Rincian \textit {Data Storage Layer}}}{92}{figure.caption.56}%
-\contentsline {figure}{\numberline {IV.5}{\ignorespaces Rincian \textit {Feature Service Layer}}}{93}{figure.caption.57}%
+\contentsline {figure}{\numberline {IV.5}{\ignorespaces Rincian \textit {Feature Service Layer}}}{89}{figure.caption.57}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.6}{\ignorespaces Rincian \textit {Model Lifecycle Layer}}}{93}{figure.caption.58}%
+\contentsline {figure}{\numberline {IV.6}{\ignorespaces Rincian \textit {Model Lifecycle Layer}}}{90}{figure.caption.58}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.7}{\ignorespaces Rincian bagian \textit {model serving}}}{94}{figure.caption.59}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.7}{\ignorespaces Rincian bagian \textit {model serving}}}{91}{figure.caption.59}%
 \babel@toc {english}{}\relax 
+\contentsline {figure}{\numberline {IV.8}{\ignorespaces Rincian \textit {Data Governance Layer}}}{92}{figure.caption.60}%
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.8}{\ignorespaces Rincian \textit {Data Governance Layer}}}{96}{figure.caption.60}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.9}{\ignorespaces Rincian \textit {Observability Layer}}}{93}{figure.caption.61}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.9}{\ignorespaces Rincian \textit {Observability Layer}}}{97}{figure.caption.61}%
-\contentsline {figure}{\numberline {IV.10}{\ignorespaces Rincian \textit {GitOps and Continuous Delivery Layer}}}{97}{figure.caption.62}%
+\contentsline {figure}{\numberline {IV.10}{\ignorespaces Rincian \textit {GitOps and Continuous Delivery Layer}}}{94}{figure.caption.62}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -850,7 +850,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.11}{\ignorespaces Rincian \textit {Platform Security Layer}}}{99}{figure.caption.63}%
+\contentsline {figure}{\numberline {IV.11}{\ignorespaces Rincian \textit {Platform Security Layer}}}{95}{figure.caption.63}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1103,7 +1103,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {VI.1}{\ignorespaces Proyeksi Biaya Kumulatif Tiga Tahun Tiga Skenario}}{145}{figure.caption.70}%
+\contentsline {figure}{\numberline {VI.1}{\ignorespaces Proyeksi Biaya Kumulatif per Skenario}}{141}{figure.caption.70}%
 \addvspace {10\p@ }
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 

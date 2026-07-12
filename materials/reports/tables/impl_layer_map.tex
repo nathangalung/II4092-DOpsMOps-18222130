@@ -2,15 +2,15 @@
 % namespace. Nama namespace diverifikasi dari platform/components/*
 % (kustomization + manifes). Gaya mengikuti struktur_direktori.tex
 % (border penuh, footnotesize, tabcolsep 3pt, lebar total ~ \textwidth).
-\begin{table}[H]
+\begin{table}[!htb]
 \centering
-\caption{Pemetaan Sembilan \textit{Layer} ke Komponen Terpasang dan \textit{Namespace}}
+\caption{Pemetaan \textit{Layer} Platform ke Komponen Terpasang dan \textit{Namespace}}
 \label{tab:impl-layer-map}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{|>{\raggedright\arraybackslash}m{3.4cm}|>{\raggedright\arraybackslash}m{5.9cm}|>{\raggedright\arraybackslash}m{4.0cm}|}
 \hline
-\textbf{\textit{Layer}} & \textbf{Komponen Terpasang} & \textbf{\textit{Namespace}} \\
+\centering\arraybackslash\textbf{\textit{Layer}} & \centering\arraybackslash\textbf{Komponen Terpasang} & \centering\arraybackslash\textbf{\textit{Namespace}} \\
 \hline
 \textit{Orchestration and Infrastructure} & k3s, metrics-server, HPA, VPA, KEDA, Kueue, cert-manager & \texttt{kube-system}, \texttt{common}, \texttt{cert-manager} \\
 \hline
