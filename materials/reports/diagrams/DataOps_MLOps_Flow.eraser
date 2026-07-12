@@ -1,9 +1,9 @@
-// Integrate_Service_Arch — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Alat)
+// DataOps_MLOps_Flow — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Alat)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Integrate_Service_Arch" (judul kanvas = nama berkas;
+//   Buat kanvas BARU bernama "DataOps_MLOps_Flow" (judul kanvas = nama berkas;
 //   sintaks cloud architecture tidak mendukung baris title, jadi judul diatur
 //   lewat nama kanvas). Jangan menimpa kanvas lama berjudul lain.
-// Ekspor PNG ke materials/reports/figures/Integrate_Service_Arch.png
+// Ekspor PNG ke materials/reports/figures/DataOps_MLOps_Flow.png
 // Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.1
 //   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
 //   sebelum pemilihan alat pada Subbab IV.2 (sec:pemilihan-tools). Rincian

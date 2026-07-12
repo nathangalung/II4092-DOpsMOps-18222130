@@ -8,8 +8,8 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
 ## Aturan
 
 1. Satu berkas `.eraser` per gambar, nama sama dengan PNG padanannya di
-   `figures/` (contoh: `Integrate_Service_Arch.eraser` ->
-   `figures/Integrate_Service_Arch.png`).
+   `figures/` (contoh: `DataOps_MLOps_Flow.eraser` ->
+   `figures/DataOps_MLOps_Flow.png`).
 2. PNG tidak boleh diubah tanpa memperbarui berkas `.eraser` lebih dulu.
 3. **Setiap diagram wajib melebar (horizontal) dan disertakan pada LaTeX TANPA
    `\rotatebox`.** Konten yang terlalu besar dipecah menjadi beberapa diagram,
@@ -26,7 +26,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
      sengaja tidak tersambung satu sama lain (keterputusan alur data dari alur
      model itulah pesannya), penanda MLOps level 0 + tahap awal evolusi DataOps.
    - **Seksi 2 — sasaran layanan** (Subbab IV.1, setelah klasifikasi dan
-     sebelum pemilihan alat IV.2): `Integrate_Service_Arch`, kesembilan *layer*
+     sebelum pemilihan alat IV.2): `DataOps_MLOps_Flow`, kesembilan *layer*
      dari `tab:layanan_industri` pada satu *control plane* Kubernetes, tanpa
      nama alat, penanda MLOps level 2 + tahap DataOps.
    - **Seksi 3 — arsitektur dengan alat terpilih** (Subbab IV.3, sembilan
@@ -41,7 +41,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    setiap node harus menamai tool yang benar-benar ada di `platform/components/`;
    jangan menghidupkan kembali node era proposal (Raystack, Kong, Redis Stack,
    Jaeger). Sebaliknya, diagram Seksi 1 dan Seksi 2 (`Fragment_*`,
-   `Integrate_Service_Arch`) BEBAS ALAT: node hanya menamai layanan atau
+   `DataOps_MLOps_Flow`) BEBAS ALAT: node hanya menamai layanan atau
    komponen generik dan TIDAK menamai tool platform mana pun.
 6. Diagram untuk bab mana pun (bukan hanya Bab III/IV) boleh ditaruh di sini
    selama mengikuti aturan penamaan di atas.
@@ -49,7 +49,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
    `Fragment_DataOps_Flow` dan `Fragment_MLOps_Flow` memuat grup
    `Ciri Kematangan Kondisi Saat Ini` (MLOps level 0 googlecloud2024mlops +
    tahap awal model evolusi DataOps munappy2020adhoc), dan
-   `Integrate_Service_Arch` memuat grup `Pemetaan Kematangan Target`
+   `DataOps_MLOps_Flow` memuat grup `Pemetaan Kematangan Target`
    (MLOps level 2 + tahap DataOps). Grup legenda ini tidak boleh dihapus tanpa
    memperbarui caption dan prosa Bab III/IV yang mengutip landasan tersebut,
    konsisten dengan Subbab II.1.3 (`subsec:maturity`).
@@ -99,7 +99,7 @@ LaTeX; berkas `.eraser` di sini adalah sumber kebenarannya.
 4. Bangun ulang PDF (`make` di `materials/reports/`).
 
 Ekspor **tiga belas** PNG: `Fragment_DataOps_Flow`, `Fragment_MLOps_Flow`,
-`Integrate_Service_Arch`, `Layer_Orchestration_Infra`,
+`DataOps_MLOps_Flow`, `Layer_Orchestration_Infra`,
 `Layer_Ingestion_Processing`, `Layer_Data_Storage`, `Layer_Feature_Service`,
 `Layer_Model_Lifecycle`, `Layer_Model_Serving`, `Layer_Data_Governance`,
 `Layer_Observability`, `Layer_GitOps_CD`, dan `Layer_Security`. Tujuh nama baru
@@ -126,7 +126,7 @@ Konvensi lengkap: `WRITING_GUIDE.md` bagian 1.7 dan `TEMPLATE_BAB.md`.
   Basic Monitoring dengan penyerahan model satu arah; grup `Ciri Kematangan
   Kondisi Saat Ini` merender penanda MLOps level 0. Sengaja TIDAK berbagi satu
   edge pun dengan `Fragment_DataOps_Flow` (keterputusan itulah pesannya).
-- `Integrate_Service_Arch.eraser` — Seksi 2, arsitektur layanan terintegrasi
+- `DataOps_MLOps_Flow.eraser` — Seksi 2, arsitektur layanan terintegrasi
   (Gambar IV.1, `fig:integrate-service`): dua band mendatar berisi sembilan
   *layer* dari `tab:layanan_industri` di atas satu *control plane* Kubernetes,
   tanpa nama alat, setiap node dalam ber-ikon; grup `Pemetaan Kematangan

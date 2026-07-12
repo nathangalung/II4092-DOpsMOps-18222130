@@ -885,7 +885,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.4}\textit {Feature Service Layer}}{90}{subsection.4.3.4}%
+\contentsline {subsection}{\numberline {IV.3.4}\textit {Feature Service Layer}}{91}{subsection.4.3.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {subsection}{\numberline {IV.3.5}\textit {Model Lifecycle Layer}}{91}{subsection.4.3.5}%
@@ -899,14 +899,14 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.6}\textit {Data Governance Layer}}{92}{subsection.4.3.6}%
+\contentsline {subsection}{\numberline {IV.3.6}\textit {Data Governance Layer}}{93}{subsection.4.3.6}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.7}\textit {Observability Layer}}{93}{subsection.4.3.7}%
+\contentsline {subsection}{\numberline {IV.3.7}\textit {Observability Layer}}{94}{subsection.4.3.7}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -915,7 +915,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.8}\textit {GitOps and Continuous Delivery Layer}}{94}{subsection.4.3.8}%
+\contentsline {subsection}{\numberline {IV.3.8}\textit {GitOps and Continuous Delivery Layer}}{95}{subsection.4.3.8}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {subsection}{\numberline {IV.3.9}\textit {Platform Security Layer}}{95}{subsection.4.3.9}%
@@ -933,8 +933,8 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {IV.4}Perancangan Sub-sistem Tata Kelola Data}{95}{section.4.4}%
-\contentsline {subsection}{\numberline {IV.4.1}Katalog Metadata dan \textit {Lineage}}{96}{subsection.4.4.1}%
+\contentsline {section}{\numberline {IV.4}Perancangan Sub-sistem Tata Kelola Data}{96}{section.4.4}%
+\contentsline {subsection}{\numberline {IV.4.1}Katalog Metadata dan \textit {Lineage}}{97}{subsection.4.4.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -945,7 +945,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.4.2}Kontrak Data dan Kualitas}{97}{subsection.4.4.2}%
+\contentsline {subsection}{\numberline {IV.4.2}Kontrak Data dan Kualitas}{98}{subsection.4.4.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -958,7 +958,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.4.3}Identitas dan Kontrol Akses}{97}{subsection.4.4.3}%
+\contentsline {subsection}{\numberline {IV.4.3}Identitas dan Kontrol Akses}{98}{subsection.4.4.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -975,8 +975,8 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {IV.5}Perancangan Sub-sistem Deteksi \textit {Drift} dan \textit {Continuous Training}}{98}{section.4.5}%
-\contentsline {subsection}{\numberline {IV.5.1}Pengukuran \textit {Drift}}{98}{subsection.4.5.1}%
+\contentsline {section}{\numberline {IV.5}Perancangan Sub-sistem Deteksi \textit {Drift} dan \textit {Continuous Training}}{99}{section.4.5}%
+\contentsline {subsection}{\numberline {IV.5.1}Pengukuran \textit {Drift}}{99}{subsection.4.5.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -991,21 +991,21 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.5.2}Alur \textit {Retraining} Otomatis}{99}{subsection.4.5.2}%
+\contentsline {subsection}{\numberline {IV.5.2}Alur \textit {Retraining} Otomatis}{100}{subsection.4.5.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.5.3}Mekanisme Penanganan Kasus Khusus}{99}{subsection.4.5.3}%
-\contentsline {section}{\numberline {IV.6}Perancangan Sub-sistem Layanan Fitur \textit {Dual-Store}}{100}{section.4.6}%
-\contentsline {subsection}{\numberline {IV.6.1}Penyimpanan \textit {Offline} dan \textit {Online}}{100}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {IV.5.3}Mekanisme Penanganan Kasus Khusus}{101}{subsection.4.5.3}%
+\contentsline {section}{\numberline {IV.6}Perancangan Sub-sistem Layanan Fitur \textit {Dual-Store}}{101}{section.4.6}%
+\contentsline {subsection}{\numberline {IV.6.1}Penyimpanan \textit {Offline} dan \textit {Online}}{102}{subsection.4.6.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.6.2}Dukungan \textit {Vector Embeddings} dan HNSW}{101}{subsection.4.6.2}%
+\contentsline {subsection}{\numberline {IV.6.2}Dukungan \textit {Vector Embeddings} dan HNSW}{102}{subsection.4.6.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1020,19 +1020,19 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.6.3}Jaminan \textit {Point-in-Time Correctness}}{102}{subsection.4.6.3}%
-\contentsline {subsection}{\numberline {IV.6.4}Aliran Materialisasi Fitur}{102}{subsection.4.6.4}%
-\contentsline {section}{\numberline {IV.7}Alur Kerja \textit {End-to-End}}{103}{section.4.7}%
+\contentsline {subsection}{\numberline {IV.6.3}Jaminan \textit {Point-in-Time Correctness}}{103}{subsection.4.6.3}%
+\contentsline {subsection}{\numberline {IV.6.4}Aliran Materialisasi Fitur}{103}{subsection.4.6.4}%
+\contentsline {section}{\numberline {IV.7}Alur Kerja \textit {End-to-End}}{104}{section.4.7}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {chapter}{\numberline {V}IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}{105}{chapter.5}%
-\contentsline {section}{\numberline {V.1}Lingkungan Implementasi}{105}{section.5.1}%
+\contentsline {chapter}{\numberline {V}IMPLEMENTASI ARSITEKTUR PLATFORM DATAOPS DAN MLOPS}{107}{chapter.5}%
+\contentsline {section}{\numberline {V.1}Lingkungan Implementasi}{107}{section.5.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.1.1}Batasan Implementasi}{106}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {V.1.2}Konfigurasi Dasar \textit {Cluster}}{107}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {V.1.1}Batasan Implementasi}{108}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {V.1.2}Konfigurasi Dasar \textit {Cluster}}{109}{subsection.5.1.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1047,7 +1047,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.1.3}Manajemen Rahasia dan Identitas}{107}{subsection.5.1.3}%
+\contentsline {subsection}{\numberline {V.1.3}Manajemen Rahasia dan Identitas}{109}{subsection.5.1.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1060,15 +1060,15 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.1.4}Pola GitOps}{108}{subsection.5.1.4}%
+\contentsline {subsection}{\numberline {V.1.4}Pola GitOps}{110}{subsection.5.1.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {V.2}Implementasi Arsitektur Terintegrasi}{108}{section.5.2}%
-\contentsline {subsection}{\numberline {V.2.1}\textit {Data Ingestion and Processing Layer}}{109}{subsection.5.2.1}%
+\contentsline {section}{\numberline {V.2}Implementasi Arsitektur Terintegrasi}{110}{section.5.2}%
+\contentsline {subsection}{\numberline {V.2.1}\textit {Data Ingestion and Processing Layer}}{111}{subsection.5.2.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1079,7 +1079,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.2.2}\textit {Data Storage Layer}}{111}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {V.2.2}\textit {Data Storage Layer}}{113}{subsection.5.2.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1094,7 +1094,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.2.3}\textit {Model Lifecycle Layer}}{112}{subsection.5.2.3}%
+\contentsline {subsection}{\numberline {V.2.3}\textit {Model Lifecycle Layer}}{114}{subsection.5.2.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1109,7 +1109,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.2.4}\textit {Observability Layer}}{112}{subsection.5.2.4}%
+\contentsline {subsection}{\numberline {V.2.4}\textit {Observability Layer}}{114}{subsection.5.2.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1122,24 +1122,24 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {V.3}Implementasi Sub-sistem Tata Kelola Data}{113}{section.5.3}%
-\contentsline {subsection}{\numberline {V.3.1}Katalog Metadata dan \textit {Lineage}}{113}{subsection.5.3.1}%
+\contentsline {section}{\numberline {V.3}Implementasi Sub-sistem Tata Kelola Data}{115}{section.5.3}%
+\contentsline {subsection}{\numberline {V.3.1}Katalog Metadata dan \textit {Lineage}}{115}{subsection.5.3.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.3.2}Kontrak Data dan Kualitas}{114}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {V.3.2}Kontrak Data dan Kualitas}{116}{subsection.5.3.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.3.3}Kontrol Akses}{114}{subsection.5.3.3}%
+\contentsline {subsection}{\numberline {V.3.3}Kontrol Akses}{116}{subsection.5.3.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {V.4}Implementasi Sub-sistem Deteksi \textit {Drift} dan \textit {Continuous Training}}{115}{section.5.4}%
-\contentsline {subsection}{\numberline {V.4.1}Detektor \textit {Drift}}{115}{subsection.5.4.1}%
+\contentsline {section}{\numberline {V.4}Implementasi Sub-sistem Deteksi \textit {Drift} dan \textit {Continuous Training}}{117}{section.5.4}%
+\contentsline {subsection}{\numberline {V.4.1}Detektor \textit {Drift}}{117}{subsection.5.4.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1148,49 +1148,49 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.4.2}\textit {Retraining Control Loop}}{116}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {V.4.2}\textit {Retraining Control Loop}}{118}{subsection.5.4.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.4.3}Penanganan Kasus Khusus}{117}{subsection.5.4.3}%
-\contentsline {section}{\numberline {V.5}Implementasi Sub-sistem Layanan Fitur \textit {Dual-Store}}{117}{section.5.5}%
-\contentsline {subsection}{\numberline {V.5.1}Konfigurasi Feast}{118}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {V.4.3}Penanganan Kasus Khusus}{119}{subsection.5.4.3}%
+\contentsline {section}{\numberline {V.5}Implementasi Sub-sistem Layanan Fitur \textit {Dual-Store}}{119}{section.5.5}%
+\contentsline {subsection}{\numberline {V.5.1}Konfigurasi Feast}{120}{subsection.5.5.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.5.2}Dukungan \textit {Vector Embeddings}}{118}{subsection.5.5.2}%
+\contentsline {subsection}{\numberline {V.5.2}Dukungan \textit {Vector Embeddings}}{120}{subsection.5.5.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.5.3}Materialisasi dan \textit {Point-in-Time Correctness}}{119}{subsection.5.5.3}%
-\contentsline {section}{\numberline {V.6}Verifikasi Implementasi}{120}{section.5.6}%
+\contentsline {subsection}{\numberline {V.5.3}Materialisasi dan \textit {Point-in-Time Correctness}}{121}{subsection.5.5.3}%
+\contentsline {section}{\numberline {V.6}Verifikasi Implementasi}{122}{section.5.6}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.6.1}Lingkup Verifikasi}{120}{subsection.5.6.1}%
+\contentsline {subsection}{\numberline {V.6.1}Lingkup Verifikasi}{122}{subsection.5.6.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {V.6.2}Pengamatan Hasil Awal}{121}{subsection.5.6.2}%
-\contentsline {chapter}{\numberline {VI}EVALUASI}{123}{chapter.6}%
-\contentsline {section}{\numberline {VI.1}Metode Evaluasi}{123}{section.6.1}%
-\contentsline {subsection}{\numberline {VI.1.1}Kasus Verifikasi dan Lingkungan Uji}{124}{subsection.6.1.1}%
+\contentsline {subsection}{\numberline {V.6.2}Pengamatan Hasil Awal}{123}{subsection.5.6.2}%
+\contentsline {chapter}{\numberline {VI}EVALUASI}{125}{chapter.6}%
+\contentsline {section}{\numberline {VI.1}Metode Evaluasi}{125}{section.6.1}%
+\contentsline {subsection}{\numberline {VI.1.1}Kasus Verifikasi dan Lingkungan Uji}{126}{subsection.6.1.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {VI.1.2}Evaluasi Tujuan T-1: Arsitektur Terintegrasi dan GitOps}{126}{subsection.6.1.2}%
-\contentsline {subsection}{\numberline {VI.1.3}Evaluasi Tujuan T-2: Tata Kelola Data}{127}{subsection.6.1.3}%
-\contentsline {subsection}{\numberline {VI.1.4}Evaluasi Tujuan T-3: Deteksi \textit {Drift} dan \textit {Retraining}}{128}{subsection.6.1.4}%
-\contentsline {subsection}{\numberline {VI.1.5}Evaluasi Tujuan T-4: Layanan Fitur \textit {Dual-Store}}{128}{subsection.6.1.5}%
-\contentsline {subsection}{\numberline {VI.1.6}Matriks Cakupan dan Uji Penerimaan}{129}{subsection.6.1.6}%
-\contentsline {section}{\numberline {VI.2}Hasil Evaluasi}{132}{section.6.2}%
-\contentsline {section}{\numberline {VI.3}Perbandingan Biaya Infrastruktur dan Tenaga Kerja}{137}{section.6.3}%
+\contentsline {subsection}{\numberline {VI.1.2}Evaluasi Tujuan T-1: Arsitektur Terintegrasi dan GitOps}{128}{subsection.6.1.2}%
+\contentsline {subsection}{\numberline {VI.1.3}Evaluasi Tujuan T-2: Tata Kelola Data}{129}{subsection.6.1.3}%
+\contentsline {subsection}{\numberline {VI.1.4}Evaluasi Tujuan T-3: Deteksi \textit {Drift} dan \textit {Retraining}}{130}{subsection.6.1.4}%
+\contentsline {subsection}{\numberline {VI.1.5}Evaluasi Tujuan T-4: Layanan Fitur \textit {Dual-Store}}{130}{subsection.6.1.5}%
+\contentsline {subsection}{\numberline {VI.1.6}Matriks Cakupan dan Uji Penerimaan}{131}{subsection.6.1.6}%
+\contentsline {section}{\numberline {VI.2}Hasil Evaluasi}{134}{section.6.2}%
+\contentsline {section}{\numberline {VI.3}Perbandingan Biaya Infrastruktur dan Tenaga Kerja}{139}{section.6.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1233,10 +1233,10 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {VI.4}Pembahasan Hasil Evaluasi}{141}{section.6.4}%
-\contentsline {chapter}{\numberline {VII}PENUTUP}{143}{chapter.7}%
-\contentsline {section}{\numberline {VII.1}Kesimpulan}{143}{section.7.1}%
-\contentsline {section}{\numberline {VII.2}Saran}{144}{section.7.2}%
+\contentsline {section}{\numberline {VI.4}Pembahasan Hasil Evaluasi}{143}{section.6.4}%
+\contentsline {chapter}{\numberline {VII}PENUTUP}{145}{chapter.7}%
+\contentsline {section}{\numberline {VII.1}Kesimpulan}{145}{section.7.1}%
+\contentsline {section}{\numberline {VII.2}Saran}{146}{section.7.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1565,11 +1565,11 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {chapter}{Lampiran \numberline {A}PARAMETER PENILAIAN KRITERIA EVALUASI ALTERNATIF}{163}{appendix.a.A}%
-\contentsline {section}{\numberline {A.1}Kriteria Lintas Tabel}{163}{section.a.A.1}%
-\contentsline {section}{\numberline {A.2}Kriteria Spesifik per \textit {Layer}}{164}{section.a.A.2}%
-\contentsline {chapter}{Lampiran \numberline {B}KATALOG PERINTAH VERIFIKASI USE CASE}{169}{appendix.a.B}%
-\contentsline {section}{\numberline {B.1}Tujuan T-1: Arsitektur Terintegrasi dan GitOps}{169}{section.a.B.1}%
-\contentsline {section}{\numberline {B.2}Tujuan T-2: Tata Kelola Data}{171}{section.a.B.2}%
-\contentsline {section}{\numberline {B.3}Tujuan T-3: Deteksi \textit {Drift} dan \textit {Retraining}}{171}{section.a.B.3}%
-\contentsline {section}{\numberline {B.4}Tujuan T-4: Layanan Fitur \textit {Dual-Store}}{172}{section.a.B.4}%
+\contentsline {chapter}{Lampiran \numberline {A}PARAMETER PENILAIAN KRITERIA EVALUASI ALTERNATIF}{165}{appendix.a.A}%
+\contentsline {section}{\numberline {A.1}Kriteria Lintas Tabel}{165}{section.a.A.1}%
+\contentsline {section}{\numberline {A.2}Kriteria Spesifik per \textit {Layer}}{166}{section.a.A.2}%
+\contentsline {chapter}{Lampiran \numberline {B}KATALOG PERINTAH VERIFIKASI USE CASE}{171}{appendix.a.B}%
+\contentsline {section}{\numberline {B.1}Tujuan T-1: Arsitektur Terintegrasi dan GitOps}{171}{section.a.B.1}%
+\contentsline {section}{\numberline {B.2}Tujuan T-2: Tata Kelola Data}{173}{section.a.B.2}%
+\contentsline {section}{\numberline {B.3}Tujuan T-3: Deteksi \textit {Drift} dan \textit {Retraining}}{173}{section.a.B.3}%
+\contentsline {section}{\numberline {B.4}Tujuan T-4: Layanan Fitur \textit {Dual-Store}}{174}{section.a.B.4}%

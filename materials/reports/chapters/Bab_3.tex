@@ -40,7 +40,11 @@ Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan emp
 
 \begin{figure}[!htb]
   \centering
-  \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Fragment_MLOps_Flow.png}
+  \IfFileExists{figures/Fragment_MLOps_Flow.png}{%
+    \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Fragment_MLOps_Flow.png}%
+  }{%
+    \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Fragment\_MLOps\_Flow.eraser} \textit{dirender ke} \texttt{figures/Fragment\_MLOps\_Flow.png}.}}%
+  }
   \caption[Alur model terfragmentasi pada kondisi saat ini]{Alur model terfragmentasi saat ini \autocite{googlecloud2024mlops}.}
   \label{fig:fragment-mlops}
 \end{figure}
