@@ -1562,11 +1562,11 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {chapter}{Lampiran \numberline {A}PARAMETER PENILAIAN KRITERIA EVALUASI}{165}{appendix.a.A}%
-\contentsline {section}{\numberline {A.1}Parameter Evaluasi Pemilihan Solusi}{165}{section.a.A.1}%
-\contentsline {section}{\numberline {A.2}Parameter Evaluasi Pemilihan \textit {Open Source Tools}}{166}{section.a.A.2}%
-\contentsline {subsection}{\numberline {A.2.1}Kriteria Lintas Tabel}{166}{subsection.a.A.2.1}%
-\contentsline {subsection}{\numberline {A.2.2}Kriteria Spesifik per \textit {Layer}}{167}{subsection.a.A.2.2}%
-\contentsline {section}{\numberline {A.3}Parameter Pemetaan Kematangan MLOps}{170}{section.a.A.3}%
+\contentsline {section}{\numberline {A.1}Parameter Pemetaan Kematangan MLOps}{165}{section.a.A.1}%
+\contentsline {section}{\numberline {A.2}Parameter Evaluasi Pemilihan Solusi}{166}{section.a.A.2}%
+\contentsline {section}{\numberline {A.3}Parameter Evaluasi Pemilihan \textit {Open Source Tools}}{166}{section.a.A.3}%
+\contentsline {subsection}{\numberline {A.3.1}Kriteria Lintas Tabel}{167}{subsection.a.A.3.1}%
+\contentsline {subsection}{\numberline {A.3.2}Kriteria Spesifik per \textit {Layer}}{167}{subsection.a.A.3.2}%
 \contentsline {chapter}{Lampiran \numberline {B}KATALOG PERINTAH VERIFIKASI USE CASE}{173}{appendix.a.B}%
 \contentsline {section}{\numberline {B.1}Tujuan T-1: Arsitektur Terintegrasi dan GitOps}{173}{section.a.B.1}%
 \contentsline {section}{\numberline {B.2}Tujuan T-2: Tata Kelola Data}{175}{section.a.B.2}%

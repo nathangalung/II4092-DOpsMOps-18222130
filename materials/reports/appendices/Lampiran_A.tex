@@ -1,11 +1,18 @@
 % Lampiran A parameter skala 0-2
-% Tiga bagian solusi, tools, kematangan
+% Urut kemunculan di bab
 % Dirujuk makro skorlegend dan skorlegendtools
 \cleardoublepage
 \chapter{PARAMETER PENILAIAN KRITERIA EVALUASI}
 \label{appx:rubrik}
 
-Lampiran ini merinci parameter untuk seluruh penilaian berskala 0 sampai 2 yang dipakai pada laporan agar setiap angka dapat dirunut ke definisi nilainya. Bagian~\ref{sec:appx-rubrik-solusi} memuat parameter evaluasi pemilihan solusi yang mendasari skor kebutuhan fungsional dan nonfungsional pada Subbab~\ref{subsec:penentuan-solusi}. Bagian~\ref{sec:appx-rubrik-tools} memuat parameter evaluasi pemilihan \textit{open source tools} yang mendasari tabel berskor pada Subbab~\ref{sec:pemilihan-tools}. Bagian~\ref{sec:appx-rubrik-maturity} memuat parameter pemetaan skor pada perbandingan kerangka kematangan MLOps di Subbab~\ref{subsec:maturity}, sekaligus menegaskan batas antara definisi \textit{level} yang diterbitkan tiap kerangka dan kuantisasi yang dilakukan laporan ini.
+Lampiran ini merinci parameter untuk seluruh penilaian berskala 0 sampai 2 yang dipakai pada laporan agar setiap angka dapat dirunut ke definisi nilainya. Bagian-bagiannya disusun mengikuti urutan kemunculan konsep pada batang tubuh laporan. Bagian~\ref{sec:appx-rubrik-maturity} memuat parameter pemetaan skor pada perbandingan kerangka kematangan MLOps di Subbab~\ref{subsec:maturity}. Bagian~\ref{sec:appx-rubrik-solusi} memuat parameter evaluasi pemilihan solusi yang mendasari skor kebutuhan fungsional dan nonfungsional pada Subbab~\ref{subsec:penentuan-solusi}. Bagian~\ref{sec:appx-rubrik-tools} memuat parameter evaluasi pemilihan \textit{open source tools} yang mendasari tabel berskor pada Subbab~\ref{sec:pemilihan-tools}.
+
+\section{Parameter Pemetaan Kematangan MLOps}
+\label{sec:appx-rubrik-maturity}
+
+Kematangan pada laporan ini dikuantisasi ke skala 0 sampai 2 hanya pada sisi MLOps. Sisi DataOps dibandingkan secara deskriptif pada Tabel~\ref{tab:dataops_maturity_comparison} tanpa skor lintas model karena objek penilaian tiap model berbeda, sehingga tidak memiliki parameter berskala pada lampiran ini. Perbandingan kerangka kematangan MLOps pada Subbab~\ref{subsec:maturity} memakai skor 0 sampai 2 untuk enam praktik pada empat kerangka yang telah terbit. Definisi \textit{level} itu sendiri bukan buatan laporan ini, sebab tiap kerangka menerbitkan deskripsi resmi levelnya masing-masing, seperti \textit{level} 0 sampai 2 pada Google Cloud. Kuantisasi menjadi angka justru dilakukan laporan ini dengan membaca deskripsi resmi tiap \textit{level} lalu memetakan kehadiran tiap praktik pada kolom tabel ke salah satu dari tiga nilai. Tabel~\ref{tab:rubrik_maturity} merinci parameter pemetaan tersebut sehingga pembaca dapat mengulangi pemetaan dari sumber yang sama dan memeriksa nilainya.
+
+\input{tables/rubrik_maturity.tex}
 
 \section{Parameter Evaluasi Pemilihan Solusi}
 \label{sec:appx-rubrik-solusi}
@@ -17,9 +24,9 @@ Skor pada Tabel~\ref{tab:evaluasi_kf} dan Tabel~\ref{tab:evaluasi_knf} menilai p
 \section{Parameter Evaluasi Pemilihan \textit{Open Source Tools}}
 \label{sec:appx-rubrik-tools}
 
-Bagian ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2, dan parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
+Bagian ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2. Parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
 
-Parameter dibagi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu \textit{layer}, dikelompokkan menurut \textit{layer} arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
+Parameter dibagi menjadi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu \textit{layer}, dikelompokkan menurut \textit{layer} arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
 
 \subsection{Kriteria Lintas Tabel}
 \label{sec:appx-rubrik-lintas}
@@ -194,10 +201,3 @@ Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan ba
 \hline
 \end{longtable}
 }
-
-\section{Parameter Pemetaan Kematangan MLOps}
-\label{sec:appx-rubrik-maturity}
-
-Perbandingan kerangka kematangan MLOps pada Subbab~\ref{subsec:maturity} memakai skor 0 sampai 2 untuk enam praktik pada empat kerangka terbit. Definisi \textit{level} itu sendiri bukan buatan laporan ini, sebab tiap kerangka menerbitkan deskripsi resmi levelnya masing-masing, seperti \textit{level} 0 sampai 2 pada Google Cloud yang dirinci pada Subbab~\ref{subsec:maturity}. Kuantisasi menjadi angka justru dilakukan laporan ini dengan membaca deskripsi terbit tiap \textit{level} lalu memetakan kehadiran tiap praktik pada kolom tabel ke salah satu dari tiga nilai. Tabel~\ref{tab:rubrik_maturity} merinci parameter pemetaan tersebut sehingga pembaca dapat mengulangi pemetaan dari sumber yang sama dan memeriksa nilainya.
-
-\input{tables/rubrik_maturity.tex}

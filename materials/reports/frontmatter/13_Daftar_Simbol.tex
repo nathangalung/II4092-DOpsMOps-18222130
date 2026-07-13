@@ -6,16 +6,15 @@
 \setcounter{chapter}{0}
 \setcounter{section}{0}
 
-% Tugas Akhir ini menghasilkan artefak rekayasa perangkat lunak yang dievaluasi
-% melalui metrik operasional, bukan model matematis dengan notasi khusus. Kuantitas
-% yang dilaporkan (PSI, KS, p99 latensi, throughput, error budget) merupakan singkatan
-% terminologis yang sudah dijelaskan pada Daftar Singkatan dan dijabarkan dalam teks
-% pada bab perancangan, implementasi, dan evaluasi. Daftar di bawah hanya merangkum
-% notasi non-singkatan yang muncul dalam teks.
+% Hanya notasi non-singkatan.
 
 \begin{longtable}{@{} l >{\raggedright\arraybackslash}p{8cm} c @{}}
 \multicolumn{1}{l}{\textbf{Notasi}} & \multicolumn{1}{l}{\textbf{Deskripsi}} & \multicolumn{1}{l}{\parbox[c]{2.5cm}{\raggedright \textbf{Pemakaian pertama kali}}} \\
 \hline
+
+p50 & Persentil ke-50 atau median dari distribusi latensi permintaan, dipakai sebagai acuan latensi tipikal. & Bab~\ref{chap:evaluasi} \\
+
+p95 & Persentil ke-95 dari distribusi latensi permintaan, dipakai sebagai acuan latensi tinggi di luar kondisi tipikal. & Bab~\ref{chap:evaluasi} \\
 
 p99 & Persentil ke-99 dari distribusi latensi permintaan, dipakai sebagai indikator \textit{tail latency} pada SLO layanan \textit{inference}. & Bab~\ref{chap:perancangan} \\
 

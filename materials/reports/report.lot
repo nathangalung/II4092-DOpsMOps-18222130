@@ -772,7 +772,7 @@
 \contentsline {table}{\numberline {IV.7}{\ignorespaces Evaluasi Alternatif Format Tabel \textit {Lakehouse} \textit {Open-Source}}}{74}{table.caption.34}%
 \contentsline {table}{\numberline {IV.8}{\ignorespaces Evaluasi Alternatif Penyimpanan Objek S3-Kompatibel \textit {Open-Source}}}{74}{table.caption.35}%
 \contentsline {table}{\numberline {IV.9}{\ignorespaces Evaluasi Alternatif Pengelola Versi Data \textit {Open-Source}}}{75}{table.caption.36}%
-\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{75}{table.caption.37}%
+\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{76}{table.caption.37}%
 \contentsline {table}{\numberline {IV.11}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Offline} (OLAP)}}{76}{table.caption.38}%
 \contentsline {table}{\numberline {IV.12}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Online} (Latensi Rendah)}}{76}{table.caption.39}%
 \contentsline {table}{\numberline {IV.13}{\ignorespaces Evaluasi Alternatif \textit {Vector Index} \textit {Open-Source}}}{77}{table.caption.40}%
@@ -1462,8 +1462,8 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Nilai Evaluasi Pemilihan Solusi}}{165}{table.caption.73}%
-\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{166}{table.a.A.2}%
-\contentsline {table}{\numberline {A.3}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{167}{table.a.A.3}%
-\contentsline {table}{\numberline {A.4}{\ignorespaces Parameter Pemetaan Skor Perbandingan Kematangan MLOps}}{171}{table.caption.74}%
+\contentsline {table}{\numberline {A.1}{\ignorespaces Parameter Pemetaan Skor Perbandingan Kematangan MLOps}}{165}{table.caption.73}%
+\contentsline {table}{\numberline {A.2}{\ignorespaces Parameter Nilai Evaluasi Pemilihan Solusi}}{166}{table.caption.74}%
+\contentsline {table}{\numberline {A.3}{\ignorespaces Parameter Penilaian Kriteria Lintas Tabel}}{167}{table.a.A.3}%
+\contentsline {table}{\numberline {A.4}{\ignorespaces Parameter Penilaian Kriteria Spesifik per \textit {Layer}}}{168}{table.a.A.4}%
 \addvspace {10\p@ }

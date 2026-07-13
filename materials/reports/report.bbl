@@ -2447,7 +2447,7 @@
       \verb https://doi.org/10.1007/978-3-031-53227-6_32
       \endverb
     \endentry
-    \entry{harrington2021highbyte}{misc}{}
+    \entry{harrington2023highbyte}{misc}{}
       \name{author}{1}{}{%
         {{un=0,uniquepart=base,hash=3d15869a84c4f92960591f576a1f5deb}{%
            family={Harrington},
@@ -2471,7 +2471,7 @@
       \field{howpublished}{HighByte Blog}
       \field{note}{Diakses 10 Juli 2026}
       \field{title}{DataOps for Manufacturing: A 4-Stage Maturity Model}
-      \field{year}{2021}
+      \field{year}{2023}
       \verb{urlraw}
       \verb https://www.highbyte.com/blog/dataops-for-manufacturing-a-4-stage-maturity-model
       \endverb
