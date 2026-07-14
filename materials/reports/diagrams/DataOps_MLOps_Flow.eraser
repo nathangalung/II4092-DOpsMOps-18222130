@@ -6,13 +6,16 @@
 // Ekspor PNG ke materials/reports/figures/DataOps_MLOps_Flow.png
 // Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.1
 //   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
-//   sebelum pemilihan alat pada Subbab IV.2 (sec:pemilihan-tools). Rincian
-//   beralat tiap layer digambar pada kesepuluh berkas Layer_*.eraser
-//   (Subbab IV.3, sec:arsitektur-terintegrasi).
-// Diagram ini menampilkan LAYANAN saja: sembilan layer platform sebagai kotak
-//   grup dengan komponen mayoritasnya sebagai node dalam, TANPA menamai alat
-//   atau komponen platform/components/ mana pun (aturan bebas-tool), agar
-//   sasaran integrasi terbaca sebelum pemilihan alat dilakukan.
+//   sebelum pemilihan alat pada Subbab IV.2 (sec:pemilihan-tools).
+// LINGKUP: diagram ini hanya menampilkan HUBUNGAN ANTAR LAYER. Sembilan layer
+//   platform digambar sebagai node tunggal tanpa rincian komponen di dalamnya,
+//   agar kanvas tetap terbaca dan ukuran font pada PNG tetap besar. Rincian
+//   komponen beralat tiap layer sudah digambar pada kesepuluh berkas
+//   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi), sehingga tidak
+//   diulang di sini.
+// Aturan bebas-tool tetap berlaku: tidak ada nama alat atau komponen
+//   platform/components/ mana pun, agar sasaran integrasi terbaca sebelum
+//   pemilihan alat dilakukan.
 // Ikon: SETIAP node membawa icon generik (bukan logo produk, karena bebas-tool);
 //   seluruh nama icon diverifikasi terhadap daftar resmi
 //   docs.eraser.io/docs/icons (diperiksa 2026-07-11).
@@ -20,14 +23,10 @@
 //   -- (garis putus) hanya untuk asosiasi non-alur (payung control plane).
 // Rendering WAJIB horizontal (direction right), dua band mendatar. Disertakan
 //   tanpa \rotatebox pada LaTeX.
-// Sumber komponen tiap kelompok: Tabel layanan_industri (tab:layanan_industri),
-//   nama komponen verbatim dari baris tabel tersebut. Pengecualian baris 9
-//   (Platform Security, berfrasa Indonesia pada tabel): "akses terkendali" =
-//   node "controlled access", "kepatuhan privasi dan keamanan data" = node
-//   "privacy and security compliance" (label English mengikuti register round 8).
-//   Arah edge intra-kelompok mengikuti urutan tahap pada sumbernya
-//   (amershi2019software, munappy2020adhoc, kreuzberger2023mlops,
-//   googlecloud2024mlops, najafabadi2024analysis).
+// Sumber nama layer: Tabel layanan_industri (tab:layanan_industri). Arah edge
+//   antar layer mengikuti urutan tahap pada sumbernya (amershi2019software,
+//   munappy2020adhoc, kreuzberger2023mlops, googlecloud2024mlops,
+//   najafabadi2024analysis).
 // Landasan kematangan (Subbab II.1.2, subsec:maturity):
 // - MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc).
 // Grup "Pemetaan Kematangan Target" merender penanda tersebut pada PNG dan
@@ -40,61 +39,19 @@ Pengguna Platform [icon: users, color: gray, label: "Pengguna Platform (data, mo
 
 // Band atas: kelompok layanan bidang data
 Bidang Data [icon: database, color: blue] {
-  Data Ingestion and Processing Layer [icon: download, color: orange] {
-    data collection [icon: download]
-    data ingestion [icon: inbox]
-    data cleaning [icon: filter]
-    data preprocessor [icon: cog]
-  }
-  Data Storage Layer [icon: database, color: green] {
-    data storage [icon: database]
-    dataset repository [icon: folder]
-    data versioning [icon: history]
-  }
-  Feature Service Layer [icon: package, color: green] {
-    offline feature store [icon: package]
-    online feature store [icon: zap]
-  }
-  Data Governance Layer [icon: book, color: teal] {
-    data governance [icon: book]
-    data testing [icon: check-square]
-    data quality [icon: check-circle]
-  }
+  Data Ingestion and Processing Layer [icon: download, color: orange]
+  Data Storage Layer [icon: database, color: green]
+  Feature Service Layer [icon: package, color: green]
+  Data Governance Layer [icon: book, color: teal]
 }
 
 // Band bawah: kelompok layanan bidang model dan operasional
 Bidang Model dan Operasional [icon: layers, color: purple] {
-  Orchestration and Infrastructure Layer [icon: kubernetes, color: blue] {
-    infrastructure and supporting services [icon: server]
-    workflow orchestration [icon: workflow]
-    ML pipeline orchestrator [icon: play]
-    model training infrastructure [icon: boxes]
-  }
-  Model Lifecycle Layer [icon: refresh-cw, color: purple] {
-    feature engineering [icon: sliders]
-    model training [icon: cpu]
-    model evaluation [icon: gauge]
-    model registry [icon: archive]
-    ML metadata store [icon: database]
-    model serving component [icon: send]
-    inference service [icon: globe]
-  }
-  Observability Layer [icon: eye, color: teal] {
-    model monitoring [icon: activity]
-    data monitoring [icon: eye]
-    monitoring component [icon: monitor]
-  }
-  GitOps and Continuous Delivery Layer [icon: git-branch, color: blue] {
-    source code repository [icon: git-branch]
-    CICD component [icon: repeat, label: "CI/CD component"]
-    deployment services [icon: share-2]
-    model deployment [icon: upload]
-  }
-  Platform Security Layer [icon: shield, color: red] {
-    API gateway [icon: network]
-    controlled access [icon: key]
-    privacy and security compliance [icon: scale]
-  }
+  Orchestration and Infrastructure Layer [icon: kubernetes, color: blue]
+  Model Lifecycle Layer [icon: refresh-cw, color: purple]
+  Observability Layer [icon: eye, color: teal]
+  GitOps and Continuous Delivery Layer [icon: git-branch, color: blue]
+  Platform Security Layer [icon: shield, color: red]
 }
 
 // Bidang kendali tunggal (bar tipis di bawah kedua band)
@@ -105,16 +62,16 @@ Pemetaan Kematangan Target [icon: check-circle, color: gray] {
   Penanda Target L2 [icon: check-circle, label: "MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc)"]
 }
 
-// Alur maju antar kelompok layanan (nadi integrasi data ke model)
+// Alur maju antar layer (nadi integrasi data ke model)
 Sumber Data Eksternal > Data Ingestion and Processing Layer: masuknya data eksternal
 Data Ingestion and Processing Layer > Data Storage Layer: data terkelola
 Data Ingestion and Processing Layer > Data Governance Layer: validasi kualitas pipeline
 Data Storage Layer > Feature Service Layer: sumber fitur
-Feature Service Layer > Model Lifecycle Layer: fitur pelatihan dan inferensi
+Feature Service Layer > Model Lifecycle Layer: fitur training dan inference
 Model Lifecycle Layer > Observability Layer: sinyal pemantauan model
 Observability Layer > Model Lifecycle Layer: umpan balik retraining otomatis
 
-// Kelompok operasional menopang alur (edge tingkat kelompok, arah faktual)
+// Layer operasional menopang alur (arah faktual)
 Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: menjadwalkan pipeline data
 Orchestration and Infrastructure Layer > Model Lifecycle Layer: menjalankan pipeline ML
 GitOps and Continuous Delivery Layer > Model Lifecycle Layer: rilis model dan layanan
@@ -123,46 +80,3 @@ Pengguna Platform > Platform Security Layer: akses melalui API gateway
 // Satu control plane menaungi kedua band (asosiasi non-alur, garis putus)
 Kubernetes Control Plane -- Bidang Data: satu control plane
 Kubernetes Control Plane -- Bidang Model dan Operasional: satu control plane
-
-// Konektivitas intra-kelompok: rantai fungsi mengikuti urutan tahap sumbernya.
-// Ingestion: collection lalu ingestion (munappy2020adhoc data engineering),
-// cleaning lalu preprocessing (amershi2019software, najafabadi2024analysis).
-data collection > data ingestion: data mentah terkumpul
-data ingestion > data cleaning: pembersihan
-data cleaning > data preprocessor: praolah
-// Storage: data mendarat di storage, dikurasi ke dataset repository, dan
-// versinya dilacak (najafabadi2024analysis, jain2025integrating).
-data storage > dataset repository: kurasi dataset
-dataset repository > data versioning: riwayat versi
-// Feature: offline store dimaterialisasi ke online store (googlecloud2024mlops).
-offline feature store > online feature store: materialisasi
-// Governance: tata kelola menetapkan standar, pengujian menghasilkan skor
-// kualitas (munappy2020adhoc, rella2022mlops).
-data governance > data testing: standar pengujian
-data testing > data quality: skor kualitas
-// Orchestration: infrastruktur menjalankan kedua orkestrator, orkestrator ML
-// menjadwalkan pelatihan pada infrastruktur pelatihan (googlecloud2024mlops).
-infrastructure and supporting services > workflow orchestration: menjalankan
-infrastructure and supporting services > ML pipeline orchestrator: menjalankan
-ML pipeline orchestrator > model training infrastructure: menjadwalkan pelatihan
-// Lifecycle: tahapan amershi2019software dengan registry dan metadata
-// (kreuzberger2023mlops, googlecloud2024mlops).
-feature engineering > model training: fitur siap latih
-model training > model evaluation: kandidat model
-model training > ML metadata store: catatan eksperimen
-model evaluation > model registry: model lolos evaluasi
-model registry > model serving component: model rilis
-model serving component > inference service: endpoint inferensi
-// Observability: pemantauan model dan data terkonsolidasi pada monitoring
-// component (kreuzberger2023mlops, munappy2020adhoc).
-model monitoring > monitoring component: konsolidasi sinyal
-data monitoring > monitoring component: konsolidasi sinyal
-// GitOps: perubahan kode memicu CI/CD, layanan deployment merilis model
-// (kreuzberger2023mlops, googlecloud2024mlops).
-source code repository > CICD component: perubahan kode
-CICD component > deployment services: artefak teruji
-deployment services > model deployment: otomasi rilis
-// Security: gerbang API menegakkan akses terkendali di bawah kepatuhan
-// (munappy2020adhoc, najafabadi2024analysis).
-API gateway > controlled access: autentikasi dan otorisasi
-privacy and security compliance > controlled access: kebijakan privasi dan keamanan
