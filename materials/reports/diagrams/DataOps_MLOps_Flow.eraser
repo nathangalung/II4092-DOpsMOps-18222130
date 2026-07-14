@@ -1,4 +1,4 @@
-// DataOps_MLOps_Flow — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Alat)
+// DataOps_MLOps_Flow — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Tools)
 // Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
 //   Buat kanvas BARU bernama "DataOps_MLOps_Flow" (judul kanvas = nama berkas;
 //   sintaks cloud architecture tidak mendukung baris title, jadi judul diatur
@@ -6,77 +6,72 @@
 // Ekspor PNG ke materials/reports/figures/DataOps_MLOps_Flow.png
 // Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.1
 //   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
-//   sebelum pemilihan alat pada Subbab IV.2 (sec:pemilihan-tools).
-// LINGKUP: diagram ini hanya menampilkan HUBUNGAN ANTAR LAYER. Sembilan layer
-//   platform digambar sebagai node tunggal tanpa rincian komponen di dalamnya,
-//   agar kanvas tetap terbaca dan ukuran font pada PNG tetap besar. Rincian
-//   komponen beralat tiap layer sudah digambar pada kesepuluh berkas
-//   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi), sehingga tidak
-//   diulang di sini.
-// Aturan bebas-tool tetap berlaku: tidak ada nama alat atau komponen
+//   sebelum pemilihan tools pada Subbab IV.2 (sec:pemilihan-tools).
+// LINGKUP: hanya HUBUNGAN ANTAR LAYER. Sembilan layer digambar rata sebagai
+//   node tunggal, tanpa kotak grup bidang dan tanpa rincian komponen di
+//   dalamnya, agar kanvas terbaca dan font pada PNG tetap besar. Rincian
+//   komponen bertools tiap layer sudah digambar pada kesepuluh berkas
+//   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi).
+// Aturan bebas-tools tetap berlaku: tidak ada nama tools atau komponen
 //   platform/components/ mana pun, agar sasaran integrasi terbaca sebelum
-//   pemilihan alat dilakukan.
-// Ikon: SETIAP node membawa icon generik (bukan logo produk, karena bebas-tool);
-//   seluruh nama icon diverifikasi terhadap daftar resmi
-//   docs.eraser.io/docs/icons (diperiksa 2026-07-11).
-// Konektor: panah > untuk alur berarah faktual, <> untuk hubungan dua arah,
-//   -- (garis putus) hanya untuk asosiasi non-alur (payung control plane).
-// Rendering WAJIB horizontal (direction right), dua band mendatar. Disertakan
-//   tanpa \rotatebox pada LaTeX.
-// Sumber nama layer: Tabel layanan_industri (tab:layanan_industri). Arah edge
-//   antar layer mengikuti urutan tahap pada sumbernya (amershi2019software,
+//   pemilihan tools dilakukan.
+// KONEKTIVITAS: setiap node wajib punya sekurang-kurangnya satu edge. Hanya
+//   panah berarah > dan dua arah <> yang dipakai. Tidak ada garis putus dan
+//   tidak ada node legenda tanpa edge. Penanda kematangan sasaran (MLOps level
+//   2 googlecloud2024mlops dan tahap DataOps munappy2020adhoc, Subbab II.1.2
+//   subsec:maturity) dinyatakan pada prosa Subbab IV.1, bukan sebagai node.
+// Ikon: SETIAP node membawa icon generik, bukan logo produk, karena bebas-tools.
+//   Nama icon diverifikasi terhadap docs.eraser.io/docs/icons.
+// Rendering WAJIB horizontal (direction right). Disertakan tanpa \rotatebox.
+// Sumber nama layer: Tabel layanan_industri (tab:layanan_industri). Arah tiap
+//   edge mengikuti urutan tahap pada sumbernya (amershi2019software,
 //   munappy2020adhoc, kreuzberger2023mlops, googlecloud2024mlops,
-//   najafabadi2024analysis).
-// Landasan kematangan (Subbab II.1.2, subsec:maturity):
-// - MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc).
-// Grup "Pemetaan Kematangan Target" merender penanda tersebut pada PNG dan
-//   sengaja tanpa edge (legenda, dikecualikan dari aturan konektivitas).
+//   najafabadi2024analysis) dan bentuk akhir implementasi pada Bab V.
 
 direction right
 
+// Aktor dan substrat
 Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
 Pengguna Platform [icon: users, color: gray, label: "Pengguna Platform (data, model, bisnis)"]
+Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (satu control plane)"]
 
-// Band atas: kelompok layanan bidang data
-Bidang Data [icon: database, color: blue] {
-  Data Ingestion and Processing Layer [icon: download, color: orange]
-  Data Storage Layer [icon: database, color: green]
-  Feature Service Layer [icon: package, color: green]
-  Data Governance Layer [icon: book, color: teal]
-}
+// Sembilan layer platform, rata tanpa kotak grup
+Data Ingestion and Processing Layer [icon: download, color: orange]
+Data Storage Layer [icon: database, color: green]
+Feature Service Layer [icon: package, color: green]
+Data Governance Layer [icon: book, color: teal]
+Orchestration and Infrastructure Layer [icon: server, color: blue]
+Model Lifecycle Layer [icon: refresh-cw, color: purple]
+Observability Layer [icon: eye, color: teal]
+GitOps and Continuous Delivery Layer [icon: git-branch, color: blue]
+Platform Security Layer [icon: shield, color: red]
 
-// Band bawah: kelompok layanan bidang model dan operasional
-Bidang Model dan Operasional [icon: layers, color: purple] {
-  Orchestration and Infrastructure Layer [icon: kubernetes, color: blue]
-  Model Lifecycle Layer [icon: refresh-cw, color: purple]
-  Observability Layer [icon: eye, color: teal]
-  GitOps and Continuous Delivery Layer [icon: git-branch, color: blue]
-  Platform Security Layer [icon: shield, color: red]
-}
-
-// Bidang kendali tunggal (bar tipis di bawah kedua band)
-Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (satu control plane untuk seluruh kelompok)"]
-
-// Penanda kematangan sasaran, ringkas di ujung kanan (legenda, tanpa edge)
-Pemetaan Kematangan Target [icon: check-circle, color: gray] {
-  Penanda Target L2 [icon: check-circle, label: "MLOps level 2 (googlecloud2024mlops) + tahap DataOps (munappy2020adhoc)"]
-}
-
-// Alur maju antar layer (nadi integrasi data ke model)
-Sumber Data Eksternal > Data Ingestion and Processing Layer: masuknya data eksternal
+// Nadi integrasi data menuju model
+Sumber Data Eksternal > Data Ingestion and Processing Layer: data eksternal masuk
 Data Ingestion and Processing Layer > Data Storage Layer: data terkelola
-Data Ingestion and Processing Layer > Data Governance Layer: validasi kualitas pipeline
 Data Storage Layer > Feature Service Layer: sumber fitur
 Feature Service Layer > Model Lifecycle Layer: fitur training dan inference
-Model Lifecycle Layer > Observability Layer: sinyal pemantauan model
-Observability Layer > Model Lifecycle Layer: umpan balik retraining otomatis
 
-// Layer operasional menopang alur (arah faktual)
-Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: menjadwalkan pipeline data
-Orchestration and Infrastructure Layer > Model Lifecycle Layer: menjalankan pipeline ML
+// Tata kelola menghimpun metadata lintas layer dan menahan data cacat
+Data Ingestion and Processing Layer <> Data Governance Layer: metadata dan gate kualitas
+Data Storage Layer > Data Governance Layer: metadata aset data
+Feature Service Layer > Data Governance Layer: metadata fitur
+Model Lifecycle Layer > Data Governance Layer: lineage model dan eksperimen
+
+// Observabilitas menutup loop retraining dan memasok metrik promosi
+Data Ingestion and Processing Layer > Observability Layer: sinyal pemantauan data
+Model Lifecycle Layer <> Observability Layer: sinyal pemantauan model dan umpan balik retraining
+Observability Layer > GitOps and Continuous Delivery Layer: metrik analisis canary
+
+// Orkestrasi dan pengiriman menjalankan beban kerja seluruh layer
+Kubernetes Control Plane > Orchestration and Infrastructure Layer: menjalankan beban kerja
+Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: menjadwalkan data pipeline
+Orchestration and Infrastructure Layer > Model Lifecycle Layer: menjalankan ML pipeline
 GitOps and Continuous Delivery Layer > Model Lifecycle Layer: rilis model dan layanan
-Pengguna Platform > Platform Security Layer: akses melalui API gateway
+GitOps and Continuous Delivery Layer > Kubernetes Control Plane: rekonsiliasi deklaratif
 
-// Satu control plane menaungi kedua band (asosiasi non-alur, garis putus)
-Kubernetes Control Plane -- Bidang Data: satu control plane
-Kubernetes Control Plane -- Bidang Model dan Operasional: satu control plane
+// Keamanan menjadi gerbang akses pengguna ke layer yang dipakai langsung
+Pengguna Platform > Platform Security Layer: akses melalui API gateway
+Platform Security Layer > Feature Service Layer: akses feature API terkendali
+Platform Security Layer > Model Lifecycle Layer: akses inference terkendali
+Platform Security Layer > Data Governance Layer: akses katalog terkendali
