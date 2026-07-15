@@ -24,7 +24,7 @@ KF-04 & Pencarian vektor HNSW berfungsi, latensi sub-detik & Qdrant, k6 & Terins
 \hline
 KF-11 & Paritas fitur \textit{batch} dan \textit{stream} & dbt, Flink & Terverifikasi struktural. Definisi fitur \textit{batch} dan \textit{stream} konsisten. \\
 \hline
-KNF-01 & Latensi p99 sub-detik \textit{feature serving} dan \textit{vector search} & k6, SLO Sloth & Terinstrumentasi. Jalur \textit{feature serving} dan \textit{vector search} terukur. Nilai p99 pada beban tinggi belum diukur. \\
+KNF-01 & Latensi p99 sub-detik \textit{feature serving} dan \textit{vector search} & k6, SLO Sloth & Terinstrumentasi. \textit{Feature serving flow} dan \textit{vector search flow} terukur. Nilai p99 pada beban tinggi belum diukur. \\
 \hline
 KNF-02 & \textit{Throughput} \textit{serving flow} dan \textit{stream} tinggi & k6, \texttt{kafka-producer-}\allowbreak\texttt{perf-test}, KEDA & Terinstrumentasi. Instrumen beban k6 dan KEDA terpasang. \textit{Throughput} puncak belum diukur. \\
 \hline

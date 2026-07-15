@@ -8,10 +8,10 @@
 // Konektor: <> untuk hubungan dua arah faktual (mTLS mutual, AdmissionReview
 //   permintaan-putusan, pindai-tulis laporan CR); > untuk alur satu arah.
 // Acuan: subsec:lapisan-keamanan (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   rincian beralat layer baris 9 tab:layanan_industri yang memperinci layer
-//   yang sama pada Gambar fig:integrate-service (Subbab IV.1, tanpa alat).
+//   rincian rincian tools layer baris 9 tab:layanan_industri yang memperinci layer
+//   yang sama pada Gambar fig:integrate-service (Subbab IV.1, tanpa tools).
 //   Disertakan pada LaTeX sebagai fig:layer-security.
-// Fokus: identitas (Dex OIDC, oauth2-proxy, SpiceDB), rahasia (OpenBao + External
+// Fokus: identitas (Dex OIDC, oauth2-proxy, SpiceDB), secret (OpenBao + External
 //   Secrets Operator), perbatasan (APISIX gateway) dan mesh mTLS (Istio), kebijakan
 //   dan deteksi (Kyverno admisi, Falco runtime, Trivy Operator pemindaian, Chaos
 //   Mesh uji ketahanan), serta pemulihan (Velero cadangan ke MinIO).
@@ -44,8 +44,8 @@ Platform Security Layer [icon: shield, color: red, label: "Platform Security Lay
     oauth2-proxy [icon: user-check, label: "oauth2-proxy (SSO konsol)"]
     SpiceDB [icon: shield-check, label: "SpiceDB (otorisasi relasi)"]
   }
-  Rahasia [icon: lock] {
-    OpenBao [icon: lock, label: "OpenBao (brankas rahasia)"]
+  Secret [icon: lock] {
+    OpenBao [icon: lock, label: "OpenBao (secret vault)"]
     ESO [icon: refresh-cw, label: "External Secrets Operator"]
   }
   Kebijakan dan Deteksi [icon: check-circle] {
@@ -61,7 +61,7 @@ Platform Security Layer [icon: shield, color: red, label: "Platform Security Lay
 
 // Batas keamanan lintas layer
 Kubernetes [icon: kubernetes, color: gray, label: "Kubernetes (k3s)"]
-Beban Kerja Platform [icon: layers, color: gray, label: "Beban Kerja Platform"]
+Platform Workload [icon: layers, color: gray, label: "Platform Workload"]
 MinIO [icon: minio, color: green, label: "MinIO (target cadangan)"]
 
 // Alur identitas dan otorisasi
@@ -71,16 +71,16 @@ APISIX > Dex: OIDC SSO tunggal
 Istio > oauth2-proxy: ext_authz
 oauth2-proxy > Dex: OIDC
 Dex > SpiceDB: identitas untuk pemeriksaan relasi
-Istio <> Beban Kerja Platform: mTLS antar layanan
+Istio <> Platform Workload: mTLS antar layanan
 
-// Alur rahasia
-OpenBao > ESO: distribusi rahasia
-ESO > Beban Kerja Platform: rahasia tersinkron
+// Alur secret
+OpenBao > ESO: distribusi secret
+ESO > Platform Workload: secret tersinkron
 
 // Alur kebijakan, deteksi, dan pemulihan
 Kubernetes <> Kyverno: webhook admisi (permintaan dan putusan)
 Kubernetes > Falco: peristiwa runtime terdeteksi
 Trivy Operator <> Kubernetes: pindai citra dan tulis laporan
 Chaos Mesh > Kubernetes: injeksi gangguan
-Beban Kerja Platform > Velero: sumber cadangan
+Platform Workload > Velero: sumber cadangan
 Velero > MinIO: tulis cadangan ke objek

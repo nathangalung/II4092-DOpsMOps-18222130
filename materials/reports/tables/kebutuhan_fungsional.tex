@@ -21,7 +21,7 @@ KF-01 & Manajemen Fitur Terpusat & Sistem menyediakan \textit{feature registry} 
 \hline
 KF-02 & \textit{Feature Serving} Ganda & Sistem mampu melakukan \textit{serving} fitur dalam dua mode, yaitu \textit{online serving} berbasis Valkey melalui protokol RESP untuk \textit{real-time inference} dengan target latensi p99 sub-detik, dan \textit{offline serving} berbasis ClickHouse untuk \textit{historical retrieval} berkapasitas besar yang mendukung \textit{point-in-time correct join} pada data historis. & T-4 \\
 \hline
-KF-03 & Jaminan Validitas Temporal & Sistem secara bawaan menjamin \textit{point-in-time correctness} ketika menyusun \textit{training dataset} untuk data \textit{time-series}, sehingga mencegah kebocoran data temporal yang dapat membuat evaluasi dan model menjadi tidak valid. & T-3 \\
+KF-03 & Jaminan Validitas Temporal & Sistem secara \textit{default} menjamin \textit{point-in-time correctness} ketika menyusun \textit{training dataset} untuk data \textit{time-series}, sehingga mencegah kebocoran data temporal yang dapat membuat evaluasi dan model menjadi tidak valid. & T-3 \\
 \hline
 KF-04 & Dukungan \textit{Vector Embeddings} & Sistem mendukung penyimpanan, pengindeksan, dan \textit{serving vector embeddings} pada indeks vektor terpisah berbasis Qdrant dengan \textit{similarity search} HNSW melalui antarmuka gRPC dan filter \textit{payload}, dengan target latensi p99 sub-detik untuk volume permintaan menengah. & T-4 \\
 \hline

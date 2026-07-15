@@ -3,7 +3,7 @@
 //   Buat kanvas BARU bernama "Layer_Feature_Service".
 // Ekspor PNG ke materials/reports/figures/Layer_Feature_Service.png
 // Acuan: subsec:lapisan-feature (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   beralat layer baris 4 tab:layanan_industri. Disertakan sebagai fig:layer-feature.
+//   rincian tools layer baris 4 tab:layanan_industri. Disertakan sebagai fig:layer-feature.
 // Fokus: Feast sebagai feature store dengan ClickHouse sebagai sumber offline,
 //   Valkey sebagai online store hasil materialisasi, Qdrant sebagai indeks vektor,
 //   registry berkas pada MinIO; fitur stream dari Flink mendarat langsung pada
@@ -32,7 +32,7 @@ Feature Service Layer [icon: package, color: green, label: "Feature Service Laye
 
 // Registry dan konsumen (batas)
 MinIO [icon: minio, color: green, label: "MinIO (registry berkas Feast)"]
-Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (pelatihan dan inference)"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (training dan inference)"]
 
 // Alur fitur
 ClickHouse > Feast: sumber offline
@@ -40,6 +40,6 @@ Feast > Valkey: materialisasi online
 Feast > MinIO: registry berkas
 Flink > Valkey: fitur stream
 Flink > Qdrant: embedding stream
-Feast > Model Lifecycle Layer: fitur pelatihan
+Feast > Model Lifecycle Layer: fitur training
 Valkey > Model Lifecycle Layer: online feature
 Qdrant > Model Lifecycle Layer: vector feature

@@ -12,7 +12,7 @@
 //   dalamnya, agar kanvas terbaca dan font pada PNG tetap besar. Rincian
 //   komponen dan tools tiap layer sudah digambar pada kesepuluh berkas
 //   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi).
-// Aturan bebas-tools tetap berlaku: tidak ada nama tools atau komponen
+// Aturan tanpa tools tetap berlaku: tidak ada nama tools atau komponen
 //   platform/components/ mana pun, agar sasaran integrasi terbaca sebelum
 //   pemilihan tools dilakukan.
 // KONEKTIVITAS: setiap node wajib punya sekurang-kurangnya satu edge. Hanya
@@ -20,7 +20,7 @@
 //   tidak ada node legenda tanpa edge. Penanda kematangan sasaran (MLOps level
 //   2 googlecloud2024mlops dan tahap DataOps munappy2020adhoc, Subbab II.1.2
 //   subsec:maturity) dinyatakan pada prosa Subbab IV.1, bukan sebagai node.
-// Ikon: SETIAP node membawa icon generik, bukan logo produk, karena bebas-tools.
+// Ikon: SETIAP node membawa icon generik, bukan logo produk, karena tanpa tools.
 //   Nama icon diverifikasi terhadap docs.eraser.io/docs/icons.
 // Rendering WAJIB horizontal (direction right). Disertakan tanpa \rotatebox.
 // Sumber nama layer: Tabel layanan_industri (tab:layanan_industri). Arah tiap
@@ -63,8 +63,8 @@ Data Ingestion and Processing Layer > Observability Layer: sinyal pemantauan dat
 Model Lifecycle Layer <> Observability Layer: sinyal pemantauan model dan umpan balik retraining
 Observability Layer > GitOps and Continuous Delivery Layer: metrik analisis canary
 
-// Orkestrasi dan pengiriman menjalankan beban kerja seluruh layer
-Kubernetes Control Plane > Orchestration and Infrastructure Layer: menjalankan beban kerja
+// Orkestrasi dan pengiriman menjalankan workload seluruh layer
+Kubernetes Control Plane > Orchestration and Infrastructure Layer: menjalankan workload
 Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: menjadwalkan data pipeline
 Orchestration and Infrastructure Layer > Model Lifecycle Layer: menjalankan ML pipeline
 GitOps and Continuous Delivery Layer > Model Lifecycle Layer: rilis model dan layanan

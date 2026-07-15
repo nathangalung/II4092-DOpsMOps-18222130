@@ -784,7 +784,7 @@
 \contentsline {table}{\numberline {IV.19}{\ignorespaces Evaluasi Alternatif \textit {Business Intelligence} dan \textit {Dashboarding}}}{80}{table.caption.46}%
 \contentsline {table}{\numberline {IV.20}{\ignorespaces Evaluasi Alternatif \textit {GitOps Controller} \textit {Open-Source}}}{81}{table.caption.47}%
 \contentsline {table}{\numberline {IV.21}{\ignorespaces Evaluasi Alternatif \textit {Identity Provider} \textit {Open-Source}}}{81}{table.caption.48}%
-\contentsline {table}{\numberline {IV.22}{\ignorespaces Evaluasi Alternatif Pengelola Rahasia}}{82}{table.caption.49}%
+\contentsline {table}{\numberline {IV.22}{\ignorespaces Evaluasi Alternatif \textit {Secret Manager}}}{82}{table.caption.49}%
 \contentsline {table}{\numberline {IV.23}{\ignorespaces Evaluasi Alternatif \textit {Service Mesh}}}{82}{table.caption.50}%
 \contentsline {table}{\numberline {IV.24}{\ignorespaces Evaluasi Alternatif \textit {API Gateway} \textit {Open-Source}}}{82}{table.caption.51}%
 \contentsline {table}{\numberline {IV.25}{\ignorespaces Evaluasi Alternatif \textit {Policy Engine} \textit {Open-Source}}}{83}{table.caption.52}%
@@ -994,7 +994,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {V.3}{\ignorespaces Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}}{110}{table.caption.66}%
+\contentsline {table}{\numberline {V.3}{\ignorespaces Konfigurasi \textit {Ingress} Kafka pada Lingkungan Implementasi}}{110}{table.caption.66}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1110,7 +1110,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {table}{\numberline {VI.10}{\ignorespaces Biaya Opsi B: Kustom dari Nol pada VPS dan Kubernetes}}{140}{table.caption.69}%
+\contentsline {table}{\numberline {VI.10}{\ignorespaces Biaya Opsi B: Kustom dari Awal pada VPS dan Kubernetes}}{140}{table.caption.69}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 

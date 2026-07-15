@@ -3,9 +3,9 @@
 //   Buat kanvas BARU bernama "Layer_Orchestration_Infra".
 // Ekspor PNG ke materials/reports/figures/Layer_Orchestration_Infra.png
 // Acuan: subsec:lapisan-infra (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   beralat layer baris 1 tab:layanan_industri, memperinci kelompok yang sama
+//   rincian tools layer baris 1 tab:layanan_industri, memperinci kelompok yang sama
 //   pada Gambar fig:integrate-service. Disertakan sebagai fig:layer-orkestrasi-infra.
-// Fokus: bidang orkestrasi k3s/Kubernetes, penskalaan otomatis (HPA + VPA + KEDA
+// Fokus: bidang orkestrasi k3s/Kubernetes, scaling otomatis (HPA + VPA + KEDA
 //   dengan metrics-server), antrean Kueue, dan cert-manager. Rantai GitOps kini
 //   layer tersendiri (Layer_GitOps_CD); keamanan pada Layer_Security.
 // Ikon: logo kubernetes dari docs.eraser.io/docs/icons (diperiksa 2026-07-11),
@@ -32,12 +32,12 @@ Orchestration and Infrastructure Layer [icon: kubernetes, color: blue, label: "O
   cert-manager [icon: award, label: "cert-manager (TLS)"]
 }
 
-// Beban kerja yang dijalankan (batas)
+// Workload yang dijalankan (batas)
 Platform Applications [icon: layers, color: gray, label: "Platform Applications (kedelapan layer lain)"]
 
-// Alur orkestrasi dan penskalaan
+// Alur orkestrasi dan scaling
 GitOps and Continuous Delivery Layer > Kubernetes: sinkronisasi deklaratif
-Kubernetes > Platform Applications: menjalankan beban kerja
+Kubernetes > Platform Applications: menjalankan workload
 metrics-server > Autoscaler: sinyal metrik
 Autoscaler > Platform Applications: skala replica
 Kueue > Platform Applications: admisi kuota job

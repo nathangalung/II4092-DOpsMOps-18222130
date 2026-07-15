@@ -4,7 +4,7 @@
 % + 6*tabcolsep(3pt) ~= 13.93cm (< \textwidth 14.0cm).
 \begin{table}[!htb]
 \centering
-\caption{Konfigurasi Jalur Masuk Kafka pada Lingkungan Implementasi}
+\caption{Konfigurasi \textit{Ingress} Kafka pada Lingkungan Implementasi}
 \label{tab:impl-kafka-config}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -20,7 +20,7 @@ Kontrak \textit{ingestion} & \texttt{KafkaTopic} dan \texttt{KafkaUser} CR beser
 \hline
 Topologi \textit{topic} & Enam \textit{partition}, faktor replikasi satu, dinaikkan tiga pada \textit{multi-node} & Paralelisme konsumen tanpa melampaui kapasitas satu \textit{node} \\
 \hline
-Penskalaan konsumen & KEDA \texttt{ScaledObject} membaca \textit{lag} dari Kafka Exporter melalui Prometheus & Skala konsumen mengikuti panjang antrean nyata \\
+\textit{Scaling} konsumen & KEDA \texttt{ScaledObject} membaca \textit{lag} dari Kafka Exporter melalui Prometheus & Skala konsumen mengikuti panjang antrean nyata \\
 \hline
 Akses luar \textit{mesh} & \textit{Broker} di luar \textit{mesh} Istio (\texttt{sidecar.istio.io/inject: false}) dengan \textit{DestinationRule} menonaktifkan mTLS menuju \textit{bootstrap} & Produsen tanpa \textit{sidecar} tetap terlayani, enkripsi ditangani SASL\_SSL Kafka \\
 \hline

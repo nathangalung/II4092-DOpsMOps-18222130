@@ -218,7 +218,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {II.2.2}Penskalaan Otomatis dan Ekosistem \textit {Operator}}{21}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {II.2.2}\textit {Autoscaling} dan Ekosistem \textit {Operator}}{21}{subsection.2.2.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -257,7 +257,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {II.3.2}\textit {Message Broker} dan \textit {Data Ingestion}}{23}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {II.3.2}\textit {Message Broker} dan \textit {Data Ingestion}}{22}{subsection.2.3.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -278,7 +278,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {II.3.3}\textit {Stream Processing}}{24}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {II.3.3}\textit {Stream Processing}}{23}{subsection.2.3.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -323,7 +323,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {II.4}Layanan Fitur (\textit {Feature Store})}{27}{section.2.4}%
+\contentsline {section}{\numberline {II.4}Layanan Fitur (\textit {Feature Store})}{26}{section.2.4}%
 \contentsline {subsection}{\numberline {II.4.1}Peran \textit {Feature Store} sebagai Penyatu Fitur}{27}{subsection.2.4.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
@@ -369,7 +369,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {II.4.4}\textit {Point-in-Time Correctness}}{29}{subsection.2.4.4}%
+\contentsline {subsection}{\numberline {II.4.4}\textit {Point-in-Time Correctness}}{28}{subsection.2.4.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -575,7 +575,7 @@
 \babel@toc {indonesian}{}\relax 
 \contentsline {chapter}{\numberline {III}ANALISIS MASALAH}{41}{chapter.3}%
 \contentsline {section}{\numberline {III.1}Analisis Kondisi Saat Ini}{41}{section.3.1}%
-\contentsline {subsection}{\numberline {III.1.1}Beban Konfigurasi Platform dari Nol}{41}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {III.1.1}Beban Konfigurasi Platform dari Awal}{41}{subsection.3.1.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -905,7 +905,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.7}\textit {Observability Layer}}{92}{subsection.4.3.7}%
+\contentsline {subsection}{\numberline {IV.3.7}\textit {Observability Layer}}{91}{subsection.4.3.7}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 

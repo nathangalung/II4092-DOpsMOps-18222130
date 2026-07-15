@@ -9,7 +9,7 @@
 //   dari Prometheus dan mengekspor metrik biaya yang di-scrape Prometheus
 //   (dokumentasi OpenCost).
 // Acuan: subsec:lapisan-observabilitas (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   rincian beralat layer baris 7 tab:layanan_industri yang
+//   rincian rincian tools layer baris 7 tab:layanan_industri yang
 //   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.1).
 //   Disertakan pada LaTeX sebagai fig:layer-observability.
 // Fokus: OpenTelemetry mengumpulkan sinyal ke Grafana Tempo (trace), Prometheus
@@ -29,7 +29,7 @@
 direction right
 
 // Penghasil sinyal (batas)
-Beban Kerja Platform [icon: layers, color: gray, label: "Beban Kerja Platform (data, feature, model)"]
+Platform Workload [icon: layers, color: gray, label: "Platform Workload (data, feature, model)"]
 
 // Bagian observabilitas
 Observability Layer [icon: monitor, color: teal, label: "Observability Layer (kategori monitoring)"] {
@@ -50,8 +50,8 @@ Trino [icon: trino, color: yellow, label: "Trino (kueri federatif)"]
 Business User [icon: user, color: gray, label: "Business User"]
 
 // Alur pengumpulan sinyal
-Beban Kerja Platform > OpenTelemetry: metrik + log + trace
-Beban Kerja Platform > Pyroscope: profil kontinu
+Platform Workload > OpenTelemetry: metrik + log + trace
+Platform Workload > Pyroscope: profil kontinu
 OpenTelemetry > Prometheus: metrik
 OpenTelemetry > Loki: log
 OpenTelemetry > Tempo: trace

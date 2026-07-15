@@ -9,7 +9,7 @@
 // Diagram ini menggambarkan alur data pada kondisi SEBELUM platform (status
 // quo terfragmentasi): tiap tahap memakai tumpukan ad hoc generik yang dirakit
 // manual, sehingga node sengaja TIDAK menamai komponen platform/components/
-// mana pun (aturan bebas-tool). Domain-agnostik: sumber data tidak menyebut
+// mana pun (aturan tanpa tools). Domain-agnostik: sumber data tidak menyebut
 // domain tertentu.
 // Rendering WAJIB horizontal (direction right), satu rantai kiri ke kanan,
 // tanpa tumpukan vertikal dalam. Disertakan tanpa \rotatebox pada LaTeX.

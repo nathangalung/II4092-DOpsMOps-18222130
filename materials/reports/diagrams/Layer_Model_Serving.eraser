@@ -11,7 +11,7 @@
 //   memperinci layer yang sama pada Gambar fig:integrate-service (Subbab IV.1).
 //   Disertakan pada LaTeX sebagai fig:layer-serving.
 // Fokus: artefak MLflow (MinIO) > InferenceService KServe di atas Knative; Argo
-//   Rollouts menjalankan analisis canary; jembatan inferensi membaca fitur online
+//   Rollouts menjalankan analisis canary; inference bridge membaca fitur online
 //   (Valkey) dan fitur vektor (Qdrant) untuk melengkapi masukan predictor; konsumen
 //   prediksi sebagai batas hilir.
 // Rendering WAJIB horizontal (direction right): rantai kiri ke kanan, maksimum dua
@@ -21,7 +21,7 @@
 //   yaitu inference.
 // Verifikasi implementasi: node ada di platform/components/model-serving/kserve,
 //   common/knative, gitops/argo-rollouts, storage/valkey, storage/qdrant,
-//   storage/minio. Jembatan inferensi = transformer InferenceService KServe.
+//   storage/minio. Inference bridge = transformer InferenceService KServe.
 
 direction right
 
@@ -33,7 +33,7 @@ Bagian Model Serving [icon: send, color: red, label: "Model Lifecycle Layer, bag
   KServe [icon: server, label: "KServe (InferenceService)"]
   Knative [icon: cloud, label: "Knative (serverless)"]
   Argo Rollouts [icon: argo, label: "Argo Rollouts (analisis canary)"]
-  Inference Bridge [icon: git-merge, label: "Jembatan Inferensi (feature join)"]
+  Inference Bridge [icon: git-merge, label: "Inference Bridge (feature join)"]
 }
 
 // Sumber fitur daring dan konsumen (batas)
@@ -41,9 +41,9 @@ Valkey [icon: zap, color: green, label: "Valkey (online feature)"]
 Qdrant [icon: qdrant, color: green, label: "Qdrant (vector feature)"]
 Konsumen Prediksi [icon: monitor, color: gray, label: "Konsumen Prediksi (aplikasi hilir)"]
 
-// Alur muat model dan penskalaan
+// Alur muat model dan scaling
 MinIO > KServe: muat artefak model
-Knative > KServe: penskalaan revisi serverless
+Knative > KServe: scaling revisi serverless
 Argo Rollouts > KServe: promosi canary bertahap
 
 // Alur fitur ke predictor

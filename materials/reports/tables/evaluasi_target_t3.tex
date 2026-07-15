@@ -20,7 +20,7 @@
 
 KF-03 & \textit{Zero leakage} pada \textit{point-in-time join} & Feast PIT, probe \textit{leakage} & Terverifikasi struktural. Probe \textit{timestamp} masa depan menolak baris yang mengalami \textit{leakage}. \\
 \hline
-KF-05 & \textit{Pipeline end-to-end}, \textit{run} tercatat di MLflow & Kubeflow Pipelines, MLflow & Terverifikasi struktural. \textit{Pipeline} Kubeflow merangkai deteksi \textit{drift}, \textit{training} dari tabel \textit{gold}, dan \textit{deploy} ke KServe. Definisinya terkompilasi dan terdaftar pada KFP dengan jalur pencatatan ke MLflow. \\
+KF-05 & \textit{Pipeline end-to-end}, \textit{run} tercatat di MLflow & Kubeflow Pipelines, MLflow & Terverifikasi struktural. \textit{Pipeline} Kubeflow merangkai deteksi \textit{drift}, \textit{training} dari tabel \textit{gold}, dan \textit{deploy} ke KServe. Definisinya terkompilasi dan terdaftar pada KFP dengan pencatatan ke MLflow. \\
 \hline
 KF-07 & \textit{Drift} memicu \textit{retraining} & \textit{drift-detector}, Argo CronWorkflow & Terverifikasi fungsional. PSI 18,107 dan KS 0,815 melampaui ambang sehingga \textit{retraining} terpicu. \\
 \hline

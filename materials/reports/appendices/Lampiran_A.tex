@@ -5,12 +5,12 @@
 \chapter{PARAMETER PENILAIAN KRITERIA EVALUASI}
 \label{appx:rubrik}
 
-Lampiran ini merinci parameter untuk seluruh penilaian berskala 0 sampai 2 yang dipakai pada laporan agar setiap angka dapat dirunut ke definisi nilainya. Bagian-bagiannya disusun mengikuti urutan kemunculan konsep pada batang tubuh laporan. Bagian~\ref{sec:appx-rubrik-maturity} memuat parameter pemetaan skor pada perbandingan kerangka kematangan MLOps di Subbab~\ref{subsec:maturity}. Bagian~\ref{sec:appx-rubrik-solusi} memuat parameter evaluasi pemilihan solusi yang mendasari skor kebutuhan fungsional dan nonfungsional pada Subbab~\ref{subsec:penentuan-solusi}. Bagian~\ref{sec:appx-rubrik-tools} memuat parameter evaluasi pemilihan \textit{open source tools} yang mendasari tabel berskor pada Subbab~\ref{sec:pemilihan-tools}.
+Lampiran ini merinci parameter untuk seluruh penilaian berskala 0 sampai 2 yang dipakai pada laporan agar setiap angka dapat dirunut ke definisi nilainya. Bagian-bagiannya disusun mengikuti urutan kemunculan konsep pada batang tubuh laporan. Bagian~\ref{sec:appx-rubrik-maturity} memuat parameter pemetaan skor pada perbandingan \textit{framework} kematangan MLOps di Subbab~\ref{subsec:maturity}. Bagian~\ref{sec:appx-rubrik-solusi} memuat parameter evaluasi pemilihan solusi yang mendasari skor kebutuhan fungsional dan nonfungsional pada Subbab~\ref{subsec:penentuan-solusi}. Bagian~\ref{sec:appx-rubrik-tools} memuat parameter evaluasi pemilihan \textit{open source tools} yang mendasari tabel berskor pada Subbab~\ref{sec:pemilihan-tools}.
 
 \section{Parameter Pemetaan Kematangan MLOps}
 \label{sec:appx-rubrik-maturity}
 
-Kematangan pada laporan ini dikuantisasi ke skala 0 sampai 2 hanya pada sisi MLOps. Sisi DataOps dibandingkan secara deskriptif pada Tabel~\ref{tab:dataops_maturity_comparison} tanpa skor lintas model karena objek penilaian tiap model berbeda, sehingga tidak memiliki parameter berskala pada lampiran ini. Perbandingan kerangka kematangan MLOps pada Subbab~\ref{subsec:maturity} memakai skor 0 sampai 2 untuk enam praktik pada empat kerangka yang telah terbit. Definisi \textit{level} itu sendiri bukan buatan laporan ini, sebab tiap kerangka menerbitkan deskripsi resmi levelnya masing-masing, seperti \textit{level} 0 sampai 2 pada Google Cloud. Kuantisasi menjadi angka justru dilakukan laporan ini dengan membaca deskripsi resmi tiap \textit{level} lalu memetakan kehadiran tiap praktik pada kolom tabel ke salah satu dari tiga nilai. Tabel~\ref{tab:rubrik_maturity} merinci parameter pemetaan tersebut sehingga pembaca dapat mengulangi pemetaan dari sumber yang sama dan memeriksa nilainya.
+Kematangan pada laporan ini dikuantisasi ke skala 0 sampai 2 hanya pada sisi MLOps. Sisi DataOps dibandingkan secara deskriptif pada Tabel~\ref{tab:dataops_maturity_comparison} tanpa skor lintas model karena objek penilaian tiap model berbeda, sehingga tidak memiliki parameter berskala pada lampiran ini. Perbandingan \textit{framework} kematangan MLOps pada Subbab~\ref{subsec:maturity} memakai skor 0 sampai 2 untuk enam praktik pada empat \textit{framework} yang telah terbit. Definisi \textit{level} itu sendiri bukan buatan laporan ini, sebab tiap \textit{framework} menerbitkan deskripsi resmi levelnya masing-masing, seperti \textit{level} 0 sampai 2 pada Google Cloud. Kuantisasi menjadi angka justru dilakukan laporan ini dengan membaca deskripsi resmi tiap \textit{level} lalu memetakan kehadiran tiap praktik pada kolom tabel ke salah satu dari tiga nilai. Tabel~\ref{tab:rubrik_maturity} merinci parameter pemetaan tersebut sehingga pembaca dapat mengulangi pemetaan dari sumber yang sama dan memeriksa nilainya.
 
 \input{tables/rubrik_maturity.tex}
 
@@ -95,13 +95,13 @@ Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem \tex
 
 \multicolumn{4}{|l|}{\textbf{Distribusi Kubernetes}} \\
 \hline
-\textit{Footprint} Ringan & Kebutuhan sumber daya setara distribusi penuh & Ringan namun bergantung paket sistem tambahan & Biner tunggal dengan kebutuhan memori minimal terdokumentasi \\
+\textit{Footprint} Ringan & Kebutuhan sumber daya setara distribusi penuh & Ringan namun bergantung paket sistem tambahan & \textit{Single binary} dengan kebutuhan memori minimal terdokumentasi \\
 \hline
 Siap Produksi & Ditujukan untuk pengujian, bukan produksi & Dapat dipakai produksi dengan batasan tertentu & Didukung resmi untuk beban produksi \\
 \hline
 Tanpa Dependensi & Memerlukan beberapa komponen eksternal & Memerlukan satu \textit{runtime} atau paket eksternal & \textit{Runtime} kontainer tertanam tanpa dependensi eksternal \\
 \hline
-Ekosistem \textit{Add-on} & Tanpa mekanisme \textit{add-on} & \textit{Add-on} bawaan terbatas & \textit{Add-on} bawaan luas termasuk \textit{controller} Helm \\
+Ekosistem \textit{Add-on} & Tanpa mekanisme \textit{add-on} & \textit{Add-on} \textit{built-in} terbatas & \textit{Add-on} \textit{built-in} luas termasuk \textit{controller} Helm \\
 \hline
 \multicolumn{4}{|l|}{\textbf{\textit{Message Broker} dan \textit{Schema Registry}}} \\
 \hline
@@ -137,7 +137,7 @@ Kompati\-bilitas S3 & Tanpa API S3 & Subset API S3 & Cakupan API S3 luas termasu
 \hline
 Enkripsi KMS & Tanpa enkripsi sisi \textit{server} berbasis KMS & Enkripsi tanpa integrasi KMS eksternal & Enkripsi sisi \textit{server} dengan integrasi KMS eksternal \\
 \hline
-Per\-cabangan \textit{Zero-copy} & Tanpa konsep percabangan & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
+\textit{Zero-copy Bran\-ching} & Tanpa konsep \textit{branching} & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
 \hline
 Integrasi Objek S3 & Tidak bekerja di atas penyimpanan objek & Bekerja melalui katalog atau \textit{remote} khusus & Antarmuka S3 langsung tanpa mengubah klien \\
 \hline
@@ -153,7 +153,7 @@ Latensi & Latensi baca di atas puluhan milidetik & Latensi milidetik pada penyim
 \hline
 \textit{Through\-put} & \textit{Throughput} rendah untuk \textit{lookup} masif & \textit{Throughput} tinggi dengan batasan skala vertikal & Ratusan ribu operasi per detik terdokumentasi \\
 \hline
-Latensi Rendah & Kueri ANN berlatensi tinggi & Latensi rendah dengan batasan indeks atau skala & HNSW dalam memori dengan jalur gRPC berlatensi rendah \\
+Latensi Rendah & Kueri ANN berlatensi tinggi & Latensi rendah dengan batasan indeks atau skala & HNSW dalam memori dengan antarmuka gRPC berlatensi rendah \\
 \hline
 \multicolumn{4}{|l|}{\textbf{\textit{Model Lifecycle}}} \\
 \hline
@@ -161,7 +161,7 @@ Latensi Rendah & Kueri ANN berlatensi tinggi & Latensi rendah dengan batasan ind
 \hline
 Skala\-bilitas & Replika statis tanpa \textit{autoscaling} & \textit{Autoscaling} tanpa \textit{scale-to-zero} & \textit{Autoscaling} termasuk \textit{scale-to-zero} \\
 \hline
-\textit{Frame\-work} & Terikat satu kerangka model & Beberapa kerangka melalui penyesuaian manual & Multi-kerangka melalui \textit{runtime} yang dapat diganti \\
+\textit{Frame\-work} & Terikat satu \textit{framework} model & Beberapa \textit{framework} melalui penyesuaian manual & Multi-\textit{framework} melalui \textit{runtime} yang dapat diganti \\
 \hline
 \multicolumn{4}{|l|}{\textbf{Observabilitas dan BI}} \\
 \hline
@@ -179,7 +179,7 @@ Bobot \textit{Footprint} & Kebutuhan sumber daya besar dengan banyak komponen & 
 \hline
 Federasi OIDC & Tanpa federasi ke penyedia hulu & Federasi terbatas pada sebagian protokol & Federasi luas ke penyedia identitas hulu \\
 \hline
-Rotasi Dinamis & Rahasia statis tanpa rotasi & Rotasi manual atau terbatas & Kredensial dinamis dengan masa hidup otomatis \\
+Rotasi Dinamis & \textit{Secret} statis tanpa rotasi & Rotasi manual atau terbatas & Kredensial dinamis dengan masa hidup otomatis \\
 \hline
 Integrasi ESO & Tanpa \textit{provider} External Secrets Operator & Integrasi tidak langsung melalui \textit{provider} generik & \textit{Provider} External Secrets Operator resmi \\
 \hline
@@ -197,7 +197,7 @@ Pela\-poran Pelang\-garan & Log saja & Metrik atau status tanpa laporan standar 
 \hline
 Cakupan eBPF/\allowbreak Kernel & Tanpa visibilitas kernel & Visibilitas kernel pada subset \textit{event} & \textit{Probe} eBPF modern mencakup \textit{syscall} luas \\
 \hline
-Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan bawaan siap pakai yang luas \\
+Aturan \textit{Built-in} & Tanpa aturan \textit{built-in} & Contoh aturan terbatas & Pustaka aturan \textit{built-in} siap pakai yang luas \\
 \hline
 \end{longtable}
 }

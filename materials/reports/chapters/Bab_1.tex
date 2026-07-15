@@ -5,7 +5,7 @@
 \chapter{PENDAHULUAN}
 \label{chap:pendahuluan}
 
-Bab ini meletakkan dasar bagi keseluruhan laporan Tugas Akhir. Pembahasan dibuka dengan latar belakang yang memetakan tekanan praktik DataOps dan MLOps pada lingkungan produksi, kemudian diturunkan menjadi empat rumusan masalah dan empat tujuan yang saling berpasangan. Batasan masalah menetapkan lingkup pengerjaan, metodologi menjelaskan kerangka \textit{Design Science Research Methodology} yang diikuti, dan sistematika penulisan menutup bab dengan peta isi laporan. Penomoran RM-1 hingga RM-4, T-1 hingga T-4, serta batasan penelitian BP-1 hingga BP-3 yang diperkenalkan pada bab ini menjadi rujukan tetap bagi seluruh bab berikutnya, sedangkan batasan implementasi BI-1 dan BI-2 diperkenalkan bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}.
+Bab ini meletakkan dasar bagi keseluruhan laporan Tugas Akhir. Pembahasan dibuka dengan latar belakang yang memetakan tekanan praktik DataOps dan MLOps pada lingkungan produksi, kemudian diturunkan menjadi empat rumusan masalah dan empat tujuan yang saling berpasangan. Batasan masalah menetapkan lingkup pengerjaan, metodologi menjelaskan \textit{framework} \textit{Design Science Research Methodology} yang diikuti, dan sistematika penulisan menutup bab dengan peta isi laporan. Penomoran RM-1 hingga RM-4, T-1 hingga T-4, serta batasan penelitian BP-1 hingga BP-3 yang diperkenalkan pada bab ini menjadi rujukan tetap bagi seluruh bab berikutnya, sedangkan batasan implementasi BI-1 dan BI-2 diperkenalkan bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}.
 
 \section{Latar Belakang}
 \label{sec:latar-belakang}
@@ -14,9 +14,9 @@ Keberhasilan \textit{machine learning} pada lingkungan produksi ditentukan oleh 
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item \textbf{Beban membangun platform dari nol di atas kumpulan komponen yang terfragmentasi}
+    \item \textbf{Beban membangun platform dari awal di atas kumpulan komponen yang terfragmentasi}
 
-    Kajian sistematis \textcite{najafabadi2024analysis} atas 43 studi primer mengategorikan 35 komponen arsitektur MLOps beserta ragam \textit{tool} pendukungnya, menandai luasnya ruang pilihan sebelum satu platform utuh terbentuk. \textcite{burgueno2025toward} menambahkan bahwa komponen \textit{open source} MLOps cenderung berdiri sendiri alih-alih membentuk kerangka kohesif, sehingga upaya integrasi, kurva belajar, dan penyelarasan versi ditanggung tim pemakai sejak awal.
+    Kajian sistematis \textcite{najafabadi2024analysis} atas 43 studi primer mengategorikan 35 komponen arsitektur MLOps beserta ragam \textit{tool} pendukungnya, menandai luasnya ruang pilihan sebelum satu platform utuh terbentuk. \textcite{burgueno2025toward} menambahkan bahwa komponen \textit{open source} MLOps cenderung berdiri sendiri alih-alih membentuk \textit{framework} kohesif, sehingga upaya integrasi, kurva belajar, dan penyelarasan versi ditanggung tim pemakai sejak awal.
 
     \vspace{0.5em}
 
@@ -47,7 +47,7 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 
     \item Bagaimana mengotomasi deteksi \textit{drift} dan menjamin \textit{point-in-time correctness} agar tidak terjadi \textit{temporal leakage} antara mode \textit{batch} dan \textit{streaming}?
 
-    \item Bagaimana melayani fitur multimodal, yang mencakup \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector embedding} berdimensi tinggi, dari satu sumber rujukan tunggal dengan nilai yang konsisten antara fase \textit{training} dan \textit{serving}?
+    \item Bagaimana melayani fitur multimodal, yang mencakup \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector embedding} berdimensi tinggi, dari satu \textit{single source of truth} dengan nilai yang konsisten antara fase \textit{training} dan \textit{serving}?
 \end{enumerate}
 
 Secara berurutan, keempat rumusan masalah di atas dijawab oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Rumusan-rumusan itu tidak saling tumpang tindih karena masing-masing menyasar satu titik kegagalan yang berbeda, yaitu perakitan lintas \textit{layer}, tata kelola data, deteksi \textit{drift} beserta pencegahan \textit{temporal leakage}, dan \textit{feature serving} multimodal, sekaligus mencakup rentang dari siklus data hingga \textit{model serving}. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan. Pemenuhan tiap rumusan ditelusuri kembali pada Bab~\ref{chap:evaluasi} melalui skenario uji yang menautkan rumusan dengan bukti verifikasinya.
@@ -84,7 +84,7 @@ Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-m
 \section{Batasan Masalah}
 \label{sec:batasan}
 
-Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi penelitian agar penilaian tetap tertuju pada arsitektur platform yang \textit{domain-agnostic}. Karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, pilihan perwujudan seperti jumlah \textit{node}, penguncian versi, atau sintaks komponen tertentu tidak dimasukkan sebagai batasan penelitian, melainkan dinyatakan sebagai batasan implementasi bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}. Batasan-batasan di bawah ini membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Butir-butir tersebut selanjutnya dirujuk dengan singkatan BP-1 hingga BP-3, dan konsekuensinya pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
+Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi penelitian agar penilaian tetap tertuju pada arsitektur platform yang \textit{domain-agnostic}. Karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, pilihan perwujudan seperti jumlah \textit{node}, \textit{version pinning}, atau sintaks komponen tertentu tidak dimasukkan sebagai batasan penelitian, melainkan dinyatakan sebagai batasan implementasi bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}. Batasan-batasan di bawah ini membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Butir-butir tersebut selanjutnya dirujuk dengan singkatan BP-1 hingga BP-3, dan konsekuensinya pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
 
 \vspace{0.5em}
 \begin{enumerate}
@@ -95,12 +95,12 @@ Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak
     \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan \textit{multi-tenant} dengan trafik publik. Pengukuran latensi dan \textit{throughput} pada Bab~\ref{chap:evaluasi} bersifat indikatif pada lingkungan \textit{node} tunggal, sedangkan karakterisasi beban kuantitatif penuh pada skala produksi, seperti titik jenuh \textit{throughput} dan verifikasi skalabilitas horizontal lintas \textit{node}, ditempatkan sebagai arah pengembangan lanjutan.
 \end{enumerate}
 
-Konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}, berpijak pada ketiga batasan penelitian di atas. Batasan-batasan itu menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan k3s satu \textit{node} dan penguncian versi April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
+Konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}, berpijak pada ketiga batasan penelitian di atas. Batasan-batasan itu menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan k3s satu \textit{node} dan \textit{version pinning} April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
 
 \section{Metodologi}
 \label{sec:metodologi}
 
-Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (DSRM) yang dirumuskan oleh \textcite{peffers2007dsrm} untuk penelitian sistem informasi yang menghasilkan artefak. Keluaran utama Tugas Akhir ini berupa platform yang berjalan, yaitu artefak jenis instansiasi (\textit{instantiation}) dalam taksonomi \textit{design science}, sehingga kerangka penelitian berorientasi artefak menjadi pilihan yang tepat \autocite{hevner2004design}. DSRM dipilih dibandingkan metodologi rekayasa perangkat lunak murni karena DSRM menempatkan iterasi antara perancangan, demonstrasi, dan evaluasi sebagai bagian inti proses penelitian, bukan sekadar tahapan pengembangan. Kerangka proses \textit{data science} seperti CRISP-DM dan TDSP tidak menjadi pilihan karena keduanya menata pembangunan satu model pada satu domain data, sedangkan keluaran Tugas Akhir ini adalah platform lintas domain, dengan model hanya sebagai salah satu beban kerja yang dilayani. Tahapan yang dijalankan meliputi enam fase berikut dengan keluaran teknis yang dapat diukur.
+Penelitian ini mengikuti \textit{framework} \textit{Design Science Research Methodology} (DSRM) yang dirumuskan oleh \textcite{peffers2007dsrm} untuk penelitian sistem informasi yang menghasilkan artefak. Keluaran utama Tugas Akhir ini berupa platform yang berjalan, yaitu artefak jenis instansiasi (\textit{instantiation}) dalam taksonomi \textit{design science}, sehingga \textit{framework} penelitian berorientasi artefak menjadi pilihan yang tepat \autocite{hevner2004design}. DSRM dipilih dibandingkan metodologi rekayasa perangkat lunak murni karena DSRM menempatkan iterasi antara perancangan, demonstrasi, dan evaluasi sebagai bagian inti proses penelitian, bukan sekadar tahapan pengembangan. \textit{Framework} proses \textit{data science} seperti CRISP-DM dan TDSP tidak menjadi pilihan karena keduanya menata pembangunan satu model pada satu domain data, sedangkan keluaran Tugas Akhir ini adalah platform lintas domain, dengan model hanya sebagai salah satu \textit{workload} yang dilayani. Tahapan yang dijalankan meliputi enam fase berikut dengan keluaran teknis yang dapat diukur.
 
 \vspace{0.5em}
 \begin{enumerate}
@@ -124,7 +124,7 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
     \item \textbf{Demonstrasi}
 
-    Platform dipasang pada lingkungan k3s dan diberi beban kerja dari satu \textit{use case} domain nyata sebagai kasus verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
+    Platform dipasang pada lingkungan k3s dan diberi \textit{workload} dari satu \textit{use case} domain nyata sebagai kasus verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
 
     \vspace{0.5em}
 
@@ -174,7 +174,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab V Implementasi Arsitektur Platform DataOps dan MLOps}
 
-    Memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, dengan praktik GitOps melalui Argo CD pada repositori Gitea sebagai sumber rujukan tunggal.
+    Memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, dengan praktik GitOps melalui Argo CD pada repositori Gitea sebagai \textit{single source of truth}.
 
     \vspace{0.5em}
 

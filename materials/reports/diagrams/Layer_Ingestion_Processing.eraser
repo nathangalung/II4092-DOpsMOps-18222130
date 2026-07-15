@@ -3,10 +3,10 @@
 //   Buat kanvas BARU bernama "Layer_Ingestion_Processing".
 // Ekspor PNG ke materials/reports/figures/Layer_Ingestion_Processing.png
 // Acuan: subsec:lapisan-data (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   beralat layer baris 2 tab:layanan_industri. Disertakan sebagai
+//   rincian tools layer baris 2 tab:layanan_industri. Disertakan sebagai
 //   fig:layer-ingestion-processing.
-// Fokus: jalur masuk (Kafka Connect + Debezium CDC ke Kafka/Strimzi, skema
-//   Karapace, pemantauan Kafbat UI) dan jalur pemrosesan (stream Flink; batch
+// Fokus: ingestion pipeline (Kafka Connect + Debezium CDC ke Kafka/Strimzi, skema
+//   Karapace, pemantauan Kafbat UI) dan processing pipeline (stream Flink; batch
 //   Airflow yang menjadwalkan Spark dan dbt; kueri federatif Trino dua arah).
 // Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
 //   kafka, airflow, spark, dbt, flink, trino; sisanya icon generik.
@@ -28,13 +28,13 @@ Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (
 
 // Data Ingestion and Processing Layer
 Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer (data curation)"] {
-  Jalur Masuk [icon: inbox] {
+  Ingestion Pipeline [icon: inbox] {
     Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
     Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
     Karapace [icon: file-text, label: "Karapace (validasi skema)"]
     Kafbat UI [icon: monitor, label: "Kafbat UI (pemantauan)"]
   }
-  Jalur Pemrosesan [icon: cog] {
+  Processing Pipeline [icon: cog] {
     Flink [icon: flink, label: "Apache Flink (stream)"]
     Airflow [icon: airflow, label: "Apache Airflow (orkestrasi batch)"]
     Spark [icon: spark, label: "Apache Spark (batch)"]
@@ -47,18 +47,18 @@ Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data
 Data Storage Layer [icon: database, color: green, label: "Data Storage Layer (Iceberg, ClickHouse)"]
 Feature Service Layer [icon: package, color: green, label: "Feature Service Layer (Valkey, Qdrant)"]
 
-// Jalur masuk
+// Ingestion pipeline
 Sumber Data Eksternal > Kafka Connect: REST + CDC Debezium
 Kafka Connect > Kafka: publikasi ke topik
 Kafka Connect > Karapace: cek kompatibilitas skema
 Karapace > Kafka: simpan skema pada topik internal
 Kafka > Kafbat UI: metrik topik dan konsumen
 
-// Jalur stream
+// Stream pipeline
 Kafka > Flink: aliran tervalidasi skema
 Flink > Feature Service Layer: agregasi dan fitur stream
 
-// Jalur batch dijadwalkan Airflow
+// Batch pipeline dijadwalkan Airflow
 Airflow > Spark: penjadwalan batch
 Airflow > dbt: transformasi terjadwal
 Spark > Data Storage Layer: tulis tabel Iceberg

@@ -30,7 +30,7 @@ SK-F-14 & KF-14 & Mengirim sejumlah \textit{training job} melebihi kuota \textit
 \hline
 SK-N-03 & KNF-03 & Menaikkan beban dengan \texttt{load/hpa-keda-rampup.js} sambil mengamati HPA, KEDA \textit{ScaledObject}, dan jumlah \textit{pod}. & Jumlah \textit{replica} naik mengikuti beban dan \textit{throughput} bertambah mendekati linear. \\
 \hline
-SK-N-04 & KNF-04 & Menginjeksikan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & Beban kerja pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
+SK-N-04 & KNF-04 & Menginjeksikan \textit{fault} dengan Chaos Mesh (\texttt{pod-chaos} dan \texttt{network-chaos}) lalu mengamati pemulihan. & \textit{Workload} pulih otomatis dengan RTO dan RPO di bawah ambang yang ditetapkan. \\
 \hline
 SK-N-08 & KNF-08 & Mengganti satu komponen (misalnya \textit{serving runtime}) melalui antarmuka CRD dan \textit{overlay} Kustomize. & Penggantian terisolasi pada antarmuka tanpa mengubah komponen lain. \\
 \hline

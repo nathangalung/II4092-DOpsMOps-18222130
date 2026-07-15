@@ -7,7 +7,7 @@
 //   Edge metadata dan artefak diarahkan mengikuti arah tulis data; KFP <> Katib
 //   dua arah karena eksperimen HPO mengembalikan hasil trial ke pipeline.
 // Acuan: subsec:lapisan-model (Subbab IV.3, sec:arsitektur-terintegrasi); gambar
-//   pertama layer baris 5 tab:layanan_industri (bagian pelatihan; bagian model
+//   pertama layer baris 5 tab:layanan_industri (bagian training; bagian model
 //   serving pada Layer_Model_Serving) yang memperinci Gambar fig:integrate-service.
 //   Disertakan pada LaTeX sebagai fig:layer-lifecycle.
 // Fokus: Feast (fitur training) > Kubeflow Pipelines (orkestrasi training, metadata
@@ -22,7 +22,7 @@
 // Verifikasi implementasi: node ada di platform/components/model-lifecycle/
 //   (feast, kubeflow-pipelines, kubeflow-katib, kubeflow-notebooks, kubeflow-trainer,
 //   mlflow), observability/evidently, observability/kube-prometheus-stack. Argo
-//   Workflows/CronWorkflow adalah mesin eksekusi bawaan Kubeflow Pipelines (tanpa
+//   Workflows/CronWorkflow adalah mesin eksekusi built-in Kubeflow Pipelines (tanpa
 //   direktori komponen mandiri).
 
 direction right
@@ -51,7 +51,7 @@ Prometheus [icon: prometheus, color: teal, label: "Prometheus (ambang drift)"]
 Bagian Model Serving [icon: send, color: red, label: "Bagian model serving (KServe, gambar terpisah)"]
 
 // Alur eksperimen dan training
-Layanan Fitur > Kubeflow Pipelines: fitur pelatihan
+Layanan Fitur > Kubeflow Pipelines: fitur training
 Kubeflow Notebooks > Kubeflow Pipelines: eksperimen ke pipeline
 Kubeflow Pipelines <> Katib: HPO
 Kubeflow Pipelines > Kubeflow Trainer: training job

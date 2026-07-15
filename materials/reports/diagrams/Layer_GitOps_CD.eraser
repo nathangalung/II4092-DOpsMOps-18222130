@@ -3,7 +3,7 @@
 //   Buat kanvas BARU bernama "Layer_GitOps_CD".
 // Ekspor PNG ke materials/reports/figures/Layer_GitOps_CD.png
 // Acuan: subsec:lapisan-gitops (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   beralat layer baris 8 tab:layanan_industri. Disertakan sebagai fig:layer-gitops.
+//   rincian tools layer baris 8 tab:layanan_industri. Disertakan sebagai fig:layer-gitops.
 // Fokus: rantai Gitea > Tekton > image registry > Argo CD merekonsiliasi seluruh
 //   Application platform, Argo Rollouts sebagai operator pengiriman bertahap.
 // Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11): git,

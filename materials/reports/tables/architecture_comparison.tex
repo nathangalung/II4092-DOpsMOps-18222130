@@ -41,7 +41,7 @@ Duplikasi fitur dapat ditekan, \textit{training-serving skew} berkurang melalui 
 \textit{Vector Embeddings} &
 Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
 Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, API gRPC, dan filter \textit{payload}. &
-\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah, sedangkan \textcite{malkov2020efficient} menunjukkan pencarian tetangga terdekat hampiran yang efisien pada indeks HNSW. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} \textit{key-value} dan tanpa membangun layanan kustom. &
+\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah, sedangkan \textcite{malkov2020efficient} menunjukkan \textit{approximate nearest neighbor search} yang efisien pada indeks HNSW. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} \textit{key-value} dan tanpa membangun layanan kustom. &
 \citereset\autocite{johnson2021billion,malkov2020efficient,qdrant2025} \\
 \hline
 Validitas Temporal &
@@ -94,7 +94,7 @@ Proses \textit{debugging} dan \textit{root cause analysis} menjadi lebih efektif
 \hline
 Integrasi CI/CD &
 CI/CD untuk \textit{pipeline} dan model dilakukan secara manual atau semiotomatis, dengan alur kerja yang tidak seragam. &
-GitOps dengan Argo CD sebagai mekanisme \textit{continuous deployment} deklaratif, dilengkapi Tekton untuk \textit{continuous integration} dan Argo Rollouts untuk \textit{progressive delivery}, dengan Git sebagai sumber rujukan tunggal yang mencakup seluruh konfigurasi DataOps dan MLOps. &
+GitOps dengan Argo CD sebagai mekanisme \textit{continuous deployment} deklaratif, dilengkapi Tekton untuk \textit{continuous integration} dan Argo Rollouts untuk \textit{progressive delivery}, dengan Git sebagai \textit{single source of truth} yang mencakup seluruh konfigurasi DataOps dan MLOps. &
 Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{deployment} dapat ditekan melalui otomasi dan \textit{peer review} pada \textit{pull request}. &
 \autocite{kreuzberger2023mlops} \\
 \hline

@@ -19,7 +19,7 @@
 
 KNF-01 & Kinerja Latensi Rendah & \textit{Online feature serving} berbasis Valkey dan \textit{vector similarity search} berbasis Qdrant harus memberikan latensi yang stabil dan rendah untuk mendukung \textit{inference} waktu nyata pada berbagai domain aplikasi, termasuk pada saat beban tinggi. & Latensi p99 sub-detik indikatif pada lingkungan \textit{node} tunggal untuk \textit{feature serving} dan \textit{vector search}, dengan ambang spesifik per layanan diukur dan dipantau melalui SLO Sloth & T-4 \\
 \hline
-KNF-02 & \textit{Throughput} Tinggi & Sistem harus mampu menangani \textit{workload} dengan \textit{throughput} tinggi yang umum pada beban kerja \textit{streaming} dan \textit{serving} bervolume tinggi, dengan karakteristik skalabilitas mendekati linear ketika sumber daya ditambah. & \textit{Throughput} \textit{ingest} dan \textit{serving} tumbuh proporsional terhadap jumlah \textit{partition} Kafka serta \textit{replica} Feast melalui \textit{autoscaling} KEDA dan HPA & T-4 \\
+KNF-02 & \textit{Throughput} Tinggi & Sistem harus mampu menangani \textit{workload} dengan \textit{throughput} tinggi yang umum pada \textit{workload} \textit{streaming} dan \textit{serving} bervolume tinggi, dengan karakteristik skalabilitas mendekati linear ketika sumber daya ditambah. & \textit{Throughput} \textit{ingest} dan \textit{serving} tumbuh proporsional terhadap jumlah \textit{partition} Kafka serta \textit{replica} Feast melalui \textit{autoscaling} KEDA dan HPA & T-4 \\
 \hline
 KNF-03 & Skalabilitas Horizontal & Seluruh komponen sistem harus mendukung skala horizontal, sehingga kapasitas dapat ditingkatkan dengan menambah \textit{node} dan menghasilkan peningkatan kinerja yang linear atau mendekati linear. & Seluruh \textit{workload} terstandardisasi pada HPA (CPU/memori), VPA \textit{recommender}, dan KEDA (Kafka \textit{lag}, \textit{custom metrics}) & T-1 \\
 \hline
@@ -39,7 +39,7 @@ KNF-10 & Efisiensi Sumber Daya & Sistem harus memanfaatkan sumber daya komputasi
 \hline
 KNF-11 & Portabilitas & Sistem harus dapat dijalankan di berbagai lingkungan \textit{deployment} dengan perubahan terbatas pada konfigurasi dan tanpa modifikasi kode besar, sebab seluruh komponen berdiri di atas distribusi Kubernetes standar dan \textit{image} \textit{open source}. & Dapat di-\textit{deploy} pada distribusi Kubernetes \textit{managed} (AWS EKS, GCP GKE, Azure AKS) maupun \textit{on-premise} (k3s, kubeadm) hanya dengan penyesuaian \textit{overlay} Kustomize dan parameter \textit{secret} & T-1 \\
 \hline
-KNF-12 & Kemudahan Pemeliharaan & Sistem harus mudah dipelihara, dengan struktur kode dan manifes yang jelas, \textit{pipeline} CI yang otomatis pada Tekton, serta \textit{deployment} deklaratif dari sumber rujukan tunggal pada Gitea melalui Argo CD. & Setiap komponen dapat direkonsiliasi ulang dari \textit{repository} Gitea tanpa intervensi manual, dan perubahan ditolak otomatis oleh \textit{pull request review} dan \textit{policy} Kyverno bila tidak sesuai konvensi & T-1 \\
+KNF-12 & Kemudahan Pemeliharaan & Sistem harus mudah dipelihara, dengan struktur kode dan manifes yang jelas, \textit{pipeline} CI yang otomatis pada Tekton, serta \textit{deployment} deklaratif dari \textit{single source of truth} pada Gitea melalui Argo CD. & Setiap komponen dapat direkonsiliasi ulang dari \textit{repository} Gitea tanpa intervensi manual, dan perubahan ditolak otomatis oleh \textit{pull request review} dan \textit{policy} Kyverno bila tidak sesuai konvensi & T-1 \\
 \hline
 \end{longtable}
 }

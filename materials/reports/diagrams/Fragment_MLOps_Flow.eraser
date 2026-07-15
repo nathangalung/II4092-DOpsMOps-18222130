@@ -9,7 +9,7 @@
 // Diagram ini menggambarkan alur model pada kondisi SEBELUM platform (status
 // quo terfragmentasi): tiap tahap memakai tumpukan ad hoc generik yang dirakit
 // manual, sehingga node sengaja TIDAK menamai komponen platform/components/
-// mana pun (aturan bebas-tool). Domain-agnostik: tidak menyebut domain tertentu.
+// mana pun (aturan tanpa tools). Domain-agnostik: tidak menyebut domain tertentu.
 // Rendering WAJIB horizontal (direction right), satu rantai kiri ke kanan,
 // tanpa tumpukan vertikal dalam. Disertakan tanpa \rotatebox pada LaTeX.
 // Landasan kematangan (Subbab II.1.2, subsec:maturity):
@@ -41,7 +41,7 @@ Ciri Kematangan Kondisi Saat Ini [icon: eye, color: gray] {
   Penanda MLOps L0 [icon: alert-triangle, label: "MLOps level 0 (googlecloud2024mlops): proses manual berbasis skrip, penyerahan model satu arah, tanpa CI/CD, tanpa pemantauan kinerja aktif"]
 }
 
-// Alur eksperimen dan pelatihan (dikelola Data Scientist)
+// Alur eksperimen dan training (dikelola Data Scientist)
 Scattered Feature Engineering > Isolated Model Development: penyerahan ad hoc
 Data Scientist > Scattered Feature Engineering: membangun fitur
 Data Scientist > Isolated Model Development: memindahkan model
@@ -58,4 +58,4 @@ Basic Model Serving > Basic Monitoring: melacak kinerja
 ML Engineer > Basic Monitoring: pelacakan dan peringatan
 
 // Putaran umpan balik manual
-Basic Monitoring > Data Scientist: peringatan dan pelatihan ulang
+Basic Monitoring > Data Scientist: peringatan dan training ulang
