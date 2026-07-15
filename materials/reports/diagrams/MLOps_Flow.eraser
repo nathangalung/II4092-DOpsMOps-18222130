@@ -1,8 +1,8 @@
-// Fragment_MLOps_Flow — Fragmented Model Flow in the Current Condition (MLOps)
+// MLOps_Flow — Fragmented Model Flow in the Current Condition (MLOps)
 // Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Create a NEW canvas named "Fragment_MLOps_Flow" (canvas name = file
+//   Create a NEW canvas named "MLOps_Flow" (canvas name = file
 //   name; the cloud architecture syntax has no title line).
-// Export the PNG to materials/reports/figures/Fragment_MLOps_Flow.png
+// Export the PNG to materials/reports/figures/MLOps_Flow.png
 // Icons: every node carries an icon; icon names verified against
 //   docs.eraser.io/docs/icons (checked 2026-07-11).
 // Reference: Figure III.2 (fig:fragment-mlops), Section III.1.3.
@@ -17,7 +17,7 @@
 //   one-way model handoff, no CI/CD, no active performance monitoring.
 // The "Current Maturity Characteristics" group renders that marker on the PNG.
 // DELIBERATE SEPARATION: this file shares NOT ONE edge with
-// Fragment_DataOps_Flow.eraser. The disconnect of the model flow from the data flow is
+// DataOps_Flow.eraser. The disconnect of the model flow from the data flow is
 // its main message (the starting point of the domino effect, Section III.1.3). The one-way
 // model handoff is marked on the edge Scattered Model Storage > Manual Deployment.
 
