@@ -28,7 +28,7 @@ KF-13 & SDK Feast, MLflow, dan klien KServe v2 termuat dalam satu \textit{enviro
 \hline
 KF-14 & \textit{Job} luar kuota \textit{Pending}, admisi sesuai & Kueue \textit{ClusterQueue}, HPA, VPA, KEDA & Terverifikasi struktural. \textit{Job} di luar kuota berstatus \textit{Pending} sesuai admisi Kueue. \\
 \hline
-KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Terinstrumentasi. HPA dan KEDA aktif pada satu \textit{node}. Skala mendekati linear belum diuji pada multi-\textit{node}. \\
+KNF-03 & \textit{Replica} dan \textit{throughput} naik mendekati linear & HPA, KEDA, k6 & Terinstrumentasi. HPA dan KEDA aktif pada satu \textit{node}. Skala mendekati linear belum diuji pada \textit{multi-node}. \\
 \hline
 KNF-04 & Pemulihan otomatis, RTO dan RPO terjaga & Chaos Mesh, Velero, Sloth & Terverifikasi struktural. Jalur pemulihan otomatis Chaos Mesh dan Velero terbentuk. \\
 \hline
@@ -40,7 +40,7 @@ KNF-10 & Kompresi, utilisasi, dan atribusi biaya & OpenCost, ClickHouse & Terins
 \hline
 KNF-11 & Rekonstruksi penuh dari Git & Argo CD, Kustomize & Terverifikasi struktural. Rekonstruksi penuh pada \textit{node} k3s baru dari satu sumber Git. \\
 \hline
-KNF-12 & Cakupan uji dan \textit{phase-full} konvergen & Tekton CI, Argo CD & Terverifikasi struktural. \texttt{make phase-full} konvergen dan uji CI Tekton berjalan. \\
+KNF-12 & \textit{Test coverage} dan \textit{phase-full} konvergen & Tekton CI, Argo CD & Terverifikasi struktural. \texttt{make phase-full} konvergen dan uji CI Tekton berjalan. \\
 \hline
 \end{longtable}
 }

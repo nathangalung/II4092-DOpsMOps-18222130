@@ -16,13 +16,13 @@ Keberhasilan \textit{machine learning} pada lingkungan produksi ditentukan oleh 
 \begin{enumerate}
     \item \textbf{Beban membangun platform dari nol di atas kumpulan komponen yang terfragmentasi}
 
-    Kajian sistematis \textcite{najafabadi2024analysis} atas 43 studi primer mengategorikan 35 komponen arsitektur MLOps beserta ragam \textit{tool} pendukungnya, menandai luasnya ruang pilihan sebelum satu platform utuh terbentuk. \textcite{burgueno2025toward} menambahkan bahwa komponen \textit{open source} MLOps cenderung berdiri sendiri alih-alih membentuk kerangka kohesif, sehingga beban integrasi, kurva belajar, dan penyelarasan versi ditanggung tim pemakai sejak awal.
+    Kajian sistematis \textcite{najafabadi2024analysis} atas 43 studi primer mengategorikan 35 komponen arsitektur MLOps beserta ragam \textit{tool} pendukungnya, menandai luasnya ruang pilihan sebelum satu platform utuh terbentuk. \textcite{burgueno2025toward} menambahkan bahwa komponen \textit{open source} MLOps cenderung berdiri sendiri alih-alih membentuk kerangka kohesif, sehingga upaya integrasi, kurva belajar, dan penyelarasan versi ditanggung tim pemakai sejak awal.
 
     \vspace{0.5em}
 
-    \item \textbf{Biaya berlangganan layanan terkelola dan \textit{trade-off} antara waktu pengembangan dengan anggaran berjalan}
+    \item \textbf{Biaya berlangganan layanan terkelola dan \textit{trade-off} antara waktu pengembangan dan biaya operasional}
 
-    Layanan terkelola mempercepat adopsi \autocite{li2023managed}, tetapi studi empiris \textcite{hamza2024serverlesscost} menemukan bahwa penagihan bayar per pakai dan pelaporan biaya \textit{cloud} yang tidak transparan menyulitkan estimasi anggaran dan dapat menjadi tidak hemat pada beban besar, sejalan dengan \textcite{adusumilli2025serverless}. Ditambah pula risiko keterikatan penyedia \autocite{mo2023serverless}, organisasi terjebak antara membangun tim platform dengan waktu pengembangan panjang atau berlangganan dengan biaya sulit diestimasi dan ruang kustomisasi yang sempit.
+    Layanan terkelola (\textit{managed services}) mempercepat adopsi \autocite{li2023managed}, tetapi studi empiris \textcite{hamza2024serverlesscost} menemukan bahwa penagihan \textit{pay-as-you-go} dan pelaporan biaya \textit{cloud} yang tidak transparan menyulitkan estimasi anggaran dan dapat menjadi tidak hemat pada beban besar, sejalan dengan \textcite{adusumilli2025serverless}. Ditambah pula risiko \textit{vendor lock-in} \autocite{mo2023serverless}, organisasi terjebak antara membangun tim platform dengan waktu pengembangan panjang atau berlangganan dengan biaya sulit diestimasi dan ruang kustomisasi yang sempit.
 
     \vspace{0.5em}
 
@@ -31,7 +31,7 @@ Keberhasilan \textit{machine learning} pada lingkungan produksi ditentukan oleh 
     Ketika kedua tekanan tidak terjawab oleh satu \textit{control plane}, sambungan yang terputus antar \textit{layer} \textit{ingestion}, fitur, \textit{training}, dan \textit{serving} memaksa integrasi dirakit ulang tiap proyek. Pada saat yang sama, metadata, identitas, dan \textit{lineage} dikelola sendiri-sendiri sehingga asal data sulit ditelusuri dan nilai fitur rawan berbeda antara \textit{training} dan \textit{serving}. \textcite{shankar2022operationalizing} mendokumentasikan lewat wawancara delapan belas insinyur bahwa pemeliharaan \textit{pipeline} dan integrasi antar komponen menjadi keluhan berulang, dengan rincian per \textit{layer} pada Bab~\ref{chap:analisis-masalah}.
 \end{enumerate}
 
-Gabungan ketiga tekanan itu menggerakkan pengembangan platform yang menyatukan DataOps dan MLOps di atas Kubernetes dengan komponen \textit{open source}. Kubernetes dipilih sebagai standar \textit{de facto} orkestrasi \textit{cloud-native} yang teradopsi luas di lingkungan \textit{enterprise} \autocite{lakka2025kubernetes}, sedangkan komponen \textit{open source} membuat arsitektur dapat ditiru tanpa keterikatan penyedia sekaligus menghapus biaya lisensi. Rancangan dijaga \textit{domain-agnostic} agar dapat diadaptasi lintas domain tanpa mengubah \textit{control plane}, dengan keluaran empat \textit{sub-sistem} pemutus rantai fragmentasi. Seluruh komponen ditata pada repositori Git internal dengan \textit{operator} GitOps sebagai mesin rekonsiliasi deklaratif, sehingga sembilan \textit{layer} arsitektur, dari orkestrasi hingga keamanan platform, terhubung pada satu jalur GitOps yang dirinci pada Bab~\ref{chap:perancangan}.
+Gabungan ketiga tekanan itu menggerakkan pengembangan platform yang menyatukan DataOps dan MLOps di atas Kubernetes dengan komponen \textit{open source}. Kubernetes dipilih sebagai standar \textit{de facto} orkestrasi \textit{cloud-native} yang teradopsi luas di lingkungan \textit{enterprise} \autocite{lakka2025kubernetes}, sedangkan komponen \textit{open source} membuat arsitektur dapat ditiru tanpa \textit{vendor lock-in} sekaligus menghapus biaya lisensi. Rancangan dijaga \textit{domain-agnostic} agar dapat diadaptasi lintas domain tanpa mengubah \textit{control plane}, dengan keluaran empat \textit{sub-sistem} pemutus rantai fragmentasi. Seluruh komponen ditata pada repositori Git internal dengan \textit{operator} GitOps sebagai mekanisme rekonsiliasi deklaratif, sehingga sembilan \textit{layer} arsitektur, dari orkestrasi hingga keamanan platform, terhubung pada satu \textit{GitOps flow} yang dirinci pada Bab~\ref{chap:perancangan}.
 
 
 \section{Rumusan Masalah}
@@ -43,14 +43,14 @@ Latar belakang di atas mengarah pada empat rumusan masalah yang ingin diselesaik
 \begin{enumerate}
     \item Bagaimana menyatukan \textit{tech stack} DataOps dan MLOps yang terfragmentasi pada \textit{layer} \textit{ingestion}, \textit{processing}, \textit{storage}, \textit{training}, dan \textit{model serving} ke dalam satu \textit{control plane} pada Kubernetes?
 
-    \item Bagaimana mewujudkan tata kelola data yang konsisten lintas siklus data, fitur, dan model sehingga katalog metadata, \textit{lineage}, dan kontrol kualitas tidak berjalan sebagai pekerjaan susulan?
+    \item Bagaimana mewujudkan tata kelola data yang konsisten lintas siklus data, fitur, dan model sehingga katalog metadata, \textit{lineage}, dan kontrol kualitas tidak menjadi proses yang ditambahkan belakangan?
 
-    \item Bagaimana mengotomasi deteksi \textit{drift} dan menjamin \textit{point-in-time correctness} agar tidak terjadi kebocoran temporal antara mode \textit{batch} dan \textit{streaming}?
+    \item Bagaimana mengotomasi deteksi \textit{drift} dan menjamin \textit{point-in-time correctness} agar tidak terjadi \textit{temporal leakage} antara mode \textit{batch} dan \textit{streaming}?
 
-    \item Bagaimana menyajikan fitur multimodal, yang mencakup \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector embedding} berdimensi tinggi, dari satu sumber kebenaran dengan nilai yang konsisten antara fase \textit{training} dan \textit{serving}?
+    \item Bagaimana melayani fitur multimodal, yang mencakup \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector embedding} berdimensi tinggi, dari satu sumber rujukan tunggal dengan nilai yang konsisten antara fase \textit{training} dan \textit{serving}?
 \end{enumerate}
 
-Secara berurutan, keempat rumusan masalah di atas dijawab oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Rumusan-rumusan itu tidak saling tumpang tindih karena masing-masing menyasar satu titik kegagalan yang berbeda, yaitu perakitan lintas \textit{layer}, tata kelola data, deteksi \textit{drift} beserta pencegahan kebocoran temporal, dan \textit{feature serving} multimodal, sekaligus mencakup rentang dari siklus data hingga \textit{model serving}. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan. Pemenuhan tiap rumusan ditelusuri kembali pada Bab~\ref{chap:evaluasi} melalui skenario uji yang menautkan rumusan dengan bukti verifikasinya.
+Secara berurutan, keempat rumusan masalah di atas dijawab oleh empat tujuan pada Subbab~\ref{sec:tujuan}, dengan rincian kebutuhan fungsional dan nonfungsional diturunkan pada Bab~\ref{chap:analisis-masalah}. Rumusan-rumusan itu tidak saling tumpang tindih karena masing-masing menyasar satu titik kegagalan yang berbeda, yaitu perakitan lintas \textit{layer}, tata kelola data, deteksi \textit{drift} beserta pencegahan \textit{temporal leakage}, dan \textit{feature serving} multimodal, sekaligus mencakup rentang dari siklus data hingga \textit{model serving}. Karena dirumuskan dengan batas teknis yang jelas dan berpijak pada kegagalan yang terdokumentasi pada latar belakang, keempat rumusan menjadi acuan tetap yang jawabannya ditunjukkan melalui artefak yang berjalan. Pemenuhan tiap rumusan ditelusuri kembali pada Bab~\ref{chap:evaluasi} melalui skenario uji yang menautkan rumusan dengan bukti verifikasinya.
 
 \section{Tujuan}
 \label{sec:tujuan}
@@ -72,30 +72,30 @@ Kriteria keberhasilan keseluruhan platform diukur dari empat sudut yang masing-m
 
 \vspace{0.5em}
 \begin{enumerate}
-    \item Seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual setelah \textit{bootstrap} awal klaster (T-1).
+    \item Seluruh artefak dapat dipasang dari satu repositori Git melalui Argo CD tanpa intervensi manual setelah \textit{bootstrap} awal \textit{cluster} (T-1).
 
     \item Seluruh \textit{pipeline} data, fitur, dan model terdaftar pada katalog metadata dengan \textit{lineage} yang dapat ditelusuri (T-2).
 
     \item Mekanisme deteksi \textit{drift} memicu \textit{retraining} secara otomatis ketika ambang batas dilewati pada \textit{use case} verifikasi (T-3).
 
-    \item \textit{Tabular feature} dan \textit{aggregate feature} tersaji melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online}, sedangkan \textit{embedding} tersaji pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten antara fase \textit{training} dan \textit{serving} (T-4).
+    \item \textit{Tabular feature} dan \textit{aggregate feature} dilayani melalui satu kontrak API dengan nilai yang konsisten antara penyimpanan \textit{offline} dan \textit{online}, sedangkan \textit{embedding} dilayani pada indeks vektor terpisah dengan ruang \textit{embedding} yang konsisten antara fase \textit{training} dan \textit{serving} (T-4).
 \end{enumerate}
 
 \section{Batasan Masalah}
 \label{sec:batasan}
 
-Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi penelitian agar penilaian tetap tertuju pada arsitektur platform yang \textit{domain-agnostic}. Karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, pilihan perwujudan seperti jumlah \textit{node}, patokan versi, atau sintaks komponen tertentu tidak dimasukkan sebagai batasan penelitian, melainkan dinyatakan sebagai batasan implementasi bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}. Batasan-batasan di bawah ini membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Butir-butir tersebut selanjutnya dirujuk dengan singkatan BP-1 hingga BP-3, dan konsekuensinya pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
+Batasan masalah pada Tugas Akhir ini menetapkan ruang lingkup yang sengaja tidak dicakup oleh kontribusi penelitian agar penilaian tetap tertuju pada arsitektur platform yang \textit{domain-agnostic}. Karena keluaran utama penelitian adalah arsitektur yang dapat dipakai lintas \textit{use case}, pilihan perwujudan seperti jumlah \textit{node}, penguncian versi, atau sintaks komponen tertentu tidak dimasukkan sebagai batasan penelitian, melainkan dinyatakan sebagai batasan implementasi bersama lingkungan implementasi pada Bab~\ref{chap:implementasi}. Batasan-batasan di bawah ini membatasi klaim pada \textit{control plane} platform, cakupan keamanan antar layanan, dan lingkup evaluasi. Butir-butir tersebut selanjutnya dirujuk dengan singkatan BP-1 hingga BP-3, dan konsekuensinya pada evaluasi dibahas kembali pada Bab~\ref{chap:evaluasi}.
 
 \vspace{0.5em}
 \begin{enumerate}
     \item Fokus penelitian berada pada \textit{control plane} platform, bukan pengembangan model spesifik, sehingga \textit{use case} domain hanya dipakai sebagai kasus verifikasi rancangan dan pembahasan platform dijaga \textit{domain-agnostic}.
 
-    \item Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} pada \textit{service mesh}, manajemen rahasia terpusat, dan kebijakan jaringan Kubernetes, sedangkan autentikasi pengguna akhir pada \textit{application layer} berada di luar cakupan penelitian.
+    \item Aspek keamanan berfokus pada akses antar layanan internal melalui \textit{mutual TLS} pada \textit{service mesh}, manajemen \textit{secret} terpusat, dan kebijakan jaringan Kubernetes, sedangkan autentikasi pengguna akhir pada \textit{application layer} berada di luar cakupan penelitian.
 
-    \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan multi-\textit{tenant} dengan trafik publik. Pengukuran latensi dan \textit{throughput} pada Bab~\ref{chap:evaluasi} bersifat indikatif pada lingkungan \textit{node} tunggal, sedangkan karakterisasi beban kuantitatif penuh pada skala produksi, seperti titik jenuh \textit{throughput} dan verifikasi skalabilitas horizontal lintas \textit{node}, ditempatkan sebagai arah pengembangan lanjutan.
+    \item Evaluasi difokuskan pada penerimaan fungsional dan struktural tanpa mencakup \textit{deployment} produksi pada lingkungan \textit{multi-tenant} dengan trafik publik. Pengukuran latensi dan \textit{throughput} pada Bab~\ref{chap:evaluasi} bersifat indikatif pada lingkungan \textit{node} tunggal, sedangkan karakterisasi beban kuantitatif penuh pada skala produksi, seperti titik jenuh \textit{throughput} dan verifikasi skalabilitas horizontal lintas \textit{node}, ditempatkan sebagai arah pengembangan lanjutan.
 \end{enumerate}
 
-Konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}, berpijak pada ketiga batasan penelitian di atas. Batasan-batasan itu menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan \textit{k3s} satu \textit{node} dan patokan versi April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
+Konteks pembacaan seluruh laporan, terutama pada Bab~\ref{chap:analisis-masalah} dan Bab~\ref{chap:evaluasi}, berpijak pada ketiga batasan penelitian di atas. Batasan-batasan itu menjaga fokus kontribusi pada \textit{control plane} yang \textit{domain-agnostic} sehingga keberlakuan rancangan tidak terikat pada satu domain maupun satu lingkungan perwujudan. Pilihan perwujudan yang dapat diganti tanpa mengubah kontribusi, yaitu lingkungan k3s satu \textit{node} dan penguncian versi April 2026, dinyatakan sebagai batasan implementasi BI-1 dan BI-2 pada Bab~\ref{chap:implementasi}. Dengan pemisahan ini, keterbatasan lingkungan pengujian tidak membatasi keberlakuan arsitektur yang dirancang.
 
 \section{Metodologi}
 \label{sec:metodologi}
@@ -124,7 +124,7 @@ Penelitian ini mengikuti kerangka \textit{Design Science Research Methodology} (
 
     \item \textbf{Demonstrasi}
 
-    Platform dipasang pada lingkungan \textit{k3s} dan diberi beban kerja dari satu \textit{use case} domain nyata sebagai kasus verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
+    Platform dipasang pada lingkungan k3s dan diberi beban kerja dari satu \textit{use case} domain nyata sebagai kasus verifikasi, yang dirinci pada Bab~\ref{chap:evaluasi}. Demonstrasi diatur sebagai empat tahap iteratif, dengan setiap tahap memvalidasi satu \textit{sub-sistem} sesuai T-1 hingga T-4.
 
     \vspace{0.5em}
 
@@ -174,7 +174,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab V Implementasi Arsitektur Platform DataOps dan MLOps}
 
-    Memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, dengan praktik GitOps melalui Argo CD pada repositori Gitea sebagai sumber kebenaran tunggal.
+    Memaparkan implementasi tiap \textit{sub-sistem} yang sejalan dengan Bab~\ref{chap:perancangan}, dengan praktik GitOps melalui Argo CD pada repositori Gitea sebagai sumber rujukan tunggal.
 
     \vspace{0.5em}
 
@@ -186,7 +186,7 @@ Laporan Tugas Akhir disusun atas tujuh bab dengan urutan yang mengikuti DSRM dan
 
     \item \textbf{Bab VII Penutup}
 
-    Menyimpulkan jawaban atas T-1 hingga T-4 dan memberikan saran pengembangan lanjutan untuk lingkungan multi-\textit{node} dan multi-domain.
+    Menyimpulkan jawaban atas T-1 hingga T-4 dan memberikan saran pengembangan lanjutan untuk lingkungan \textit{multi-node} dan multi-domain.
 \end{enumerate}
 
-Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung. Daftar Pustaka memakai gaya \textit{Chicago author-date} (\texttt{biblatex-chicago}) dengan label Indonesia agar konsisten dengan tubuh laporan. Lampiran memuat parameter penilaian pemilihan alat \textit{open source} dan katalog perintah verifikasi \textit{use case}. Penomoran lampiran mengikuti abjad (Lampiran A dan B) sebagaimana konvensi laporan Tugas Akhir di STI ITB.
+Setelah Bab VII, dokumen ditutup oleh Daftar Pustaka yang memuat seluruh referensi terkutip dan Lampiran yang memuat berkas pendukung. Daftar Pustaka memakai gaya \textit{Chicago author-date} (\texttt{biblatex-chicago}) dengan label Indonesia agar konsisten dengan tubuh laporan. Lampiran memuat parameter penilaian pemilihan \textit{open source tools} dan katalog perintah verifikasi \textit{use case}. Penomoran lampiran mengikuti abjad (Lampiran A dan B) sebagaimana konvensi laporan Tugas Akhir di STI ITB.

@@ -29,9 +29,9 @@ KF-05 & Otomatisasi \textit{Training Pipeline} & Sistem menyediakan \textit{pipe
 \hline
 KF-06 & Otomatisasi \textit{Deployment} Model & Sistem mengotomatisasi \textit{deployment} model yang telah lulus validasi ke \textit{inference endpoint} produksi melalui KServe \textit{InferenceService} di atas Knative Serving, serta mendukung strategi \textit{rolling update}, \textit{canary deployment}, dan \textit{progressive delivery} berbasis Argo Rollouts dengan mekanisme \textit{rollback} otomatis ketika terjadi degradasi. & T-1 \\
 \hline
-KF-07 & Pemantauan \textit{Drift} Otomatis & Sistem secara otomatis dan berkala memantau \textit{data drift} dan \textit{concept drift} dengan membandingkan distribusi fitur di produksi terhadap distribusi pada saat pelatihan menggunakan uji statistik (misalnya PSI dan Kolmogorov-Smirnov) dengan ambang adaptif, serta memicu \textit{retraining} otomatis melalui Argo CronWorkflow ketika ambang terlampaui. & T-3 \\
+KF-07 & Pemantauan \textit{Drift} Otomatis & Sistem secara otomatis dan berkala memantau \textit{data drift} dan \textit{concept drift} dengan membandingkan distribusi fitur di produksi terhadap distribusi pada saat \textit{training} menggunakan uji statistik (misalnya PSI dan Kolmogorov-Smirnov) dengan ambang adaptif, serta memicu \textit{retraining} otomatis melalui Argo CronWorkflow ketika ambang terlampaui. & T-3 \\
 \hline
-KF-08 & Tata Kelola \& Penemuan Otomatis & Sistem menangkap dan menyajikan metadata serta \textit{lineage} untuk fitur, \textit{dataset}, model, dan \textit{pipeline} pada katalog DataHub melalui \textit{ingestion} otomatis dan peristiwa \textit{lineage} berbasis OpenLineage, sehingga memudahkan penemuan, analisis dampak, dan pemenuhan kebutuhan \textit{compliance}. & T-2 \\
+KF-08 & Tata Kelola \& \textit{Data Discovery} Otomatis & Sistem menangkap dan menyajikan metadata serta \textit{lineage} untuk fitur, \textit{dataset}, model, dan \textit{pipeline} pada katalog DataHub melalui \textit{ingestion} otomatis dan \textit{event} \textit{lineage} berbasis OpenLineage, sehingga memudahkan \textit{data discovery}, analisis dampak, dan pemenuhan kebutuhan \textit{compliance}. & T-2 \\
 \hline
 KF-09 & Pelacakan Eksperimen Terintegrasi & Sistem menyediakan \textit{experiment tracking} yang terintegrasi untuk mencatat parameter, metrik, artefak, dan versi kode, sehingga proses eksperimen dapat direproduksi dan dibandingkan secara sistematis. & T-2 \\
 \hline
@@ -43,7 +43,7 @@ KF-12 & Konfigurasi Deklaratif & Sistem memungkinkan konfigurasi komponen sepert
 \hline
 KF-13 & API dan SDK Terpadu & Sistem menyediakan SDK Python yang seragam (Feast, MLflow, dan klien KServe v2 \textit{inference}) dalam satu \textit{environment} uv sebagai antarmuka klien standar untuk membaca \textit{online feature}, menelusuri \textit{run} dan registri model, serta memanggil \textit{endpoint inference}, sehingga kompleksitas integrasi menurun dan pola pemakaian menjadi konsisten. & T-1 \\
 \hline
-KF-14 & Manajemen Sumber Daya & Sistem menyediakan kemampuan pengelolaan sumber daya komputasi yang efisien melalui Kueue untuk \textit{job queueing}, prioritas, dan kuota berbasis ClusterQueue, dipadukan dengan HPA, VPA, dan KEDA untuk \textit{dynamic provisioning} pada lingkungan \textit{multi-tenant} agar tidak ada satu \textit{workload} yang menghabiskan sumber daya klaster. & T-1 \\
+KF-14 & Manajemen Sumber Daya & Sistem menyediakan kemampuan pengelolaan sumber daya komputasi yang efisien melalui Kueue untuk \textit{job queueing}, prioritas, dan kuota berbasis ClusterQueue, dipadukan dengan HPA, VPA, dan KEDA untuk \textit{dynamic provisioning} pada lingkungan \textit{multi-tenant} agar tidak ada satu \textit{workload} yang menghabiskan sumber daya \textit{cluster}. & T-1 \\
 \hline
 \end{longtable}
 }

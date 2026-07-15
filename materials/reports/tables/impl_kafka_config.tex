@@ -1,4 +1,4 @@
-% Konfigurasi jalur ingestion Kafka pada V.2.1 dalam bentuk tabel agar
+% Konfigurasi \textit{ingestion pipeline} Kafka pada V.2.1 dalam bentuk tabel agar
 % paragraf implementasi tidak menjadi tumpukan sintaks. Fakta dari
 % platform/components/data-ingestion. Lebar total = 2.6+5.3+5.4 = 13.3cm
 % + 6*tabcolsep(3pt) ~= 13.93cm (< \textwidth 14.0cm).
@@ -14,11 +14,11 @@
 \hline
 Mode \textit{cluster} & \textit{KRaft} murni tanpa ZooKeeper & Topologi tetap ringan pada satu \textit{node} \\
 \hline
-Protokol klien & SASL\_SSL dengan SCRAM-SHA-512, kredensial dari OpenBao melalui External Secrets Operator & Autentikasi dan enkripsi seragam tanpa rahasia pada manifes \\
+Protokol klien & SASL\_SSL dengan SCRAM-SHA-512, kredensial dari OpenBao melalui External Secrets Operator & Autentikasi dan enkripsi seragam tanpa \textit{secret} pada manifes \\
 \hline
 Kontrak \textit{ingestion} & \texttt{KafkaTopic} dan \texttt{KafkaUser} CR beserta ACL & Kontrak tersimpan sebagai sumber daya Kubernetes yang dapat diaudit \\
 \hline
-Topologi \textit{topic} & Enam \textit{partition}, faktor replikasi satu, dinaikkan tiga pada multi-\textit{node} & Paralelisme konsumen tanpa melampaui kapasitas satu \textit{node} \\
+Topologi \textit{topic} & Enam \textit{partition}, faktor replikasi satu, dinaikkan tiga pada \textit{multi-node} & Paralelisme konsumen tanpa melampaui kapasitas satu \textit{node} \\
 \hline
 Penskalaan konsumen & KEDA \texttt{ScaledObject} membaca \textit{lag} dari Kafka Exporter melalui Prometheus & Skala konsumen mengikuti panjang antrean nyata \\
 \hline

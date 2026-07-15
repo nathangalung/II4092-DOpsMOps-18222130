@@ -10,7 +10,7 @@
 // LINGKUP: hanya HUBUNGAN ANTAR LAYER. Sembilan layer digambar rata sebagai
 //   node tunggal, tanpa kotak grup bidang dan tanpa rincian komponen di
 //   dalamnya, agar kanvas terbaca dan font pada PNG tetap besar. Rincian
-//   komponen bertools tiap layer sudah digambar pada kesepuluh berkas
+//   komponen dan tools tiap layer sudah digambar pada kesepuluh berkas
 //   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi).
 // Aturan bebas-tools tetap berlaku: tidak ada nama tools atau komponen
 //   platform/components/ mana pun, agar sasaran integrasi terbaca sebelum

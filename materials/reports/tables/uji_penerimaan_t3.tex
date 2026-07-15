@@ -18,11 +18,11 @@
 \hline
 \endlastfoot
 
-SK-F-03 & KF-03 & Mengaudit \texttt{get\_historical\_features} pada \textit{training dataset} untuk memastikan jendela \textit{point-in-time} dipatuhi. & Tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. \\
+SK-F-03 & KF-03 & Mengaudit \texttt{get\_historical\_features} pada \textit{training dataset} untuk memastikan \textit{point-in-time window} dipatuhi. & Tidak ada baris yang memakai informasi setelah \textit{event timestamp} acuan. \\
 \hline
 SK-F-05 & KF-05 & Menjalankan \textit{training pipeline} pada Kubeflow Pipelines yang membaca fitur dari tabel \textit{gold} dan menulis model ke MLflow. & \textit{Pipeline} berjalan dari ujung ke ujung dan model tercatat sebagai artefak \textit{run} pada MLflow yang dapat disajikan KServe. \\
 \hline
-SK-F-07 & KF-07 & Menyuntikkan \textit{drift} terkendali pada satu fitur data nyata, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow retrain-on-drift}. & \textit{Drift} terdeteksi saat ambang PSI atau KS terlampaui dan \textit{retraining pipeline} terpicu otomatis. \\
+SK-F-07 & KF-07 & Menginjeksikan \textit{drift} terkendali pada satu fitur data nyata, lalu mengamati detektor \textit{drift} dan \textit{CronWorkflow retrain-on-drift}. & \textit{Drift} terdeteksi saat ambang PSI atau KS terlampaui dan \textit{retraining pipeline} terpicu otomatis. \\
 \hline
 \end{longtable}
 }

@@ -40,8 +40,8 @@ Duplikasi fitur dapat ditekan, \textit{training-serving skew} berkurang melalui 
 \hline
 \textit{Vector Embeddings} &
 Fitur \textit{embedding} tidak didukung secara \textit{native} atau diimplementasikan secara kustom dengan latensi tinggi dan \textit{throughput} terbatas. &
-Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, \textit{API} \textit{gRPC}, dan filter \textit{payload}. &
-\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah, sedangkan \textcite{malkov2020efficient} menunjukkan pencarian tetangga terdekat hampiran yang efisien pada indeks HNSW. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} kunci-nilai dan tanpa membangun layanan kustom. &
+Qdrant sebagai indeks vektor terpisah dari \textit{online store} tabular Valkey, dengan HNSW \textit{native}, API gRPC, dan filter \textit{payload}. &
+\textcite{johnson2021billion} menunjukkan bahwa indeks vektor berbasis FAISS dapat melayani \textit{billion-scale similarity search} dengan latensi rendah, sedangkan \textcite{malkov2020efficient} menunjukkan pencarian tetangga terdekat hampiran yang efisien pada indeks HNSW. Desain ini memakai Qdrant agar fitur \textit{embedding} dilayani secara \textit{online} tanpa membebani \textit{online store} \textit{key-value} dan tanpa membangun layanan kustom. &
 \citereset\autocite{johnson2021billion,malkov2020efficient,qdrant2025} \\
 \hline
 Validitas Temporal &
@@ -57,8 +57,8 @@ Waktu pengembangan \textit{pipeline} dapat menurun dan \textit{freshness} data m
 \autocite{rodrigues2025architecture} \\
 \hline
 \textit{Model Training} &
-\textit{Workflow} pelatihan berbasis \textit{notebook} dengan \textit{tracking} eksperimen informal dan \textit{artifact} tidak terkelola. &
-Kubeflow \textit{Pipelines} untuk orkestrasi pelatihan dan MLflow untuk \textit{tracking} eksperimen. &
+\textit{Workflow} \textit{training} berbasis \textit{notebook} dengan \textit{tracking} eksperimen informal dan \textit{artifact} tidak terkelola. &
+Kubeflow \textit{Pipelines} untuk orkestrasi \textit{training} dan MLflow untuk \textit{tracking} eksperimen. &
 Reproduksibilitas meningkat melalui kontainerisasi dan pengelolaan eksperimen terpusat, sementara siklus pengembangan \textit{pipeline} menjadi lebih terstruktur. &
 \autocite{amershi2019software,pimentel2019notebooks} \\
 \hline
@@ -82,7 +82,7 @@ Jeda deteksi \textit{drift} dapat dipersingkat sehingga \textit{retraining} dapa
 \hline
 Tata Kelola \& \textit{Lineage} &
 Dokumentasi dilakukan secara manual dan \textit{audit trail} sering tidak lengkap atau tersebar. &
-DataHub dengan \textit{metadata ingestion} otomatis dan \textit{lineage} yang dapat ditelusuri dari \textit{source} hingga model, dibantu OpenLineage sebagai protokol pengirim peristiwa lintas \textit{engine} pemrosesan. &
+DataHub dengan \textit{metadata ingestion} otomatis dan \textit{lineage} yang dapat ditelusuri dari \textit{source} hingga model, dibantu OpenLineage sebagai protokol pengirim \textit{event} lintas \textit{engine} pemrosesan. &
 Waktu persiapan audit dapat berkurang dan cakupan metadata meningkat melalui proses \textit{ingestion} dan \textit{lineage} otomatis. &
 \autocite{stoyanovich2020responsible,lamer2024data} \\
 \hline
@@ -94,25 +94,25 @@ Proses \textit{debugging} dan \textit{root cause analysis} menjadi lebih efektif
 \hline
 Integrasi CI/CD &
 CI/CD untuk \textit{pipeline} dan model dilakukan secara manual atau semiotomatis, dengan alur kerja yang tidak seragam. &
-GitOps dengan Argo CD sebagai mekanisme \textit{continuous deployment} deklaratif, dilengkapi Tekton untuk \textit{continuous integration} dan Argo Rollouts untuk \textit{progressive delivery}, dengan Git sebagai sumber kebenaran tunggal yang mencakup seluruh konfigurasi DataOps dan MLOps. &
+GitOps dengan Argo CD sebagai mekanisme \textit{continuous deployment} deklaratif, dilengkapi Tekton untuk \textit{continuous integration} dan Argo Rollouts untuk \textit{progressive delivery}, dengan Git sebagai sumber rujukan tunggal yang mencakup seluruh konfigurasi DataOps dan MLOps. &
 Frekuensi \textit{deployment} dapat meningkat dan variasi kesalahan \textit{deployment} dapat ditekan melalui otomasi dan \textit{peer review} pada \textit{pull request}. &
 \autocite{kreuzberger2023mlops} \\
 \hline
 Pengalaman \textit{Developer} &
-\textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan alat yang terpisah. &
+\textit{Developer} menghabiskan banyak waktu untuk tugas repetitif, \textit{onboarding} lama, dan penggunaan \textit{tools} yang terpisah. &
 Platform terintegrasi dengan \textit{self-service} untuk data, fitur, \textit{pipeline}, dan akses. Dex sebagai \textit{identity provider} OIDC dan oauth2-proxy menyatukan autentikasi tunggal di seluruh antarmuka pengembang. &
 \textit{Onboarding} dapat dipercepat dan produktivitas \textit{data scientist} meningkat karena hambatan akses infrastruktur berkurang. &
 \autocite{paleyes2022challenges,rella2022mlops} \\
 \hline
 Efisiensi Biaya &
 Utilisasi sumber daya tidak optimal dan tidak ada atribusi biaya yang jelas ke \textit{workload}. &
-\textit{Auto-scaling} berbasis HPA, VPA, dan KEDA, pemantauan biaya melalui OpenCost, serta alokasi sumber daya yang lebih terukur pada klaster Kubernetes. Seluruh komponen inti berbasis \textit{open source} sehingga biaya lisensi dapat ditekan. &
+\textit{Auto-scaling} berbasis HPA, VPA, dan KEDA, pemantauan biaya melalui OpenCost, serta alokasi sumber daya yang lebih terukur pada \textit{cluster} Kubernetes. Seluruh komponen inti berbasis \textit{open source} sehingga biaya lisensi dapat ditekan. &
 Penghematan biaya signifikan dapat dicapai melalui optimasi pemakaian sumber daya dan \textit{auto-scaling}, sebagaimana ditunjukkan dalam berbagai studi kasus adopsi Kubernetes \autocite{lakka2025kubernetes}. Desain ini mengadopsi prinsip yang sama untuk mengoptimalkan pemakaian sumber daya. &
 \citereset\autocite{lakka2025kubernetes} \\
 \hline
 Keamanan \& \textit{Compliance} &
 Kontrol akses beragam di tiap sistem, dan \textit{audit} tersebar tanpa pandangan terpadu. &
-RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan autentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada klaster, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan \textit{image}. &
+RBAC terintegrasi, \textit{audit trail} komprehensif, dan pengecekan \textit{compliance} yang terotomatisasi. Dex sebagai \textit{identity provider} OIDC memusatkan identitas, oauth2-proxy menegakkan autentikasi pada antarmuka aplikasi, Kyverno menegakkan kebijakan admisi pada \textit{cluster}, OpenBao mengelola \textit{secrets}, sementara Falco dan Trivy Operator memantau ancaman \textit{runtime} dan kerentanan \textit{image}. &
 Risiko insiden keamanan dapat berkurang melalui kontrol terpusat dan proses audit menjadi lebih ringkas. &
 \autocite{ahmad2024mlops} \\
 \hline

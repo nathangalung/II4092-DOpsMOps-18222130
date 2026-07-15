@@ -24,7 +24,7 @@ Skor pada Tabel~\ref{tab:evaluasi_kf} dan Tabel~\ref{tab:evaluasi_knf} menilai p
 \section{Parameter Evaluasi Pemilihan \textit{Open Source Tools}}
 \label{sec:appx-rubrik-tools}
 
-Bagian ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2. Parameter di bawah menjelaskan kondisi yang membuat sebuah alat memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
+Bagian ini merinci parameter penilaian untuk setiap kriteria pada tabel evaluasi alternatif \textit{open source} di Subbab~\ref{sec:pemilihan-tools}. Setiap kriteria memakai skala 0 sampai 2. Parameter di bawah menjelaskan kondisi yang membuat sebuah \textit{tools} memperoleh nilai 0, 1, atau 2 pada kriteria tersebut. Penilaian bersifat komparatif antar kandidat pada tabel yang sama dan diturunkan dari dokumentasi resmi, status lisensi, serta indikator publik proyek seperti riwayat rilis dan naungan yayasan per April 2026. Kolom Total pada tiap tabel menjumlahkan keempat kriteria tanpa pembobotan sehingga nilai tertingginya delapan.
 
 Parameter dibagi menjadi dua kelompok agar tidak berulang. Tabel~\ref{tab:rubrik_lintas} memuat kriteria lintas tabel yang muncul pada lebih dari satu tabel evaluasi dengan makna yang sama, seperti kematangan, komunitas, dan keluarga kriteria lisensi. Tabel~\ref{tab:rubrik_spesifik} memuat kriteria spesifik yang hanya dipakai pada satu \textit{layer}, dikelompokkan menurut \textit{layer} arsitekturnya. Nama kriteria pada kedua tabel ditulis sama persis dengan judul kolom pada tabel evaluasi yang memakainya.
 
@@ -64,7 +64,7 @@ Integrasi K8s, Opera\-bilitas K8s, Duku\-ngan K8s & Tanpa dukungan resmi untuk b
 \hline
 K8s-Native & Tidak dirancang berjalan pada Kubernetes & Berjalan pada Kubernetes namun model eksekusinya tidak berbasis CRD & Model eksekusi berbasis CRD sebagai antarmuka utama \\
 \hline
-Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem alat itu sendiri & Integrasi tersedia untuk sebagian alat data dan ML & Integrasi luas lintas ekosistem data dan ML yang terdokumentasi \\
+Integrasi (\textit{tracking}, metadata) & Integrasi terbatas pada ekosistem \textit{tools} itu sendiri & Integrasi tersedia untuk sebagian \textit{tools} data dan ML & Integrasi luas lintas ekosistem data dan ML yang terdokumentasi \\
 \hline
 \end{longtable}
 }
@@ -107,7 +107,7 @@ Ekosistem \textit{Add-on} & Tanpa mekanisme \textit{add-on} & \textit{Add-on} ba
 \hline
 Ekosistem Konektor & Konektor minim & Konektor tersedia namun cakupannya jauh lebih sempit & Ekosistem konektor terluas melalui Kafka Connect \textit{native} \\
 \hline
-Operator K8s & Tanpa \textit{operator} & \textit{Operator} tersedia dengan cakupan terbatas & \textit{Operator} matang mencakup klaster, pengguna, dan \textit{topic} \\
+Operator K8s & Tanpa \textit{operator} & \textit{Operator} tersedia dengan cakupan terbatas & \textit{Operator} matang mencakup \textit{cluster}, pengguna, dan \textit{topic} \\
 \hline
 Protokol Kafka & Protokol berbeda tanpa kompatibilitas & Kompatibel melalui \textit{layer} protokol tambahan & Kompatibel penuh pada level protokol \textit{native} \\
 \hline
@@ -127,7 +127,7 @@ Transaksi ACID & Tanpa jaminan transaksi & Transaksi dengan batasan mode tulis &
 \hline
 Evolusi Skema & Tanpa evolusi skema & Evolusi terbatas atau bergantung \textit{engine} & Evolusi penuh pada level format tanpa menulis ulang data \\
 \hline
-Integrasi \textit{Engine} & Terikat satu \textit{engine} & Dukungan multi-\textit{engine} tidak setara antar \textit{engine} & Netral multi-\textit{engine} dengan dukungan setara \\
+Integrasi \textit{Engine} & Terikat satu \textit{engine} & Dukungan \textit{multi-engine} tidak setara antar \textit{engine} & Netral \textit{multi-engine} dengan dukungan setara \\
 \hline
 \multicolumn{4}{|l|}{\textbf{Penyimpanan Objek dan Versi Data}} \\
 \hline
@@ -137,7 +137,7 @@ Kompati\-bilitas S3 & Tanpa API S3 & Subset API S3 & Cakupan API S3 luas termasu
 \hline
 Enkripsi KMS & Tanpa enkripsi sisi \textit{server} berbasis KMS & Enkripsi tanpa integrasi KMS eksternal & Enkripsi sisi \textit{server} dengan integrasi KMS eksternal \\
 \hline
-Per\-cabangan Tanpa Salin & Tanpa konsep percabangan & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
+Per\-cabangan \textit{Zero-copy} & Tanpa konsep percabangan & Versi berbasis penunjuk berkas per \textit{commit} & \textit{Branch} dan \textit{merge} tanpa menyalin objek \\
 \hline
 Integrasi Objek S3 & Tidak bekerja di atas penyimpanan objek & Bekerja melalui katalog atau \textit{remote} khusus & Antarmuka S3 langsung tanpa mengubah klien \\
 \hline
@@ -147,7 +147,7 @@ Skala Data Besar & Tidak dirancang untuk data besar & Skala bergantung repositor
 \hline
 Performa \textit{Query} & Latensi agregasi tinggi pada data besar & Agregasi cepat dengan batasan bentuk kueri & Agregasi kolumnar sub-detik pada data besar \\
 \hline
-Duku\-ngan \textit{Ingestion} & \textit{Batch} saja dengan alat eksternal & \textit{Streaming} atau \textit{batch} dengan komponen tambahan & \textit{Streaming} dan \textit{batch} \textit{native} termasuk Kafka \\
+Duku\-ngan \textit{Ingestion} & \textit{Batch} saja dengan \textit{tools} eksternal & \textit{Streaming} atau \textit{batch} dengan komponen tambahan & \textit{Streaming} dan \textit{batch} \textit{native} termasuk Kafka \\
 \hline
 Latensi & Latensi baca di atas puluhan milidetik & Latensi milidetik pada penyimpanan \textit{disk} & Latensi sub-milidetik pada memori \\
 \hline
@@ -167,11 +167,11 @@ Skala\-bilitas & Replika statis tanpa \textit{autoscaling} & \textit{Autoscaling
 \hline
 Konektor SQL & Konektor terbatas satu keluarga basis data & Konektor untuk beberapa basis data umum & Puluhan dialek SQL melalui \textit{layer} konektor standar \\
 \hline
-Multi-Tenant K8s & Tanpa dukungan Kubernetes resmi & Berjalan pada Kubernetes tanpa isolasi peran & \textit{Chart} resmi dengan RBAC multi-\textit{tenant} \\
+Multi-Tenant K8s & Tanpa dukungan Kubernetes resmi & Berjalan pada Kubernetes tanpa isolasi peran & \textit{Chart} resmi dengan RBAC \textit{multi-tenant} \\
 \hline
 \multicolumn{4}{|l|}{\textbf{GitOps}} \\
 \hline
-Antar\-muka & Tanpa antarmuka pemantauan & Antarmuka terbatas atau lewat alat pihak ketiga & Antarmuka web penuh untuk sinkronisasi dan \textit{diff} \\
+Antar\-muka & Tanpa antarmuka pemantauan & Antarmuka terbatas atau lewat \textit{tools} pihak ketiga & Antarmuka web penuh untuk sinkronisasi dan \textit{diff} \\
 \hline
 \multicolumn{4}{|l|}{\textbf{Keamanan Platform}} \\
 \hline
@@ -185,7 +185,7 @@ Integrasi ESO & Tanpa \textit{provider} External Secrets Operator & Integrasi ti
 \hline
 Fitur L7 & Fokus L3 dan L4 tanpa kontrol aplikasi & Kontrol L7 dasar & Kontrol L7 penuh termasuk \textit{routing} dan otorisasi \\
 \hline
-Ekosistem CRD & Tanpa CRD & CRD terbatas pada sebagian fungsi & CRD kaya untuk lalu lintas, otorisasi, dan telemetri \\
+Ekosistem CRD & Tanpa CRD & CRD terbatas pada sebagian fungsi & CRD kaya untuk trafik, otorisasi, dan telemetri \\
 \hline
 Plugin/\allowbreak Ekstensi & Tanpa mekanisme \textit{plugin} & \textit{Plugin} terbatas pada edisi terbuka & Ekosistem \textit{plugin} luas dengan muat ulang dinamis \\
 \hline
@@ -195,7 +195,7 @@ Mode \textit{Mutate} & Validasi saja & Mutasi terbatas & \textit{Validate}, \tex
 \hline
 Pela\-poran Pelang\-garan & Log saja & Metrik atau status tanpa laporan standar & \texttt{PolicyReport} standar per sumber daya \\
 \hline
-Cakupan eBPF/\allowbreak Kernel & Tanpa visibilitas kernel & Visibilitas kernel pada subset peristiwa & \textit{Probe} eBPF modern mencakup \textit{syscall} luas \\
+Cakupan eBPF/\allowbreak Kernel & Tanpa visibilitas kernel & Visibilitas kernel pada subset \textit{event} & \textit{Probe} eBPF modern mencakup \textit{syscall} luas \\
 \hline
 Aturan Bawaan & Tanpa aturan bawaan & Contoh aturan terbatas & Pustaka aturan bawaan siap pakai yang luas \\
 \hline

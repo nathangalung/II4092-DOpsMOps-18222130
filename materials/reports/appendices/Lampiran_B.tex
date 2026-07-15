@@ -5,9 +5,9 @@
 \chapter{KATALOG PERINTAH VERIFIKASI USE CASE}
 \label{appx:verifikasi}
 
-Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk memverifikasi alur \textit{end-to-end} pada \textit{use case} pasar aset kripto. Seluruh perintah dijalankan secara manual dari direktori akar repositori \texttt{\textasciitilde/documents/ta/}, kecuali bila \textit{listing} menyertakan perintah \texttt{cd} eksplisit. Katalog ini dijalankan manual sehingga bukan bagian dari beban produksi maupun rekonsiliasi Argo CD. Sebagian besar perintah hanya membaca klaster, sedangkan skenario ketahanan (SK-N-04) dan skalabilitas (SK-N-03) menerapkan gangguan terkendali yang dapat dipulihkan pada \textit{namespace} \texttt{experiments} yang terpisah dari produksi. Skenario rekonstruksi (SK-N-11) memverifikasi pembangunan ulang platform dari Git melalui \texttt{make phase-full}, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}. Rincian argumen tiap skenario tersedia pada \texttt{README.md} di \texttt{experiments/} beserta subdirektori terkait. Prasyarat menjalankannya adalah platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum skenario dijalankan, konfigurasi domain dimuat dan \textit{namespace} beban dibuat melalui langkah persiapan berikut.
+Lampiran ini memuat katalog perintah yang dapat dijalankan ulang untuk memverifikasi alur \textit{end-to-end} pada \textit{use case} pasar aset kripto. Seluruh perintah dijalankan secara manual dari direktori akar repositori \texttt{\textasciitilde/documents/ta/}, kecuali bila \textit{listing} menyertakan perintah \texttt{cd} eksplisit. Katalog ini dijalankan manual sehingga bukan bagian dari beban produksi maupun rekonsiliasi Argo CD. Sebagian besar perintah hanya membaca \textit{cluster}, sedangkan skenario ketahanan (SK-N-04) dan skalabilitas (SK-N-03) menerapkan gangguan terkendali yang dapat dipulihkan pada \textit{namespace} \texttt{experiments} yang terpisah dari produksi. Skenario rekonstruksi (SK-N-11) memverifikasi pembangunan ulang platform dari Git melalui \texttt{make phase-full}, sejalan dengan metode evaluasi pada Bab~\ref{chap:evaluasi}. Berkas skenario berada pada direktori \texttt{experiments/} yang sejajar dengan \texttt{platform/} dan \texttt{use-case-crypto/}. Rincian argumen tiap skenario tersedia pada \texttt{README.md} di \texttt{experiments/} beserta subdirektori terkait. Prasyarat menjalankannya adalah platform telah terpasang (\texttt{make phase-full}), \textit{use case} telah ter-\textit{deploy} (\texttt{make usecase-crypto-build \&\& make usecase-crypto-up}), dan seluruh \textit{pod} berstatus \textit{Running}. Sebelum skenario dijalankan, konfigurasi domain dimuat dan \textit{namespace} beban dibuat melalui langkah persiapan berikut.
 
-\begin{lstlisting}[caption={Persiapan \textit{namespace} pembangkit beban (dari \texttt{\textasciitilde/documents/ta/})},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
+\begin{lstlisting}[caption={Persiapan \textit{namespace} \textit{load generator} (dari \texttt{\textasciitilde/documents/ta/})},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # Muat DOMAIN; ganti berkas ini
 set -a; . "${EXPERIMENTS_CONFIG:-experiments/config.crypto.env}"; set +a
 kubectl apply -f experiments/namespace.yaml
@@ -61,7 +61,7 @@ kubectl get pods -A | grep -i opencost
 # SK-N-11/KNF-11: rekonstruksi penuh dari Git
 make phase-full
 
-# SK-N-12/KNF-12: cakupan uji, konvergensi phase-full
+# SK-N-12/KNF-12: \textit{test coverage}, konvergensi phase-full
 make usecase-crypto-test
 time make phase-full
 \end{lstlisting}
@@ -97,7 +97,7 @@ testssl.sh <public-endpoint>
 \section{Tujuan T-3: Deteksi \textit{Drift} dan \textit{Retraining}}
 \label{sec:appx-t3}
 
-Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu \textit{retraining} dan penyusunan fitur pelatihan menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
+Kelompok T-3 membuktikan deteksi \textit{drift} terotomasi memicu \textit{retraining} dan penyusunan fitur \textit{training} menjaga \textit{point-in-time correctness}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t3}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-3 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t3},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-03/KF-03: point-in-time correctness gold
@@ -118,7 +118,7 @@ kubectl -n model-lifecycle get cronworkflow,workflow
 \section{Tujuan T-4: Layanan Fitur \textit{Dual-Store}}
 \label{sec:appx-t4}
 
-Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector feature} dengan kontrak konsisten antara \textit{training} dan \textit{serving}, beserta latensi dan \textit{throughput} jalur \textit{serving}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
+Kelompok T-4 membuktikan layanan fitur \textit{dual-store} menyajikan \textit{tabular feature}, \textit{aggregate feature}, dan \textit{vector feature} dengan kontrak konsisten antara \textit{training} dan \textit{serving}, beserta latensi dan \textit{throughput} \textit{serving flow}. Perintahnya dirangkum pada Listing~\ref{lst:cat-t4}.
 
 \begin{lstlisting}[caption={Perintah verifikasi tujuan T-4 (dari \texttt{\textasciitilde/documents/ta/})},label={lst:cat-t4},basicstyle=\ttfamily\footnotesize,breaklines=true,captionpos=t]
 # SK-F-02/KF-02: online Feast offline ClickHouse

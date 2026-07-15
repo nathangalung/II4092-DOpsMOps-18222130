@@ -772,7 +772,7 @@
 \contentsline {table}{\numberline {IV.7}{\ignorespaces Evaluasi Alternatif Format Tabel \textit {Lakehouse} \textit {Open-Source}}}{74}{table.caption.34}%
 \contentsline {table}{\numberline {IV.8}{\ignorespaces Evaluasi Alternatif Penyimpanan Objek S3-Kompatibel \textit {Open-Source}}}{74}{table.caption.35}%
 \contentsline {table}{\numberline {IV.9}{\ignorespaces Evaluasi Alternatif Pengelola Versi Data \textit {Open-Source}}}{75}{table.caption.36}%
-\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{76}{table.caption.37}%
+\contentsline {table}{\numberline {IV.10}{\ignorespaces Evaluasi Alternatif \textit {Feature Store} \textit {Open-Source}}}{75}{table.caption.37}%
 \contentsline {table}{\numberline {IV.11}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Offline} (OLAP)}}{76}{table.caption.38}%
 \contentsline {table}{\numberline {IV.12}{\ignorespaces Evaluasi Alternatif Penyimpanan \textit {Online} (Latensi Rendah)}}{76}{table.caption.39}%
 \contentsline {table}{\numberline {IV.13}{\ignorespaces Evaluasi Alternatif \textit {Vector Index} \textit {Open-Source}}}{77}{table.caption.40}%
