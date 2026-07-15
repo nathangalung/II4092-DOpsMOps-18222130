@@ -80,6 +80,12 @@ Beberapa \textit{framework} kematangan diusulkan untuk menggambarkan jenjang kap
 
 Perbedaan ketiga \textit{level} tersebut tidak hanya terletak pada keberadaan otomasi, melainkan pada karakteristik proses dan komponen yang menyertai tiap jenjang. \textit{Level} 0 bersandar pada proses manual berbasis skrip dengan penyerahan model satu arah tanpa CI maupun CD, \textit{level} 1 menambahkan otomasi \textit{training pipeline} beserta validasi data dan model, \textit{metadata management}, dan pemicu \textit{pipeline}, sedangkan \textit{level} 2 menuntut orkestrasi CI/CD atas seluruh \textit{pipeline} ML dengan tujuh komponen wajib. Tabel~\ref{tab:mlops_level_legend} merinci karakteristik proses dan komponen tiap \textit{level} sebagaimana dirumuskan \textcite{googlecloud2024mlops}. Rincian ini menjadi acuan untuk menilai jarak kapabilitas antara kondisi awal dan target arsitektur yang dikembangkan pada bab-bab berikutnya.
 
+% Gambar II.4 dan II.5 masih menunggu penempatan pada titik ini dan keduanya
+% menuntut satu halaman float tersendiri. Tanpa \clearpage, halaman float itu
+% terbit di tengah potongan pertama longtable sehingga baris judul kolom tercetak
+% dua kali. Pembersihan float lebih dahulu membuat tabel terbuka utuh pada
+% halaman berikutnya.
+\clearpage
 \input{tables/mlops_level_legend.tex}
 
 Platform yang dikembangkan menargetkan kematangan setara \textit{level} 2 pada \textit{framework} Google Cloud. Target ini menuntut tiga \textit{automation flow} yang bekerja sebagai satu siklus, bukan sekadar tersedianya \textit{tools} pada tiap tahap. Rangkaian itu menutup siklus otomasi dari \textit{training}, \textit{deployment}, hingga pemantauan yang memicu \textit{retraining}. Rincian tiap \textit{flow} pada platform ini adalah sebagai berikut.

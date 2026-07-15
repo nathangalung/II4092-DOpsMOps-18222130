@@ -368,6 +368,12 @@
 % ==========================================
 
 \clearoddpage\input{frontmatter/01_Halaman_Judul.tex}
+% Lingkungan titlepage pada opsi oneside mereset nomor halaman ke 1 saat ditutup,
+% sehingga halaman sesudah sampul ikut bernomor i dan nomor tersebut terpakai dua
+% kali. Sampul sudah memakai nomor i tanpa dicetak, maka penomoran dilanjutkan
+% dari ii. Halaman ii lalu terisi halaman kosong dari \clearoddpage dan lembar
+% pengesahan terbuka pada halaman iii.
+\setcounter{page}{2}
 \clearoddpage\input{frontmatter/02_Lembar_Pengesahan.tex}
 \clearoddpage\input{frontmatter/03_Pernyataan_Orisinalitas.tex}
 \clearoddpage\input{frontmatter/04_Pernyataan_Penggunaan_AI.tex}

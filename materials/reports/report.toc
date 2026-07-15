@@ -2,17 +2,17 @@
 \setlength {\cftbeforechapskip }{0pt}
 \renewcommand {\cftchapfont }{\normalfont }
 \renewcommand {\cftchappagefont }{\normalfont }
-\contentsline {chapter}{LEMBAR PENGESAHAN}{i}{chapter*.2}%
-\contentsline {chapter}{PERNYATAAN ORISINALITAS}{iii}{chapter*.3}%
-\contentsline {chapter}{PERNYATAAN PENGGUNAAN AI}{v}{chapter*.4}%
-\contentsline {chapter}{ABSTRAK}{vii}{chapter*.6}%
-\contentsline {chapter}{KATA PENGANTAR}{ix}{chapter*.7}%
-\contentsline {chapter}{DAFTAR ISI}{xi}{section*.8}%
-\contentsline {chapter}{DAFTAR GAMBAR}{xv}{section*.10}%
-\contentsline {chapter}{DAFTAR TABEL}{xvii}{section*.11}%
-\contentsline {chapter}{DAFTAR \textit {LISTING}}{xix}{chapter*.12}%
-\contentsline {chapter}{DAFTAR SIMBOL}{xxi}{section*.13}%
-\contentsline {chapter}{DAFTAR SINGKATAN}{xxiii}{section*.15}%
+\contentsline {chapter}{LEMBAR PENGESAHAN}{iii}{chapter*.2}%
+\contentsline {chapter}{PERNYATAAN ORISINALITAS}{v}{chapter*.3}%
+\contentsline {chapter}{PERNYATAAN PENGGUNAAN AI}{vii}{chapter*.4}%
+\contentsline {chapter}{ABSTRAK}{ix}{chapter*.6}%
+\contentsline {chapter}{KATA PENGANTAR}{xi}{chapter*.7}%
+\contentsline {chapter}{DAFTAR ISI}{xiii}{section*.8}%
+\contentsline {chapter}{DAFTAR GAMBAR}{xvii}{section*.10}%
+\contentsline {chapter}{DAFTAR TABEL}{xix}{section*.11}%
+\contentsline {chapter}{DAFTAR \textit {LISTING}}{xxi}{chapter*.12}%
+\contentsline {chapter}{DAFTAR SIMBOL}{xxiii}{section*.13}%
+\contentsline {chapter}{DAFTAR SINGKATAN}{xxv}{section*.15}%
 \setlength {\cftbeforechapskip }{10pt}
 \renewcommand {\cftchapfont }{\bfseries }
 \renewcommand {\cftchappagefont }{\bfseries }
