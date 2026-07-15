@@ -1,68 +1,68 @@
-// Layer_Ingestion_Processing — Data Ingestion and Processing Layer (layer 2 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Ingestion_Processing".
-// Ekspor PNG ke materials/reports/figures/Layer_Ingestion_Processing.png
-// Acuan: subsec:lapisan-data (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   rincian tools layer baris 2 tab:layanan_industri. Disertakan sebagai
+// Layer_Ingestion_Processing — Data Ingestion and Processing Layer (layer 2 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Ingestion_Processing".
+// Export the PNG to materials/reports/figures/Layer_Ingestion_Processing.png
+// Reference: subsec:lapisan-data (Section IV.3, sec:arsitektur-terintegrasi); tool
+//   detail for the layer in row 2 of tab:layanan_industri. Included as
 //   fig:layer-ingestion-processing.
-// Fokus: ingestion pipeline (Kafka Connect + Debezium CDC ke Kafka/Strimzi, skema
-//   Karapace, pemantauan Kafbat UI) dan processing pipeline (stream Flink; batch
-//   Airflow yang menjadwalkan Spark dan dbt; kueri federatif Trino dua arah).
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
-//   kafka, airflow, spark, dbt, flink, trino; sisanya icon generik.
-// Konektor: Karapace menyimpan skema pada topik internal Kafka (dokumentasi
-//   Karapace); produsen memeriksa kompatibilitas ke Karapace; Trino <> storage
-//   dua arah (permintaan dan hasil kueri).
-// Rendering WAJIB horizontal (direction right), dua subgrup berdampingan, maksimum
-//   dua baris node per grup, tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu data curation (data collector + data preprocessor).
-// Verifikasi implementasi: data-ingestion/ (kafka-connect + Debezium, kafka +
-//   Strimzi, karapace, kafka-ui = Kafbat UI) dan data-processing/ (flink, airflow,
-//   spark, trino; dbt tertanam sebagai tugas Airflow).
+// Focus: ingestion pipeline (Kafka Connect + Debezium CDC to Kafka/Strimzi, Karapace
+//   schemas, Kafbat UI monitoring) and processing pipeline (Flink stream; Airflow
+//   batch scheduling Spark and dbt; bidirectional Trino federated query).
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11):
+//   kafka, airflow, spark, dbt, flink, trino; the rest are generic icons.
+// Connectors: Karapace stores schemas in an internal Kafka topic (Karapace
+//   documentation); producers check compatibility against Karapace; Trino <> storage
+//   bidirectional (query request and result).
+// Rendering MUST be horizontal (direction right), two subgroups side by side, at most
+//   two rows of nodes per group, without \rotatebox in LaTeX.
+// Layer basis: the group label carries its source category (najafabadi2024analysis),
+//   namely data curation (data collector + data preprocessor).
+// Implementation check: data-ingestion/ (kafka-connect + Debezium, kafka +
+//   Strimzi, karapace, kafka-ui = Kafbat UI) and data-processing/ (flink, airflow,
+//   spark, trino; dbt embedded as an Airflow task).
 
 direction right
 
-// Sumber (batas)
-Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
+// Source (boundary)
+External Data Source [icon: cloud, color: gray, label: "External Data Source (API, files, databases)"]
 
 // Data Ingestion and Processing Layer
 Data Ingestion and Processing Layer [icon: download, color: orange, label: "Data Ingestion and Processing Layer (data curation)"] {
   Ingestion Pipeline [icon: inbox] {
     Kafka Connect [icon: plug, label: "Kafka Connect + Debezium (CDC)"]
     Kafka [icon: kafka, label: "Apache Kafka (Strimzi)"]
-    Karapace [icon: file-text, label: "Karapace (validasi skema)"]
-    Kafbat UI [icon: monitor, label: "Kafbat UI (pemantauan)"]
+    Karapace [icon: file-text, label: "Karapace (schema registry)"]
+    Kafbat UI [icon: monitor, label: "Kafbat UI (monitoring)"]
   }
   Processing Pipeline [icon: cog] {
     Flink [icon: flink, label: "Apache Flink (stream)"]
-    Airflow [icon: airflow, label: "Apache Airflow (orkestrasi batch)"]
+    Airflow [icon: airflow, label: "Apache Airflow (batch orchestration)"]
     Spark [icon: spark, label: "Apache Spark (batch)"]
-    dbt [icon: dbt, label: "dbt (transformasi SQL, tugas Airflow)"]
-    Trino [icon: trino, label: "Trino (kueri federatif)"]
+    dbt [icon: dbt, label: "dbt (SQL transformation, Airflow task)"]
+    Trino [icon: trino, label: "Trino (federated query)"]
   }
 }
 
-// Tempat keluaran mendarat (batas)
+// Where output lands (boundary)
 Data Storage Layer [icon: database, color: green, label: "Data Storage Layer (Iceberg, ClickHouse)"]
 Feature Service Layer [icon: package, color: green, label: "Feature Service Layer (Valkey, Qdrant)"]
 
 // Ingestion pipeline
-Sumber Data Eksternal > Kafka Connect: REST + CDC Debezium
-Kafka Connect > Kafka: publikasi ke topik
-Kafka Connect > Karapace: cek kompatibilitas skema
-Karapace > Kafka: simpan skema pada topik internal
-Kafka > Kafbat UI: metrik topik dan konsumen
+External Data Source > Kafka Connect: REST + Debezium CDC
+Kafka Connect > Kafka: publish to topic
+Kafka Connect > Karapace: schema compatibility check
+Karapace > Kafka: store schema in internal topic
+Kafka > Kafbat UI: topic and consumer metrics
 
 // Stream pipeline
-Kafka > Flink: aliran tervalidasi skema
-Flink > Feature Service Layer: agregasi dan fitur stream
+Kafka > Flink: schema-validated stream
+Flink > Feature Service Layer: aggregation and stream features
 
-// Batch pipeline dijadwalkan Airflow
-Airflow > Spark: penjadwalan batch
-Airflow > dbt: transformasi terjadwal
-Spark > Data Storage Layer: tulis tabel Iceberg
-dbt > Data Storage Layer: model gold ClickHouse
+// Batch pipeline scheduled by Airflow
+Airflow > Spark: batch scheduling
+Airflow > dbt: scheduled transformation
+Spark > Data Storage Layer: write Iceberg table
+dbt > Data Storage Layer: ClickHouse gold model
 
-// Kueri federatif (permintaan dan hasil dua arah)
-Trino <> Data Storage Layer: kueri federatif Iceberg
+// Federated query (bidirectional request and result)
+Trino <> Data Storage Layer: federated Iceberg query

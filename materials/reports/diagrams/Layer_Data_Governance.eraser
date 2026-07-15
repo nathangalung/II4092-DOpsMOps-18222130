@@ -1,38 +1,38 @@
-// Layer_Data_Governance — Data Governance Layer (layer 6 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Data_Governance".
-// Ekspor PNG ke materials/reports/figures/Layer_Data_Governance.png
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
+// Layer_Data_Governance — Data Governance Layer (layer 6 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Data_Governance".
+// Export the PNG to materials/reports/figures/Layer_Data_Governance.png
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11):
 //   airflow, spark, clickhouse, postgres, minio, kafka, dbt, opensearch;
-//   sisanya icon generik. Edge ingest mengikuti arah aliran metadata dari
-//   sumber menuju katalog; DataHub menulis indeks pencariannya ke OpenSearch.
-// Acuan: subsec:lapisan-tata-kelola (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   rincian rincian tools layer baris 6 tab:layanan_industri yang memperinci layer
-//   yang sama pada Gambar fig:integrate-service (Subbab IV.1).
-//   Disertakan pada LaTeX sebagai fig:layer-governance.
-// Fokus: DataHub (katalog + lineage GMS) menerima peristiwa OpenLineage dari Airflow
-//   dan Spark serta ingest dari ClickHouse, PostgreSQL, MinIO, Kafka, Feast, dan dbt;
-//   Great Expectations sebagai gerbang kualitas di dalam pipeline yang mengalirkan
-//   status ke katalog; batas menuju Observability.
-// Rendering WAJIB horizontal (direction right): sumber metadata sebagai kolom kiri,
-//   DataHub di tengah, maksimum dua baris node per grup, agar diagram melebar dan
-//   muat pada pita height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa anotasi sumbernya, yaitu data quality, data
-//   testing, dan data governance (munappy2020adhoc, rella2022mlops,
-//   jain2025integrating) sesuai baris 6 tab:layanan_industri.
-// Verifikasi implementasi: DataHub = data-governance/datahub + datahub-ingestion,
+//   the rest are generic icons. Ingest edges follow the metadata flow direction from
+//   source to catalog; DataHub writes its search index to OpenSearch.
+// Reference: subsec:lapisan-tata-kelola (Section IV.3, sec:arsitektur-terintegrasi);
+//   tool detail for the layer in row 6 of tab:layanan_industri, which details the same
+//   layer as Figure fig:integrate-service (Section IV.1).
+//   Included in LaTeX as fig:layer-governance.
+// Focus: DataHub (catalog + lineage GMS) receives OpenLineage events from Airflow
+//   and Spark plus ingest from ClickHouse, PostgreSQL, MinIO, Kafka, Feast, and dbt;
+//   Great Expectations as the quality gate inside the pipeline, streaming
+//   status to the catalog; boundary toward Observability.
+// Rendering MUST be horizontal (direction right): metadata sources as the left column,
+//   DataHub in the middle, at most two rows of nodes per group, so the diagram widens and
+//   fits the height=0.42\textheight band. Included without \rotatebox in LaTeX.
+// Layer basis: the group label carries its source annotation, namely data quality, data
+//   testing, and data governance (munappy2020adhoc, rella2022mlops,
+//   jain2025integrating) per row 6 of tab:layanan_industri.
+// Implementation check: DataHub = data-governance/datahub + datahub-ingestion,
 //   Great Expectations = data-processing/great-expectations, OpenSearch =
-//   data-governance/opensearch. OpenLineage = protokol peristiwa lineage yang
-//   dipancarkan Airflow dan Spark (bukan direktori komponen mandiri, dicite openlineage2025).
+//   data-governance/opensearch. OpenLineage = the lineage event protocol
+//   emitted by Airflow and Spark (not a standalone component directory, cited openlineage2025).
 
 direction right
 
-// Sumber pipeline pemancar lineage (batas)
-Airflow [icon: airflow, color: yellow, label: "Apache Airflow (pipeline data)"]
-Spark [icon: spark, color: yellow, label: "Apache Spark (batch)"]
+// Lineage-emitting pipeline sources (boundary)
+Airflow [icon: airflow, color: orange, label: "Apache Airflow (data pipeline)"]
+Spark [icon: spark, color: orange, label: "Apache Spark (batch)"]
 
-// Sumber metadata ingest (batas)
-Sumber Metadata [icon: database, color: green, label: "Sumber Metadata Platform"] {
+// Metadata ingest sources (boundary)
+Platform Metadata Sources [icon: database, color: green, label: "Platform Metadata Sources"] {
   ClickHouse [icon: clickhouse, label: "ClickHouse"]
   PostgreSQL [icon: postgres, label: "PostgreSQL"]
   MinIO [icon: minio, label: "MinIO + Iceberg"]
@@ -41,32 +41,32 @@ Sumber Metadata [icon: database, color: green, label: "Sumber Metadata Platform"
   dbt [icon: dbt, label: "dbt"]
 }
 
-// Bagian tata kelola data
+// Data governance section
 Data Governance Layer [icon: book, color: teal, label: "Data Governance Layer (data quality + data testing + data governance)"] {
-  DataHub [icon: book-open, label: "DataHub (katalog + lineage GMS)"]
-  OpenLineage [icon: git-merge, label: "OpenLineage (peristiwa lineage)"]
-  Great Expectations [icon: check-square, label: "Great Expectations (gerbang kualitas)"]
+  DataHub [icon: book-open, label: "DataHub (catalog + lineage, GMS backend)"]
+  OpenLineage [icon: git-merge, label: "OpenLineage (lineage events)"]
+  Great Expectations [icon: check-square, label: "Great Expectations (quality gate)"]
 }
 
-// Indeks dan batas hilir
-OpenSearch [icon: opensearch, color: green, label: "OpenSearch (indeks katalog)"]
+// Index and downstream boundary
+OpenSearch [icon: opensearch, color: green, label: "OpenSearch (catalog index)"]
 Observability Layer [icon: monitor, color: teal, label: "Observability Layer"]
 
-// Alur lineage
-Airflow > OpenLineage: peristiwa lineage
-Spark > OpenLineage: peristiwa lineage
-OpenLineage > DataHub: graf lineage
+// Lineage flow
+Airflow > OpenLineage: lineage events
+Spark > OpenLineage: lineage events
+OpenLineage > DataHub: lineage graph
 
-// Alur ingest metadata
-ClickHouse > DataHub: ingest tabel
-PostgreSQL > DataHub: ingest skema
-MinIO > DataHub: ingest dataset
-Kafka > DataHub: ingest topik
-Feast > DataHub: ingest definisi fitur
-dbt > DataHub: ingest model transform
+// Metadata ingest flow
+ClickHouse > DataHub: table ingest
+PostgreSQL > DataHub: schema ingest
+MinIO > DataHub: dataset ingest
+Kafka > DataHub: topic ingest
+Feast > DataHub: feature definition ingest
+dbt > DataHub: transformation model ingest
 
-// Alur kualitas dan indeks
-Airflow > Great Expectations: gerbang kualitas dalam pipeline
-Great Expectations > DataHub: status validasi
-DataHub > OpenSearch: tulis indeks pencarian
-DataHub > Observability Layer: sinyal tata kelola
+// Quality and index flow
+Airflow > Great Expectations: in-pipeline quality gate
+Great Expectations > DataHub: validation status
+DataHub > OpenSearch: write search index
+DataHub > Observability Layer: governance signal

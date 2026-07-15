@@ -1,26 +1,26 @@
-// Layer_Orchestration_Infra — Orchestration and Infrastructure Layer (layer 1 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Orchestration_Infra".
-// Ekspor PNG ke materials/reports/figures/Layer_Orchestration_Infra.png
-// Acuan: subsec:lapisan-infra (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   rincian tools layer baris 1 tab:layanan_industri, memperinci kelompok yang sama
-//   pada Gambar fig:integrate-service. Disertakan sebagai fig:layer-orkestrasi-infra.
-// Fokus: bidang orkestrasi k3s/Kubernetes, scaling otomatis (HPA + VPA + KEDA
-//   dengan metrics-server), antrean Kueue, dan cert-manager. Rantai GitOps kini
-//   layer tersendiri (Layer_GitOps_CD); keamanan pada Layer_Security.
-// Ikon: logo kubernetes dari docs.eraser.io/docs/icons (diperiksa 2026-07-11),
-//   sisanya icon generik.
-// Rendering WAJIB horizontal (direction right), maksimum dua baris node per grup,
-//   tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu infrastructure and supporting services.
-// Verifikasi implementasi: k3s/Kubernetes + HPA primitif, common/metrics-server,
+// Layer_Orchestration_Infra — Orchestration and Infrastructure Layer (layer 1 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Orchestration_Infra".
+// Export the PNG to materials/reports/figures/Layer_Orchestration_Infra.png
+// Reference: subsec:lapisan-infra (Section IV.3, sec:arsitektur-terintegrasi); tool
+//   detail for the layer on row 1 of tab:layanan_industri, detailing the same group
+//   in Figure fig:integrate-service. Included as fig:layer-orkestrasi-infra.
+// Focus: the k3s/Kubernetes orchestration plane, autoscaling (HPA + VPA + KEDA
+//   with metrics-server), the Kueue queue, and cert-manager. The GitOps chain is now
+//   its own layer (Layer_GitOps_CD); security is in Layer_Security.
+// Icons: the kubernetes logo from docs.eraser.io/docs/icons (checked 2026-07-11),
+//   the rest use generic icons.
+// Rendering MUST be horizontal (direction right), at most two node rows per group,
+//   without \rotatebox in LaTeX.
+// Layer grounding: the group label carries its source category (najafabadi2024analysis),
+//   namely infrastructure and supporting services.
+// Implementation check: k3s/Kubernetes + HPA primitives, common/metrics-server,
 //   observability/vertical-pod-autoscaler, common/keda, common/kueue,
 //   common/cert-manager.
 
 direction right
 
-// Sumber perubahan konfigurasi (batas)
+// Configuration change source (boundary)
 GitOps and Continuous Delivery Layer [icon: git-branch, color: blue, label: "GitOps and Continuous Delivery Layer"]
 
 // Orchestration and Infrastructure Layer
@@ -28,17 +28,17 @@ Orchestration and Infrastructure Layer [icon: kubernetes, color: blue, label: "O
   Kubernetes [icon: kubernetes, label: "Kubernetes (k3s control plane)"]
   metrics-server [icon: activity, label: "metrics-server"]
   Autoscaler [icon: trending-up, label: "HPA + VPA + KEDA"]
-  Kueue [icon: list, label: "Kueue (antrean job)"]
+  Kueue [icon: list, label: "Kueue (job queue)"]
   cert-manager [icon: award, label: "cert-manager (TLS)"]
 }
 
-// Workload yang dijalankan (batas)
-Platform Applications [icon: layers, color: gray, label: "Platform Applications (kedelapan layer lain)"]
+// Workloads that are run (boundary)
+Platform Workload [icon: layers, color: gray, label: "Platform Workload (eight other layers)"]
 
-// Alur orkestrasi dan scaling
-GitOps and Continuous Delivery Layer > Kubernetes: sinkronisasi deklaratif
-Kubernetes > Platform Applications: menjalankan workload
-metrics-server > Autoscaler: sinyal metrik
-Autoscaler > Platform Applications: skala replica
-Kueue > Platform Applications: admisi kuota job
-cert-manager > Platform Applications: sertifikat TLS
+// Orchestration and scaling flow
+GitOps and Continuous Delivery Layer > Kubernetes: declarative sync
+Kubernetes > Platform Workload: runs workloads
+metrics-server > Autoscaler: metric signals
+Autoscaler > Platform Workload: replica and resource scaling
+Kueue > Platform Workload: quota-based job admission
+cert-manager > Platform Workload: TLS certificates

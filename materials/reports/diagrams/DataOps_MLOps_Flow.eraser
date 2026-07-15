@@ -1,41 +1,41 @@
-// DataOps_MLOps_Flow — Arsitektur Layanan Terintegrasi (Sasaran, Tanpa Tools)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "DataOps_MLOps_Flow" (judul kanvas = nama berkas;
-//   sintaks cloud architecture tidak mendukung baris title, jadi judul diatur
-//   lewat nama kanvas). Jangan menimpa kanvas lama berjudul lain.
-// Ekspor PNG ke materials/reports/figures/DataOps_MLOps_Flow.png
-// Acuan: Gambar IV.1 (fig:integrate-service), ditempatkan pada Subbab IV.1
-//   (sec:layanan-industri) setelah klasifikasi sembilan layer platform dan
-//   sebelum pemilihan tools pada Subbab IV.2 (sec:pemilihan-tools).
-// LINGKUP: hanya HUBUNGAN ANTAR LAYER. Sembilan layer digambar rata sebagai
-//   node tunggal, tanpa kotak grup bidang dan tanpa rincian komponen di
-//   dalamnya, agar kanvas terbaca dan font pada PNG tetap besar. Rincian
-//   komponen dan tools tiap layer sudah digambar pada kesepuluh berkas
-//   Layer_*.eraser (Subbab IV.3, sec:arsitektur-terintegrasi).
-// Aturan tanpa tools tetap berlaku: tidak ada nama tools atau komponen
-//   platform/components/ mana pun, agar sasaran integrasi terbaca sebelum
-//   pemilihan tools dilakukan.
-// KONEKTIVITAS: setiap node wajib punya sekurang-kurangnya satu edge. Hanya
-//   panah berarah > dan dua arah <> yang dipakai. Tidak ada garis putus dan
-//   tidak ada node legenda tanpa edge. Penanda kematangan sasaran (MLOps level
-//   2 googlecloud2024mlops dan tahap DataOps munappy2020adhoc, Subbab II.1.2
-//   subsec:maturity) dinyatakan pada prosa Subbab IV.1, bukan sebagai node.
-// Ikon: SETIAP node membawa icon generik, bukan logo produk, karena tanpa tools.
-//   Nama icon diverifikasi terhadap docs.eraser.io/docs/icons.
-// Rendering WAJIB horizontal (direction right). Disertakan tanpa \rotatebox.
-// Sumber nama layer: Tabel layanan_industri (tab:layanan_industri). Arah tiap
-//   edge mengikuti urutan tahap pada sumbernya (amershi2019software,
+// DataOps_MLOps_Flow — Integrated Service Architecture (Target, No Tools)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "DataOps_MLOps_Flow" (canvas name = file name;
+//   the cloud architecture syntax has no title line, so the title is set
+//   via the canvas name). Do not overwrite an existing canvas with another title.
+// Export the PNG to materials/reports/figures/DataOps_MLOps_Flow.png
+// Reference: Figure IV.1 (fig:integrate-service), placed in Section IV.1
+//   (sec:layanan-industri) after the classification of the nine platform layers and
+//   before tool selection in Section IV.2 (sec:pemilihan-tools).
+// SCOPE: INTER-LAYER RELATIONSHIPS only. The nine layers are drawn flat as
+//   single nodes, without plane group boxes and without component detail
+//   inside them, so the canvas stays readable and the PNG font stays large. Component
+//   and tool detail for each layer is already drawn in the ten
+//   Layer_*.eraser files (Section IV.3, sec:arsitektur-terintegrasi).
+// The no-tools rule still holds: no tool names and no
+//   platform/components/ component at all, so the integration target reads before
+//   tool selection is made.
+// CONNECTIVITY: every node must have at least one edge. Only
+//   directed > and bidirectional <> arrows are used. No dashed lines and
+//   no legend nodes without an edge. Target maturity markers (MLOps level
+//   2 googlecloud2024mlops and the DataOps stage munappy2020adhoc, Section II.1.2
+//   subsec:maturity) are stated in the Section IV.1 prose, not as nodes.
+// Icons: EVERY node carries a generic icon, not a product logo, since no tools.
+//   Icon names verified against docs.eraser.io/docs/icons.
+// Rendering MUST be horizontal (direction right). Included without \rotatebox.
+// Layer name source: Table layanan_industri (tab:layanan_industri). The direction of each
+//   edge follows the stage order in its sources (amershi2019software,
 //   munappy2020adhoc, kreuzberger2023mlops, googlecloud2024mlops,
-//   najafabadi2024analysis) dan bentuk akhir implementasi pada Bab V.
+//   najafabadi2024analysis) and the final implementation form in Chapter V.
 
 direction right
 
-// Aktor dan substrat
-Sumber Data Eksternal [icon: cloud, color: gray, label: "Sumber Data Eksternal (API, berkas, basis data)"]
-Pengguna Platform [icon: users, color: gray, label: "Pengguna Platform (data, model, bisnis)"]
-Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (satu control plane)"]
+// Actors and substrate
+External Data Source [icon: cloud, color: gray, label: "External Data Source (API, files, databases)"]
+Platform User [icon: users, color: gray, label: "Platform User (business, data, model)"]
+Kubernetes Control Plane [icon: kubernetes, color: gray, label: "Kubernetes Control Plane (single, shared)"]
 
-// Sembilan layer platform, rata tanpa kotak grup
+// Nine platform layers, flat without group boxes
 Data Ingestion and Processing Layer [icon: download, color: orange]
 Data Storage Layer [icon: database, color: green]
 Feature Service Layer [icon: package, color: green]
@@ -46,32 +46,32 @@ Observability Layer [icon: eye, color: teal]
 GitOps and Continuous Delivery Layer [icon: git-branch, color: blue]
 Platform Security Layer [icon: shield, color: red]
 
-// Nadi integrasi data menuju model
-Sumber Data Eksternal > Data Ingestion and Processing Layer: data eksternal masuk
-Data Ingestion and Processing Layer > Data Storage Layer: data terkelola
-Data Storage Layer > Feature Service Layer: sumber fitur
-Feature Service Layer > Model Lifecycle Layer: fitur training dan inference
+// Data integration artery toward the model
+External Data Source > Data Ingestion and Processing Layer: external data intake
+Data Ingestion and Processing Layer > Data Storage Layer: processed data
+Data Storage Layer > Feature Service Layer: feature source
+Feature Service Layer > Model Lifecycle Layer: training and inference features
 
-// Tata kelola menghimpun metadata lintas layer dan menahan data cacat
-Data Ingestion and Processing Layer <> Data Governance Layer: metadata dan gate kualitas
-Data Storage Layer > Data Governance Layer: metadata aset data
-Feature Service Layer > Data Governance Layer: metadata fitur
-Model Lifecycle Layer > Data Governance Layer: lineage model dan eksperimen
+// Governance collects cross-layer metadata and holds back defective data
+Data Ingestion and Processing Layer <> Data Governance Layer: metadata and quality gate
+Data Storage Layer > Data Governance Layer: data asset metadata
+Feature Service Layer > Data Governance Layer: feature metadata
+Model Lifecycle Layer > Data Governance Layer: model and experiment lineage
 
-// Observabilitas menutup loop retraining dan memasok metrik promosi
-Data Ingestion and Processing Layer > Observability Layer: sinyal pemantauan data
-Model Lifecycle Layer <> Observability Layer: sinyal pemantauan model dan umpan balik retraining
-Observability Layer > GitOps and Continuous Delivery Layer: metrik analisis canary
+// Observability closes the retraining loop and supplies promotion metrics
+Data Ingestion and Processing Layer > Observability Layer: data monitoring signal
+Model Lifecycle Layer <> Observability Layer: model monitoring signal and retraining feedback
+Observability Layer > GitOps and Continuous Delivery Layer: canary analysis metrics
 
-// Orkestrasi dan pengiriman menjalankan workload seluruh layer
-Kubernetes Control Plane > Orchestration and Infrastructure Layer: menjalankan workload
-Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: menjadwalkan data pipeline
-Orchestration and Infrastructure Layer > Model Lifecycle Layer: menjalankan ML pipeline
-GitOps and Continuous Delivery Layer > Model Lifecycle Layer: rilis model dan layanan
-GitOps and Continuous Delivery Layer > Kubernetes Control Plane: rekonsiliasi deklaratif
+// Orchestration and delivery run the workloads of every layer
+Kubernetes Control Plane > Orchestration and Infrastructure Layer: runs workloads
+Orchestration and Infrastructure Layer > Data Ingestion and Processing Layer: schedules data pipelines
+Orchestration and Infrastructure Layer > Model Lifecycle Layer: runs ML pipelines
+GitOps and Continuous Delivery Layer > Model Lifecycle Layer: model and service release
+GitOps and Continuous Delivery Layer > Kubernetes Control Plane: declarative reconciliation
 
-// Keamanan menjadi gerbang akses pengguna ke layer yang dipakai langsung
-Pengguna Platform > Platform Security Layer: akses melalui API gateway
-Platform Security Layer > Feature Service Layer: akses feature API terkendali
-Platform Security Layer > Model Lifecycle Layer: akses inference terkendali
-Platform Security Layer > Data Governance Layer: akses katalog terkendali
+// Security gates user access to the layers used directly
+Platform User > Platform Security Layer: access via API gateway
+Platform Security Layer > Feature Service Layer: controlled feature API access
+Platform Security Layer > Model Lifecycle Layer: controlled inference access
+Platform Security Layer > Data Governance Layer: controlled catalog access

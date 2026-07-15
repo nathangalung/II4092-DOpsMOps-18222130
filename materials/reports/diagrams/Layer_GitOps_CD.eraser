@@ -1,45 +1,45 @@
-// Layer_GitOps_CD — GitOps and Continuous Delivery Layer (layer 8 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_GitOps_CD".
-// Ekspor PNG ke materials/reports/figures/Layer_GitOps_CD.png
-// Acuan: subsec:lapisan-gitops (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   rincian tools layer baris 8 tab:layanan_industri. Disertakan sebagai fig:layer-gitops.
-// Fokus: rantai Gitea > Tekton > image registry > Argo CD merekonsiliasi seluruh
-//   Application platform, Argo Rollouts sebagai operator pengiriman bertahap.
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11): git,
-//   docker (registry:2 = Docker Distribution), argo, kubernetes; sisanya generik.
-// Rendering WAJIB horizontal (direction right), maksimum dua baris node per grup,
-//   tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu kategori CI/CD.
-// Verifikasi implementasi: gitops/gitea, gitops/tekton, common/registry,
+// Layer_GitOps_CD — GitOps and Continuous Delivery Layer (layer 8 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_GitOps_CD".
+// Export the PNG to materials/reports/figures/Layer_GitOps_CD.png
+// Reference: subsec:lapisan-gitops (Section IV.3, sec:arsitektur-terintegrasi); tool
+//   detail for the layer in row 8 of tab:layanan_industri. Included as fig:layer-gitops.
+// Focus: the chain Gitea > Tekton > image registry > Argo CD reconciles all
+//   Platform Applications, Argo Rollouts as the progressive delivery operator.
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11): git,
+//   docker (registry:2 = Docker Distribution), argo, kubernetes; the rest generic.
+// Rendering MUST be horizontal (direction right), at most two rows of nodes per group,
+//   without \rotatebox in LaTeX.
+// Layer basis: the group label carries its source category (najafabadi2024analysis),
+//   namely the CI/CD category.
+// Implementation check: gitops/gitea, gitops/tekton, common/registry,
 //   gitops/argo-cd, gitops/argo-rollouts.
 
 direction right
 
-// Aktor pengubah (batas)
-Tim Platform [icon: users, color: gray, label: "Tim Platform (pengubah konfigurasi)"]
+// Change actor (boundary)
+Platform Team [icon: users, color: gray, label: "Platform Team (configuration authors)"]
 
 // GitOps and Continuous Delivery Layer
-GitOps and Continuous Delivery Layer [icon: git-branch, color: blue, label: "GitOps and Continuous Delivery Layer (kategori CI/CD)"] {
-  Gitea [icon: git, label: "Gitea (Git internal)"]
+GitOps and Continuous Delivery Layer [icon: git-branch, color: blue, label: "GitOps and Continuous Delivery Layer (CI/CD category)"] {
+  Gitea [icon: git, label: "Gitea (internal Git)"]
   Tekton [icon: settings, label: "Tekton (CI + build)"]
   Registry [icon: docker, label: "Image Registry (registry:2)"]
   Argo CD [icon: argo, label: "Argo CD (GitOps CD)"]
-  Argo Rollouts [icon: argo, label: "Argo Rollouts (pengiriman bertahap)"]
+  Argo Rollouts [icon: argo, label: "Argo Rollouts (progressive delivery)"]
 }
 
-// Sasaran rekonsiliasi (batas)
+// Reconciliation targets (boundary)
 Kubernetes [icon: kubernetes, color: gray, label: "Kubernetes (k3s)"]
-Platform Applications [icon: layers, color: gray, label: "Platform Applications (seluruh layer)"]
+Platform Applications [icon: layers, color: gray, label: "Platform Applications (all layers)"]
 
-// Alur GitOps
-Tim Platform > Gitea: commit manifes
-Gitea > Tekton: webhook CI
-Tekton > Registry: build dan push image
-Tekton > Gitea: commit tag manifes
-Gitea > Argo CD: sumber manifes
-Argo CD > Kubernetes: sinkronisasi deklaratif
-Argo CD > Platform Applications: rekonsiliasi Application
-Argo Rollouts > Platform Applications: pengiriman bertahap
+// GitOps flow
+Platform Team > Gitea: manifest commit
+Gitea > Tekton: CI webhook
+Tekton > Registry: build and push image
+Tekton > Gitea: image tag commit
+Gitea > Argo CD: manifest source
+Argo CD > Kubernetes: declarative sync
+Argo CD > Platform Applications: Application reconciliation
+Argo Rollouts > Platform Applications: progressive delivery
 Registry > Kubernetes: image pull

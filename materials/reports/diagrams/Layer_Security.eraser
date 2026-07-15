@@ -1,86 +1,86 @@
-// Layer_Security — Platform Security Layer (layer 9 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Security".
-// Ekspor PNG ke materials/reports/figures/Layer_Security.png
-// Ikon: logo produk bila tersedia pada docs.eraser.io/docs/icons (diperiksa
-//   2026-07-11): istio, trivy, minio, kubernetes; sisanya icon generik
-//   (OpenBao dan Valkey tidak memakai logo Vault/Redis karena beda merek fork).
-// Konektor: <> untuk hubungan dua arah faktual (mTLS mutual, AdmissionReview
-//   permintaan-putusan, pindai-tulis laporan CR); > untuk alur satu arah.
-// Acuan: subsec:lapisan-keamanan (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   rincian rincian tools layer baris 9 tab:layanan_industri yang memperinci layer
-//   yang sama pada Gambar fig:integrate-service (Subbab IV.1, tanpa tools).
-//   Disertakan pada LaTeX sebagai fig:layer-security.
-// Fokus: identitas (Dex OIDC, oauth2-proxy, SpiceDB), secret (OpenBao + External
-//   Secrets Operator), perbatasan (APISIX gateway) dan mesh mTLS (Istio), kebijakan
-//   dan deteksi (Kyverno admisi, Falco runtime, Trivy Operator pemindaian, Chaos
-//   Mesh uji ketahanan), serta pemulihan (Velero cadangan ke MinIO).
-// Rendering WAJIB horizontal (direction right): subgrup ditata berdampingan, maksimum
-//   dua baris node per grup, agar diagram melebar dan muat pada pita
-//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya, yaitu sisi keamanan
-//   kategori infrastructure and supporting services (najafabadi2024analysis)
-//   bersama akses terkendali serta kepatuhan privasi dan keamanan data pada
-//   definisi DataOps (munappy2020adhoc), sesuai baris 9 tab:layanan_industri.
-// Verifikasi implementasi: semua node ada di platform/components/ (common/auth =
+// Layer_Security — Platform Security Layer (layer 9 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Security".
+// Export the PNG to materials/reports/figures/Layer_Security.png
+// Icons: product logos where available in docs.eraser.io/docs/icons (checked
+//   2026-07-11): istio, trivy, minio, kubernetes; the rest use generic icons
+//   (OpenBao and Valkey do not use the Vault/Redis logos, different fork brands).
+// Connectors: <> for factually two-way relations (mutual mTLS, AdmissionReview
+//   request-verdict, scan-write report CR); > for one-way flows.
+// Reference: subsec:lapisan-keamanan (Section IV.3, sec:arsitektur-terintegrasi);
+//   tool detail for the layer on row 9 of tab:layanan_industri, detailing the same
+//   layer in Figure fig:integrate-service (Section IV.1, without tools).
+//   Included in LaTeX as fig:layer-security.
+// Focus: identity (Dex OIDC, oauth2-proxy, SpiceDB), secrets (OpenBao + External
+//   Secrets Operator), the edge (APISIX gateway) and the mTLS mesh (Istio), policy
+//   and detection (Kyverno admission, Falco runtime, Trivy Operator scanning, Chaos
+//   Mesh resilience testing), plus recovery (Velero backup to MinIO).
+// Rendering MUST be horizontal (direction right): subgroups placed side by side, at most
+//   two node rows per group, so the diagram spreads wide and fits the band
+//   height=0.42\textheight. Included without \rotatebox in LaTeX.
+// Layer grounding: the group label carries its source category, namely the security side
+//   of the infrastructure and supporting services category (najafabadi2024analysis)
+//   together with controlled access and data privacy and security compliance in the
+//   DataOps definition (munappy2020adhoc), matching row 9 of tab:layanan_industri.
+// Implementation check: all nodes exist under platform/components/ (common/auth =
 //   Dex + oauth2-proxy, storage/spicedb, security/openbao, security/external-secrets,
 //   common/istio, security/apisix, security/kyverno, security/falco,
 //   security/trivy-operator, security/chaos-mesh, security/velero). Chaos Mesh
-//   ditambahkan dari grup komponen security (sebelumnya pada operasional Infra_Control).
+//   was added from the security component group (previously in Infra_Control operations).
 
 direction right
 
-// Pengguna (batas)
-Pengguna [icon: users, color: gray, label: "Pengguna (business, data, model)"]
+// Platform User (boundary)
+Platform User [icon: users, color: gray, label: "Platform User (business, data, model)"]
 
 // Platform Security Layer
-Platform Security Layer [icon: shield, color: red, label: "Platform Security Layer (akses terkendali + kepatuhan privasi dan keamanan data)"] {
-  Perbatasan dan Mesh [icon: network] {
-    APISIX [icon: globe, label: "APISIX (API gateway tepi)"]
-    Istio [icon: istio, label: "Istio (mesh mTLS)"]
+Platform Security Layer [icon: shield, color: red, label: "Platform Security Layer (controlled access + data privacy and security compliance)"] {
+  Edge and Mesh [icon: network] {
+    APISIX [icon: globe, label: "APISIX (edge API gateway)"]
+    Istio [icon: istio, label: "Istio (mTLS mesh)"]
   }
-  Identitas dan Otorisasi [icon: key] {
+  Identity and Authorization [icon: key] {
     Dex [icon: key, label: "Dex (OIDC SSO)"]
-    oauth2-proxy [icon: user-check, label: "oauth2-proxy (SSO konsol)"]
-    SpiceDB [icon: shield-check, label: "SpiceDB (otorisasi relasi)"]
+    oauth2-proxy [icon: user-check, label: "oauth2-proxy (console SSO)"]
+    SpiceDB [icon: shield-check, label: "SpiceDB (relationship-based authorization)"]
   }
   Secret [icon: lock] {
     OpenBao [icon: lock, label: "OpenBao (secret vault)"]
     ESO [icon: refresh-cw, label: "External Secrets Operator"]
   }
-  Kebijakan dan Deteksi [icon: check-circle] {
-    Kyverno [icon: check-circle, label: "Kyverno (policy admisi)"]
-    Falco [icon: siren, label: "Falco (deteksi runtime)"]
-    Trivy Operator [icon: trivy, label: "Trivy Operator (pemindaian)"]
-    Chaos Mesh [icon: zap, label: "Chaos Mesh (uji ketahanan)"]
+  Policy and Detection [icon: check-circle] {
+    Kyverno [icon: check-circle, label: "Kyverno (admission policy)"]
+    Falco [icon: siren, label: "Falco (runtime detection)"]
+    Trivy Operator [icon: trivy, label: "Trivy Operator (vulnerability scanning)"]
+    Chaos Mesh [icon: zap, label: "Chaos Mesh (resilience testing)"]
   }
-  Pemulihan [icon: archive] {
-    Velero [icon: archive, label: "Velero (cadangan)"]
+  Recovery [icon: archive] {
+    Velero [icon: archive, label: "Velero (backup)"]
   }
 }
 
-// Batas keamanan lintas layer
+// Cross-layer security boundary
 Kubernetes [icon: kubernetes, color: gray, label: "Kubernetes (k3s)"]
 Platform Workload [icon: layers, color: gray, label: "Platform Workload"]
-MinIO [icon: minio, color: green, label: "MinIO (target cadangan)"]
+MinIO [icon: minio, color: green, label: "MinIO (backup target)"]
 
-// Alur identitas dan otorisasi
-Pengguna > APISIX: akses tepi
-APISIX > Istio: masuk ke mesh
-APISIX > Dex: OIDC SSO tunggal
+// Identity and authorization flow
+Platform User > APISIX: edge access
+APISIX > Istio: ingress into the mesh
+APISIX > Dex: OIDC auth delegation
 Istio > oauth2-proxy: ext_authz
 oauth2-proxy > Dex: OIDC
-Dex > SpiceDB: identitas untuk pemeriksaan relasi
-Istio <> Platform Workload: mTLS antar layanan
+Dex > SpiceDB: identity for relationship check
+Istio <> Platform Workload: service-to-service mTLS
 
-// Alur secret
-OpenBao > ESO: distribusi secret
-ESO > Platform Workload: secret tersinkron
+// Secret flow
+OpenBao > ESO: secret distribution
+ESO > Platform Workload: synced secret
 
-// Alur kebijakan, deteksi, dan pemulihan
-Kubernetes <> Kyverno: webhook admisi (permintaan dan putusan)
-Kubernetes > Falco: peristiwa runtime terdeteksi
-Trivy Operator <> Kubernetes: pindai citra dan tulis laporan
-Chaos Mesh > Kubernetes: injeksi gangguan
-Platform Workload > Velero: sumber cadangan
-Velero > MinIO: tulis cadangan ke objek
+// Policy, detection, and recovery flow
+Kubernetes <> Kyverno: admission webhook (request and verdict)
+Kubernetes > Falco: runtime and audit events
+Trivy Operator <> Kubernetes: image scan and report CR
+Chaos Mesh > Kubernetes: fault injection
+Platform Workload > Velero: backup source
+Velero > MinIO: write backup to object storage

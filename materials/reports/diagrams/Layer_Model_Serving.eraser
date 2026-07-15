@@ -1,55 +1,55 @@
-// Layer_Model_Serving — bagian model serving pada Model Lifecycle Layer (layer 5)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Model_Serving".
-// Ekspor PNG ke materials/reports/figures/Layer_Model_Serving.png
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
-//   minio, argo, qdrant; Valkey tetap icon generik (bukan logo Redis, beda
-//   merek fork). Permintaan-respons inferensi memakai <> (dua arah faktual);
-//   Knative menskalakan revisi KServe (arah kendali dari Knative).
-// Acuan: subsec:lapisan-model (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   gambar kedua layer baris 5 tab:layanan_industri (bagian model serving) yang
-//   memperinci layer yang sama pada Gambar fig:integrate-service (Subbab IV.1).
-//   Disertakan pada LaTeX sebagai fig:layer-serving.
-// Fokus: artefak MLflow (MinIO) > InferenceService KServe di atas Knative; Argo
-//   Rollouts menjalankan analisis canary; inference bridge membaca fitur online
-//   (Valkey) dan fitur vektor (Qdrant) untuk melengkapi masukan predictor; konsumen
-//   prediksi sebagai batas hilir.
-// Rendering WAJIB horizontal (direction right): rantai kiri ke kanan, maksimum dua
-//   baris node per grup, agar diagram melebar dan muat pada pita
-//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu inference.
-// Verifikasi implementasi: node ada di platform/components/model-serving/kserve,
+// Layer_Model_Serving — model serving section of the Model Lifecycle Layer (layer 5)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Model_Serving".
+// Export the PNG to materials/reports/figures/Layer_Model_Serving.png
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11):
+//   minio, argo, qdrant; Valkey keeps a generic icon (not the Redis logo, a
+//   different fork brand). Inference request-response uses <> (factually two-way);
+//   Knative scales KServe revisions (control direction from Knative).
+// Reference: subsec:lapisan-model (Section IV.3, sec:arsitektur-terintegrasi);
+//   second figure for the layer on row 5 of tab:layanan_industri (model serving part),
+//   detailing the same layer in Figure fig:integrate-service (Section IV.1).
+//   Included in LaTeX as fig:layer-serving.
+// Focus: MLflow artifacts (MinIO) > KServe InferenceService on top of Knative; Argo
+//   Rollouts runs canary analysis; the inference bridge reads online features
+//   (Valkey) and vector features (Qdrant) to complete the predictor input; the
+//   prediction consumer is the downstream boundary.
+// Rendering MUST be horizontal (direction right): left-to-right chain, at most two
+//   node rows per group, so the diagram spreads wide and fits the band
+//   height=0.42\textheight. Included without \rotatebox in LaTeX.
+// Layer grounding: the group label carries its source category (najafabadi2024analysis),
+//   namely inference.
+// Implementation check: nodes exist under platform/components/model-serving/kserve,
 //   common/knative, gitops/argo-rollouts, storage/valkey, storage/qdrant,
-//   storage/minio. Inference bridge = transformer InferenceService KServe.
+//   storage/minio. Inference bridge = KServe InferenceService transformer.
 
 direction right
 
-// Artefak model (batas)
-MinIO [icon: minio, color: green, label: "MinIO (artefak MLflow)"]
+// Model artifacts (boundary)
+MinIO [icon: minio, color: green, label: "MinIO (MLflow artifacts)"]
 
-// Bagian model serving pada Model Lifecycle Layer
-Bagian Model Serving [icon: send, color: red, label: "Model Lifecycle Layer, bagian model serving (inference)"] {
+// Model Serving in the Model Lifecycle Layer
+Model Serving [icon: send, color: red, label: "Model serving section of the Model Lifecycle Layer (inference)"] {
   KServe [icon: server, label: "KServe (InferenceService)"]
   Knative [icon: cloud, label: "Knative (serverless)"]
-  Argo Rollouts [icon: argo, label: "Argo Rollouts (analisis canary)"]
+  Argo Rollouts [icon: argo, label: "Argo Rollouts (canary analysis)"]
   Inference Bridge [icon: git-merge, label: "Inference Bridge (feature join)"]
 }
 
-// Sumber fitur daring dan konsumen (batas)
-Valkey [icon: zap, color: green, label: "Valkey (online feature)"]
-Qdrant [icon: qdrant, color: green, label: "Qdrant (vector feature)"]
-Konsumen Prediksi [icon: monitor, color: gray, label: "Konsumen Prediksi (aplikasi hilir)"]
+// Online feature sources and consumer (boundary)
+Valkey [icon: zap, color: green, label: "Valkey (online store)"]
+Qdrant [icon: qdrant, color: green, label: "Qdrant (vector index)"]
+Prediction Consumer [icon: monitor, color: gray, label: "Prediction Consumer (downstream applications)"]
 
-// Alur muat model dan scaling
-MinIO > KServe: muat artefak model
-Knative > KServe: scaling revisi serverless
-Argo Rollouts > KServe: promosi canary bertahap
+// Model load and scaling flow
+MinIO > KServe: load model artifact
+Knative > KServe: serverless revision scaling
+Argo Rollouts > KServe: progressive canary promotion
 
-// Alur fitur ke predictor
-Valkey > Inference Bridge: online feature
-Qdrant > Inference Bridge: vector feature
-Inference Bridge > KServe: fitur ke predictor
+// Feature-to-predictor flow
+Valkey > Inference Bridge: online features
+Qdrant > Inference Bridge: vector features
+Inference Bridge > KServe: features to predictor
 
-// Permintaan dan respons inferensi (dua arah)
-Konsumen Prediksi <> KServe: permintaan dan respons inferensi
+// Inference request and response (two-way)
+Prediction Consumer <> KServe: inference request and response

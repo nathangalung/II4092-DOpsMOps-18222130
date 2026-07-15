@@ -1,61 +1,61 @@
-// Fragment_MLOps_Flow — Alur Model Terfragmentasi pada Kondisi Saat Ini (MLOps)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Fragment_MLOps_Flow" (judul kanvas = nama
-//   berkas; sintaks cloud architecture tidak mendukung baris title).
-// Ekspor PNG ke materials/reports/figures/Fragment_MLOps_Flow.png
-// Ikon: setiap node membawa icon; nama icon diverifikasi terhadap
-//   docs.eraser.io/docs/icons (diperiksa 2026-07-11).
-// Acuan: Gambar III.2 (fig:fragment-mlops), Subbab III.1.3.
-// Diagram ini menggambarkan alur model pada kondisi SEBELUM platform (status
-// quo terfragmentasi): tiap tahap memakai tumpukan ad hoc generik yang dirakit
-// manual, sehingga node sengaja TIDAK menamai komponen platform/components/
-// mana pun (aturan tanpa tools). Domain-agnostik: tidak menyebut domain tertentu.
-// Rendering WAJIB horizontal (direction right), satu rantai kiri ke kanan,
-// tanpa tumpukan vertikal dalam. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan kematangan (Subbab II.1.2, subsec:maturity):
-// - MLOps level 0 (googlecloud2024mlops): proses manual berbasis skrip,
-//   penyerahan model satu arah, tanpa CI/CD, tanpa pemantauan kinerja aktif.
-// Grup "Ciri Kematangan Kondisi Saat Ini" merender penanda tersebut pada PNG.
-// PEMISAHAN DISENGAJA: berkas ini TIDAK berbagi satu edge pun dengan
-// Fragment_DataOps_Flow.eraser. Keterputusan alur model dari alur data itulah
-// pesan utamanya (titik tolak efek domino Subbab III.1.3). Penyerahan model
-// satu arah ditandai pada edge Scattered Model Storage > Manual Deployment.
+// Fragment_MLOps_Flow — Fragmented Model Flow in the Current Condition (MLOps)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Fragment_MLOps_Flow" (canvas name = file
+//   name; the cloud architecture syntax has no title line).
+// Export the PNG to materials/reports/figures/Fragment_MLOps_Flow.png
+// Icons: every node carries an icon; icon names verified against
+//   docs.eraser.io/docs/icons (checked 2026-07-11).
+// Reference: Figure III.2 (fig:fragment-mlops), Section III.1.3.
+// This diagram depicts the model flow in the condition BEFORE the platform (the
+// fragmented status quo): each stage uses a generic ad hoc stack assembled
+// manually, so the nodes deliberately do NOT name any platform/components/
+// component (the no-tools rule). Domain-agnostic: it names no particular domain.
+// Rendering MUST be horizontal (direction right), one chain left to right,
+// without deep vertical stacking. Included without \rotatebox in LaTeX.
+// Maturity basis (Section II.1.2, subsec:maturity):
+// - MLOps level 0 (googlecloud2024mlops): manual script-based process,
+//   one-way model handoff, no CI/CD, no active performance monitoring.
+// The "Current Maturity Characteristics" group renders that marker on the PNG.
+// DELIBERATE SEPARATION: this file shares NOT ONE edge with
+// Fragment_DataOps_Flow.eraser. The disconnect of the model flow from the data flow is
+// its main message (the starting point of the domino effect, Section III.1.3). The one-way
+// model handoff is marked on the edge Scattered Model Storage > Manual Deployment.
 
 direction right
 
-// Aktor
+// Actors
 Data Scientist [icon: user, color: gray]
 ML Engineer [icon: user, color: gray]
 
-// Rantai MLOps terfragmentasi (kiri ke kanan)
-Scattered Feature Engineering [icon: code, color: yellow, label: "Scattered Feature Engineering (notebook, SQL ad hoc, skrip Python)"]
-Isolated Model Development [icon: laptop, color: yellow, label: "Isolated Model Development (laptop lokal, Git per individu)"]
-Ad Hoc Model Testing [icon: check-circle, color: yellow, label: "Ad Hoc Model Testing (notebook, kalkulasi spreadsheet)"]
-Scattered Model Storage [icon: archive, color: red, label: "Scattered Model Storage (berkas .pkl, network drive, email)"]
-Manual Deployment [icon: upload, color: red, label: "Manual Deployment (penulisan ulang kode, SSH)"]
-Basic Model Serving [icon: server, color: red, label: "Basic Model Serving (REST API tunggal, cron job)"]
-Basic Monitoring [icon: eye, color: red, label: "Basic Monitoring (berkas log, peringatan email)"]
+// Fragmented MLOps chain (left to right)
+Scattered Feature Engineering [icon: code, color: yellow, label: "Scattered Feature Engineering (notebooks, ad hoc SQL, Python scripts)"]
+Isolated Model Development [icon: laptop, color: yellow, label: "Isolated Model Development (local laptop, per-individual Git)"]
+Ad Hoc Model Testing [icon: check-circle, color: yellow, label: "Ad Hoc Model Testing (notebooks, spreadsheet calculation)"]
+Scattered Model Storage [icon: archive, color: red, label: "Scattered Model Storage (.pkl files, network drive, email)"]
+Manual Deployment [icon: upload, color: red, label: "Manual Deployment (code rewrite, SSH)"]
+Basic Model Serving [icon: server, color: red, label: "Basic Model Serving (single REST API, cron job)"]
+Basic Monitoring [icon: eye, color: red, label: "Basic Monitoring (log files, email alerts)"]
 
-// Penanda kematangan (MLOps level 0), ringkas di ujung kanan
-Ciri Kematangan Kondisi Saat Ini [icon: eye, color: gray] {
-  Penanda MLOps L0 [icon: alert-triangle, label: "MLOps level 0 (googlecloud2024mlops): proses manual berbasis skrip, penyerahan model satu arah, tanpa CI/CD, tanpa pemantauan kinerja aktif"]
+// Maturity marker (MLOps level 0), compact at the right end
+Current Maturity Characteristics [icon: eye, color: gray] {
+  MLOps Level 0 Marker [icon: alert-triangle, label: "MLOps level 0 (googlecloud2024mlops): manual script-based process, one-way model handoff, no CI/CD, no active performance monitoring"]
 }
 
-// Alur eksperimen dan training (dikelola Data Scientist)
-Scattered Feature Engineering > Isolated Model Development: penyerahan ad hoc
-Data Scientist > Scattered Feature Engineering: membangun fitur
-Data Scientist > Isolated Model Development: memindahkan model
-Isolated Model Development > Ad Hoc Model Testing: validasi lokal
-Data Scientist > Ad Hoc Model Testing: memvalidasi kinerja
-Ad Hoc Model Testing > Scattered Model Storage: menyimpan artefak
+// Experiment and training flow (managed by the Data Scientist)
+Scattered Feature Engineering > Isolated Model Development: ad hoc handoff
+Data Scientist > Scattered Feature Engineering: builds features
+Data Scientist > Isolated Model Development: develops model
+Isolated Model Development > Ad Hoc Model Testing: local validation
+Data Scientist > Ad Hoc Model Testing: validates performance
+Ad Hoc Model Testing > Scattered Model Storage: stores artifact
 
-// Penyerahan model satu arah dari eksperimen ke operasi (dikelola ML Engineer)
-Scattered Model Storage > Manual Deployment: penyerahan model satu arah
-ML Engineer > Manual Deployment: menangani deployment
-Manual Deployment > Basic Model Serving: rilis ke produksi
-ML Engineer > Basic Model Serving: mengelola penyajian
-Basic Model Serving > Basic Monitoring: melacak kinerja
-ML Engineer > Basic Monitoring: pelacakan dan peringatan
+// One-way model handoff from experiment to operations (managed by the ML Engineer)
+Scattered Model Storage > Manual Deployment: one-way model handoff
+ML Engineer > Manual Deployment: handles deployment
+Manual Deployment > Basic Model Serving: release to production
+ML Engineer > Basic Model Serving: manages serving
+Basic Model Serving > Basic Monitoring: tracks performance
+ML Engineer > Basic Monitoring: tracks and alerts
 
-// Putaran umpan balik manual
-Basic Monitoring > Data Scientist: peringatan dan training ulang
+// Manual feedback loop
+Basic Monitoring > Data Scientist: alerts and retraining

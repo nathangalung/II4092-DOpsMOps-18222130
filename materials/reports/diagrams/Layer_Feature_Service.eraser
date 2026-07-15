@@ -1,45 +1,45 @@
-// Layer_Feature_Service — Feature Service Layer (layer 4 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Feature_Service".
-// Ekspor PNG ke materials/reports/figures/Layer_Feature_Service.png
-// Acuan: subsec:lapisan-feature (Subbab IV.3, sec:arsitektur-terintegrasi); rincian
-//   rincian tools layer baris 4 tab:layanan_industri. Disertakan sebagai fig:layer-feature.
-// Fokus: Feast sebagai feature store dengan ClickHouse sebagai sumber offline,
-//   Valkey sebagai online store hasil materialisasi, Qdrant sebagai indeks vektor,
-//   registry berkas pada MinIO; fitur stream dari Flink mendarat langsung pada
-//   Valkey dan Qdrant. Sub-sistem dual-store dirinci pada sec:feature-store-dual.
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11): minio,
-//   clickhouse, qdrant; Valkey icon generik (bukan logo Redis, beda merek fork).
-// Rendering WAJIB horizontal (direction right), maksimum dua baris node per grup,
-//   tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu feature store pada storage and versioning.
-// Verifikasi implementasi: model-lifecycle/feast, storage/valkey, storage/qdrant,
-//   storage/clickhouse, storage/minio; fitur stream Flink -> Valkey/Qdrant.
+// Layer_Feature_Service — Feature Service Layer (layer 4 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Feature_Service".
+// Export the PNG to materials/reports/figures/Layer_Feature_Service.png
+// Reference: subsec:lapisan-feature (Section IV.3, sec:arsitektur-terintegrasi); tool
+//   detail for the layer in row 4 of tab:layanan_industri. Included as fig:layer-feature.
+// Focus: Feast as the feature store with ClickHouse as the offline source,
+//   Valkey as the materialized online store, Qdrant as the vector index,
+//   file registry on MinIO; stream features from Flink land directly on
+//   Valkey and Qdrant. The dual-store subsystem is detailed in sec:feature-store-dual.
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11): minio,
+//   clickhouse, qdrant; Valkey uses a generic icon (not the Redis logo, different fork brand).
+// Rendering MUST be horizontal (direction right), at most two rows of nodes per group,
+//   without \rotatebox in LaTeX.
+// Layer basis: the group label carries its source category (najafabadi2024analysis),
+//   namely feature store within storage and versioning.
+// Implementation check: model-lifecycle/feast, storage/valkey, storage/qdrant,
+//   storage/clickhouse, storage/minio; stream features Flink -> Valkey/Qdrant.
 
 direction right
 
-// Sumber fitur (batas)
-ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (sumber offline)"]
-Flink [icon: flink, color: orange, label: "Apache Flink (fitur stream)"]
+// Feature sources (boundary)
+ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (offline source)"]
+Flink [icon: flink, color: orange, label: "Apache Flink (stream features)"]
 
 // Feature Service Layer
 Feature Service Layer [icon: package, color: green, label: "Feature Service Layer (feature store, storage and versioning)"] {
   Feast [icon: package, label: "Feast (feature store)"]
   Valkey [icon: zap, label: "Valkey (online store)"]
-  Qdrant [icon: qdrant, label: "Qdrant (indeks vektor)"]
+  Qdrant [icon: qdrant, label: "Qdrant (vector index)"]
 }
 
-// Registry dan konsumen (batas)
-MinIO [icon: minio, color: green, label: "MinIO (registry berkas Feast)"]
-Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (training dan inference)"]
+// Registry and consumers (boundary)
+MinIO [icon: minio, color: green, label: "MinIO (Feast file registry)"]
+Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (training and inference)"]
 
-// Alur fitur
-ClickHouse > Feast: sumber offline
-Feast > Valkey: materialisasi online
-Feast > MinIO: registry berkas
-Flink > Valkey: fitur stream
-Flink > Qdrant: embedding stream
-Feast > Model Lifecycle Layer: fitur training
-Valkey > Model Lifecycle Layer: online feature
-Qdrant > Model Lifecycle Layer: vector feature
+// Feature flow
+ClickHouse > Feast: offline source
+Feast > Valkey: online materialization
+Feast > MinIO: file registry
+Flink > Valkey: stream features
+Flink > Qdrant: stream embeddings
+Feast > Model Lifecycle Layer: training features
+Valkey > Model Lifecycle Layer: online features
+Qdrant > Model Lifecycle Layer: vector features

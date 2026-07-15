@@ -1,73 +1,87 @@
 // Layer_Model_Lifecycle — Model Lifecycle Layer
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Model_Lifecycle".
-// Ekspor PNG ke materials/reports/figures/Layer_Model_Lifecycle.png
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
-//   mlflow, argo, mysql, postgres, minio, prometheus; sisanya icon generik.
-//   Edge metadata dan artefak diarahkan mengikuti arah tulis data; KFP <> Katib
-//   dua arah karena eksperimen HPO mengembalikan hasil trial ke pipeline.
-// Acuan: subsec:lapisan-model (Subbab IV.3, sec:arsitektur-terintegrasi); gambar
-//   pertama layer baris 5 tab:layanan_industri (bagian training; bagian model
-//   serving pada Layer_Model_Serving) yang memperinci Gambar fig:integrate-service.
-//   Disertakan pada LaTeX sebagai fig:layer-lifecycle.
-// Fokus: Feast (fitur training) > Kubeflow Pipelines (orkestrasi training, metadata
-//   MySQL) + Katib (tuning); MLflow (tracking + model registry, backend PostgreSQL,
-//   artefak MinIO); pemicu drift (Evidently > Prometheus, ambang terlampaui memicu
-//   Argo CronWorkflow > retrain Kubeflow Pipelines).
-// Rendering WAJIB horizontal (direction right): rantai kiri ke kanan, maksimum dua
-//   baris node per grup, agar diagram melebar dan muat pada pita
-//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu ML training ditambah model registry dan ML metadata.
-// Verifikasi implementasi: node ada di platform/components/model-lifecycle/
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Model_Lifecycle".
+// Export the PNG to materials/reports/figures/Layer_Model_Lifecycle.png
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11):
+//   mlflow, argo, mysql, postgres, minio, prometheus, clickhouse; the rest use
+//   generic icons.
+//   Metadata and artifact edges follow the data write direction; KFP <> Katib is
+//   bidirectional because HPO experiments return trial results to the pipeline.
+// Reference: subsec:lapisan-model (Section IV.3, sec:arsitektur-terintegrasi); the
+//   first figure for the layer on row 5 of tab:layanan_industri (training part; the
+//   model serving part is in Layer_Model_Serving), detailing Figure fig:integrate-service.
+//   Included in LaTeX as fig:layer-lifecycle.
+// Focus: Feast (training features) > Kubeflow Pipelines (training orchestration, MySQL
+//   metadata) + Katib (tuning); MLflow (tracking + model registry, PostgreSQL backend,
+//   MinIO artifacts); drift loop verified against the implementation on 2026-07-15:
+//   Drift Detector (platform/services/quality/drift, CronJobs drift-check-minute/
+//   hourly/daily) reads the feature window from ClickHouse features.data_features,
+//   writes PSI + KS to gold.drift_multi_scale; Argo CronWorkflow retrain-on-drift
+//   (use-case-crypto/manifests/base/workflows/retrain-on-drift.yaml, schedule
+//   "0 */6 * * *") POLLS that table and POSTs to the KFP API, then pushes trigger
+//   metrics to Pushgateway. Prometheus is therefore a SINK, not the trigger source,
+//   and Evidently is a report UI (evidently ui, fed by platform/services/
+//   drift-reporter), not the detector.
+// Rendering MUST be horizontal (direction right): left-to-right chain, at most two
+//   node rows per group, so the diagram spreads wide and fits the band
+//   height=0.42\textheight. Included without \rotatebox in LaTeX.
+// Layer grounding: the group label carries its source category (najafabadi2024analysis),
+//   namely ML training plus model registry and ML metadata.
+// Implementation check: nodes exist under platform/components/model-lifecycle/
 //   (feast, kubeflow-pipelines, kubeflow-katib, kubeflow-notebooks, kubeflow-trainer,
 //   mlflow), observability/evidently, observability/kube-prometheus-stack. Argo
-//   Workflows/CronWorkflow adalah mesin eksekusi built-in Kubeflow Pipelines (tanpa
-//   direktori komponen mandiri).
+//   Workflows/CronWorkflow is the built-in Kubeflow Pipelines execution engine (with no
+//   standalone component directory).
 
 direction right
 
-// Sumber fitur (batas)
-Layanan Fitur [icon: package, color: green, label: "Layanan Fitur (Feast, Valkey, Qdrant)"]
+// Feature source (boundary)
+Feature Service Layer [icon: package, color: green, label: "Feature Service Layer (Feast, Valkey, Qdrant)"]
 
 // Model Lifecycle Layer
 Model Lifecycle Layer [icon: refresh-cw, color: purple, label: "Model Lifecycle Layer (ML training + model registry + ML metadata)"] {
   Kubeflow Notebooks [icon: book-open, label: "Kubeflow Notebooks"]
-  Kubeflow Pipelines [icon: workflow, label: "Kubeflow Pipelines (orkestrasi training)"]
+  Kubeflow Pipelines [icon: workflow, label: "Kubeflow Pipelines (training orchestration)"]
   Katib [icon: sliders, label: "Katib (HPO)"]
   Kubeflow Trainer [icon: cpu, label: "Kubeflow Trainer"]
   MLflow [icon: mlflow, label: "MLflow (tracking + registry)"]
   Argo Workflows [icon: argo, label: "Argo Workflows (CronWorkflow)"]
 }
 
-// Basis metadata dan artefak (batas)
-MySQL [icon: mysql, color: green, label: "MySQL (metadata KFP + Katib)"]
-PostgreSQL [icon: postgres, color: green, label: "PostgreSQL (backend MLflow)"]
-MinIO [icon: minio, color: green, label: "MinIO (artefak MLflow)"]
+// Metadata and artifact stores (boundary)
+MySQL [icon: mysql, color: green, label: "MySQL (KFP + Katib metadata)"]
+PostgreSQL [icon: postgres, color: green, label: "PostgreSQL (MLflow backend)"]
+MinIO [icon: minio, color: green, label: "MinIO (MLflow artifacts)"]
 
-// Pemicu drift dan konsumen (batas)
-Evidently [icon: activity, color: teal, label: "Evidently (deteksi drift)"]
-Prometheus [icon: prometheus, color: teal, label: "Prometheus (ambang drift)"]
-Bagian Model Serving [icon: send, color: red, label: "Bagian model serving (KServe, gambar terpisah)"]
+// Drift measurement, trigger, and consumer (boundary)
+ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (feature window + gold.drift_multi_scale)"]
+Drift Detector [icon: activity, color: teal, label: "Drift Detector (PSI + KS CronJob)"]
+Evidently [icon: monitor, color: teal, label: "Evidently (drift report UI)"]
+Prometheus [icon: prometheus, color: teal, label: "Prometheus (via Pushgateway)"]
+Model Serving [icon: send, color: red, label: "Model Serving (KServe, separate figure)"]
 
-// Alur eksperimen dan training
-Layanan Fitur > Kubeflow Pipelines: fitur training
-Kubeflow Notebooks > Kubeflow Pipelines: eksperimen ke pipeline
+// Experiment and training flow
+Feature Service Layer > Kubeflow Pipelines: training features
+Kubeflow Notebooks > Kubeflow Pipelines: experiment to pipeline
 Kubeflow Pipelines <> Katib: HPO
 Kubeflow Pipelines > Kubeflow Trainer: training job
-Kubeflow Pipelines > MLflow: log run + registrasi model
+Kubeflow Pipelines > MLflow: run logging + model registration
 
-// Metadata dan artefak (arah tulis data)
-Kubeflow Pipelines > MySQL: metadata pipeline
-Katib > MySQL: metadata tuning
-MLflow > PostgreSQL: metadata run
-MLflow > MinIO: artefak model
+// Metadata and artifacts (data write direction)
+Kubeflow Pipelines > MySQL: pipeline metadata
+Katib > MySQL: tuning metadata
+MLflow > PostgreSQL: run metadata
+MLflow > MinIO: model artifacts
 
-// Registri ke serving
-MLflow > Bagian Model Serving: model dari registry
+// Registry to serving
+MLflow > Model Serving: model from registry
 
-// Alur retraining otomatis berbasis drift
-Bagian Model Serving > Evidently: distribusi prediksi
-Evidently > Prometheus: metrik drift
-Prometheus > Argo Workflows: ambang drift terlampaui
-Argo Workflows > Kubeflow Pipelines: retrain otomatis
+// Drift-driven automated retraining flow. The Argo CronWorkflow polls
+//   ClickHouse on a 6h schedule; nothing pushes to it. Prometheus is a sink
+//   (Pushgateway), not the trigger source.
+ClickHouse > Drift Detector: feature window
+Drift Detector > ClickHouse: PSI + KS scores
+ClickHouse > Evidently: drift report source
+ClickHouse > Argo Workflows: drift score poll (6h)
+Argo Workflows > Kubeflow Pipelines: retraining run
+Argo Workflows > Prometheus: trigger metrics

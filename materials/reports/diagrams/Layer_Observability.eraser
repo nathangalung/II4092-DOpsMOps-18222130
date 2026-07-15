@@ -1,72 +1,72 @@
-// Layer_Observability — Observability Layer (layer 7 dari 9)
-// Render manual: https://app.eraser.io > Diagram-as-code (cloud architecture).
-//   Buat kanvas BARU bernama "Layer_Observability".
-// Ekspor PNG ke materials/reports/figures/Layer_Observability.png
-// Ikon: logo produk dari docs.eraser.io/docs/icons (diperiksa 2026-07-11):
-//   prometheus, tempo, grafana, superset, clickhouse, trino; sisanya icon
-//   generik (nama icon flame tidak ada pada daftar, Pyroscope memakai gauge).
-//   OpenCost <> Prometheus dua arah faktual: OpenCost membaca metrik pemakaian
-//   dari Prometheus dan mengekspor metrik biaya yang di-scrape Prometheus
-//   (dokumentasi OpenCost).
-// Acuan: subsec:lapisan-observabilitas (Subbab IV.3, sec:arsitektur-terintegrasi);
-//   rincian rincian tools layer baris 7 tab:layanan_industri yang
-//   memperinci kelompok layanan pada Gambar fig:integrate-service (Subbab IV.1).
-//   Disertakan pada LaTeX sebagai fig:layer-observability.
-// Fokus: OpenTelemetry mengumpulkan sinyal ke Grafana Tempo (trace), Prometheus
-//   (metrik, dengan Alertmanager + Pushgateway), dan Loki (log); Grafana menyatukan
-//   ketiganya; Sloth menurunkan aturan SLO ke Prometheus; Pyroscope memprofil;
-//   OpenCost menghitung biaya; Superset menyajikan dashboard analitik dari ClickHouse
-//   dan Trino.
-// Rendering WAJIB horizontal (direction right): sinyal kiri ke kanan menuju Grafana,
-//   maksimum dua baris node per grup, agar diagram melebar dan muat pada pita
-//   height=0.42\textheight. Disertakan tanpa \rotatebox pada LaTeX.
-// Landasan layer: label grup membawa kategori sumbernya (najafabadi2024analysis),
-//   yaitu komponen monitoring.
-// Verifikasi implementasi: node ada di platform/components/observability/
+// Layer_Observability — Observability Layer (layer 7 of 9)
+// Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
+//   Create a NEW canvas named "Layer_Observability".
+// Export the PNG to materials/reports/figures/Layer_Observability.png
+// Icons: product logos from docs.eraser.io/docs/icons (checked 2026-07-11):
+//   prometheus, tempo, grafana, superset, clickhouse, trino; the rest use generic
+//   icons (no flame icon exists in the list, so Pyroscope uses gauge).
+//   OpenCost <> Prometheus is factually two-way: OpenCost reads usage metrics
+//   from Prometheus and exports cost metrics that Prometheus scrapes
+//   (OpenCost documentation).
+// Reference: subsec:lapisan-observabilitas (Section IV.3, sec:arsitektur-terintegrasi);
+//   tool detail for the layer on row 7 of tab:layanan_industri,
+//   detailing the service group in Figure fig:integrate-service (Section IV.1).
+//   Included in LaTeX as fig:layer-observability.
+// Focus: OpenTelemetry collects signals into Grafana Tempo (traces), Prometheus
+//   (metrics, with Alertmanager + Pushgateway), and Loki (logs); Grafana unifies
+//   all three; Sloth translates SLO rules into Prometheus; Pyroscope profiles;
+//   OpenCost computes cost; Superset serves analytics dashboards from ClickHouse
+//   and Trino.
+// Rendering MUST be horizontal (direction right): signals flow left to right into Grafana,
+//   at most two node rows per group, so the diagram spreads wide and fits the band
+//   height=0.42\textheight. Included without \rotatebox in LaTeX.
+// Layer grounding: the group label carries its source category (najafabadi2024analysis),
+//   namely monitoring components.
+// Implementation check: nodes exist under platform/components/observability/
 //   (opentelemetry, tempo, kube-prometheus-stack = Prometheus + Alertmanager,
-//   pushgateway, loki, grafana, sloth, pyroscope, opencost) dan data-processing/superset.
+//   pushgateway, loki, grafana, sloth, pyroscope, opencost) and data-processing/superset.
 
 direction right
 
-// Penghasil sinyal (batas)
+// Signal producer (boundary)
 Platform Workload [icon: layers, color: gray, label: "Platform Workload (data, feature, model)"]
 
-// Bagian observabilitas
-Observability Layer [icon: monitor, color: teal, label: "Observability Layer (kategori monitoring)"] {
+// Observability section
+Observability Layer [icon: monitor, color: teal, label: "Observability Layer (monitoring category)"] {
   OpenTelemetry [icon: radio, label: "OpenTelemetry (collector)"]
   Prometheus [icon: prometheus, label: "Prometheus (+ Alertmanager + Pushgateway)"]
-  Loki [icon: file-text, label: "Loki (log)"]
-  Tempo [icon: tempo, label: "Grafana Tempo (trace)"]
-  Pyroscope [icon: gauge, label: "Pyroscope (profil)"]
-  Sloth [icon: sliders, label: "Sloth (aturan SLO)"]
-  OpenCost [icon: dollar-sign, label: "OpenCost (biaya)"]
-  Grafana [icon: grafana, label: "Grafana (dashboard operasional)"]
-  Superset [icon: superset, label: "Apache Superset (dashboard analitik)"]
+  Loki [icon: file-text, label: "Loki (logs)"]
+  Tempo [icon: tempo, label: "Grafana Tempo (traces)"]
+  Pyroscope [icon: gauge, label: "Pyroscope (continuous profiling)"]
+  Sloth [icon: sliders, label: "Sloth (SLO rules)"]
+  OpenCost [icon: dollar-sign, label: "OpenCost (cost)"]
+  Grafana [icon: grafana, label: "Grafana (operational dashboard)"]
+  Superset [icon: superset, label: "Apache Superset (analytics dashboard)"]
 }
 
-// Sumber analitik dan konsumen (batas)
-ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (sumber analitik)"]
-Trino [icon: trino, color: yellow, label: "Trino (kueri federatif)"]
+// Analytics sources and consumer (boundary)
+ClickHouse [icon: clickhouse, color: green, label: "ClickHouse (analytics source)"]
+Trino [icon: trino, color: orange, label: "Trino (federated query)"]
 Business User [icon: user, color: gray, label: "Business User"]
 
-// Alur pengumpulan sinyal
-Platform Workload > OpenTelemetry: metrik + log + trace
-Platform Workload > Pyroscope: profil kontinu
-OpenTelemetry > Prometheus: metrik
-OpenTelemetry > Loki: log
-OpenTelemetry > Tempo: trace
-Sloth > Prometheus: aturan SLO
+// Signal collection flow
+Platform Workload > OpenTelemetry: metrics + logs + traces
+Platform Workload > Pyroscope: continuous profiling
+OpenTelemetry > Prometheus: metrics
+OpenTelemetry > Loki: logs
+OpenTelemetry > Tempo: traces
+Sloth > Prometheus: SLO rules
 
-// Penyatuan pada Grafana
-Prometheus > Grafana: metrik
-Loki > Grafana: log
-Tempo > Grafana: trace
-Pyroscope > Grafana: profil
-OpenCost <> Prometheus: metrik pemakaian dan biaya
-OpenCost > Grafana: biaya per beban
-Grafana > Business User: dashboard operasional
+// Unification in Grafana
+Prometheus > Grafana: metrics
+Loki > Grafana: logs
+Tempo > Grafana: traces
+Pyroscope > Grafana: profiles
+OpenCost <> Prometheus: usage and cost metrics
+OpenCost > Grafana: cost per workload
+Grafana > Business User: operational dashboard
 
-// Alur analitik BI
-ClickHouse > Superset: sumber analitik
-Trino > Superset: sumber federatif
-Superset > Business User: dashboard analitik
+// BI analytics flow
+ClickHouse > Superset: analytics source
+Trino > Superset: federated source
+Superset > Business User: analytics dashboard
