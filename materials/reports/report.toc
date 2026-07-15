@@ -323,7 +323,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {section}{\numberline {II.4}Layanan Fitur (\textit {Feature Store})}{26}{section.2.4}%
+\contentsline {section}{\numberline {II.4}Layanan Fitur (\textit {Feature Store})}{27}{section.2.4}%
 \contentsline {subsection}{\numberline {II.4.1}Peran \textit {Feature Store} sebagai Penyatu Fitur}{27}{subsection.2.4.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
@@ -369,7 +369,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {II.4.4}\textit {Point-in-Time Correctness}}{28}{subsection.2.4.4}%
+\contentsline {subsection}{\numberline {II.4.4}\textit {Point-in-Time Correctness}}{29}{subsection.2.4.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -877,28 +877,28 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.3}\textit {Data Storage Layer}}{88}{subsection.4.3.3}%
+\contentsline {subsection}{\numberline {IV.3.3}\textit {Data Storage Layer}}{89}{subsection.4.3.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.4}\textit {Feature Service Layer}}{89}{subsection.4.3.4}%
+\contentsline {subsection}{\numberline {IV.3.4}\textit {Feature Service Layer}}{90}{subsection.4.3.4}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.5}\textit {Model Lifecycle Layer}}{90}{subsection.4.3.5}%
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
+\contentsline {subsection}{\numberline {IV.3.5}\textit {Model Lifecycle Layer}}{91}{subsection.4.3.5}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.6}\textit {Data Governance Layer}}{92}{subsection.4.3.6}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {subsection}{\numberline {IV.3.6}\textit {Data Governance Layer}}{93}{subsection.4.3.6}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -914,10 +914,10 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.8}\textit {GitOps and Continuous Delivery Layer}}{94}{subsection.4.3.8}%
+\contentsline {subsection}{\numberline {IV.3.8}\textit {GitOps and Continuous Delivery Layer}}{95}{subsection.4.3.8}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.9}\textit {Security Layer}}{95}{subsection.4.3.9}%
+\contentsline {subsection}{\numberline {IV.3.9}\textit {Security Layer}}{96}{subsection.4.3.9}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -933,7 +933,7 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {section}{\numberline {IV.4}Perancangan Sub-sistem Tata Kelola Data}{97}{section.4.4}%
-\contentsline {subsection}{\numberline {IV.4.1}Katalog Metadata dan \textit {Lineage}}{97}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {IV.4.1}Katalog Metadata dan \textit {Lineage}}{98}{subsection.4.4.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -957,7 +957,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.4.3}Identitas dan Kontrol Akses}{98}{subsection.4.4.3}%
+\contentsline {subsection}{\numberline {IV.4.3}Identitas dan Kontrol Akses}{99}{subsection.4.4.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -975,7 +975,7 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {section}{\numberline {IV.5}Perancangan Sub-sistem Deteksi \textit {Drift} dan \textit {Continuous Training}}{99}{section.4.5}%
-\contentsline {subsection}{\numberline {IV.5.1}Pengukuran \textit {Drift}}{99}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {IV.5.1}Pengukuran \textit {Drift}}{100}{subsection.4.5.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -997,14 +997,14 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.5.3}Mekanisme Penanganan Kasus Khusus}{100}{subsection.4.5.3}%
-\contentsline {section}{\numberline {IV.6}Perancangan Sub-sistem Layanan Fitur \textit {Dual-Store}}{101}{section.4.6}%
-\contentsline {subsection}{\numberline {IV.6.1}Penyimpanan \textit {Offline} dan \textit {Online}}{101}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {IV.5.3}Mekanisme Penanganan Kasus Khusus}{101}{subsection.4.5.3}%
+\contentsline {section}{\numberline {IV.6}Perancangan Sub-sistem Layanan Fitur \textit {Dual-Store}}{102}{section.4.6}%
+\contentsline {subsection}{\numberline {IV.6.1}Penyimpanan \textit {Offline} dan \textit {Online}}{102}{subsection.4.6.1}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.6.2}Dukungan \textit {Vector Embeddings} dan HNSW}{102}{subsection.4.6.2}%
+\contentsline {subsection}{\numberline {IV.6.2}Dukungan \textit {Vector Embeddings} dan HNSW}{103}{subsection.4.6.2}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -1020,7 +1020,7 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {subsection}{\numberline {IV.6.3}Jaminan \textit {Point-in-Time Correctness}}{103}{subsection.4.6.3}%
-\contentsline {subsection}{\numberline {IV.6.4}Aliran Materialisasi Fitur}{103}{subsection.4.6.4}%
+\contentsline {subsection}{\numberline {IV.6.4}Aliran Materialisasi Fitur}{104}{subsection.4.6.4}%
 \contentsline {section}{\numberline {IV.7}Alur Kerja \textit {End-to-End}}{104}{section.4.7}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 

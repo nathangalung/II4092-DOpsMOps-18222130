@@ -193,7 +193,7 @@ Bagian ini menjawab T-1 dengan merancang arsitektur platform DataOps dan MLOps t
 
 Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} melalui \textit{ClusterQueue} sehingga sumber daya komputasi terbagi adil antar-\textit{tenant} sesuai prioritas, dengan \textit{job} di luar kuota berstatus \textit{Pending} hingga kuota tersedia. Perubahan konfigurasi menuju \textit{layer} ini mengalir dari \textit{GitOps and Continuous Delivery Layer} yang dirinci pada Subbab~\ref{subsec:lapisan-gitops}. Karena konfigurasi \textit{layer} ini ditarik dari repositori Git oleh layanan rekonsiliasi GitOps, \textit{state} \textit{orchestration plane} selalu dapat direproduksi dari isi repositori tanpa penyetelan manual. Cert-manager \autocite{certmanager2025} mengelola sertifikat TLS sehingga identitas mesin diperbarui otomatis, dan Gambar~\ref{fig:layer-orkestrasi-infra} merinci \textit{orchestration plane}, \textit{autoscaling}, serta cert-manager pada \textit{layer} fondasi ini.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Orchestration_Infra.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Orchestration_Infra.png}%
@@ -211,7 +211,7 @@ Kueue \autocite{kueue2024} mengelola antrean dan kuota \textit{training job} mel
 
 \textit{Processing pipeline} dibagi menjadi dua, yaitu \textit{batch pipeline} dan \textit{stream pipeline}, sehingga kebutuhan latensi berbeda dapat dilayani tanpa kompromi. \textit{Batch pipeline} menggunakan Apache Spark \autocite{apachespark2024} dan dbt untuk transformasi pada \textit{data warehouse}, sedangkan \textit{stream pipeline} menggunakan Apache Flink \autocite{apacheflink2024} untuk \textit{windowing}, agregasi, dan deteksi pola. Orkestrasi \textit{batch pipeline} dirancang menggunakan Apache Airflow \autocite{airflow2024} sebagai \textit{scheduler} DAG yang merangkai langkah validasi, transformasi, dan materialisasi fitur menjadi satu \textit{pipeline} data terjadwal. Definisi DAG ditarik dari Git melalui mekanisme \textit{git-sync} sehingga perubahan \textit{pipeline} mengikuti alur GitOps yang sama dengan komponen platform lain. Setiap langkah transformasi dijalankan sebagai \textit{pod} terisolasi melalui \texttt{KubernetesPodOperator} agar batas sumber daya dapat ditetapkan per langkah dan kegagalan satu langkah tidak menjalar ke langkah lain. Pembagian peran ini menempatkan Airflow sebagai \textit{orchestrator} bidang data dan Kubeflow Pipelines sebagai \textit{orchestrator} \textit{model training}, sehingga tanggung jawab DataOps dan MLOps tidak bercampur dalam satu \textit{controller}. Trino \autocite{trino2024} menyediakan kueri federasi pada beberapa sumber data sekaligus, dan Gambar~\ref{fig:layer-ingestion-processing} merinci \textit{ingress flow} beserta kedua \textit{processing pipeline}, orkestrasi Airflow, dan kueri federatif Trino pada satu \textit{layer}.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Ingestion_Processing.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Ingestion_Processing.png}%
@@ -229,7 +229,7 @@ Penyimpanan jangka panjang pada \textit{data lake} menggunakan MinIO sebagai \te
 
 ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorientasi kolom yang menampung tabel hasil transformasi dan menyediakan kueri analitik dengan latensi rendah untuk \textit{dashboard} maupun materialisasi fitur. Basis data pendampingnya adalah PostgreSQL yang dikelola operator CNPG dan MySQL untuk metadata layanan platform, serta OpenSearch untuk pencarian log dan teks. ClickHouse yang sama menjadi sumber \textit{offline} bagi \textit{Feature Service Layer}, sedangkan PostgreSQL menyimpan metadata MLflow dan MySQL menyimpan metadata Kubeflow Pipelines, sehingga satu kelompok penyimpanan melayani kebutuhan analitik dan metadata beberapa \textit{layer} sekaligus. Gambar~\ref{fig:layer-storage} merinci subgrup \textit{lakehouse} dan basis data beserta konsumennya.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Data_Storage.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Data_Storage.png}%
@@ -247,7 +247,7 @@ ClickHouse \autocite{clickhouse2024} berperan sebagai \textit{warehouse} berorie
 
 Pemisahan penyimpanan pada \textit{layer} ini mengikuti perbedaan karakter beban antar penyimpanan. ClickHouse melayani pembacaan \textit{offline} untuk \textit{training} dengan kompresi kolumnar dan latensi kueri agregasi yang rendah, sedangkan Valkey melayani pembacaan \textit{online} dengan \textit{lookup} \textit{key-value} dalam memori berlatensi rendah saat \textit{inference}. Qdrant berdiri sebagai indeks vektor terpisah dengan HNSW \textit{native}, kueri gRPC berlatensi rendah, dan penyaringan \textit{payload} yang menyatu dengan kueri kemiripan, sehingga beban pencarian vektor tidak bercampur dengan \textit{lookup} tabular. \textit{Tabular feature} diakses melalui API Feast, sedangkan \textit{vector feature} diambil langsung melalui klien \textit{native} Qdrant pada saat \textit{inference}, sehingga penyetelan sumber daya tiap penyimpanan dapat dilakukan sendiri-sendiri tanpa menduplikasi definisi fitur.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Feature_Service.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Feature_Service.png}%
@@ -263,7 +263,7 @@ Pemisahan penyimpanan pada \textit{layer} ini mengikuti perbedaan karakter beban
 
 \textit{Model Lifecycle Layer} menggunakan MLflow \autocite{mlflow2024} untuk \textit{tracking} dan registri model. Kubeflow Pipelines \autocite{kubeflow2024} dipakai sebagai \textit{orchestrator} \textit{training}, sedangkan Katib digunakan untuk \textit{hyperparameter tuning}. Kubeflow Notebooks menjadi \textit{entry point} eksperimen interaktif yang mengirimkan definisi \textit{pipeline} ke Kubeflow Pipelines. Kubeflow Trainer \autocite{kubeflowtrainer2025} menjalankan \textit{distributed training} melalui \texttt{TrainJob} yang dipanggil dari \textit{pipeline} Kubeflow Pipelines, sehingga \textit{training} \textit{multi-replica} tidak memerlukan \textit{custom controller}. Argo Workflows mengeksekusi \textit{pipeline} yang tidak terkait langsung dengan \textit{training}, sedangkan Argo CronWorkflow menjadwalkan \textit{job} berkala untuk pemeliharaan dan pemicu \textit{retraining}. Basis data relasional untuk metadata MLflow disediakan oleh PostgreSQL yang dikelola operator CNPG, sedangkan metadata Kubeflow Pipelines dan Katib disimpan pada MySQL, sehingga riwayat eksperimen dan \textit{pipeline} tersimpan pada penyimpanan yang konsisten. Gambar~\ref{fig:layer-lifecycle} merinci alur dari eksperimen dan \textit{training} menuju registri model beserta pemicu \textit{retraining} otomatis dari deteksi \textit{drift}.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Model_Lifecycle.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Model_Lifecycle.png}%
@@ -276,7 +276,7 @@ Pemisahan penyimpanan pada \textit{layer} ini mengikuti perbedaan karakter beban
 
 Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{model serving component} dan \textit{inference service} pada baris kelimanya di Tabel~\ref{tab:layanan_industri}, menggunakan KServe \autocite{kserve2024} sebagai \textit{inference platform} dengan dukungan banyak \textit{runtime}, otomatisasi \textit{scaling}, dan integrasi langsung dengan model yang tersimpan pada registri MLflow. \textit{Model serving} multimodal didukung KServe dengan \textit{built-in runtime} untuk \textit{scikit-learn}, XGBoost, PyTorch, dan ONNX, ditambah \textit{runtime} kustom untuk model yang memerlukan dependensi spesifik. Knative \autocite{knative2025} berperan sebagai \textit{serverless layer} bagi KServe, sehingga \textit{scale-to-zero} dapat dilakukan tanpa menahan sumber daya saat trafik rendah. \textit{Runtime} kustom didaftarkan sebagai \texttt{ClusterServingRuntime} sehingga penambahan \textit{framework} model baru tidak mengubah definisi \texttt{InferenceService} yang sudah berjalan. Argo Rollouts menjalankan analisis \textit{canary} pada \texttt{InferenceService} sehingga versi model baru dipromosikan bertahap berdasarkan metrik, sedangkan \textit{inference bridge} membaca fitur \textit{online} dari Valkey dan fitur vektor dari Qdrant untuk melengkapi masukan \textit{predictor}. Antarmuka klien menuju bagian ini dirancang seragam sesuai KF-13, yaitu SDK Feast untuk pembacaan \textit{online feature}, klien MLflow untuk penelusuran \textit{run} dan registri, serta protokol inferensi KServe v2, sehingga layanan pemanggil memakai satu pola integrasi. Gambar~\ref{fig:layer-serving} merinci \textit{serving flow} dari artefak model sampai konsumen prediksi.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Model_Serving.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Model_Serving.png}%
@@ -294,7 +294,7 @@ Bagian \textit{model serving} pada \textit{layer} ini, sesuai komponen \textit{m
 
 DataHub, Great Expectations, dan OpenLineage saling melengkapi pada satu bidang tata kelola dengan pembagian peran yang tegas antara \textit{data discovery}, kualitas, dan \textit{lineage} aset. DataHub menghimpun metadata dari Kafka, ClickHouse, MinIO dengan katalog Iceberg, Feast, MLflow, dan Kubeflow Pipelines sehingga aset lintas \textit{layer} terdaftar pada satu tempat. OpenLineage menyeragamkan jejak \textit{lineage} dari \textit{ingestion} sampai model sehingga DataHub dapat merangkai graf ketertelusuran dengan kosakata yang sama. Identitas pengguna katalog diteruskan dari \textit{identity provider} pusat yang dipakai bersama seluruh antarmuka platform, sehingga akses ke metadata tunduk pada sesi identitas yang sama dengan komponen lain.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Data_Governance.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Data_Governance.png}%
@@ -312,7 +312,7 @@ DataHub, Great Expectations, dan OpenLineage saling melengkapi pada satu bidang 
 
 Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan \textit{report} distribusi fitur dan kinerja model yang dapat diaudit dan disisipkan ke \textit{dashboard} Grafana. \textit{Report} Evidently disimpan pada MinIO dan ditautkan dari katalog DataHub sehingga penurunan kinerja model dapat ditelusuri bersama metadata asetnya. Superset \autocite{superset2025} berperan sebagai antarmuka analitik bagi \textit{business user} yang menampilkan \textit{dashboard} di atas ClickHouse dan Trino. Gambar~\ref{fig:layer-observability} merinci ketiga pilar observabilitas pada satu antarmuka Grafana beserta \textit{dashboard} analitik Superset.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Observability.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Observability.png}%
@@ -330,7 +330,7 @@ Evidently \autocite{evidently2025} melengkapi observabilitas khusus model dengan
 
 Gitea berperan sebagai \textit{repository} Git internal, Tekton sebagai \textit{build pipeline} yang menguji dan melakukan \textit{build} \textit{image}, dan \textit{image registry} internal sebagai penyimpan artefak hasil \textit{build}. Argo Rollouts melengkapi \textit{delivery pipeline} sebagai operator \textit{progressive delivery} yang mempromosikan versi baru berdasarkan metrik, termasuk untuk rilis model pada bagian \textit{model serving}. Pembagian peran menempatkan Tekton pada \textit{build} artefak dan Argo CD pada rekonsiliasi \textit{state}, sehingga rantai yang sama menjadi mekanisme yang memicu \textit{retraining} model melalui kontrol deklaratif tanpa \textit{flow} manual. Gambar~\ref{fig:layer-gitops} merinci rantai dari \textit{commit} sampai rekonsiliasi pada seluruh \textit{layer} platform.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_GitOps_CD.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_GitOps_CD.png}%
@@ -348,7 +348,7 @@ Gitea berperan sebagai \textit{repository} Git internal, Tekton sebagai \textit{
 
 OpenBao \autocite{openbao2025} mengelola \textit{secret}, dan \textit{External Secrets Operator} menyalurkan \textit{secret} dari OpenBao ke \textit{namespace} target tanpa menyalin \textit{secret} ke berkas manifes. Kebijakan keamanan dijalankan pada dua titik, yaitu Kyverno \autocite{kyverno2024} pada admisi Kubernetes dan Falco \autocite{falco2025} pada \textit{runtime}. Trivy Operator \autocite{trivy2025} memindai \textit{image} dan \textit{workload} secara terus menerus, sedangkan Velero \autocite{velero2025} melakukan pencadangan sumber daya \textit{cluster} dan \textit{persistent volume} secara terjadwal ke MinIO, dan Chaos Mesh menginjeksikan gangguan terkendali untuk menguji ketahanan platform. Gambar~\ref{fig:layer-security} merinci seluruh komponen keamanan ini dari \textit{mesh edge} sampai pemulihan.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
     \centering
     \IfFileExists{figures/Layer_Security.png}{%
         \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Layer_Security.png}%

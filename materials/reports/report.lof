@@ -794,11 +794,9 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
 \contentsline {figure}{\numberline {IV.3}{\ignorespaces Rincian \textit {Data Ingestion and Processing Layer}}}{89}{figure.caption.55}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -806,26 +804,26 @@
 \contentsline {figure}{\numberline {IV.4}{\ignorespaces Rincian \textit {Data Storage Layer}}}{90}{figure.caption.56}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
 \contentsline {figure}{\numberline {IV.5}{\ignorespaces Rincian \textit {Feature Service Layer}}}{91}{figure.caption.57}%
-\contentsline {figure}{\numberline {IV.6}{\ignorespaces Rincian \textit {Model Lifecycle Layer}}}{91}{figure.caption.58}%
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\babel@toc {english}{}\relax 
-\babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.7}{\ignorespaces Rincian bagian \textit {model serving}}}{92}{figure.caption.59}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.8}{\ignorespaces Rincian \textit {Data Governance Layer}}}{93}{figure.caption.60}%
+\contentsline {figure}{\numberline {IV.6}{\ignorespaces Rincian \textit {Model Lifecycle Layer}}}{92}{figure.caption.58}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.7}{\ignorespaces Rincian bagian \textit {model serving}}}{93}{figure.caption.59}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.8}{\ignorespaces Rincian \textit {Data Governance Layer}}}{94}{figure.caption.60}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -835,7 +833,9 @@
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \contentsline {figure}{\numberline {IV.9}{\ignorespaces Rincian \textit {Observability Layer}}}{95}{figure.caption.61}%
-\contentsline {figure}{\numberline {IV.10}{\ignorespaces Rincian \textit {GitOps and Continuous Delivery Layer}}}{95}{figure.caption.62}%
+\babel@toc {english}{}\relax 
+\babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {IV.10}{\ignorespaces Rincian \textit {GitOps and Continuous Delivery Layer}}}{96}{figure.caption.62}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
@@ -850,7 +850,7 @@
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {figure}{\numberline {IV.11}{\ignorespaces Rincian \textit {Security Layer}}}{96}{figure.caption.63}%
+\contentsline {figure}{\numberline {IV.11}{\ignorespaces Rincian \textit {Security Layer}}}{97}{figure.caption.63}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 

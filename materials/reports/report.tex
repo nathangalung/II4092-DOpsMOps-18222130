@@ -343,14 +343,21 @@
 % berperilaku seperti \clearpage dan tidak menyisipkan halaman kosong. Makro ini
 % memeriksa paritas nomor halaman secara langsung agar tiap bagian frontmatter
 % dibuka pada halaman ganjil, sama seperti awal bab pada bagian utama.
+% Halaman kosong sisipan sengaja memakai \pagestyle{plain} yang berlaku, bukan
+% gaya empty, agar nomor halamannya tetap tercetak di tengah bawah. Sampul tetap
+% tanpa nomor karena lingkungan titlepage memasang \thispagestyle{empty} sendiri.
 % ==========================================
 \newcommand{\clearoddpage}{%
       \clearpage
       \ifodd\value{page}\else
-            \null\thispagestyle{empty}%
+            \null
             \newpage
       \fi
 }
+% \chapter memanggil \cleardoublepage, dan versi bawaannya menyisipkan halaman
+% kosong bergaya empty ketika opsi twoside aktif. Penyamaan ke \clearoddpage
+% membuat halaman kosong pada batas bab ikut bernomor.
+\let\cleardoublepage\clearoddpage
 
 \begin{document}
 
