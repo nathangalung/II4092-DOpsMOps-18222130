@@ -33,20 +33,16 @@ Pengembangan model \textit{machine learning} untuk tahap produksi melibatkan emp
 
 \begin{figure}[!htb]
   \centering
-  \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Fragment_DataOps_Flow.png}
+  \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/DataOps_Flow.png}
   \caption[Alur data terfragmentasi pada kondisi saat ini]{Alur data terfragmentasi saat ini \autocite{munappy2020adhoc}.}
-  \label{fig:fragment-dataops}
+  \label{fig:dataops}
 \end{figure}
 
 \begin{figure}[!htb]
   \centering
-  \IfFileExists{figures/Fragment_MLOps_Flow.png}{%
-    \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/Fragment_MLOps_Flow.png}%
-  }{%
-    \fbox{\parbox[c][4cm][c]{0.92\textwidth}{\centering \textit{Gambar akan tersedia setelah berkas} \texttt{diagrams/Fragment\_MLOps\_Flow.eraser} \textit{dirender ke} \texttt{figures/Fragment\_MLOps\_Flow.png}.}}%
-  }
+  \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/MLOps_Flow.png}
   \caption[Alur model terfragmentasi pada kondisi saat ini]{Alur model terfragmentasi saat ini \autocite{googlecloud2024mlops}.}
-  \label{fig:fragment-mlops}
+  \label{fig:mlops}
 \end{figure}
 
 \textcite{najafabadi2024analysis} dan \textcite{burgueno2025toward} memperlihatkan bahwa fragmentasi tidak hanya muncul pada antarmuka tim, tetapi juga pada \textit{control plane} infrastruktur, kebijakan akses, dan observabilitas. Kondisi inilah yang melandasi keempat rumusan masalah pada Bab~\ref{chap:pendahuluan}, yang pada hakikatnya merupakan konsekuensi dari rangkaian sambungan yang terputus tersebut. Konsekuensi tersebut tidak dapat ditangani satu per satu, sebab perbaikan pada satu \textit{layer} akan kembali terkikis selama kontrak antar \textit{layer} tetap dirakit secara ad hoc. Karena itu, analisis kebutuhan pada Subbab~\ref{sec:analisis-kebutuhan} menetapkan kontrak yang seragam lintas \textit{layer} sebagai syarat bagi keseluruhan arsitektur. Perbandingan pada Subbab~\ref{sec:pemilihan-solusi} kemudian menilai empat alternatif solusi berdasarkan kemampuannya memutus efek domino tersebut.
