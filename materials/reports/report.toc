@@ -3,16 +3,16 @@
 \renewcommand {\cftchapfont }{\normalfont }
 \renewcommand {\cftchappagefont }{\normalfont }
 \contentsline {chapter}{LEMBAR PENGESAHAN}{i}{chapter*.2}%
-\contentsline {chapter}{PERNYATAAN ORISINALITAS}{ii}{chapter*.3}%
-\contentsline {chapter}{PERNYATAAN PENGGUNAAN AI}{iii}{chapter*.4}%
-\contentsline {chapter}{ABSTRAK}{iv}{chapter*.6}%
-\contentsline {chapter}{KATA PENGANTAR}{v}{chapter*.7}%
-\contentsline {chapter}{DAFTAR ISI}{vii}{section*.8}%
-\contentsline {chapter}{DAFTAR GAMBAR}{xi}{section*.10}%
-\contentsline {chapter}{DAFTAR TABEL}{xiii}{section*.11}%
-\contentsline {chapter}{DAFTAR \textit {LISTING}}{xv}{chapter*.12}%
-\contentsline {chapter}{DAFTAR SIMBOL}{xvii}{section*.13}%
-\contentsline {chapter}{DAFTAR SINGKATAN}{xix}{section*.15}%
+\contentsline {chapter}{PERNYATAAN ORISINALITAS}{iii}{chapter*.3}%
+\contentsline {chapter}{PERNYATAAN PENGGUNAAN AI}{v}{chapter*.4}%
+\contentsline {chapter}{ABSTRAK}{vii}{chapter*.6}%
+\contentsline {chapter}{KATA PENGANTAR}{ix}{chapter*.7}%
+\contentsline {chapter}{DAFTAR ISI}{xi}{section*.8}%
+\contentsline {chapter}{DAFTAR GAMBAR}{xv}{section*.10}%
+\contentsline {chapter}{DAFTAR TABEL}{xvii}{section*.11}%
+\contentsline {chapter}{DAFTAR \textit {LISTING}}{xix}{chapter*.12}%
+\contentsline {chapter}{DAFTAR SIMBOL}{xxi}{section*.13}%
+\contentsline {chapter}{DAFTAR SINGKATAN}{xxiii}{section*.15}%
 \setlength {\cftbeforechapskip }{10pt}
 \renewcommand {\cftchapfont }{\bfseries }
 \renewcommand {\cftchappagefont }{\bfseries }
@@ -841,7 +841,7 @@
 \contentsline {subsection}{\numberline {IV.2.6}\textit {Data Governance Layer}}{78}{subsection.4.2.6}%
 \contentsline {subsection}{\numberline {IV.2.7}\textit {Observability Layer}}{79}{subsection.4.2.7}%
 \contentsline {subsection}{\numberline {IV.2.8}\textit {GitOps and Continuous Delivery Layer}}{80}{subsection.4.2.8}%
-\contentsline {subsection}{\numberline {IV.2.9}\textit {Platform Security Layer}}{80}{subsection.4.2.9}%
+\contentsline {subsection}{\numberline {IV.2.9}\textit {Security Layer}}{80}{subsection.4.2.9}%
 \contentsline {section}{\numberline {IV.3}Perancangan Arsitektur Terintegrasi}{84}{section.4.3}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
@@ -917,7 +917,7 @@
 \contentsline {subsection}{\numberline {IV.3.8}\textit {GitOps and Continuous Delivery Layer}}{93}{subsection.4.3.8}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
-\contentsline {subsection}{\numberline {IV.3.9}\textit {Platform Security Layer}}{94}{subsection.4.3.9}%
+\contentsline {subsection}{\numberline {IV.3.9}\textit {Security Layer}}{94}{subsection.4.3.9}%
 \babel@toc {english}{}\relax 
 \babel@toc {indonesian}{}\relax 
 \babel@toc {english}{}\relax 

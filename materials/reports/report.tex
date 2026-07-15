@@ -337,6 +337,21 @@
 % ==========================================
 % AWAL DOKUMEN
 % ==========================================
+% ==========================================
+% --- Awal halaman ganjil (recto) untuk tiap bagian ---
+% Kelas dokumen memakai opsi oneside, sehingga \cleardoublepage bawaan LaTeX
+% berperilaku seperti \clearpage dan tidak menyisipkan halaman kosong. Makro ini
+% memeriksa paritas nomor halaman secara langsung agar tiap bagian frontmatter
+% dibuka pada halaman ganjil, sama seperti awal bab pada bagian utama.
+% ==========================================
+\newcommand{\clearoddpage}{%
+      \clearpage
+      \ifodd\value{page}\else
+            \null\thispagestyle{empty}%
+            \newpage
+      \fi
+}
+
 \begin{document}
 
 % ==========================================
@@ -352,12 +367,12 @@
 
 % ==========================================
 
-\input{frontmatter/01_Halaman_Judul.tex}
-\input{frontmatter/02_Lembar_Pengesahan.tex}
-\input{frontmatter/03_Pernyataan_Orisinalitas.tex}
-\input{frontmatter/04_Pernyataan_Penggunaan_AI.tex}
-\input{frontmatter/05_Abstrak.tex}
-\input{frontmatter/06_Kata_Pengantar.tex}
+\clearoddpage\input{frontmatter/01_Halaman_Judul.tex}
+\clearoddpage\input{frontmatter/02_Lembar_Pengesahan.tex}
+\clearoddpage\input{frontmatter/03_Pernyataan_Orisinalitas.tex}
+\clearoddpage\input{frontmatter/04_Pernyataan_Penggunaan_AI.tex}
+\clearoddpage\input{frontmatter/05_Abstrak.tex}
+\clearoddpage\input{frontmatter/06_Kata_Pengantar.tex}
 % ==========================================
 % --- Atur margin halaman untuk double-sided format (bolak-balik) ---
 % --- Comment baris di bawah ini jika ingin tetap menggunakan single-sided format ---
@@ -374,15 +389,15 @@
 % ==========================================
 
 
-\input{frontmatter/07_Daftar_Isi.tex}
-%\input{frontmatter/07a_Daftar_Lampiran.tex} % Optional. Daftar lampiran sudah ada di dalam daftar isi.
-\input{frontmatter/08_Daftar_Gambar.tex}
-\input{frontmatter/09_Daftar_Tabel.tex}
-%\input{frontmatter/10_Daftar_Persamaan.tex} % Dinonaktifkan: tidak ada persamaan bernomor pada Bab 1-5.
-%\input{frontmatter/11_Daftar_Algoritma.tex} % Dinonaktifkan: tidak ada algoritma pada Bab 1-5.
-\input{frontmatter/12_Daftar_Listing.tex}
-\input{frontmatter/13_Daftar_Simbol.tex}
-\input{frontmatter/14_Daftar_Singkatan.tex}
+\clearoddpage\input{frontmatter/07_Daftar_Isi.tex}
+%\clearoddpage\input{frontmatter/07a_Daftar_Lampiran.tex} % Optional. Daftar lampiran sudah ada di dalam daftar isi.
+\clearoddpage\input{frontmatter/08_Daftar_Gambar.tex}
+\clearoddpage\input{frontmatter/09_Daftar_Tabel.tex}
+%\clearoddpage\input{frontmatter/10_Daftar_Persamaan.tex} % Dinonaktifkan: tidak ada persamaan bernomor pada Bab 1-5.
+%\clearoddpage\input{frontmatter/11_Daftar_Algoritma.tex} % Dinonaktifkan: tidak ada algoritma pada Bab 1-5.
+\clearoddpage\input{frontmatter/12_Daftar_Listing.tex}
+\clearoddpage\input{frontmatter/13_Daftar_Simbol.tex}
+\clearoddpage\input{frontmatter/14_Daftar_Singkatan.tex}
 
 
 % ==========================================

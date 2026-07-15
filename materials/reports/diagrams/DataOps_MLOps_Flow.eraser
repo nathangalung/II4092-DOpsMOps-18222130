@@ -44,7 +44,7 @@ Orchestration and Infrastructure Layer [icon: server, color: blue]
 Model Lifecycle Layer [icon: refresh-cw, color: purple]
 Observability Layer [icon: eye, color: teal]
 GitOps and Continuous Delivery Layer [icon: git-branch, color: blue]
-Platform Security Layer [icon: shield, color: red]
+Security Layer [icon: shield, color: red]
 
 // Data integration artery toward the model
 External Data Source > Data Ingestion and Processing Layer: external data intake
@@ -71,7 +71,7 @@ GitOps and Continuous Delivery Layer > Model Lifecycle Layer: model and service 
 GitOps and Continuous Delivery Layer > Kubernetes Control Plane: declarative reconciliation
 
 // Security gates user access to the layers used directly
-Platform User > Platform Security Layer: access via API gateway
-Platform Security Layer > Feature Service Layer: controlled feature API access
-Platform Security Layer > Model Lifecycle Layer: controlled inference access
-Platform Security Layer > Data Governance Layer: controlled catalog access
+Platform User > Security Layer: access via API gateway
+Security Layer > Feature Service Layer: controlled feature API access
+Security Layer > Model Lifecycle Layer: controlled inference access
+Security Layer > Data Governance Layer: controlled catalog access

@@ -1,4 +1,4 @@
-// Layer_Security — Platform Security Layer (layer 9 of 9)
+// Layer_Security — Security Layer (layer 9 of 9)
 // Manual render: https://app.eraser.io > Diagram-as-code (cloud architecture).
 //   Create a NEW canvas named "Layer_Security".
 // Export the PNG to materials/reports/figures/Layer_Security.png
@@ -33,8 +33,8 @@ direction right
 // Platform User (boundary)
 Platform User [icon: users, color: gray, label: "Platform User (business, data, model)"]
 
-// Platform Security Layer
-Platform Security Layer [icon: shield, color: red, label: "Platform Security Layer (controlled access + data privacy and security compliance)"] {
+// Security Layer
+Security Layer [icon: shield, color: red, label: "Security Layer (controlled access + data privacy and security compliance)"] {
   Edge and Mesh [icon: network] {
     APISIX [icon: globe, label: "APISIX (edge API gateway)"]
     Istio [icon: istio, label: "Istio (mTLS mesh)"]
