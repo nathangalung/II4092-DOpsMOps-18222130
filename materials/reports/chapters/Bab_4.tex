@@ -35,11 +35,11 @@ Pemetaan pada tabel tersebut menempatkan komponen \textit{model lifecycle} seper
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{figures/DataOps_MLOps_Flow.png}
-  \caption[Arsitektur layanan terintegrasi tanpa keterikatan \textit{tools}]{Arsitektur layanan terintegrasi bebas \textit{tools} \autocite{googlecloud2024mlops}.}
+  \caption[Arsitektur layanan terintegrasi tanpa keterikatan \textit{tools}]{Arsitektur layanan terintegrasi tanpa \textit{tools} \autocite{googlecloud2024mlops}}
   \label{fig:integrate-service}
 \end{figure}
 
-Arsitektur layanan pada gambar tersebut dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{layer} yang diakses, dan fungsi yang dijalankan, sehingga satu \textit{entry point} tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool} pada kondisi terfragmentasi di Bab~\ref{chap:analisis-masalah}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke satu katalog metadata bersama serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Pemetaan peran ini tetap bebas dari nama \textit{tools} karena antarmuka tiap peran baru terikat pada \textit{tool} tertentu setelah pemilihan pada Subbab~\ref{sec:pemilihan-tools}.
+Arsitektur layanan pada gambar tersebut dipakai oleh empat peran utama yang masing-masing masuk melalui antarmuka berbeda sesuai tanggung jawabnya. Tabel~\ref{tab:peran-akses} merangkum pemetaan tiap peran ke antarmuka utama, \textit{layer} yang diakses, dan fungsi yang dijalankan, sehingga satu \textit{entry point} tunggal per peran menggantikan kebiasaan berpindah antar banyak \textit{tool} pada kondisi terfragmentasi di Bab~\ref{chap:analisis-masalah}. Karena seluruh komponen mendaftarkan katalog dan \textit{lineage} ke satu katalog metadata bersama serta berbagi satu bidang identitas yang dirinci pada Subbab~\ref{subsec:identitas-akses}, metadata yang dihasilkan satu peran langsung terlihat oleh peran lain tanpa berpindah sistem. Pemetaan peran ini tetap tanpa nama \textit{tools} karena antarmuka tiap peran baru terikat pada \textit{tool} tertentu setelah pemilihan pada Subbab~\ref{sec:pemilihan-tools}.
 
 \input{tables/peran_akses.tex}
 
