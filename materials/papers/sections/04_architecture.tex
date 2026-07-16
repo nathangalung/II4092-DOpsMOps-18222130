@@ -1,0 +1,62 @@
+% Layer derivation, selection, bridges, sub-systems
+
+\section{Architecture}
+\label{sec:architecture}
+
+\input{tables/layer_mapping.tex}
+
+\subsection{Deriving the Platform Layers}
+\label{subsec:layers}
+
+The layers are derived from convergence across sources that used different methods, not from majority adoption. On the model side, Kreuzberger et al. name nine MLOps components through mixed-method research combining literature review, tool review, and expert interviews \cite{kreuzberger2023mlops}. Amershi et al. arrive at a nine-stage workflow by observing engineering teams at Microsoft, and already separate the data-oriented stages from the model-oriented ones \cite{amershi2019software}. Starting from different methods, the two name largely the same components. Amou Najafabadi et al. synthesise 35 components from 43 primary studies and report how often each occurs, with model registry at 21 occurrences, ML metadata repository at 15, and feature store at 8 \cite{najafabadi2024analysis}. Google Cloud lists seven components required for MLOps level 2 \cite{googlecloud2024mlops}.
+
+The occurrence counts carry less weight than they suggest, because no single component reaches an absolute majority of the 43 studies. What they show is that the same components recur across independent studies.
+
+On the data side, Munappy et al. derive an evolution model from ad-hoc analytics to DataOps from an industrial case study, naming data collection, data testing, and data monitoring as recurring practices, and treating controlled access and data-integrity protection as governance \cite{munappy2020adhoc}. The data field therefore widens the MLOps set rather than duplicating it. It is the convergence across these five sources of differing method that forms the evidence base, not a claim that any one component is used by most of the industry.
+
+Consolidating both sides gives the nine layers in Table~\ref{tab:layer_mapping}. Four cover the data domain and five cover the model domain and platform operations. Each row traces to the sources that name its services, which also exposes an uneven evidence base. The Model Lifecycle layer rests on four MLOps sources, whereas the Data Governance layer rests on the single DataOps source alone. A reader can therefore weigh each layer against its backing.
+
+Two boundaries are deliberate. Monitoring is placed in Observability rather than in Serving, so that measurement does not mix with inference. Drift detection is not a tenth layer. It is a mechanism that crosses layers, connecting the monitoring function to the model lifecycle, and it is realised as a sub-system instead.
+
+The layer order follows the concept order of the underlying literature study one to one, so the partitioning is not a new taxonomy standing on its own.
+
+\subsection{Selecting Components}
+\label{subsec:selection}
+
+Every role with more than one viable candidate is scored in a comparison matrix. Four criteria are scored 0, 1, or 2, giving a maximum total of 8. A score of 0 marks a criterion that is not met, 1 marks partial support that still needs an additional component or carries a significant limitation, and 2 marks full support by built-in capability. Scores are derived from official documentation and each project's maintenance status. Twenty-four matrices cover the roles across the nine layers, and their winners appear in the last column of Table~\ref{tab:layer_mapping} alongside the components adopted without a contest. Eighteen of the 24 winners take a perfect 8.
+
+The highest total takes the role, but it does not remove the other candidates. A tool with a lower total can still be adopted where it is stronger on the criterion that matters. Spark takes the highest total and the large-scale batch role, while Flink, which scores lower overall but higher on event-time processing with exactly-once checkpointing, takes the streaming role. Neither displaces the other. Kubeflow Pipelines takes the training flow, Argo Workflows runs the scheduled control loop, and Airflow orchestrates the batch data pipeline. The three roles do not overlap.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{figures/DataOps_MLOps_Flow.png}
+\caption{Integrated service architecture across the nine layers on one Kubernetes control plane, drawn without binding to any tool \cite{googlecloud2024mlops}}
+\label{fig:architecture}
+\end{figure*}
+
+\subsection{Joining the Two Disciplines}
+\label{subsec:bridges}
+
+Fig.~\ref{fig:architecture} shows the nine layers as one architecture. DataOps and MLOps meet at three points, and at each one the producing and the consuming side read the same definition rather than two copies of it.
+
+The first is the feature contract. Feast binds the offline store and the online store to one feature definition, so the pipelines that write features and the training and inference code that read them use the same contract.
+
+The second is open lineage. OpenLineage carries transformation events from both the data orchestrator and the training orchestrator, including the SQL transformation steps inside them, into one metadata catalog. The lineage of a training dataset is then traceable from the same graph that holds the ingestion assets.
+
+The third is the declarative control plane. Argo CD reconciles the manifests of both disciplines from one Git repository, so policy and component versions stay consistent across the two. It is also what makes the drift loop of Section~\ref{subsec:drift} declarative.
+
+\subsection{Drift Detection and Retraining}
+\label{subsec:drift}
+
+Drift detection sits where the two disciplines meet, because drift is observed on the data layer while its consequence is executed on the model layer. A detector runs as a scheduled job, every 15 minutes for volatile features and hourly for more stable ones. It reads a current window and a reference window from ClickHouse and computes the Population Stability Index with adaptive binning and the Kolmogorov-Smirnov statistic with per-feature thresholds \cite{reis2016kdd}. Scores are written back to an analytics table in ClickHouse for audit, and pushed to Prometheus for alerting.
+
+A scheduled Argo CronWorkflow reads those scores and decides whether to trigger training. Thresholds live in a Git-committed ConfigMap, and each run records a checksum of the configuration version, so a policy change is auditable without inspecting the cluster. When a threshold is crossed, the workflow calls the training pipeline, which assembles its training set through a point-in-time join and logs the run to the model registry as a new version.
+
+Whether that candidate replaces the running model is decided at canary promotion on live serving metrics, not by a separate comparison before deployment. Promotion is configured to halt and roll back when a metric crosses its threshold.
+
+\subsection{Dual-Store Feature Service}
+\label{subsec:feature}
+
+The dual-store design is two stores under one contract. ClickHouse holds offline features for training, Valkey serves online lookups at inference, and both derive their schema from the same Feast definition. Vector embeddings are handled separately. Qdrant stands outside Feast as a vector index reached through its native client, because an approximate nearest neighbour load needs memory for the HNSW graph \cite{malkov2020efficient} and behaves differently from a key-value point lookup. Separating them lets each be tuned on its own.
+
+Point-in-time correctness is enforced through the historical feature join, which admits only values whose event timestamp does not exceed each entity row's reference timestamp and still falls inside the feature view's time-to-live. Training therefore sees the values that would have been available at that instant, which is what prevents the optimistic evaluation that leakage produces \cite{kaufman2012leakage}. Batch and stream pipelines write to stores registered on the same feature view, so a consumer does not need to know which pipeline produced a value.

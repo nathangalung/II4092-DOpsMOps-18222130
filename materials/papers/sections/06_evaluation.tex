@@ -1,0 +1,36 @@
+% Tiers, results, cost, threats
+
+\section{Evaluation}
+\label{sec:evaluation}
+
+\input{tables/verification_status.tex}
+
+\subsection{What Each Claim Rests On}
+\label{subsec:tiers}
+
+Claims are reported at three tiers, each naming what was actually observed. A requirement is \emph{structurally verified} when the control plane is formed and reconciled as designed. It is \emph{functionally verified} when a test scenario ran and its output met the acceptance criterion. It is \emph{instrumented} when the measuring instrument is installed and the flow is serving requests, while the quantitative target itself was not measured.
+
+Every scenario was run manually, outside the reconciliation path, from a separate namespace, so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution.
+
+\subsection{Results}
+\label{subsec:results}
+
+The integrated architecture and its GitOps path (T-1) were verified structurally. All components install and reconcile from one Git repository, definition changes converge without drift, and the whole platform was rebuilt on a fresh k3s node with no manual step beyond the initial bootstrap. That reconstruction is the strongest evidence for the declarative claim, because it exercises the entire manifest set rather than a sample.
+
+Governance (T-2) contributed one of the two functional results. The quality gate rejects schema and range violations before the batch moves downstream. Lineage events from the data and training orchestrators, together with catalog ingestion from the feature store, model registry, warehouse, and broker, assemble into one graph holding 270 datasets, 18 data jobs, and 3 data flows. The graph measures what the emitters covered, not completeness across every asset.
+
+Drift detection (T-3) contributed the other. A controlled 2-sigma injection on one feature produced a Population Stability Index of 18.107 against a 0.2 threshold and a Kolmogorov-Smirnov statistic of 0.815 against a 0.15 threshold, and the scheduled workflow triggered one retraining run. This shows the chain from detection to trigger fires. It does not show detection accuracy against natural distribution shift over time, which needs longer observation on real streams.
+
+The feature service (T-4) is the weakest of the four. The online, offline, and vector flows are formed and serving requests, but three of its five requirements are instrumented rather than measured. Vector search returned a median of 4.25 ms and a 95th percentile of 5.02 ms over 100 iterations, though the test collection was empty, so those figures describe an installed and responsive flow rather than retrieval quality. Recall was not tested. Equality of feature values between the online and offline stores holds by construction, since materialisation copies from one to the other, but the per-entity comparison that would confirm it is still a manual procedure. Batch and stream consistency was established at the level of feature definitions, not values.
+
+\subsection{Cost}
+\label{subsec:cost}
+
+Three provisioning options were priced against a reference capacity of 16 vCPU, 64 GB memory, and roughly 400 GB storage. Infrastructure figures are public list prices retrieved on 16 June 2026. Over three years, fully managed cloud services reach USD 39,543.16 and building every layer from scratch on self-managed infrastructure reaches USD 45,461.16, against USD 23,239.22 for the open source design used here.
+
+The labour allocation behind those totals is an illustrative assumption rather than a measurement. The open source option is credited with dropping to a quarter of a full-time engineer after the first year on the argument that reconciliation, unified monitoring, and automated retraining absorb daily operations. The figures therefore show which option is cheaper under that assumption, and nothing more. They are not a measurement of what this platform cost to run.
+
+\subsection{Threats to Validity}
+\label{subsec:threats}
+
+The test environment is a single node, so horizontal scalability was exercised through multiple replicas and autoscaling on one machine rather than across a cluster. Near-linear scaling was not tested. No p99 under load, peak throughput, or saturation point was measured. Drift rests on one controlled injection on one feature. Every number comes from a single run, with no repetitions and no variance reported. The platform was not benchmarked against a managed stack or any alternative, so the cost comparison contrasts hypothetical provisioning options rather than measured systems. Domain independence is argued from the separation between platform and use-case code and has not been demonstrated on a second use case.

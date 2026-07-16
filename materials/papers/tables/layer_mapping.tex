@@ -1,0 +1,23 @@
+% Nine layers, evidence, selected components
+
+\begin{table*}[!t]
+\caption{Platform Layers, Their Evidence Base, and the Components Selected for Each}
+\label{tab:layer_mapping}
+\centering
+\footnotesize
+\begin{tabular}{@{}p{3.0cm}p{5.4cm}p{1.5cm}p{5.6cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{Recurring services named by the sources} & \textbf{Sources} & \textbf{Selected open source components} \\
+\midrule
+Orchestration and Infrastructure & model training infrastructure, infrastructure and supporting services & \cite{kreuzberger2023mlops}, \cite{najafabadi2024analysis}, \cite{googlecloud2024mlops} & k3s, HPA, VPA recommender, KEDA, Kueue, cert-manager \\
+Data Ingestion and Processing & data collection, data cleaning, data preprocessor, data ingestion & \cite{amershi2019software}, \cite{najafabadi2024analysis}, \cite{munappy2020adhoc} & Kafka with Strimzi, Karapace, Debezium, Flink, Spark, dbt, Airflow, Trino \\
+Data Storage & dataset repository, data storage, data versioning & \cite{najafabadi2024analysis}, \cite{munappy2020adhoc} & MinIO, Apache Iceberg, Lakekeeper, lakeFS, ClickHouse, PostgreSQL, MySQL, OpenSearch \\
+Feature Service & feature store, offline and online serving & \cite{kreuzberger2023mlops}, \cite{googlecloud2024mlops}, \cite{najafabadi2024analysis} & Feast, ClickHouse offline, Valkey online, Qdrant on a separate index outside the Feast contract \\
+Model Lifecycle & model training, model evaluation, model registry, ML metadata store, inference service & \cite{kreuzberger2023mlops}, \cite{amershi2019software}, \cite{googlecloud2024mlops}, \cite{najafabadi2024analysis} & Kubeflow Pipelines, Katib, Kubeflow Trainer, MLflow, KServe, Knative, Argo Workflows \\
+Data Governance & data testing, controlled access, privacy and data integrity protection & \cite{munappy2020adhoc} & DataHub, OpenLineage, Great Expectations \\
+Observability & monitoring component, model monitoring, data monitoring & \cite{kreuzberger2023mlops}, \cite{amershi2019software}, \cite{najafabadi2024analysis}, \cite{munappy2020adhoc} & Prometheus, Loki, Grafana Tempo, Grafana, OpenTelemetry, Evidently, OpenCost \\
+GitOps and Continuous Delivery & CI/CD component, source code repository, deployment services & \cite{kreuzberger2023mlops}, \cite{googlecloud2024mlops}, \cite{najafabadi2024analysis} & Argo CD, Gitea, Tekton, Argo Rollouts \\
+Security & controlled access, privacy and data security compliance, API gateway & \cite{munappy2020adhoc}, \cite{najafabadi2024analysis} & Istio, APISIX, dex, oauth2-proxy, SpiceDB, OpenBao, Kyverno, Falco \\
+\bottomrule
+\end{tabular}
+\end{table*}

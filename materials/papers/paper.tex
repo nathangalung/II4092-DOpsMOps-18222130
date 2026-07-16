@@ -1,0 +1,48 @@
+% IEEE conference paper root
+% Build with pdflatex, not xelatex
+% See README for engine rationale
+\documentclass[conference]{IEEEtran}
+
+% cite.sty, never biblatex
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage{booktabs}
+
+% Break long reference URLs
+\Urlmuskip=0mu plus 1mu\relax
+\makeatletter
+\g@addto@macro\UrlBreaks{\do\-}
+\makeatother
+
+% Double-column float placement
+\usepackage{dblfloatfix}
+
+\begin{document}
+
+\title{Development of an Integrated DataOps and MLOps\\Platform Architecture on Kubernetes\\Using Open Source Tools}
+
+\author{\IEEEauthorblockN{Bryan P. Hutagalung}
+\IEEEauthorblockA{\textit{Information Systems and Technology} \\
+\textit{School of Electrical Engineering and Informatics} \\
+\textit{Institut Teknologi Bandung} \\
+Bandung, Indonesia \\
+18222130@std.stei.itb.ac.id}}
+
+\maketitle
+
+\input{sections/00_abstract.tex}
+\input{sections/01_introduction.tex}
+\input{sections/02_related_work.tex}
+\input{sections/03_method.tex}
+\input{sections/04_architecture.tex}
+\input{sections/05_implementation.tex}
+\input{sections/06_evaluation.tex}
+\input{sections/07_conclusion.tex}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

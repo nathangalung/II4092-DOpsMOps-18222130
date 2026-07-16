@@ -1,0 +1,14 @@
+% Problem, pressures, contribution
+
+\section{Introduction}
+\label{sec:introduction}
+
+DataOps improves the quality and speed of the data flow, while MLOps improves the reliability of the model lifecycle. Teams generally need both. In practice the two grow apart, because the model code is only a small part of a production machine learning system and most of the surrounding work is data management, configuration, monitoring, and serving \cite{sculley2015hidden}. When the two disciplines are operated separately, lineage, drift detection, and feature serving end up inconsistent across the cycle.
+
+Building the combined platform in-house runs into the breadth of the choice space. A systematic mapping of 43 primary studies identifies 35 recurring MLOps architecture components \cite{najafabadi2024analysis}, and open source components in this space tend to stand alone rather than form a cohesive framework \cite{burgueno2025toward}. Integration work, learning curve, and version alignment therefore fall on the adopting team from the start.
+
+The alternative is to subscribe to managed services, which reduces configuration work but introduces recurring cost that is hard to estimate in advance and can become uneconomical as load grows \cite{hamza2024serverlesscost}. Organisations are left choosing between a long build and a subscription with limited room for customisation.
+
+Neither choice removes the integration work between the ingestion, feature, training, and serving layers. Integration is then reassembled per project, and metadata, identity, and lineage are managed separately, so provenance is hard to trace and feature values can differ between training and serving. Surveys of deployment practice report pipeline maintenance and inter-component integration as recurring difficulties \cite{paleyes2022challenges}.
+
+This paper develops an integrated DataOps and MLOps platform architecture on Kubernetes built from open source tools. The architecture combines four properties that prior work has addressed separately, namely DataOps and MLOps unified on one Kubernetes control plane, data governance enforced automatically along the production pipeline, drift detection that triggers retraining through that same declarative control, and a dual-store feature service under one contract with vector search alongside it on a separate index. No individual element is new. The contribution is the combination, which the designs reviewed in Section~\ref{sec:related_work} do not cover together.
