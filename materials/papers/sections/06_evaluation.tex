@@ -10,7 +10,7 @@
 
 Claims are reported at three tiers, each naming what was actually observed. A requirement is \emph{structurally verified} when the control plane is formed and reconciled as designed. It is \emph{functionally verified} when a test scenario ran and its output met the acceptance criterion. It is \emph{instrumented} when the measuring instrument is installed and the flow is serving requests, while the quantitative target itself was not measured.
 
-Every scenario was run manually, outside the reconciliation path, from a separate namespace, so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution.
+Every scenario was run manually, outside the reconciliation path, and the load generator ran from a separate namespace, so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution.
 
 \subsection{Results}
 \label{subsec:results}
@@ -26,7 +26,7 @@ The feature service (T-4) is the weakest of the four. The online, offline, and v
 \subsection{Cost}
 \label{subsec:cost}
 
-Three provisioning options were priced against a reference capacity of 16 vCPU, 64 GB memory, and roughly 400 GB storage. Infrastructure figures are public list prices retrieved on 16 June 2026. Over three years, fully managed cloud services reach USD 39,543.16 and building every layer from scratch on self-managed infrastructure reaches USD 45,461.16, against USD 23,239.22 for the open source design used here.
+Three provisioning options were priced against a reference capacity of 16 vCPU, 64 GB memory, and roughly 400 GB storage. Infrastructure figures are public list prices retrieved in June 2026, with two providers priced in July where the June archive carried no figure. Over three years, fully managed cloud services reach USD 39,543.16 and building every layer from scratch on self-managed infrastructure reaches USD 45,461.16, against USD 23,239.22 for the open source design used here.
 
 The labour allocation behind those totals is an illustrative assumption rather than a measurement. The open source option is credited with dropping to a quarter of a full-time engineer after the first year on the argument that reconciliation, unified monitoring, and automated retraining absorb daily operations. The figures therefore show which option is cheaper under that assumption, and nothing more. They are not a measurement of what this platform cost to run.
 

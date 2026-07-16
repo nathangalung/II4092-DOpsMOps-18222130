@@ -14,7 +14,7 @@ The occurrence counts carry less weight than they suggest, because no single com
 
 On the data side, Munappy et al. derive an evolution model from ad-hoc analytics to DataOps from an industrial case study, naming data collection, data testing, and data monitoring as recurring practices, and treating controlled access and data-integrity protection as governance \cite{munappy2020adhoc}. The data field therefore widens the MLOps set rather than duplicating it. It is the convergence across these five sources of differing method that forms the evidence base, not a claim that any one component is used by most of the industry.
 
-Consolidating both sides gives the nine layers in Table~\ref{tab:layer_mapping}. Four cover the data domain and five cover the model domain and platform operations. Each row traces to the sources that name its services, which also exposes an uneven evidence base. The Model Lifecycle layer rests on four MLOps sources, whereas the Data Governance layer rests on the single DataOps source alone. A reader can therefore weigh each layer against its backing.
+Consolidating both sides gives the nine layers in Table~\ref{tab:layer_mapping}. Four cover the data domain and five cover the model domain and platform operations. Each row traces to the sources that name its services, and the backing is not even across rows. The Model Lifecycle layer is named by four sources at once, whereas the Security layer draws mainly on the security governance dimension of the DataOps side. Table~\ref{tab:layer_mapping} leaves that difference visible instead of levelling it.
 
 Two boundaries are deliberate. Monitoring is placed in Observability rather than in Serving, so that measurement does not mix with inference. Drift detection is not a tenth layer. It is a mechanism that crosses layers, connecting the monitoring function to the model lifecycle, and it is realised as a sub-system instead.
 
@@ -23,14 +23,14 @@ The layer order follows the concept order of the underlying literature study one
 \subsection{Selecting Components}
 \label{subsec:selection}
 
-Every role with more than one viable candidate is scored in a comparison matrix. Four criteria are scored 0, 1, or 2, giving a maximum total of 8. A score of 0 marks a criterion that is not met, 1 marks partial support that still needs an additional component or carries a significant limitation, and 2 marks full support by built-in capability. Scores are derived from official documentation and each project's maintenance status. Twenty-four matrices cover the roles across the nine layers, and their winners appear in the last column of Table~\ref{tab:layer_mapping} alongside the components adopted without a contest. Eighteen of the 24 winners take a perfect 8.
+Every role with more than one viable candidate is scored in a comparison matrix. Each matrix scores four criteria chosen for that role, so the set is not fixed across matrices. Maturity, community size, and Kubernetes integration recur most often, while the rest are role-specific, such as batch and streaming capability for processing engines or footprint for Kubernetes distributions. Each criterion scores 0, 1, or 2, giving a maximum total of 8. A score of 0 marks a criterion that is not met, 1 marks partial support that still needs an additional component or carries a significant limitation, and 2 marks full support by built-in capability. Scores are derived from official documentation and each project's maintenance status. Twenty-four matrices cover the roles across the nine layers, and their winners appear in the last column of Table~\ref{tab:layer_mapping} alongside the components adopted without a contest. Nineteen of the 24 winners take a perfect 8.
 
 The highest total takes the role, but it does not remove the other candidates. A tool with a lower total can still be adopted where it is stronger on the criterion that matters. Spark takes the highest total and the large-scale batch role, while Flink, which scores lower overall but higher on event-time processing with exactly-once checkpointing, takes the streaming role. Neither displaces the other. Kubeflow Pipelines takes the training flow, Argo Workflows runs the scheduled control loop, and Airflow orchestrates the batch data pipeline. The three roles do not overlap.
 
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{figures/DataOps_MLOps_Flow.png}
-\caption{Integrated service architecture across the nine layers on one Kubernetes control plane, drawn without binding to any tool \cite{googlecloud2024mlops}}
+\caption{Integrated service architecture on a shared Kubernetes control plane, drawn without binding to any tool \cite{googlecloud2024mlops}}
 \label{fig:architecture}
 \end{figure*}
 

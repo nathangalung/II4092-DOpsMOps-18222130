@@ -3,7 +3,9 @@
 \section{Method}
 \label{sec:method}
 
-The work follows Design Science Research Methodology \cite{peffers2007dsrm}. The main output is a running platform, which is an instantiation artifact in the design science taxonomy \cite{hevner2004design}, so an artifact-oriented framework fits better than a pure software engineering process. CRISP-DM and TDSP were considered and set aside, because both organise the building of one model on one data domain, whereas the output here is a cross-domain platform on which a model is only one of the workloads served.
+The work follows Design Science Research Methodology \cite{peffers2007dsrm}. The main output is a running platform, which is an instantiation artifact in the design science taxonomy \cite{hevner2004design}, so an artifact-oriented framework fits better than a pure software engineering process.
+
+The architecture targets MLOps level 2 on the Google Cloud maturity scale \cite{googlecloud2024mlops}, whose seven required components the layers of Section~\ref{subsec:layers} cover. Practice that keeps the two disciplines apart, as described in Section~\ref{sec:introduction}, sits at level 0 on the same scale. Level 2 is what demands the closed CI, CD, and continuous training loop that Sections~\ref{subsec:bridges} and~\ref{subsec:drift} assemble. Whether that loop performs at level 2 under production load is not claimed here.
 
 The six phases run iteratively. Problem identification produces four problem statements from a study of DataOps, MLOps, and data governance. Objective definition turns each statement into an artifact that can be installed, operated, and audited, giving four objectives mapped one to one onto the problem statements.
 
