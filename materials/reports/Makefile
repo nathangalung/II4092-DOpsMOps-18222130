@@ -5,6 +5,12 @@
 DOC = report
 BUILD_DIR = build
 
+# \today resolves from the build machine's clock. This document is dated
+# "Bandung, ..." on the pengesahan and pernyataan sheets, so it must resolve in
+# WIB regardless of where it is built (CI and containers usually run UTC, which
+# backdates the document by a day for any build after 17:00 WIB).
+export TZ = Asia/Jakarta
+
 # Source directories
 FRONTMATTER_DIR = frontmatter
 CHAPTERS_DIR = chapters
