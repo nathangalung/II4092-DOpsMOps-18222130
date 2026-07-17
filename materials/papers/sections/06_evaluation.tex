@@ -10,7 +10,7 @@
 
 Claims are reported at three tiers, each naming what was actually observed. A requirement is \emph{structurally verified} when the control plane is formed and reconciled as designed. It is \emph{functionally verified} when a test scenario runs and its output meets the acceptance criterion. It is \emph{instrumented} when the measuring instrument is installed and the flow serves requests, while the quantitative target itself remains unmeasured.
 
-Every scenario was run manually, outside the reconciliation path, and the load generator ran from a separate namespace, so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution. The full requirement list appears in the accompanying project report.
+Every scenario was run manually, outside the reconciliation path, and the load generator ran from a separate namespace, so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution. The full requirement list appears in the accompanying project report, together with a re-runnable test scenario and a stated acceptance criterion for each of the 26 requirements.
 
 \subsection{Results}
 \label{subsec:results}
@@ -26,7 +26,9 @@ The feature service is the weakest of the four. The online, offline, and vector 
 \subsection{Cost}
 \label{subsec:cost}
 
-Three provisioning options were priced against a reference capacity of 16 vCPU, 64 GB memory, and roughly 400 GB storage. Infrastructure figures are public list prices retrieved in June 2026, with two providers priced in July where the June archive carried no figure. Over three years, fully managed cloud services reach USD 39,543.16 and building every layer from scratch on self-managed infrastructure reaches USD 45,461.16, against USD 23,239.22 for the open source design used here.
+\input{tables/cost_options.tex}
+
+The cost comparison priced three provisioning options against a reference capacity of 16 vCPU, 64 GB memory, and roughly 400 GB storage. Infrastructure figures are public list prices retrieved in June 2026, with two providers priced in July where the June archive carried no figure. Table~\ref{tab:cost} gives the cumulative totals, and the open source design used here is the cheapest of the three.
 
 The labour allocation behind those totals is an illustrative assumption rather than a measurement. The open source option is credited with dropping to a quarter of a full-time engineer after the first month on the argument that reconciliation, unified monitoring, and automated retraining absorb daily operations. The figures therefore show which option is cheaper under that assumption, and nothing more. They are not a measurement of what this platform cost to run.
 
