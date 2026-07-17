@@ -35,7 +35,7 @@ D.~Sculley, G.~Holt, D.~Golovin, E.~Davydov, T.~Phillips, D.~Ebner,
 \bibitem{najafabadi2024analysis}
 \BIBentryALTinterwordspacing
 F.~Amou~Najafabadi, J.~Bogner, I.~Gerostathopoulos, and P.~Lago, ``An analysis
-  of mlops architectures: A systematic mapping study,'' in \emph{Software
+  of {MLOps} architectures: A systematic mapping study,'' in \emph{Software
   Architecture: 18th European Conference, ECSA 2024, Luxembourg City,
   Luxembourg, 3--6 September 2024, Proceedings}, ser. Lecture Notes in Computer
   Science, vol. 14889.\hskip 1em plus 0.5em minus 0.4em\relax Springer, 2024,
@@ -46,7 +46,7 @@ F.~Amou~Najafabadi, J.~Bogner, I.~Gerostathopoulos, and P.~Lago, ``An analysis
 \bibitem{burgueno2025toward}
 \BIBentryALTinterwordspacing
 A.~M. Burgueño-Romero, A.~Benítez-Hidalgo, C.~Barba-González, and J.~F.
-  Aldana-Montes, ``Toward an open source mlops architecture,'' \emph{IEEE
+  Aldana-Montes, ``Toward an open source {MLOps} architecture,'' \emph{IEEE
   Software}, vol.~42, no.~1, pp. 59--64, 2025. [Online]. Available:
   \url{https://doi.org/10.1109/MS.2024.3421675}
 \BIBentrySTDinterwordspacing
@@ -72,7 +72,7 @@ A.~Paleyes, R.-G. Urma, and N.~D. Lawrence, ``Challenges in deploying machine
 \bibitem{kreuzberger2023mlops}
 \BIBentryALTinterwordspacing
 D.~Kreuzberger, N.~Kühl, and S.~Hirschl, ``Machine learning operations
-  (mlops): Overview, definition, and architecture,'' \emph{IEEE Access},
+  ({MLOps}): Overview, definition, and architecture,'' \emph{IEEE Access},
   vol.~11, pp. 31\,866--31\,879, 2023. [Online]. Available:
   \url{https://doi.org/10.1109/ACCESS.2023.3262138}
 \BIBentrySTDinterwordspacing
@@ -80,15 +80,15 @@ D.~Kreuzberger, N.~Kühl, and S.~Hirschl, ``Machine learning operations
 \bibitem{munappy2020adhoc}
 \BIBentryALTinterwordspacing
 A.~R. Munappy, D.~I. Mattos, J.~Bosch, H.~H. Olsson, and A.~Dakkak, ``From
-  ad-hoc data analytics to dataops,'' in \emph{Proceedings of the International
-  Conference on Software and System Processes (ICSSP '20)}.\hskip 1em plus
-  0.5em minus 0.4em\relax ACM, 2020, pp. 165--174. [Online]. Available:
-  \url{https://doi.org/10.1145/3379177.3388909}
+  ad-hoc data analytics to {DataOps},'' in \emph{Proceedings of the
+  International Conference on Software and System Processes (ICSSP '20)}.\hskip
+  1em plus 0.5em minus 0.4em\relax ACM, 2020, pp. 165--174. [Online].
+  Available: \url{https://doi.org/10.1145/3379177.3388909}
 \BIBentrySTDinterwordspacing
 
 \bibitem{rodrigues2025architecture}
 \BIBentryALTinterwordspacing
-M.~G. Rodrigues, E.~K. Viegas, A.~O. Santin, and F.~Enembreck, ``A mlops
+M.~G. Rodrigues, E.~K. Viegas, A.~O. Santin, and F.~Enembreck, ``A {MLOps}
   architecture for near real-time distributed stream learning operation
   deployment,'' \emph{Journal of Network and Computer Applications}, vol. 238,
   p. 104169, 2025. [Online]. Available:
@@ -97,7 +97,7 @@ M.~G. Rodrigues, E.~K. Viegas, A.~O. Santin, and F.~Enembreck, ``A mlops
 
 \bibitem{ahmad2024mlops}
 \BIBentryALTinterwordspacing
-T.~Ahmad, M.~Adnan, S.~Rafi, M.~A. Akbar, and A.~Anwar, ``Mlops-enabled
+T.~Ahmad, M.~Adnan, S.~Rafi, M.~A. Akbar, and A.~Anwar, ``{MLOps}-enabled
   security strategies for next-generation operational technologies,'' in
   \emph{Proceedings of the 28th International Conference on Evaluation and
   Assessment in Software Engineering (EASE 2024)}, 2024, pp. 662--670.
@@ -121,7 +121,7 @@ A.~R. Hevner, S.~T. March, J.~Park, and S.~Ram, ``Design science in information
 
 \bibitem{googlecloud2024mlops}
 \BIBentryALTinterwordspacing
-{Google Cloud}, ``Mlops: Continuous delivery and automation pipelines in
+{Google Cloud}, ``{MLOps}: Continuous delivery and automation pipelines in
   machine learning,'' Cloud Architecture Center, 2024, accessed: Mar. 18, 2026.
   [Online]. Available:
   \url{https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning}
@@ -131,7 +131,7 @@ A.~R. Hevner, S.~T. March, J.~Park, and S.~Ram, ``Design science in information
 \BIBentryALTinterwordspacing
 S.~Amershi, A.~Begel, C.~Bird, R.~DeLine, H.~Gall, E.~Kamar, N.~Nagappan,
   B.~Nushi, and T.~Zimmermann, ``Software engineering for machine learning: A
-  case study,'' in \emph{2019 IEEE/ACM 41st International Conference on
+  case study,'' in \emph{2019 {IEEE/ACM} 41st International Conference on
   Software Engineering: Software Engineering in Practice (ICSE-SEIP)}.\hskip
   1em plus 0.5em minus 0.4em\relax IEEE, 2019, pp. 291--300. [Online].
   Available: \url{https://doi.org/10.1109/ICSE-SEIP.2019.00042}
@@ -140,7 +140,7 @@ S.~Amershi, A.~Begel, C.~Bird, R.~DeLine, H.~Gall, E.~Kamar, N.~Nagappan,
 \bibitem{reis2016kdd}
 \BIBentryALTinterwordspacing
 D.~M.~d. Reis, P.~Flach, S.~Matwin, and G.~Batista, ``Fast unsupervised online
-  drift detection using incremental kolmogorov-smirnov test,'' in
+  drift detection using incremental {Kolmogorov-Smirnov} test,'' in
   \emph{Proceedings of the 22nd ACM SIGKDD International Conference on
   Knowledge Discovery and Data Mining}.\hskip 1em plus 0.5em minus 0.4em\relax
   ACM, 2016, pp. 1545--1554. [Online]. Available:
@@ -163,16 +163,16 @@ S.~Kaufman, S.~Rosset, C.~Perlich, and O.~Stitelman, ``Leakage in data mining:
 
 \bibitem{kubernetes2024}
 \BIBentryALTinterwordspacing
-{Cloud Native Computing Foundation}, ``Kubernetes documentation,'' 2024,
+{Cloud Native Computing Foundation}, ``{Kubernetes} documentation,'' 2024,
   accessed: Mar. 11, 2026. [Online]. Available:
   \url{https://kubernetes.io/docs/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{limoncelli2022gitops}
 \BIBentryALTinterwordspacing
-T.~Limoncelli, ``Gitops: A path to more self-service it,'' \emph{Communications
-  of the ACM}, vol.~61, no.~9, pp. 38--42, 2018. [Online]. Available:
-  \url{https://dl.acm.org/doi/10.1145/3233241}
+T.~Limoncelli, ``{GitOps}: A path to more self-service {IT},''
+  \emph{Communications of the ACM}, vol.~61, no.~9, pp. 38--42, 2018. [Online].
+  Available: \url{https://dl.acm.org/doi/10.1145/3233241}
 \BIBentrySTDinterwordspacing
 
 \bibitem{makarov2020trading}
@@ -184,7 +184,7 @@ I.~Makarov and A.~Schoar, ``Trading and arbitrage in cryptocurrency markets,''
 
 \bibitem{katsiampa2017volatility}
 \BIBentryALTinterwordspacing
-P.~Katsiampa, ``Volatility estimation for bitcoin: A comparison of garch
+P.~Katsiampa, ``Volatility estimation for {Bitcoin}: A comparison of {GARCH}
   models,'' \emph{Economics Letters}, vol. 158, pp. 3--6, 2017. [Online].
   Available: \url{https://doi.org/10.1016/j.econlet.2017.06.023}
 \BIBentrySTDinterwordspacing

@@ -16,13 +16,15 @@ $(DOC).pdf: $(DEPS)
 	pdflatex -interaction=nonstopmode $(DOC).tex
 	pdflatex -interaction=nonstopmode $(DOC).tex
 
-# Fails loudly on any gate breach
+# All counts must be 0, pages exactly 6
 check: $(DOC).pdf
-	@echo "errors:    $$(grep -c '^!' $(DOC).log || true)"
-	@echo "Overfull:  $$(grep -c 'Overfull' $(DOC).log || true)"
-	@echo "undef ref: $$(grep -c 'LaTeX Warning: Reference' $(DOC).log || true)"
-	@echo "undef cit: $$(grep -c 'LaTeX Warning: Citation' $(DOC).log || true)"
-	@echo "pages:     $$(pdfinfo $(DOC).pdf | awk '/^Pages/{print $$2}')"
+	@echo "errors:    $$(grep -c '^!' $(DOC).log || true)   (expect 0)"
+	@echo "Overfull:  $$(grep -c 'Overfull' $(DOC).log || true)   (expect 0)"
+	@echo "Underfull: $$(grep -c 'Underfull' $(DOC).log || true)   (expect 0)"
+	@echo "warnings:  $$(grep -cE 'LaTeX Warning|Font Warning|Package [a-z0-9]+ Warning|pdfTeX warning' $(DOC).log || true)   (expect 0)"
+	@echo "undef ref: $$(grep -c 'LaTeX Warning: Reference' $(DOC).log || true)   (expect 0)"
+	@echo "undef cit: $$(grep -c 'LaTeX Warning: Citation' $(DOC).log || true)   (expect 0)"
+	@echo "pages:     $$(pdfinfo $(DOC).pdf | awk '/^Pages/{print $$2}')   (expect 6)"
 
 clean:
 	rm -f $(DOC).aux $(DOC).log $(DOC).out $(DOC).bbl $(DOC).blg $(DOC).spl

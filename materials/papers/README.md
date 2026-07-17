@@ -64,15 +64,27 @@ sections/               one file per section
   00_abstract.tex       abstract and index terms
   01_introduction.tex   problem, pressures, contribution
   02_related_work.tex   four prior works and the gap
-  03_method.tex         DSRM phases, objectives T-1 to T-4
-  04_architecture.tex   layer derivation, selection, bridges, sub-systems
+  03_method.tex         DSRM phases, four objectives
+  04_architecture.tex   layer derivation, selection, bridges, subsystems
   05_implementation.tex environment, GitOps pattern, use case
   06_evaluation.tex     tiers, results, cost, threats
   07_conclusion.tex     findings and next steps
 tables/                 one file per table
-figures/                DataOps_MLOps_Flow.png, copied from ../reports/figures/
+figures/                DataOps_MLOps_Flow.png, from ../reports/figures/, flattened here
 references.bib          only the 20 entries actually cited
 ```
+
+## Figure
+
+The architecture figure spans both columns as a `figure*` at `width=\textwidth`. A single column shrinks its node labels to about 3.2 pt, which is unreadable in print, so the two-column form is deliberate.
+
+The PNG is 1588 by 816 pixels, about 222 ppi at text width. The eraser.io export carried an alpha channel with a transparent background; pdflatex embeds that as an image plus a soft mask, which IEEE PDF checkers flag. The copy here is flattened onto white, plain RGB, no mask, visually identical. For sharper print, re-export `../reports/diagrams/DataOps_MLOps_Flow.eraser` at twice the scale, replace the PNG, and reflatten.
+
+## Template compliance
+
+Checked against the official IEEE conference template, version of June 2024. Author block follows the template shape: one italic department line, one italic organization line, city and country, email. Labels such as T-1 were removed from the body, objectives are named descriptively. Abbreviations are spelled out at first use, prefixes non and sub are joined, the figure caption ends with a period, table captions do not, index terms are alphabetical, every decimal carries a leading zero.
+
+Deliberate deviations from the template: `booktabs` tables instead of fully ruled ones, `url` for reference line breaking, `array` for ragged right table cells, which is what removes underfull boxes inside narrow columns. `algorithmic` and `xcolor` are omitted because the template only uses them for algorithm listings and its own guidance text. `dblfloatfix` was tried and removed, both double-column floats sit at page tops, which needs no package.
 
 ## Bibliography scope
 
@@ -80,7 +92,7 @@ The thesis `.bib` holds 164 entries, 108 of them `@misc` and 78 of those tool do
 
 ## What the paper claims
 
-The contribution is the conjunction of four properties, matching objectives T-1 to T-4. No individual element is claimed as new.
+The contribution is the conjunction of four properties, matching the four objectives. No individual element is claimed as new.
 
 The thesis states its novelty twice with two different triads, in Bab 2 and Bab 3. Each is a three-of-four selection from the same four objectives. The paper states all four, which is traceable to both and invents nothing.
 
