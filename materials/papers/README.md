@@ -80,6 +80,10 @@ The architecture figure spans both columns as a `figure*` at `width=\textwidth`.
 
 The PNG is 1588 by 816 pixels, about 222 ppi at text width. The eraser.io export carried an alpha channel with a transparent background; pdflatex embeds that as an image plus a soft mask, which IEEE PDF checkers flag. The copy here is flattened onto white, plain RGB, no mask, visually identical. For sharper print, re-export `../reports/diagrams/DataOps_MLOps_Flow.eraser` at twice the scale, replace the PNG, and reflatten.
 
+## Page numbers
+
+Pages carry a bottom center number through `\pagestyle{plain}`, which is the IEEE manuscript convention for drafts and review copies. IEEE camera-ready conference papers omit page numbers because the proceedings paginate. Before a camera-ready submission, delete the two pagestyle lines after `\maketitle` in `paper.tex`.
+
 ## Template compliance
 
 Checked against the official IEEE conference template, version of June 2024. Author block follows the template shape: one italic department line, one italic organization line, city and country, email. Labels such as T-1 were removed from the body, objectives are named descriptively. Abbreviations are spelled out at first use, prefixes non and sub are joined, the figure caption ends with a period, table captions do not, index terms are alphabetical, every decimal carries a leading zero.
