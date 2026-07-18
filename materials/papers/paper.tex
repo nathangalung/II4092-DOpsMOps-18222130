@@ -19,6 +19,21 @@
 \g@addto@macro\UrlBreaks{\do\-}
 \makeatother
 
+% Center multi-line figure captions
+\makeatletter
+\long\def\@makecaption#1#2{%
+\ifx\@captype\@IEEEtablestring%
+\footnotesize\bgroup\par\centering\@IEEEtabletopskipstrut{\normalfont\footnotesize #1}\\{\normalfont\footnotesize\scshape #2}\par\addvspace{0.5\baselineskip}\egroup%
+\@IEEEtablecaptionsepspace
+\else
+\@IEEEfigurecaptionsepspace
+\setbox\@tempboxa\hbox{\normalfont\footnotesize {#1.}\nobreakspace\nobreakspace #2}%
+\ifdim \wd\@tempboxa >\hsize%
+\parbox[t]{\hsize}{\normalfont\footnotesize\centering {#1.}\nobreakspace\nobreakspace #2\par}%
+\else%
+\hbox to\hsize{\normalfont\footnotesize\hfil\box\@tempboxa\hfil}%
+\fi\fi}
+\makeatother
 
 \begin{document}
 
