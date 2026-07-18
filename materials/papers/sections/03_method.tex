@@ -11,11 +11,11 @@
 \label{fig:architecture}
 \end{figure*}
 
-The work follows Design Science Research Methodology \cite{peffers2007dsrm}. The main output is a running platform, which is an instantiation artifact in the design science taxonomy \cite{hevner2004design}, so an artifact-oriented framework fits better than a pure software engineering process.
+The work follows Design Science Research Methodology \cite{peffers2007dsrm} because the main output is a running platform, an instantiation artifact in the design science taxonomy \cite{hevner2004design} that an artifact-oriented framework fits better than a pure software engineering process.
 
 The architecture targets MLOps level 2 on the Google Cloud maturity scale \cite{googlecloud2024mlops}, whose seven required components the layers of Section~\ref{subsec:layers} cover. The fragmented practice of Fig.~\ref{fig:fragmented-flows} sits at level 0 on the same scale. Level 2 is what demands the closed loop of continuous integration, continuous delivery, and continuous training that Sections~\ref{subsec:bridges} and~\ref{subsec:drift} assemble.
 
-The six phases run iteratively. Problem identification produces four problem statements from a study of DataOps, MLOps, and data governance. Objective definition turns each statement into an artifact that can be installed, operated, and audited, giving four objectives.
+The six phases run iteratively. Problem identification produces four problem statements from a study of DataOps, MLOps, and data governance, and objective definition turns each statement into an artifact that can be installed, operated, and audited, giving four objectives.
 
 The first objective unifies ingestion, processing, storage, feature store, training, serving, governance, and observability into one declarative control plane with GitOps practice. The second builds a data governance subsystem providing a metadata catalog, lineage recording, and quality control as shared services along the pipeline. The third implements automated drift detection with a threshold-based retraining policy, and enforces point-in-time correctness across batch and streaming modes through the historical feature join. The fourth develops a dual-store feature service delivering tabular and aggregate features under one API contract, with vector embeddings served on a separate index whose embedding space stays consistent between training and inference.
 

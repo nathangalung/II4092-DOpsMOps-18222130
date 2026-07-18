@@ -3,7 +3,7 @@
 \section{Implementation}
 \label{sec:implementation}
 
-The platform runs on k3s on a single node \cite{kubernetes2024}. The node count is an implementation choice, and moving to a multi-node cluster should change only the Kustomize overlay, though that move has not been performed. Library versions and base images are pinned to the highest stable release as of April 2026 so that testing is reproducible, and a component is intended to be replaceable by an equivalent without changing the design.
+The platform runs on k3s on a single node \cite{kubernetes2024}. The node count is an implementation choice, and moving to a multi-node cluster should change only the Kustomize overlay, a move not yet performed. Library versions and base images are pinned to the highest stable release as of April 2026 so that testing is reproducible, and a component is intended to be replaceable by an equivalent without changing the design.
 
 Components are grouped one namespace per layer and joined by stable API contracts, which lets network policy default to deny with declared exceptions. Argo CD is the only path by which change reaches the cluster \cite{limoncelli2022gitops}, with every component rendered from an ApplicationSet template so adding a component adds no boilerplate. Tekton builds and tests. Istio enforces mutual TLS in strict mode on internal traffic, Kyverno validates at admission, and Falco watches the kernel at runtime. The default is one idle replica per workload, with autoscaling templates prepared but not exercised under load.
 

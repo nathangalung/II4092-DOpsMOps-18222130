@@ -8,7 +8,7 @@
 \subsection{What Each Claim Rests On}
 \label{subsec:tiers}
 
-Claims are reported at three tiers naming what was actually observed. A requirement is \emph{structurally verified} when the control plane is formed and reconciled as designed. It is \emph{functionally verified} when a test scenario runs and its output meets the acceptance criterion. It is \emph{instrumented} when the measuring instrument is installed and the flow serves requests, while the quantitative target itself remains unmeasured.
+Claims are reported at three tiers naming what was actually observed. A requirement is \emph{structurally verified} when the control plane is formed and reconciled as designed. It is \emph{functionally verified} when a test scenario runs and its output meets the acceptance criterion. It is \emph{instrumented} when the measuring instrument is installed and the flow serves requests while the target itself remains unmeasured.
 
 Every scenario ran manually outside the reconciliation path, with the load generator in a separate namespace so that measurement did not disturb the pipeline under test. Table~\ref{tab:verification} gives the distribution. The accompanying project report lists all 26 requirements, each with a re-runnable test scenario and a stated acceptance criterion.
 
@@ -21,7 +21,7 @@ Governance contributed one of the two functional results. The quality gate rejec
 
 Drift detection contributed the other. A controlled 2-sigma injection on one feature produced a Population Stability Index of 18.107 against a 0.2 threshold and a Kolmogorov-Smirnov statistic of 0.815 against a 0.15 threshold, and the scheduled workflow triggered one retraining run. This shows the chain fires end to end, from detection to the retraining trigger, but not detection accuracy against natural distribution shift over time, which needs longer observation on real streams. The point-in-time join named in the same objective was verified structurally, and a probe with future timestamps confirmed it rejects rows that would leak.
 
-The feature service is the weakest of the four. The online, offline, and vector flows are formed and serving requests, but three of its five requirements are instrumented rather than measured. Vector search returned a median of 4.25 ms and a 95th percentile of 5.02 ms over 100 iterations, though the test collection was empty, so those figures describe an installed and responsive flow rather than retrieval quality. Recall was not tested. Equality of feature values between the online and offline stores holds by construction, since materialisation copies from one to the other, but the per-entity comparison confirming it is still manual. Batch and stream consistency was established at the level of feature definitions, not values.
+The feature service is the weakest of the four, with the online, offline, and vector flows formed and serving requests but three of its five requirements instrumented rather than measured. Vector search returned a median of 4.25 ms and a 95th percentile of 5.02 ms over 100 iterations, though the test collection was empty, so those figures describe an installed and responsive flow rather than retrieval quality, and recall was not tested. Equality of feature values between the online and offline stores holds by construction, since materialisation copies from one to the other, but the per-entity comparison confirming it is still manual. Batch and stream consistency was established at the level of feature definitions, not values.
 
 \subsection{Cost}
 \label{subsec:cost}
