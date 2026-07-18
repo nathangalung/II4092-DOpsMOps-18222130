@@ -3,10 +3,10 @@
 \section{Related Work}
 \label{sec:related_work}
 
-MLOps is defined as a combination of working culture and software that automates experimentation, training, evaluation, deployment, and monitoring \cite{kreuzberger2023mlops}. That definition frames what an integrated platform has to cover on the model side, and DataOps adds ingestion, quality, and governance on the data side \cite{munappy2020adhoc}.
+MLOps is defined as a combination of working culture and software that automates experimentation, training, evaluation, deployment, and monitoring \cite{kreuzberger2023mlops}. That definition frames the model side, and DataOps adds ingestion, quality, and governance on the data side \cite{munappy2020adhoc}.
 
 This work sits close to four studies. Burgue\~{n}o-Romero et al. propose an open source MLOps architecture assembled from components, but a feature service with vector support is not among them \cite{burgueno2025toward}. Amou Najafabadi et al. map MLOps architectures across 43 primary studies, but the mapping does not combine DataOps comprehensively \cite{najafabadi2024analysis}. Rodrigues et al. emphasise drift detection and model updating, and their architecture targets near real-time distributed stream learning, though data governance is not enforced as a control plane there \cite{rodrigues2025architecture}. Ahmad et al. discuss MLOps-enabled security strategies without linking them to a governance control plane that enforces access policy across the data and model lifecycle \cite{ahmad2024mlops}.
 
 Because each of these four studies addresses only part of the integration, feature lineage from ingestion through to model serving is hard to trace on one control plane.
 
-A second gap is more specific. Amou Najafabadi et al. observe that an explicit mapping between concrete tools and architecture components is still missing from the MLOps literature \cite{najafabadi2024analysis}. Section~\ref{sec:architecture} supplies that mapping for the open source case, with the scoring shown.
+A second gap is more specific. Amou Najafabadi et al. observe that an explicit mapping between concrete tools and architecture components is still missing from the MLOps literature \cite{najafabadi2024analysis}, and Section~\ref{sec:architecture} supplies that mapping for the open source case, with the scoring shown.
