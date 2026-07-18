@@ -1,0 +1,46 @@
+%! TEX program = xelatex
+% Standalone English abstract page
+% Mirrors frontmatter/05_Abstrak.tex layout
+% Build: xelatex abstract_en.tex (twice)
+\documentclass[12pt,a4paper,oneside]{book}
+
+\usepackage{fontspec}
+\usepackage{setspace}
+\usepackage[skip=12pt]{parskip}
+\usepackage{geometry}
+\geometry{
+      a4paper,
+      inner=4cm,
+      outer=3cm,
+      top=3cm,
+      bottom=3cm
+}
+\setmainfont{Times New Roman}
+\onehalfspacing
+\tolerance=2000
+\setlength{\emergencystretch}{3em}
+
+\begin{document}
+\pagestyle{empty}
+
+\begin{center}
+    {\large\bfseries ABSTRACT}
+\end{center}
+\vspace{20pt}
+
+\begin{center}
+    \textbf{Development of an Integrated DataOps and MLOps Platform Architecture on Kubernetes Using Open Source Tools} \\
+    \vspace{0.3cm}
+    by \\
+    \vspace{0.3cm}
+    Bryan P. Hutagalung\\
+    18222130\\
+\end{center}
+
+\begin{spacing}{1.0}
+Adopting DataOps and MLOps side by side still faces tool fragmentation and a separation of work between the data team and the machine learning team. DataOps strengthens the quality and speed of the data flow, while MLOps strengthens the reliability of the model lifecycle, yet the two often grow apart, so lineage, drift detection, and feature serving between batch and streaming modes stay inconsistent across the cycle. Subscribing to managed services cuts configuration work, but the operating cost is high and the platform becomes tied to one provider. Based on these problems, this research develops an integrated DataOps and MLOps platform architecture on Kubernetes using open source tools. Design Science Research Methodology (DSRM) is applied sequentially, from problem identification, artifact objective definition, and design, through GitOps-based implementation, to evaluation with a crypto asset market use case as the verification case because it operates continuously with a nonstationary data distribution. The resulting design unifies nine architecture layers on one control plane, from orchestration and infrastructure through security. The open source tools for each layer are selected through criteria-based scoring so that the architecture stays usable across domains and each tool can be replaced without changing the design. Evaluation results show all four platform objectives fulfilled functionally and structurally on a single-node environment, covering reconstruction of every component from one Git source, automated governance along the pipeline, retraining triggered by drift detection, and a dual-store feature service with a consistent contract between training and inference. A cost comparison of three provisioning options shows the open source design lowers long-term cost compared with managed services. Quantitative load characterisation on a multi-node cluster remains the direction for future work.
+
+Keywords: DataOps, MLOps, Kubernetes, Feature Store, Drift Detection, GitOps, Open Source.
+\end{spacing}
+
+\end{document}
